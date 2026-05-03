@@ -5,7 +5,7 @@
   "homepage": "https://docslit.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/gaurav-nelson/docslit-site.git"
+    "url": "https://github.com/UmbrellaDocs/docslit-cli.git"
   },
   "author": "Gaurav Nelson",
   "type": "module",
