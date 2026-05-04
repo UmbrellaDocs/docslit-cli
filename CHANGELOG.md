@@ -4,26 +4,33 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
-## 0.1.3 — May 2026
+## 0.1.4
+
+### What's new
+
+**Changelog** — docslit now ships with a changelog so you always know what's new and what changed between versions, written in plain language.
+
+**Component polish**
+- `wc-view-panel` — content inside tabbed panels now has correct padding and no longer touches the edges.
+- `wc-tree` — lines between items now connect properly using a monospace font and tightened row spacing.
+- `wc-files` — highlighted file names are now readable in light mode.
+- `wc-anchor` — fixed a layout bug where inline elements like `id` and code snippets were stacking vertically instead of flowing as text.
+
+**Security hardened** — Several security improvements were made under the hood: the local dev server now blocks attempts to read files outside your docs folder, and all page metadata is properly sanitised before being shown in the browser. Your auth token is also stored with restricted file permissions.
+
+**Shareable anchor links** — clicking any heading in the "On this page" sidebar now updates the browser address bar with the anchor fragment so you can copy and share a direct link to any section.
+
+---
+
+## 0.1.3
 
 ### What's new
 
 **Open source licence added** — docslit is now officially licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). Free for personal and open source projects. The docs you generate with docslit are always yours — the licence only applies to the tool itself.
 
-**Security hardened** — Several security improvements were made under the hood: the local dev server now blocks attempts to read files outside your docs folder, and all page metadata is properly sanitised before being shown in the browser. Your auth token is also stored with restricted file permissions so other users on the same machine can't read it.
-
-**Shareable heading links** — Clicking a heading in the "On this page" sidebar now updates the browser address bar with the anchor (e.g. `/quickstart#installation`). You can copy and share that URL and it will scroll directly to the right section.
-
-**Bug fixes in built-in components**
-- `wc-tree` / `wc-tree-item` — items were not rendering at all due to a template syntax error. Fixed.
-- `wc-anchor` — the `id` and `code` text inside paragraphs were displaying as stacked blocks instead of inline. Fixed.
-- `wc-view-panel` — content inside tabbed view panels was touching the left and right edges. Padding is now applied correctly.
-- `wc-files` highlighted file names are now readable in light mode.
-- `wc-tree` lines now connect visually by switching to a monospace font and removing the gap between rows.
-
 ---
 
-## 0.1.2 — Early 2026
+## 0.1.2
 
 ### What's new
 
@@ -39,7 +46,7 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
-## 0.1.1 — Early 2026
+## 0.1.1
 
 ### What's new
 
