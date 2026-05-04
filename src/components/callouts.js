@@ -5,8 +5,8 @@ export default `
 class WcCallout extends LitElement {
   static properties={type:{type:String},title:{type:String}};
   static styles=css\`
-    :host{display:block;margin:16px 0;min-width:0}
-    .wrap{display:flex;gap:14px;padding:16px 20px;border-radius:10px;border:1px solid;min-width:0}
+    :host{display:block;margin:0 0 16px;min-width:0}
+    .wrap{display:flex;gap:14px;padding:18px 22px;border-radius:10px;border:1px solid;min-width:0}
     .info{background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.3);color:#93c5fd}
     .warning{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:#fcd34d}
     .error{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#f87171}
@@ -28,7 +28,7 @@ customElements.define('wc-alert',class extends WcCallout{});
 class WcBanner extends LitElement {
   static properties={type:{type:String},dismissible:{type:Boolean},_gone:{type:Boolean,state:true}};
   static styles=css\`
-    :host{display:block;margin:0 0 16px}
+    :host{display:block;margin:0 0 12px}
     .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 20px;border-radius:8px;border:1px solid;font-family:'Inter',sans-serif;font-size:13px;line-height:1.6}
     .info{background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.3);color:#93c5fd}
     .warning{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3);color:#fcd34d}
@@ -83,7 +83,7 @@ customElements.define('wc-tooltip',WcTooltip);
 class WcUpdate extends LitElement {
   static properties={version:{type:String},type:{type:String},date:{type:String}};
   static styles=css\`
-    :host{display:block;margin:12px 0}
+    :host{display:block;margin:0 0 12px}
     .wrap{display:flex;align-items:flex-start;gap:14px;padding:14px 18px;border-radius:10px;border:1px solid #2a2a2a;background:#111}
     .badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:100px;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap;flex-shrink:0;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
     .added{background:rgba(16,185,129,.15);color:#34d399;border-color:rgba(16,185,129,.3)}

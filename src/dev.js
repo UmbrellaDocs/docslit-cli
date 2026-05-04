@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import fs from 'fs-extra';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
@@ -8,6 +9,8 @@ import pc from 'picocolors';
 import { loadConfig, getAllPageIds } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell } from './template.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function dev({ port = 3000 } = {}) {
   const cwd = process.cwd();
@@ -65,6 +68,9 @@ export async function dev({ port = 3000 } = {}) {
     const { meta, html } = parseDoc(raw);
     res.json({ id, meta, html });
   });
+
+  // Serve local Lit vendor bundles (no CDN requests)
+  app.use('/vendor', express.static(path.join(__dirname, 'vendor')));
 
   // Serve custom user components
   app.use('/components', express.static(path.join(cwd, 'components')));

@@ -92,7 +92,7 @@ customElements.define('wc-dir',WcDir);
 
 class WcFiles extends LitElement {
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 12px}
     .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;padding:12px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   \`;
   render(){return html\`<div class="wrap"><slot></slot></div>\`;}
@@ -123,7 +123,7 @@ customElements.define('wc-tree-item',WcTreeItem);
 
 class WcTree extends LitElement {
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;padding:12px 16px}
   \`;
   render(){return html\`<div class="wrap"><slot></slot></div>\`;}
@@ -134,7 +134,7 @@ customElements.define('wc-tree',WcTree);
 class WcDownload extends LitElement {
   static properties={href:{type:String},filename:{type:String},label:{type:String},size:{type:String}};
   static styles=css\`
-    :host{display:block;margin:12px 0}
+    :host{display:block;margin:0 0 12px}
     a{display:inline-flex;align-items:center;gap:10px;padding:10px 18px;background:#111;border:1px solid #2a2a2a;border-radius:8px;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:#e2e8f0;text-decoration:none;transition:all .15s}
     a:hover{border-color:#444;background:#161616}
     .dl-icon{width:16px;height:16px;opacity:.7;flex-shrink:0}

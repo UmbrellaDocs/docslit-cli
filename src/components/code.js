@@ -5,7 +5,7 @@ export default `
 class WcCodeBlock extends LitElement {
   static properties={language:{type:String},filename:{type:String},_code:{type:String,state:true}};
   static styles=css\`
-    :host{display:block;margin:16px 0;width:100%;box-sizing:border-box;max-width:100%}
+    :host{display:block;margin:0 0 16px;width:100%;box-sizing:border-box;max-width:100%}
     .wrap{background:#161616;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;width:100%;box-sizing:border-box}
     .header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#111;border-bottom:1px solid #2a2a2a;gap:8px;flex-wrap:wrap;width:100%;box-sizing:border-box}
     .filename{font-family:'JetBrains Mono',monospace;font-size:12px;color:#666;word-break:break-all;flex:1;min-width:0}
@@ -28,7 +28,7 @@ class WcCodeBlock extends LitElement {
   }
   render(){
     const code=this._code!==undefined?this._code:'';
-    const count=(code.match(/\n/g)||[]).length+1;
+    const count=(code.match(/\\n/g)||[]).length+1;
     const nums=Array.from({length:count},(_,i)=>html\`<span>\${i+1}</span>\`);
     return html\`<div class="wrap">
       \${(this.filename||this.language)?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span></div>\`:nothing}
@@ -42,13 +42,15 @@ customElements.define('wc-code-block',WcCodeBlock);
 class WcCodeGroup extends LitElement {
   static properties={_active:{type:Number,state:true}};
   static styles=css\`
-    :host{display:block;margin:16px 0;min-width:0;background:#161616;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden}
-    .tabbar{display:flex;background:#111;border-bottom:1px solid #2a2a2a;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:0}
+    :host{display:block;margin:0 0 16px;min-width:0;background:#161616;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden}
+    .tabbar{display:flex;background:#111;border-bottom:1px solid #2a2a2a;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:0;scrollbar-width:none}
+    .tabbar::-webkit-scrollbar{display:none}
     button{background:none;border:none;border-bottom:2px solid transparent;padding:9px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:#555;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-bottom:-1px;transition:all .15s}
     button.active{color:#4f98a3;border-bottom-color:#01696f;background:#161616}
     button:hover{color:#a0a0a0}
     .panel{display:none}.panel.active{display:block}
-    pre{margin:0;padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:#e2e8f0;max-width:100%;box-sizing:border-box}
+    pre{margin:0;padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:#e2e8f0;max-width:100%;box-sizing:border-box;scrollbar-width:none}
+    pre::-webkit-scrollbar{display:none}
     @media(max-width:640px){button{padding:7px 12px;font-size:11px;}pre{padding:10px 8px;font-size:12px;}}
   \`;
   constructor(){super();this._active=0;}

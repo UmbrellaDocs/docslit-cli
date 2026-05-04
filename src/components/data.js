@@ -25,7 +25,7 @@ customElements.define('wc-field',WcField);
 class WcFields extends LitElement {
   static properties={title:{type:String}};
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden}
     .header{padding:10px 16px;background:#161616;border-bottom:1px solid #2a2a2a;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:grid;grid-template-columns:1fr 1fr;gap:0}
     .body{padding:0 16px}
@@ -38,7 +38,7 @@ customElements.define('wc-fields',WcFields);
 // ── WC-RESPONSE-FIELDS ─────────────────────────────────────────────────────
 class WcResponseFields extends LitElement {
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden}
     .header{padding:10px 16px;background:#161616;border-bottom:1px solid #2a2a2a;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:grid;grid-template-columns:1fr 1fr}
     .body{padding:0 16px}
@@ -76,7 +76,7 @@ customElements.define('wc-color',WcColor);
 class WcTable extends LitElement {
   static properties={headers:{type:String},rows:{type:String}};
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #2a2a2a;border-radius:10px;background:#111}
     table{width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;font-size:14px}
     thead{position:sticky;top:0;z-index:1}
@@ -100,7 +100,7 @@ customElements.define('wc-table',WcTable);
 class WcSchema extends LitElement {
   static properties={type:{type:String},description:{type:String},extends:{type:String}};
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden}
     .header{padding:14px 18px;background:#161616;border-bottom:1px solid #2a2a2a;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .type-name{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:#e2e8f0}
@@ -117,7 +117,7 @@ customElements.define('wc-schema',WcSchema);
 class WcMermaid extends LitElement {
   static properties={_svg:{type:String,state:true},_error:{type:String,state:true}};
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;padding:24px;overflow-x:auto;text-align:center}
     .loading{color:#555;font-family:'Inter',sans-serif;font-size:13px}
     .error{color:#f87171;font-family:'JetBrains Mono',monospace;font-size:12px;white-space:pre-wrap;text-align:left}
@@ -151,7 +151,7 @@ customElements.define('wc-mermaid',WcMermaid);
 class WcEndpoint extends LitElement {
   static properties={method:{type:String},url:{type:String},description:{type:String},_active:{type:Number,state:true}};
   static styles=css\`
-    :host{display:block;margin:16px 0;min-width:0}
+    :host{display:block;margin:0 0 16px;min-width:0}
     .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden}
     .url-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#161616;border-bottom:1px solid #2a2a2a;flex-wrap:wrap;gap:8px}
     .method{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:3px 10px;border-radius:4px;flex-shrink:0;text-transform:uppercase}
@@ -192,7 +192,7 @@ class WcRunnableEndpoint extends LitElement {
     _response:{type:String,state:true},_error:{type:String,state:true}
   };
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;font-family:'Inter',sans-serif}
     .toolbar{display:flex;align-items:center;gap:8px;padding:12px 16px;background:#161616;border-bottom:1px solid #2a2a2a;flex-wrap:wrap}
     select{background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#e2e8f0;cursor:pointer;flex-shrink:0}

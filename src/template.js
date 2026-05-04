@@ -59,9 +59,8 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
 </div>
 
 ${inlinePages}
-<!-- Lit 3.x + marked via CDN -->
-<script type="importmap">{"imports":{"lit":"https://cdn.jsdelivr.net/npm/lit@3.2.1/+esm","lit/decorators.js":"https://cdn.jsdelivr.net/npm/lit@3.2.1/decorators.js/+esm","@lit/reactive-element":"https://cdn.jsdelivr.net/npm/@lit/reactive-element@2.1.0/+esm","lit-html":"https://cdn.jsdelivr.net/npm/lit-html@3.2.1/+esm","lit-element/lit-element.js":"https://cdn.jsdelivr.net/npm/lit-element@4.1.1/lit-element.js/+esm"}}</script>
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<!-- Lit 3.x — served from local vendor bundle -->
+<script type="importmap">{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}</script>
 <script type="module">
 ${buildComponents()}
 </script>

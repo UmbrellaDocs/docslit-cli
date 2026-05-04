@@ -68,6 +68,9 @@ watcher.on('all', (event, filePath) => {
   broadcast({ type: 'reload' });
 });
 
+// Serve local Lit vendor bundles (no CDN requests)
+app.use('/vendor', express.static(path.join(ROOT, 'src/vendor')));
+
 // API: list pages
 app.get('/api/pages', (_req, res) => {
   res.json({ config: PREVIEW_CONFIG });

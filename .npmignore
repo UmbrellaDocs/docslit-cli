@@ -1,0 +1,16 @@
+# Development tooling
+scripts/
+preview/
+src/vendor/
+
+# Tests
+src/*.test.ts
+vitest.config.ts
+
+# Config & editor
+.gitignore
+.npmignore
+*.log
+
+# OS
+.DS_Store

@@ -38,8 +38,8 @@ customElements.define('wc-tile',WcTile);
 class WcTiles extends LitElement {
   static properties={cols:{type:Number}};
   static styles=css\`
-    :host{display:block;margin:16px 0}
-    .grid{display:grid;gap:12px}
+    :host{display:block;margin:0 0 16px}
+    .grid{display:grid;gap:14px}
     @media(max-width:640px){.grid{grid-template-columns:1fr !important}}
   \`;
   render(){const c=this.cols||3;return html\`<div class="grid" style="grid-template-columns:repeat(\${c},1fr)"><slot></slot></div>\`;}
@@ -74,7 +74,7 @@ customElements.define('wc-button',WcButton);
 class WcPrompt extends LitElement {
   static properties={title:{type:String},_copied:{type:Boolean,state:true}};
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .wrap{background:#111;border:1px solid rgba(168,85,247,.25);border-radius:10px;overflow:hidden}
     .header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(168,85,247,.06);border-bottom:1px solid rgba(168,85,247,.2)}
     .label{display:flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(168,85,247,.8)}

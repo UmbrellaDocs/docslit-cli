@@ -52,7 +52,7 @@ customElements.define('wc-visibility',WcVisibility);
 // ── WC-VERSION / WC-VERSIONS ───────────────────────────────────────────────
 class WcVersion extends LitElement {
   static properties={name:{type:String}};
-  static styles=css\`:host{display:none}\`;
+  static styles=css\`:host{display:none}:host([active]){display:block}\`;
   render(){return html\`<slot></slot>\`;}
 }
 customElements.define('wc-version',WcVersion);
@@ -60,14 +60,13 @@ customElements.define('wc-version',WcVersion);
 class WcVersions extends LitElement {
   static properties={default:{type:String},_active:{type:String,state:true}};
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .selector{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
     label{font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666}
     .btns{display:flex;gap:4px;flex-wrap:wrap}
     button{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:5px 14px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:#666;cursor:pointer;transition:all .15s}
     button.active{background:rgba(1,105,111,.15);border-color:rgba(1,105,111,.35);color:#4f98a3}
     button:hover:not(.active){color:#a0a0a0;border-color:#333}
-    .panel{display:none}.panel.active{display:block}
   \`;
   connectedCallback(){
     super.connectedCallback();
@@ -75,9 +74,10 @@ class WcVersions extends LitElement {
   }
   render(){
     const versions=Array.from(this.querySelectorAll('wc-version'));
+    versions.forEach(v=>v.toggleAttribute('active',v.name===this._active));
     return html\`<div>
       <div class="selector"><label>Version</label><div class="btns">\${versions.map(v=>html\`<button class="\${this._active===v.name?'active':''}" @click=\${()=>this._active=v.name}>\${v.name}</button>\`)}</div></div>
-      \${versions.map(v=>html\`<div class="panel \${this._active===v.name?'active':''}">\${v.innerHTML}</div>\`)}
+      <slot></slot>
     </div>\`;
   }
 }

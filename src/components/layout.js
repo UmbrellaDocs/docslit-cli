@@ -5,8 +5,8 @@ export default `
 class WcColumns extends LitElement {
   static properties={cols:{type:Number},gap:{type:String}};
   static styles=css\`
-    :host{display:block;margin:16px 0}
-    .grid{display:grid;gap:var(--cols-gap,20px)}
+    :host{display:block;margin:0 0 16px}
+    .grid{display:grid;gap:var(--cols-gap,24px)}
     ::slotted(*){min-width:0}
     @media(max-width:768px){.grid{grid-template-columns:1fr !important}}
   \`;
@@ -18,7 +18,7 @@ customElements.define('wc-columns',WcColumns);
 class WcFrame extends LitElement {
   static properties={caption:{type:String},border:{type:Boolean}};
   static styles=css\`
-    :host{display:block;margin:20px 0}
+    :host{display:block;margin:0 0 16px}
     .frame{border-radius:10px;overflow:hidden;background:#111}
     .bordered{border:1px solid #2a2a2a}
     .inner{padding:24px;display:flex;align-items:center;justify-content:center}
@@ -35,7 +35,7 @@ customElements.define('wc-frame',WcFrame);
 class WcPanel extends LitElement {
   static properties={title:{type:String},icon:{type:String}};
   static styles=css\`
-    :host{display:block;margin:16px 0}
+    :host{display:block;margin:0 0 16px}
     .wrap{border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;background:#111}
     .header{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid #2a2a2a;background:#161616}
     .icon{font-size:16px;flex-shrink:0;line-height:1}
@@ -52,9 +52,8 @@ customElements.define('wc-panel',WcPanel);
 class WcExpandable extends LitElement {
   static properties={title:{type:String},open:{type:Boolean}};
   static styles=css\`
-    :host{display:block;margin:8px 0;min-width:0}
-    .wrap{border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;min-width:0}
-    .hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:#161616;cursor:pointer;user-select:none;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:#e2e8f0;gap:12px;min-width:0}
+    :host{display:block;margin:0 0 12px;min-width:0}
+    .wrap{border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;min-width:0};user-select:none;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:#e2e8f0;gap:12px;min-width:0}
     .hdr:hover{background:#1a1a1a}
     .body{padding:14px 18px;background:#111;font-family:'Inter',sans-serif;font-size:14px;color:#a0a0a0;line-height:1.7;min-width:0}
     .chevron{transition:transform .2s;color:#555;font-size:11px;flex-shrink:0}
@@ -70,7 +69,7 @@ customElements.define('wc-expandable',WcExpandable);
 class WcAccordion extends LitElement {
   static properties={title:{type:String},_open:{type:Boolean,state:true}};
   static styles=css\`
-    :host{display:block;margin:8px 0;min-width:0}
+    :host{display:block;margin:0 0 12px;min-width:0}
     .wrap{border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;min-width:0}
     .hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:#161616;cursor:pointer;user-select:none;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;color:#e2e8f0;gap:12px;min-width:0}
     .body{padding:16px 18px;background:#111;font-family:'Inter',sans-serif;font-size:14px;color:#a0a0a0;line-height:1.7;min-width:0;overflow:hidden}
