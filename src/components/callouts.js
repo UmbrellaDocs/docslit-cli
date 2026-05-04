@@ -67,12 +67,14 @@ class WcTooltip extends LitElement {
   static properties={text:{type:String},position:{type:String}};
   static styles=css\`
     :host{display:inline;position:relative}
-    .trigger{cursor:help;border-bottom:1px dashed rgba(160,160,160,.5);display:inline}
-    .tip{position:absolute;z-index:200;background:#1c1c1c;border:1px solid #3a3a3a;border-radius:6px;padding:6px 12px;font-family:'Inter',sans-serif;font-size:12px;color:#e2e8f0;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);box-shadow:0 4px 12px rgba(0,0,0,.4)}
+    :host([theme="dark"]){--surface2:#1a1a1a;--border2:#3a3a3a;--text:#f0f0f0}
+    :host([theme="light"]){--surface2:#f0f0f0;--border2:#d0d0d0;--text:#0f0f0f}
+    .trigger{cursor:help;border-bottom:1px dashed rgba(128,128,128,.5);display:inline}
+    .tip{position:absolute;z-index:200;background:var(--surface2,#1c1c1c);border:1px solid var(--border2,#3a3a3a);border-radius:6px;padding:6px 12px;font-family:'Inter',sans-serif;font-size:12px;color:var(--text,#e2e8f0);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);box-shadow:0 4px 12px rgba(0,0,0,.3)}
     .tip.bottom{bottom:auto;top:calc(100% + 8px)}
     .tip::before{content:'';position:absolute;left:50%;transform:translateX(-50%);border:5px solid transparent}
-    .tip:not(.bottom)::before{top:100%;border-top-color:#3a3a3a}
-    .tip.bottom::before{bottom:100%;border-bottom-color:#3a3a3a}
+    .tip:not(.bottom)::before{top:100%;border-top-color:var(--border2,#3a3a3a)}
+    .tip.bottom::before{bottom:100%;border-bottom-color:var(--border2,#3a3a3a)}
     :host(:hover) .tip,:host(:focus-within) .tip{opacity:1}
   \`;
   render(){const pos=this.position==='bottom'?'bottom':'';return html\`<span class="trigger"><slot></slot><span class="tip \${pos}" role="tooltip">\${this.text||''}</span></span>\`;}
@@ -84,17 +86,19 @@ class WcUpdate extends LitElement {
   static properties={version:{type:String},type:{type:String},date:{type:String}};
   static styles=css\`
     :host{display:block;margin:0 0 12px}
-    .wrap{display:flex;align-items:flex-start;gap:14px;padding:14px 18px;border-radius:10px;border:1px solid #2a2a2a;background:#111}
+    :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666}
+    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#999}
+    .wrap{display:flex;align-items:flex-start;gap:14px;padding:14px 18px;border-radius:10px;border:1px solid var(--border,#2a2a2a);background:var(--surface,#111)}
     .badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:100px;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap;flex-shrink:0;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
     .added{background:rgba(16,185,129,.15);color:#34d399;border-color:rgba(16,185,129,.3)}
     .changed,.updated{background:rgba(59,130,246,.15);color:#60a5fa;border-color:rgba(59,130,246,.3)}
     .fixed{background:rgba(245,158,11,.15);color:#fbbf24;border-color:rgba(245,158,11,.3)}
     .removed,.deprecated{background:rgba(239,68,68,.15);color:#f87171;border-color:rgba(239,68,68,.3)}
     .security{background:rgba(168,85,247,.15);color:#c084fc;border-color:rgba(168,85,247,.3)}
-    .body{flex:1;font-family:'Inter',sans-serif;font-size:14px;color:#a0a0a0;line-height:1.7}
+    .body{flex:1;font-family:'Inter',sans-serif;font-size:14px;color:var(--text2,#a0a0a0);line-height:1.7}
     .meta{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
-    .version{font-size:13px;font-weight:600;color:#e2e8f0}
-    .date{font-size:12px;color:#555}
+    .version{font-size:13px;font-weight:600;color:var(--text,#f0f0f0)}
+    .date{font-size:12px;color:var(--text3,#666)}
   \`;
   render(){const t=this.type||'added';return html\`<div class="wrap"><span class="badge \${t}">\${t}</span><div class="body"><div class="meta">\${this.version?html\`<span class="version">v\${this.version}</span>\`:nothing}\${this.date?html\`<span class="date">\${this.date}</span>\`:nothing}</div><slot></slot></div></div>\`;}
 }

@@ -33,9 +33,11 @@ class WcTabs extends LitElement {
   static properties={_active:{type:Number,state:true}};
   static styles=css\`
     :host{display:block;margin:0 0 16px;min-width:0}
-    .tabbar{display:flex;border-bottom:1px solid #2a2a2a;gap:0;margin-bottom:24px;overflow-x:auto;-webkit-overflow-scrolling:touch;min-width:0;scrollbar-width:none}
+    :host([theme="dark"]){--border:#2a2a2a;--text3:#666}
+    :host([theme="light"]){--border:#e2e2e2;--text3:#999}
+    .tabbar{display:flex;border-bottom:1px solid var(--border,#2a2a2a);gap:0;margin-bottom:24px;overflow-x:auto;-webkit-overflow-scrolling:touch;min-width:0;scrollbar-width:none}
     .tabbar::-webkit-scrollbar{display:none}
-    button{background:none;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:#666;cursor:pointer;margin-bottom:-1px;transition:all .15s;white-space:nowrap;flex-shrink:0}
+    button{background:none;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:var(--text3,#666);cursor:pointer;margin-bottom:-1px;transition:all .15s;white-space:nowrap;flex-shrink:0}
     button.active{color:#4f98a3;border-bottom-color:#01696f}
     button:hover{color:#a0a0a0}
     @media(max-width:640px){button{padding:8px 12px;font-size:12px;margin-bottom:0;border-bottom-width:3px;}}
@@ -60,10 +62,12 @@ customElements.define('wc-tab',WcTab);
 class WcView extends LitElement {
   static properties={_active:{type:Number,state:true}};
   static styles=css\`
-    :host{display:block;margin:0 0 16px;min-width:0;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden}
-    .toolbar{display:flex;align-items:center;background:#161616;border-bottom:1px solid #2a2a2a;padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:2px;scrollbar-width:none}
+    :host{display:block;margin:0 0 16px;min-width:0;border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden}
+    :host([theme="dark"]){--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
+    :host([theme="light"]){--surface2:#f0f0f0;--border:#e2e2e2;--text3:#999}
+    .toolbar{display:flex;align-items:center;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:2px;scrollbar-width:none}
     .toolbar::-webkit-scrollbar{display:none}
-    button{background:none;border:none;border-bottom:2px solid transparent;padding:10px 14px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:#666;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;margin-bottom:-1px}
+    button{background:none;border:none;border-bottom:2px solid transparent;padding:10px 14px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--text3,#666);cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;margin-bottom:-1px}
     button.active{color:#4f98a3;border-bottom-color:#01696f}
     button:hover{color:#a0a0a0}
     @media(max-width:640px){button{padding:8px 10px;font-size:12px;}}

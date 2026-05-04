@@ -62,11 +62,13 @@ class WcFile extends LitElement {
   static properties={name:{type:String},highlight:{type:Boolean},comment:{type:String}};
   static styles=css\`
     :host{display:block}
-    .row{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:#a0a0a0}
+    :host([theme="dark"]){--border:#2a2a2a;--text2:#a0a0a0;--text3:#666}
+    :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text3:#999}
+    .row{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2,#a0a0a0)}
     :host([highlight]) .row{background:rgba(1,105,111,.1);color:#e2e8f0}
-    .icon{color:#666;flex-shrink:0;font-size:14px;line-height:1}
+    .icon{color:var(--text3,#666);flex-shrink:0;font-size:14px;line-height:1}
     :host([highlight]) .icon{color:#4f98a3}
-    .comment{color:#555;font-size:11px;margin-left:auto}
+    .comment{color:var(--text3,#666);font-size:11px;margin-left:auto}
     @media(max-width:640px){.row{font-size:12px}}
   \`;
   render(){return html\`<div class="row"><span class="icon">📄</span><span>\${this.name}</span>\${this.comment?html\`<span class="comment"># \${this.comment}</span>\`:nothing}</div>\`;}
@@ -77,12 +79,14 @@ class WcDir extends LitElement {
   static properties={name:{type:String},open:{type:Boolean}};
   static styles=css\`
     :host{display:block}
-    .row{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:#e2e8f0;cursor:pointer;user-select:none}
-    .row:hover{background:rgba(255,255,255,.04)}
+    :host([theme="dark"]){--border:#2a2a2a;--text:#f0f0f0;--text3:#666}
+    :host([theme="light"]){--border:#e2e2e2;--text:#0f0f0f;--text3:#999}
+    .row{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text,#f0f0f0);cursor:pointer;user-select:none}
+    .row:hover{background:rgba(128,128,128,.08)}
     .icon{flex-shrink:0;font-size:14px;line-height:1}
-    .chevron{font-size:10px;color:#555;transition:transform .15s;flex-shrink:0}
+    .chevron{font-size:10px;color:var(--text3,#666);transition:transform .15s;flex-shrink:0}
     .chevron.open{transform:rotate(90deg)}
-    .children{padding-left:20px;border-left:1px solid #2a2a2a;margin:2px 0 2px 12px}
+    .children{padding-left:20px;border-left:1px solid var(--border,#2a2a2a);margin:2px 0 2px 12px}
     @media(max-width:640px){.row{font-size:12px}}
   \`;
   constructor(){super();this.open=true;}
@@ -93,7 +97,9 @@ customElements.define('wc-dir',WcDir);
 class WcFiles extends LitElement {
   static styles=css\`
     :host{display:block;margin:0 0 12px}
-    .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;padding:12px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    :host([theme="dark"]){--surface:#111;--border:#2a2a2a}
+    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;padding:12px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   \`;
   render(){return html\`<div class="wrap"><slot></slot></div>\`;}
 }
@@ -104,12 +110,14 @@ class WcTreeItem extends LitElement {
   static properties={label:{type:String},open:{type:Boolean},icon:{type:String}};
   static styles=css\`
     :host{display:block}
-    .row{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-family:'Inter',sans-serif;font-size:14px;color:#a0a0a0;cursor:pointer;user-select:none}
-    .row:hover{color:#e2e8f0;background:rgba(255,255,255,.04)}
-    .chevron{font-size:10px;color:#555;transition:transform .15s;flex-shrink:0;width:12px}
+    :host([theme="dark"]){--border:#2a2a2a;--text2:#a0a0a0;--text:#f0f0f0;--text3:#666}
+    :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text:#0f0f0f;--text3:#999}
+    .row{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-family:'Inter',sans-serif;font-size:14px;color:var(--text2,#a0a0a0);cursor:pointer;user-select:none}
+    .row:hover{color:var(--text,#f0f0f0);background:rgba(128,128,128,.08)}
+    .chevron{font-size:10px;color:var(--text3,#666);transition:transform .15s;flex-shrink:0;width:12px}
     .chevron.open{transform:rotate(90deg)}
     .icon{flex-shrink:0}
-    .children{padding-left:20px;border-left:1px solid #2a2a2a;margin:2px 0 2px 10px}
+    .children{padding-left:20px;border-left:1px solid var(--border,#2a2a2a);margin:2px 0 2px 10px}
     ::slotted(*){max-width:100%}
   \`;
   constructor(){super();this.open=false;}
@@ -124,7 +132,9 @@ customElements.define('wc-tree-item',WcTreeItem);
 class WcTree extends LitElement {
   static styles=css\`
     :host{display:block;margin:0 0 16px}
-    .wrap{background:#111;border:1px solid #2a2a2a;border-radius:10px;padding:12px 16px}
+    :host([theme="dark"]){--surface:#111;--border:#2a2a2a}
+    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;padding:12px 16px}
   \`;
   render(){return html\`<div class="wrap"><slot></slot></div>\`;}
 }
@@ -135,10 +145,12 @@ class WcDownload extends LitElement {
   static properties={href:{type:String},filename:{type:String},label:{type:String},size:{type:String}};
   static styles=css\`
     :host{display:block;margin:0 0 12px}
-    a{display:inline-flex;align-items:center;gap:10px;padding:10px 18px;background:#111;border:1px solid #2a2a2a;border-radius:8px;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:#e2e8f0;text-decoration:none;transition:all .15s}
-    a:hover{border-color:#444;background:#161616}
+    :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--border2:#3a3a3a;--text:#f0f0f0}
+    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--border2:#d0d0d0;--text:#0f0f0f}
+    a{display:inline-flex;align-items:center;gap:10px;padding:10px 18px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:8px;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:var(--text,#f0f0f0);text-decoration:none;transition:all .15s}
+    a:hover{border-color:var(--border2,#3a3a3a);background:var(--surface,#111)}
     .dl-icon{width:16px;height:16px;opacity:.7;flex-shrink:0}
-    .meta{font-size:12px;color:#666;margin-left:4px}
+    .meta{font-size:12px;color:var(--text3,#666);margin-left:4px}
   \`;
   render(){return html\`<a href="\${this.href||'#'}" download="\${this.filename||''}">\${window.__DOCSLIT_ICONS__?.download?html\`<span class="dl-icon" .innerHTML=\${window.__DOCSLIT_ICONS__.download}></span>\`:nothing}\${this.label||this.filename||'Download'}\${this.size?html\`<span class="meta">(\${this.size})</span>\`:nothing}</a>\`;}
 }
@@ -149,8 +161,10 @@ class WcCopy extends LitElement {
   static properties={text:{type:String},label:{type:String},_copied:{type:Boolean,state:true}};
   static styles=css\`
     :host{display:inline-block}
-    .wrap{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:#111;border:1px solid #2a2a2a;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;color:#a0a0a0;cursor:pointer;transition:all .15s;user-select:none}
-    .wrap:hover{border-color:#444;color:#e2e8f0}
+    :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--border2:#3a3a3a;--text2:#a0a0a0;--text:#f0f0f0}
+    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--border2:#d0d0d0;--text2:#555;--text:#0f0f0f}
+    .wrap{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2,#a0a0a0);cursor:pointer;transition:all .15s;user-select:none}
+    .wrap:hover{border-color:var(--border2,#3a3a3a);color:var(--text,#f0f0f0)}
     .wrap.copied{border-color:rgba(16,185,129,.4);color:#34d399;background:rgba(16,185,129,.06)}
     .icon{width:13px;height:13px;flex-shrink:0;opacity:.6}
     @media(max-width:640px){.wrap{font-size:12px;padding:5px 10px}}
