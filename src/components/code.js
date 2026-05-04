@@ -3,7 +3,7 @@
 export default `
 // ── WC-CODE-BLOCK ──────────────────────────────────────────────────────────
 class WcCodeBlock extends LitElement {
-  static properties={language:{type:String},filename:{type:String}};
+  static properties={language:{type:String},filename:{type:String},_code:{type:String,state:true}};
   static styles=css\`
     :host{display:block;margin:16px 0;width:100%;box-sizing:border-box;max-width:100%}
     .wrap{background:#161616;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;width:100%;box-sizing:border-box}
@@ -13,7 +13,21 @@ class WcCodeBlock extends LitElement {
     pre{margin:0;padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:#e2e8f0;width:100%;box-sizing:border-box;max-width:100%}
     @media(max-width:640px){.header{padding:8px 12px;}.filename{font-size:11px;}.lang{font-size:10px;}pre{padding:10px 8px;font-size:12px;line-height:1.6;}}
   \`;
-  render(){return html\`<div class="wrap">\${(this.filename||this.language)?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span></div>\`:nothing}<pre><slot></slot></pre></div>\`;}
+  // Capture raw innerHTML before the shadow DOM renders — this preserves any
+  // child HTML tags (e.g. <wc-callout>) as literal source text rather than
+  // letting the browser upgrade and render them as components.
+  connectedCallback(){
+    super.connectedCallback();
+    if(this._code===undefined){
+      this._code=this.innerHTML.trim();
+      this.innerHTML='';
+    }
+  }
+  _escape(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  render(){
+    const code=this._code!==undefined?this._escape(this._code):'';
+    return html\`<div class="wrap">\${(this.filename||this.language)?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span></div>\`:nothing}<pre>\${code}</pre></div>\`;
+  }
 }
 customElements.define('wc-code-block',WcCodeBlock);
 
