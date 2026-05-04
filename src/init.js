@@ -37,7 +37,7 @@ updated: ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeri
 
 # Introduction
 
-Welcome to **${dirName}** docs — powered by [DocsLit](https://docslit.dev).
+Welcome to **${dirName}** docs — powered by [DocsLit](https://docslit.com).
 
 Write standard Markdown and embed interactive web components directly as HTML tags.
 

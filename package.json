@@ -18,7 +18,8 @@
     "template"
   ],
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "preview": "node scripts/preview.js"
   },
   "keywords": [
     "docs",

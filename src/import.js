@@ -452,7 +452,7 @@ function printReport({ sourceDir, outDir, dryRun, files, totalStats, allIssues, 
   }
 
   console.log(`\n  ${pc.bold('DocsLit component reference:')}`);
-  console.log(`    ${pc.dim('https://docslit.dev/docs/components')}\n`);
+  console.log(`    ${pc.dim('https://docslit.com/docs/components')}\n`);
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────

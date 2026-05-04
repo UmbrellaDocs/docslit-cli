@@ -174,9 +174,8 @@ describe('buildComponents', () => {
     // The component must capture innerHTML before shadow DOM renders, not use a slot.
     expect(output).toContain('connectedCallback');
     expect(output).toContain('this.innerHTML');
-    // Must HTML-escape < and > so tags display as literal code.
-    expect(output).toContain('&lt;');
-    expect(output).toContain('&gt;');
+    // Lit text bindings use textContent, so raw < > display correctly — no manual escaping needed.
+    expect(output).not.toContain("_escape(this._code)");
   });
 
   const expectedComponents = [
