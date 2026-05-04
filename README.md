@@ -72,7 +72,7 @@ docslit import ./my-mintlify-docs
 This will:
 
 1. **Detect** `mint.json` and read your sidebar navigation automatically
-2. **Convert** every MDX component to the equivalent DocsLit web component
+2. **Convert** every MDX component to the equivalent DocsLit [web component](https://lit.dev)
 3. **Strip** all `import`/`export` statements (no JSX needed)
 4. **Copy** all static assets (images, fonts, PDFs)
 5. **Generate** a ready-to-run `docslit.json` config

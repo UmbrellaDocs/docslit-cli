@@ -1,6 +1,6 @@
 {
   "name": "docslit",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "The docs framework for the web platform era — Markdown + Lit web components",
   "homepage": "https://docslit.com",
   "repository": {
@@ -14,7 +14,9 @@
   },
   "files": [
     "bin",
-    "src"
+    "src",
+    "LICENSE",
+    "NOTICES"
   ],
   "scripts": {
     "test": "vitest run",
@@ -29,7 +31,7 @@
     "markdown",
     "static-site"
   ],
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@types/archiver": "^7.0.0",
     "archiver": "^7.0.1",
