@@ -137,9 +137,3 @@ updated: May 2025
 
 <wc-button label="Click me">Click me</wc-button>
 ```
-
-## License
-
-[GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE)
-
-Free for personal and open source use. If you use docslit in a commercial product or SaaS, the AGPL-3.0 requires you to open-source your entire application.

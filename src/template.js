@@ -91,6 +91,7 @@ function _tocScroll(id) {
   if (!el) return;
   const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 60;
   const top = el.getBoundingClientRect().top + window.scrollY - navH - 44 - 16;
+  history.pushState(null, '', location.pathname + '#' + id);
   window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
 }
 
@@ -187,10 +188,10 @@ export function renderStaticPage({ config, id, meta, html }) {
 
 function injectPageMeta(meta) {
   const parts = [];
-  if (meta.tag) parts.push(`<span>${meta.tag}</span>`);
-  if (meta.component) parts.push(`<span>•</span><span>${meta.component}</span>`);
-  if (meta.readtime) parts.push(`<span>•</span><span>${meta.readtime}</span>`);
-  if (meta.updated) parts.push(`<span>•</span><span>Updated ${meta.updated}</span>`);
+  if (meta.tag) parts.push(`<span>${escHtml(meta.tag)}</span>`);
+  if (meta.component) parts.push(`<span>•</span><span>${escHtml(meta.component)}</span>`);
+  if (meta.readtime) parts.push(`<span>•</span><span>${escHtml(meta.readtime)}</span>`);
+  if (meta.updated) parts.push(`<span>•</span><span>Updated ${escHtml(meta.updated)}</span>`);
   return parts.length ? `<div class="page-meta">${parts.join('')}</div>` : '';
 }
 
@@ -275,12 +276,15 @@ async function loadPage(id, el) {
   }
 }
 
+function _escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function _buildMetaBar(meta) {
   const parts = [];
-  if (meta.tag) parts.push('<span>' + meta.tag + '</span>');
-  if (meta.component) parts.push('<span>•</span><span>' + meta.component + '</span>');
-  if (meta.readtime) parts.push('<span>•</span><span>' + meta.readtime + '</span>');
-  if (meta.updated) parts.push('<span>•</span><span>Updated ' + meta.updated + '</span>');
+  if (meta.tag) parts.push('<span>' + _escHtml(meta.tag) + '</span>');
+  if (meta.component) parts.push('<span>•</span><span>' + _escHtml(meta.component) + '</span>');
+  if (meta.readtime) parts.push('<span>•</span><span>' + _escHtml(meta.readtime) + '</span>');
+  if (meta.updated) parts.push('<span>•</span><span>Updated ' + _escHtml(meta.updated) + '</span>');
   return parts.length ? '<div class="page-meta">' + parts.join('') + '</div>' : '';
 }
 

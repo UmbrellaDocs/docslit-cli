@@ -1,7 +1,7 @@
 {
   "name": "docslit",
-  "version": "0.1.3",
-  "description": "The docs framework for the web platform era — Markdown + Lit web components",
+  "version": "0.1.4",
+  "description": "The docs framework for the web platform era. Markdown + Lit web components",
   "homepage": "https://docslit.com",
   "repository": {
     "type": "git",

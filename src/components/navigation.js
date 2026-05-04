@@ -83,8 +83,8 @@ customElements.define('wc-view',WcView);
 
 class WcViewPanel extends LitElement {
   static properties={label:{type:String}};
-  static styles=css\`:host{display:none}:host([active]){display:block;padding:24px}\`;
-  render(){return html\`<slot></slot>\`;}
+  static styles=css\`:host{display:none}:host([active]){display:block}.inner{padding:0 24px}\`;
+  render(){return html\`<div class="inner"><slot></slot></div>\`;}
 }
 customElements.define('wc-view-panel',WcViewPanel);
 `;

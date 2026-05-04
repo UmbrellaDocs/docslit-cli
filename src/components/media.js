@@ -62,10 +62,10 @@ class WcFile extends LitElement {
   static properties={name:{type:String},highlight:{type:Boolean},comment:{type:String}};
   static styles=css\`
     :host{display:block}
-    :host([theme="dark"]){--border:#2a2a2a;--text2:#a0a0a0;--text3:#666}
-    :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text3:#999}
+    :host([theme="dark"]){--border:#2a2a2a;--text2:#a0a0a0;--text3:#666;--highlight-text:#e2e8f0}
+    :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text3:#999;--highlight-text:#0f5257}
     .row{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2,#a0a0a0)}
-    :host([highlight]) .row{background:rgba(1,105,111,.1);color:#e2e8f0}
+    :host([highlight]) .row{background:rgba(1,105,111,.1);color:var(--text,#0f0f0f)}
     .icon{color:var(--text3,#666);flex-shrink:0;font-size:14px;line-height:1}
     :host([highlight]) .icon{color:#4f98a3}
     .comment{color:var(--text3,#666);font-size:11px;margin-left:auto}
@@ -112,7 +112,7 @@ class WcTreeItem extends LitElement {
     :host{display:block}
     :host([theme="dark"]){--border:#2a2a2a;--text2:#a0a0a0;--text:#f0f0f0;--text3:#666}
     :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text:#0f0f0f;--text3:#999}
-    .row{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-family:'Inter',sans-serif;font-size:14px;color:var(--text2,#a0a0a0);cursor:pointer;user-select:none}
+    .row{display:flex;align-items:center;gap:8px;padding:0 8px;line-height:1.15;border-radius:4px;font-family:'JetBrains Mono','Courier New',monospace;font-size:13px;color:var(--text2,#a0a0a0);cursor:pointer;user-select:none}
     .row:hover{color:var(--text,#f0f0f0);background:rgba(128,128,128,.08)}
     .chevron{font-size:10px;color:var(--text3,#666);transition:transform .15s;flex-shrink:0;width:12px}
     .chevron.open{transform:rotate(90deg)}
@@ -124,7 +124,7 @@ class WcTreeItem extends LitElement {
   _hasChildren(){return this.querySelectorAll('wc-tree-item').length>0;}
   render(){
     const hasKids=this._hasChildren();
-    return html\`<div class="row" @click=\${()=>hasKids&&(this.open=!this.open)}\${hasKids?'':' style="cursor:default"'}>\${hasKids?html\`<span class="chevron \${this.open?'open':''}">▶</span>\`:html\`<span class="chevron"></span>\`}\${this.icon?html\`<span class="icon">\${this.icon}</span>\`:nothing}<span>\${this.label}</span></div>\${this.open?html\`<div class="children"><slot></slot></div>\`:nothing}\`;
+    return html\`<div class="row" style="\${hasKids?'':'cursor:default'}" @click=\${()=>hasKids&&(this.open=!this.open)}>\${hasKids?html\`<span class="chevron \${this.open?'open':''}">▶</span>\`:html\`<span class="chevron"></span>\`}\${this.icon?html\`<span class="icon">\${this.icon}</span>\`:nothing}<span>\${this.label}</span></div>\${this.open?html\`<div class="children"><slot></slot></div>\`:nothing}\`;
   }
 }
 customElements.define('wc-tree-item',WcTreeItem);

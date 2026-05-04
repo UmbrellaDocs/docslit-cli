@@ -60,7 +60,12 @@ export async function dev({ port = 3000 } = {}) {
   // API: serve a single markdown page
   app.get('/api/page/:id', async (req, res) => {
     const id = req.params.id;
-    const mdPath = path.join(cwd, 'docs', `${id}.md`);
+    const docsDir = path.join(cwd, 'docs');
+    const mdPath = path.resolve(docsDir, `${id}.md`);
+    // Prevent path traversal — resolved path must stay inside docs/
+    if (!mdPath.startsWith(docsDir + path.sep)) {
+      return res.status(400).json({ error: 'Invalid page id' });
+    }
     if (!await fs.pathExists(mdPath)) {
       return res.status(404).json({ error: `Page "${id}" not found` });
     }

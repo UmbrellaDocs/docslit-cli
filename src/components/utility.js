@@ -3,15 +3,14 @@
 export default `
 // ── WC-ANCHOR ──────────────────────────────────────────────────────────────
 class WcAnchor extends LitElement {
-  static properties={id:{type:String}};
   static styles=css\`
     :host{display:block}
-    .wrap{display:flex;align-items:center;gap:8px;position:relative}
-    a.link{opacity:0;position:absolute;left:-24px;color:#555;text-decoration:none;font-size:14px;transition:opacity .15s;line-height:1}
+    .wrap{display:block;position:relative}
+    a.link{opacity:0;position:absolute;left:-24px;top:0;color:#555;text-decoration:none;font-size:14px;transition:opacity .15s;line-height:1}
     :host(:hover) a.link{opacity:1}
     a.link:hover{color:#4f98a3}
   \`;
-  render(){const id=this.id||this.textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-');return html\`<div class="wrap" id="\${id}"><a class="link" href="#\${id}" aria-label="Link to section">#</a><slot></slot></div>\`;}
+  render(){const id=this.getAttribute('id')||this.textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-');return html\`<div class="wrap" id="\${id}"><a class="link" href="#\${id}" aria-label="Link to section">#</a><slot></slot></div>\`;}
 }
 customElements.define('wc-anchor',WcAnchor);
 

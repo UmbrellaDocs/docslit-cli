@@ -11,7 +11,16 @@ export async function login(args) {
   const email = getFlag(args, '--email');
   const name = getFlag(args, '--name');
   const existingToken = getFlag(args, '--token');
-  const apiUrl = getFlag(args, '--api-url') || DEFAULT_API_URL;
+  const rawApiUrl = getFlag(args, '--api-url') || DEFAULT_API_URL;
+  let apiUrl;
+  try {
+    const parsed = new URL(rawApiUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error();
+    apiUrl = rawApiUrl;
+  } catch {
+    console.error(pc.red('  Error: --api-url must be a valid http or https URL.'));
+    process.exit(1);
+  }
 
   if (!email && !existingToken) {
     console.error(pc.red('  Error: provide --email and --name to create an account, or --token to save an existing token.\n'));
@@ -51,9 +60,9 @@ export async function login(args) {
     user = res.user;
   }
 
-  // Save to ~/.docslit/config.json
+  // Save to ~/.docslit/config.json (mode 0o600 — owner read/write only)
   mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_PATH, JSON.stringify({ token, apiUrl, user }, null, 2));
+  writeFileSync(CONFIG_PATH, JSON.stringify({ token, apiUrl, user }, null, 2), { mode: 0o600 });
 
   console.log('');
   console.log(pc.green(`  ✓ Logged in as ${pc.bold(user.name)} (${user.email})`));

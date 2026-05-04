@@ -50,11 +50,11 @@ A file-tree explorer. `wc-dir` is collapsible (open by default). Use `highlight`
 A lightweight visual tree using `wc-tree-item` leaves.
 
 <wc-tree>
-<wc-tree-item>Root</wc-tree-item>
-<wc-tree-item>├── packages</wc-tree-item>
-<wc-tree-item>│   ├── core</wc-tree-item>
-<wc-tree-item>│   └── cli</wc-tree-item>
-<wc-tree-item>└── docs</wc-tree-item>
+<wc-tree-item label="Root"></wc-tree-item>
+<wc-tree-item label="├── packages"></wc-tree-item>
+<wc-tree-item label="│   ├── core"></wc-tree-item>
+<wc-tree-item label="│   └── cli"></wc-tree-item>
+<wc-tree-item label="└── docs"></wc-tree-item>
 </wc-tree>
 
 ## wc-download
