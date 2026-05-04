@@ -129,7 +129,7 @@ function buildSidebarHtml(config, draftIds = []) {
     html += `<div class="sidebar-group-title">${escHtml(group.group || '')}</div>`;
     for (const page of visiblePages) {
       const label = toLabel(page);
-      html += `<a class="sidebar-item" data-page="${escHtml(page)}" href="#${escHtml(page)}" onclick="loadPage('${escHtml(page)}',this);return false;">${escHtml(label)}</a>`;
+      html += `<a class="sidebar-item" data-page="${escHtml(page)}" href="${escHtml(page)}" onclick="loadPage('${escHtml(page)}',this);return false;">${escHtml(label)}</a>`;
     }
     html += `</div>`;
   }
@@ -159,9 +159,19 @@ function buildWsScript(port) {
 function buildDevLoader() {
   return `
 // Dev mode — fetch pages from the API server
+function _docsBase() {
+  const p = window.location.pathname;
+  return p.slice(0, p.lastIndexOf('/') + 1);
+}
+function _pageFromUrl() {
+  const p = window.location.pathname;
+  return p.slice(_docsBase().length) || null;
+}
+
 async function loadPage(id, el) {
   activateSidebar(id);
-  history.replaceState({}, '', '#' + id);
+  const target = _docsBase() + id;
+  if (location.pathname !== target) history.pushState({page: id}, '', target);
   document.getElementById('docs-breadcrumb-current').textContent = toLabel(id);
   const content = document.getElementById('docs-content');
   content.innerHTML = '<div class="loading-state">Loading…</div>';
@@ -204,10 +214,17 @@ function toLabel(id) {
 // Load first page on startup
 window.addEventListener('DOMContentLoaded', () => {
   _updateThemeBtn();
-  const hash = location.hash.slice(1);
+  const fromPath = _pageFromUrl();
+  const fromHash = location.hash.slice(1);
   const firstEl = document.querySelector('.sidebar-item');
-  const firstId = hash || (firstEl && firstEl.dataset.page) || 'introduction';
+  const firstId = fromPath || fromHash || (firstEl && firstEl.dataset.page) || 'introduction';
+  history.replaceState({page: firstId}, '', _docsBase() + firstId);
   loadPage(firstId, document.querySelector(\`.sidebar-item[data-page="\${firstId}"]\`));
+});
+
+window.addEventListener('popstate', () => {
+  const id = _pageFromUrl() || document.querySelector('.sidebar-item')?.dataset.page || 'introduction';
+  loadPage(id, document.querySelector(\`.sidebar-item[data-page="\${id}"]\`));
 });`;
 }
 
@@ -216,9 +233,18 @@ function buildStaticLoader() {
 // Static mode — pages fetched from pages.json at runtime
 let _pages = {};
 
+function _docsBase() {
+  const p = window.location.pathname;
+  return p.slice(0, p.lastIndexOf('/') + 1);
+}
+function _pageFromUrl() {
+  const p = window.location.pathname;
+  return p.slice(_docsBase().length) || null;
+}
+
 async function _loadPages() {
   try {
-    const res = await fetch('pages.json');
+    const res = await fetch(_docsBase() + 'pages.json');
     _pages = await res.json();
   } catch(e) { _pages = {}; }
 }
@@ -226,7 +252,8 @@ async function _loadPages() {
 async function loadPage(id, el) {
   if (!Object.keys(_pages).length) await _loadPages();
   activateSidebar(id);
-  history.replaceState({}, '', '#' + id);
+  const target = _docsBase() + id;
+  if (location.pathname !== target) history.pushState({page: id}, '', target);
   const content = document.getElementById('docs-content');
   const data = _pages[id];
   if (!data) { content.innerHTML = '<div class="loading-state" style="color:#f87171">Page not found: ' + id + '</div>'; return; }
@@ -259,10 +286,17 @@ function toLabel(id) {
 window.addEventListener('DOMContentLoaded', async () => {
   _updateThemeBtn();
   await _loadPages();
-  const hash = location.hash.slice(1);
+  const fromPath = _pageFromUrl();
+  const fromHash = location.hash.slice(1);
   const firstEl = document.querySelector('.sidebar-item');
-  const firstId = hash || (firstEl && firstEl.dataset.page) || 'introduction';
+  const firstId = fromPath || fromHash || (firstEl && firstEl.dataset.page) || 'introduction';
+  history.replaceState({page: firstId}, '', _docsBase() + firstId);
   loadPage(firstId, document.querySelector(\`.sidebar-item[data-page="\${firstId}"]\`));
+});
+
+window.addEventListener('popstate', () => {
+  const id = _pageFromUrl() || document.querySelector('.sidebar-item')?.dataset.page || 'introduction';
+  loadPage(id, document.querySelector(\`.sidebar-item[data-page="\${id}"]\`));
 });`;
 }
 
@@ -271,9 +305,19 @@ function buildOfflineLoader() {
 // Offline mode — all pages inlined at build time in window.__DOCSLIT_PAGES__
 const _pages = window.__DOCSLIT_PAGES__ || {};
 
+function _docsBase() {
+  const p = window.location.pathname;
+  return p.slice(0, p.lastIndexOf('/') + 1);
+}
+function _pageFromUrl() {
+  const p = window.location.pathname;
+  return p.slice(_docsBase().length) || null;
+}
+
 async function loadPage(id, el) {
   activateSidebar(id);
-  history.replaceState({}, '', '#' + id);
+  const target = _docsBase() + id;
+  if (location.pathname !== target) history.pushState({page: id}, '', target);
   const content = document.getElementById('docs-content');
   const data = _pages[id];
   if (!data) { content.innerHTML = '<div class="loading-state" style="color:#f87171">Page not found: ' + id + '</div>'; return; }
@@ -305,10 +349,17 @@ function toLabel(id) {
 
 window.addEventListener('DOMContentLoaded', () => {
   _updateThemeBtn();
-  const hash = location.hash.slice(1);
+  const fromPath = _pageFromUrl();
+  const fromHash = location.hash.slice(1);
   const firstEl = document.querySelector('.sidebar-item');
-  const firstId = hash || (firstEl && firstEl.dataset.page) || 'introduction';
+  const firstId = fromPath || fromHash || (firstEl && firstEl.dataset.page) || 'introduction';
+  history.replaceState({page: firstId}, '', _docsBase() + firstId);
   loadPage(firstId, document.querySelector(\`.sidebar-item[data-page="\${firstId}"]\`));
+});
+
+window.addEventListener('popstate', () => {
+  const id = _pageFromUrl() || document.querySelector('.sidebar-item')?.dataset.page || 'introduction';
+  loadPage(id, document.querySelector(\`.sidebar-item[data-page="\${id}"]\`));
 });`;
 }
 
