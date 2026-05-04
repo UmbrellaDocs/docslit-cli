@@ -39,15 +39,38 @@ updated: ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeri
 
 Welcome to **${dirName}** docs — powered by [DocsLit](https://docslit.com).
 
-Write standard Markdown and embed interactive web components directly as HTML tags.
+Write standard Markdown and embed interactive web components directly as HTML tags. No imports, no config, no build step.
 
-## Example
+## How it works
 
-<wc-callout type="info" title="No imports needed">
-  Just drop a tag in your Markdown. That's it.
+<wc-steps>
+<wc-step n="1" title="Write Markdown">
+Create \`.md\` files in \`docs/\`. Add YAML frontmatter for title, tags, and metadata.
+</wc-step>
+<wc-step n="2" title="Drop in components">
+Use any built-in web component tag directly in your Markdown — no imports needed.
+</wc-step>
+<wc-step n="3" title="Ship it">
+Run \`docslit build\` to generate a static site. Deploy anywhere.
+</wc-step>
+</wc-steps>
+
+## Components
+
+<wc-callout type="info" title="50+ built-in components">
+  Callouts, code blocks, steps, tabs, panels, cards, API endpoints, and more — all zero-config.
 </wc-callout>
 
-<wc-button label="Click me">Click me</wc-button>
+<wc-callout type="tip" title="Theme override">
+  Pin any component to a specific theme with \`theme="dark"\` or \`theme="light"\` regardless of the page's current theme.
+</wc-callout>
+
+## Next steps
+
+<wc-tiles cols="2">
+<wc-tile href="installation" icon-name="package" title="Installation" description="Install DocsLit and set up your project."></wc-tile>
+<wc-tile href="quickstart" icon-name="zap" title="Quick Start" description="From zero to a live docs site in 4 steps."></wc-tile>
+</wc-tiles>
 `);
 
   // docs/installation.md
@@ -161,6 +184,13 @@ title: My Page
 <wc-step n="1" title="Step one">Do the first thing.</wc-step>
 <wc-step n="2" title="Step two">Do the second thing.</wc-step>
 </wc-steps>
+\`\`\`
+
+Pin any component to a specific theme with the \`theme\` attribute:
+
+\`\`\`markdown
+<wc-panel title="Always dark" theme="dark">…</wc-panel>
+<wc-panel title="Always light" theme="light">…</wc-panel>
 \`\`\`
 
 ## 3. Add the page to the sidebar

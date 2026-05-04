@@ -3,7 +3,7 @@
 export default `
 // ── WC-CARD ────────────────────────────────────────────────────────────────
 class WcCard extends LitElement {
-  static properties={title:{type:String},href:{type:String},icon:{type:String}};
+  static properties={title:{type:String},href:{type:String},icon:{type:String},iconName:{type:String,attribute:'icon-name'}};
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--border2:#3a3a3a;--text:#f0f0f0;--text2:#a0a0a0}
@@ -16,13 +16,13 @@ class WcCard extends LitElement {
     ::slotted(*){color:var(--text2,#a0a0a0);font-size:14px;line-height:1.6}
     @media(max-width:640px){.card{padding:16px;}.title{font-size:15px;}.body{font-size:13px;}}
   \`;
-  render(){return html\`<a class="card" href="\${this.href||'#'}">\${this.icon?html\`<div class="icon-wrap">\${this.icon}</div>\`:nothing}\${this.title?html\`<div class="title">\${this.title}</div>\`:nothing}<div class="body"><slot></slot></div></a>\`;}
+  render(){const _ico=this.iconName?html\`<wc-icon name="\${this.iconName}"></wc-icon>\`:this.icon;return html\`<a class="card" href="\${this.href||'#'}">\${_ico?html\`<div class="icon-wrap">\${_ico}</div>\`:nothing}\${this.title?html\`<div class="title">\${this.title}</div>\`:nothing}<div class="body"><slot></slot></div></a>\`;}
 }
 customElements.define('wc-card',WcCard);
 
 // ── WC-TILE / WC-TILES ────────────────────────────────────────────────────
 class WcTile extends LitElement {
-  static properties={href:{type:String},icon:{type:String},title:{type:String},description:{type:String}};
+  static properties={href:{type:String},icon:{type:String},iconName:{type:String,attribute:'icon-name'},title:{type:String},description:{type:String}};
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--border2:#3a3a3a;--text:#f0f0f0;--text3:#666}
@@ -35,7 +35,7 @@ class WcTile extends LitElement {
     .desc{font-family:'Inter',sans-serif;font-size:13px;color:var(--text3,#666);line-height:1.5}
     @media(max-width:640px){a{padding:12px;gap:10px;}.icon{width:32px;height:32px;font-size:16px}.title{font-size:13px}.desc{font-size:12px}}
   \`;
-  render(){return html\`<a href="\${this.href||'#'}">\${this.icon?html\`<div class="icon">\${this.icon}</div>\`:nothing}<div class="info"><div class="title">\${this.title||''}</div>\${this.description?html\`<div class="desc">\${this.description}</div>\`:nothing}</div></a>\`;}
+  render(){const _ico=this.iconName?html\`<wc-icon name="\${this.iconName}"></wc-icon>\`:this.icon;return html\`<a href="\${this.href||'#'}">\${_ico?html\`<div class="icon">\${_ico}</div>\`:nothing}<div class="info"><div class="title">\${this.title||''}</div>\${this.description?html\`<div class="desc">\${this.description}</div>\`:nothing}</div></a>\`;}
 }
 customElements.define('wc-tile',WcTile);
 
