@@ -1,9 +1,9 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import pc from 'picocolors';
-import archiver from 'archiver';
+import { zipSync } from 'fflate';
 
 const CONFIG_PATH = path.join(os.homedir(), '.docslit', 'config.json');
 
@@ -64,9 +64,10 @@ export async function publish(args) {
 
   console.log(`  ${pc.dim('Publishing')} ${pc.bold(projectSlug)}${pc.dim('…')}`);
 
-  // Zip the dist directory
-  const zipBuffer = await zipDirectory(distDir);
-  console.log(pc.dim(`  Packaged ${formatBytes(zipBuffer.length)}`));
+  const fileMap = await buildFileMap(distDir);
+  const uncompressed = Object.values(fileMap).reduce((n, [d]) => n + d.length, 0);
+  const zipBuffer = Buffer.from(zipSync(fileMap));
+  console.log(pc.dim(`  Packaged ${formatBytes(zipBuffer.length)} (${formatBytes(uncompressed)} uncompressed)`));
 
   // Upload via multipart/form-data
   const formData = new FormData();
@@ -112,16 +113,16 @@ export async function publish(args) {
   console.log('');
 }
 
-function zipDirectory(dir) {
-  return new Promise((resolve, reject) => {
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    const chunks = [];
-    archive.on('data', (chunk) => chunks.push(chunk));
-    archive.on('end', () => resolve(Buffer.concat(chunks)));
-    archive.on('error', reject);
-    archive.directory(dir, false);
-    archive.finalize();
-  });
+async function buildFileMap(dir, prefix = '') {
+  const map = {};
+  const entries = await readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    const key = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) Object.assign(map, await buildFileMap(full, key));
+    else map[key] = [readFileSync(full), { level: 6 }];
+  }
+  return map;
 }
 
 function slugify(name) {
@@ -141,3 +142,4 @@ function getFlag(args, flag) {
   const i = args.indexOf(flag);
   return i !== -1 ? args[i + 1] : null;
 }
+
