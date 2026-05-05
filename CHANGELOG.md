@@ -48,6 +48,19 @@ The search index (`search-index.json`) is generated at build time alongside `llm
 
 **Sidebar filter** — a filter input is now fixed at the top of the sidebar. As you type, non-matching pages are hidden instantly and matching text is highlighted in yellow. A clear button appears when the filter is active, and a friendly empty state is shown when no pages match. Works on both desktop and mobile sidebar.
 
+**Accessibility** — comprehensive WCAG 2.1 AA improvements across the shell and all interactive components:
+- Skip-to-content link for keyboard users
+- Focus trap in search modal with focus return on close
+- `prefers-reduced-motion` support — disables all animations and transitions
+- `prefers-contrast` support — boosts borders and text in high contrast mode
+- Visible focus indicators (`focus-visible` outlines) on all interactive elements
+- ARIA tablist/tab/tabpanel pattern with arrow key navigation on tabs, views, and code groups
+- Keyboard support (Enter/Space) on expandable, accordion, directory, and tree item toggles
+- Combobox pattern with `aria-activedescendant` on search input, `role="option"` on results
+- Semantic `<main>` and `<nav>` landmarks
+- Content links underlined by default for color-independent distinguishability
+- Appropriate ARIA roles on callouts (`role="alert"` for warnings/errors), version selectors (`aria-pressed`), and copy buttons (dynamic `aria-label`)
+
 **Security improvement** — all git operations now use `isomorphic-git` (pure JavaScript) instead of shelling out to the `git` CLI via `execSync`. This eliminates any command injection risk from branch names or file paths, and removes the requirement for git to be installed on the system.
 
 ---
