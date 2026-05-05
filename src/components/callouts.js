@@ -19,7 +19,7 @@ class WcCallout extends LitElement {
     ::slotted(*){max-width:100%;overflow-x:auto}
     @media(max-width:640px){.wrap{gap:10px;padding:12px 16px;}.body{font-size:13px;}}
   \`;
-  render(){const t=this.type||'info';return html\`<div class="wrap \${t}">\${this.title?html\`<div class="body"><div class="title">\${this.title}</div><slot></slot></div>\`:html\`<div class="body"><slot></slot></div>\`}</div>\`;}
+  render(){const t=this.type||'info';const r=t==='warning'||t==='error'?'alert':'note';return html\`<div class="wrap \${t}" role=\${r}>\${this.title?html\`<div class="body"><div class="title">\${this.title}</div><slot></slot></div>\`:html\`<div class="body"><slot></slot></div>\`}</div>\`;}
 }
 customElements.define('wc-callout',WcCallout);
 customElements.define('wc-alert',class extends WcCallout{});
@@ -37,6 +37,7 @@ class WcBanner extends LitElement {
     .neutral{background:rgba(160,160,160,.06);border-color:#2a2a2a;color:#a0a0a0}
     .close{background:none;border:none;cursor:pointer;color:inherit;opacity:.5;font-size:16px;line-height:1;padding:0 0 0 8px;flex-shrink:0;transition:opacity .15s}
     .close:hover{opacity:1}
+    .close:focus-visible{outline:2px solid currentColor;outline-offset:2px;border-radius:2px}
   \`;
   constructor(){super();this._gone=false;}
   render(){if(this._gone)return nothing;const t=this.type||'neutral';return html\`<div class="wrap \${t}"><slot></slot>\${this.dismissible?html\`<button class="close" @click=\${()=>this._gone=true} aria-label="Dismiss">✕</button>\`:nothing}</div>\`;}

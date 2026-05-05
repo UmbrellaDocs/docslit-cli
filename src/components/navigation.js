@@ -40,13 +40,25 @@ class WcTabs extends LitElement {
     button{background:none;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:var(--text3,#666);cursor:pointer;margin-bottom:-1px;transition:all .15s;white-space:nowrap;flex-shrink:0}
     button.active{color:#4f98a3;border-bottom-color:#01696f}
     button:hover{color:#a0a0a0}
+    button:focus-visible{outline:2px solid #01696f;outline-offset:-2px;border-radius:4px 4px 0 0}
     @media(max-width:640px){button{padding:8px 12px;font-size:12px;margin-bottom:0;border-bottom-width:3px;}}
+    @media(prefers-reduced-motion:reduce){button{transition:none}}
   \`;
   constructor(){super();this._active=0;}
+  _onKey(e,i,total){
+    let next=i;
+    if(e.key==='ArrowRight')next=Math.min(i+1,total-1);
+    else if(e.key==='ArrowLeft')next=Math.max(i-1,0);
+    else if(e.key==='Home')next=0;
+    else if(e.key==='End')next=total-1;
+    else return;
+    e.preventDefault();this._active=next;
+    this.updateComplete.then(()=>{const btn=this.shadowRoot.querySelectorAll('[role=tab]')[next];if(btn)btn.focus();});
+  }
   render(){
     const tabs=Array.from(this.querySelectorAll('wc-tab'));
     tabs.forEach((t,i)=>t.toggleAttribute('active',i===this._active));
-    return html\`<div class="tabbar">\${tabs.map((t,i)=>html\`<button class="\${i===this._active?'active':''}" @click=\${()=>this._active=i}>\${t.getAttribute('label')||'Tab '+(i+1)}</button>\`)}</div><slot></slot>\`;
+    return html\`<div class="tabbar" role="tablist">\${tabs.map((t,i)=>{const label=t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button role="tab" aria-selected=\${active} tabindex=\${active?0:-1} class="\${active?'active':''}" @click=\${()=>this._active=i} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div><div role="tabpanel"><slot></slot></div>\`;
   }
 }
 customElements.define('wc-tabs',WcTabs);
@@ -70,13 +82,25 @@ class WcView extends LitElement {
     button{background:none;border:none;border-bottom:2px solid transparent;padding:10px 14px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--text3,#666);cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;margin-bottom:-1px}
     button.active{color:#4f98a3;border-bottom-color:#01696f}
     button:hover{color:#a0a0a0}
+    button:focus-visible{outline:2px solid #01696f;outline-offset:-2px;border-radius:4px 4px 0 0}
     @media(max-width:640px){button{padding:8px 10px;font-size:12px;}}
+    @media(prefers-reduced-motion:reduce){button{transition:none}}
   \`;
   constructor(){super();this._active=0;}
+  _onKey(e,i,total){
+    let next=i;
+    if(e.key==='ArrowRight')next=Math.min(i+1,total-1);
+    else if(e.key==='ArrowLeft')next=Math.max(i-1,0);
+    else if(e.key==='Home')next=0;
+    else if(e.key==='End')next=total-1;
+    else return;
+    e.preventDefault();this._active=next;
+    this.updateComplete.then(()=>{const btn=this.shadowRoot.querySelectorAll('[role=tab]')[next];if(btn)btn.focus();});
+  }
   render(){
     const panels=Array.from(this.querySelectorAll('wc-view-panel'));
     panels.forEach((p,i)=>p.toggleAttribute('active',i===this._active));
-    return html\`<div class="toolbar">\${panels.map((p,i)=>html\`<button class="\${i===this._active?'active':''}" @click=\${()=>this._active=i}>\${p.getAttribute('label')||'Panel '+(i+1)}</button>\`)}</div><slot></slot>\`;
+    return html\`<div class="toolbar" role="tablist">\${panels.map((p,i)=>{const label=p.getAttribute('label')||'Panel '+(i+1);const active=i===this._active;return html\`<button role="tab" aria-selected=\${active} tabindex=\${active?0:-1} class="\${active?'active':''}" @click=\${()=>this._active=i} @keydown=\${(e)=>this._onKey(e,i,panels.length)}>\${label}</button>\`;})}</div><div role="tabpanel"><slot></slot></div>\`;
   }
 }
 customElements.define('wc-view',WcView);

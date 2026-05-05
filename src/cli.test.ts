@@ -593,3 +593,120 @@ describe('renderShell — sidebar filter', () => {
     expect(html).toContain('oninput="_filterSidebar(this.value)"');
   });
 });
+
+// ── Accessibility ────────────────────────────────────────────────────────
+
+describe('renderShell — accessibility', () => {
+  const config = { name: 'Test', sidebar: [{ group: 'Guide', pages: ['intro'] }] };
+
+  it('includes skip-to-content link', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('skip-link');
+    expect(html).toContain('href="#docs-content"');
+    expect(html).toContain('Skip to content');
+  });
+
+  it('uses <main> element for content area', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('<main class="docs-content"');
+    expect(html).toContain('role="main"');
+    expect(html).toContain('</main>');
+  });
+
+  it('sidebar scroll has nav landmark with aria-label', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('<nav class="sidebar-scroll"');
+    expect(html).toContain('aria-label="Documentation pages"');
+  });
+
+  it('search input has combobox role and aria attributes', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain('aria-controls="search-results"');
+    expect(html).toContain('aria-activedescendant');
+  });
+
+  it('search results container has listbox role', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('role="listbox"');
+    expect(html).toContain('aria-label="Search results"');
+  });
+
+  it('search result items have role="option" in render functions', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain("role=\"option\"");
+  });
+
+  it('includes focus trap function for search modal', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('function _trapFocus');
+    expect(html).toContain('addEventListener(\'keydown\', _trapFocus)');
+  });
+
+  it('returns focus to trigger on search close', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('search-trigger');
+    expect(html).toContain('trigger.focus()');
+  });
+
+  it('includes prefers-reduced-motion styles', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('prefers-reduced-motion: reduce');
+    expect(html).toContain('animation-duration: 0.01ms');
+    expect(html).toContain('transition-duration: 0.01ms');
+  });
+
+  it('includes prefers-contrast styles', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('prefers-contrast: more');
+  });
+
+  it('includes focus-visible indicators', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('*:focus-visible');
+    expect(html).toContain('outline: 2px solid var(--accent)');
+  });
+
+  it('content links have underline for distinguishability', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('.docs-content a { text-decoration: underline');
+  });
+});
+
+describe('components — accessibility', () => {
+  const components = buildComponents();
+
+  it('tabs have ARIA tablist/tab/tabpanel roles', () => {
+    expect(components).toContain('role="tablist"');
+    expect(components).toContain('role="tab"');
+    expect(components).toContain('role="tabpanel"');
+    expect(components).toContain('aria-selected');
+  });
+
+  it('tabs support arrow key navigation', () => {
+    expect(components).toContain('ArrowRight');
+    expect(components).toContain('ArrowLeft');
+  });
+
+  it('expandable has keyboard support and ARIA', () => {
+    expect(components).toContain('aria-expanded');
+    expect(components).toContain('tabindex="0"');
+  });
+
+  it('copy button is keyboard accessible', () => {
+    expect(components).toContain("role=\"button\"");
+    expect(components).toContain('tabindex="0"');
+  });
+
+  it('callout has appropriate role', () => {
+    expect(components).toContain("role=");
+  });
+
+  it('components include focus-visible styles', () => {
+    expect(components).toContain('focus-visible');
+  });
+
+  it('components include prefers-reduced-motion', () => {
+    expect(components).toContain('prefers-reduced-motion');
+  });
+});

@@ -83,14 +83,18 @@ class WcDir extends LitElement {
     :host([theme="light"]){--border:#e2e2e2;--text:#0f0f0f;--text3:#999}
     .row{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text,#f0f0f0);cursor:pointer;user-select:none}
     .row:hover{background:rgba(128,128,128,.08)}
+    .row:focus-visible{outline:2px solid #01696f;outline-offset:-2px}
     .icon{flex-shrink:0;font-size:14px;line-height:1}
     .chevron{font-size:10px;color:var(--text3,#666);transition:transform .15s;flex-shrink:0}
     .chevron.open{transform:rotate(90deg)}
     .children{padding-left:20px;border-left:1px solid var(--border,#2a2a2a);margin:2px 0 2px 12px}
     @media(max-width:640px){.row{font-size:12px}}
+    @media(prefers-reduced-motion:reduce){.chevron{transition:none}}
   \`;
   constructor(){super();this.open=true;}
-  render(){return html\`<div class="row" @click=\${()=>this.open=!this.open}><span class="chevron \${this.open?'open':''}">▶</span><span class="icon">\${this.open?'📂':'📁'}</span><span>\${this.name}</span></div>\${this.open?html\`<div class="children"><slot></slot></div>\`:nothing}\`;}
+  _toggle(){this.open=!this.open;}
+  _onKey(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this._toggle();}}
+  render(){return html\`<div class="row" role="button" tabindex="0" aria-expanded=\${this.open} @click=\${this._toggle} @keydown=\${this._onKey}><span class="chevron \${this.open?'open':''}" aria-hidden="true">▶</span><span class="icon" aria-hidden="true">\${this.open?'📂':'📁'}</span><span>\${this.name}</span></div>\${this.open?html\`<div class="children" role="group"><slot></slot></div>\`:nothing}\`;}
 }
 customElements.define('wc-dir',WcDir);
 
@@ -114,17 +118,21 @@ class WcTreeItem extends LitElement {
     :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text:#0f0f0f;--text3:#999}
     .row{display:flex;align-items:center;gap:8px;padding:0 8px;line-height:1.15;border-radius:4px;font-family:'JetBrains Mono','Courier New',monospace;font-size:13px;color:var(--text2,#a0a0a0);cursor:pointer;user-select:none}
     .row:hover{color:var(--text,#f0f0f0);background:rgba(128,128,128,.08)}
+    .row:focus-visible{outline:2px solid #01696f;outline-offset:-2px}
     .chevron{font-size:10px;color:var(--text3,#666);transition:transform .15s;flex-shrink:0;width:12px}
     .chevron.open{transform:rotate(90deg)}
     .icon{flex-shrink:0}
     .children{padding-left:20px;border-left:1px solid var(--border,#2a2a2a);margin:2px 0 2px 10px}
     ::slotted(*){max-width:100%}
+    @media(prefers-reduced-motion:reduce){.chevron{transition:none}}
   \`;
   constructor(){super();this.open=false;}
   _hasChildren(){return this.querySelectorAll('wc-tree-item').length>0;}
+  _toggle(){if(this._hasChildren())this.open=!this.open;}
+  _onKey(e){if(this._hasChildren()&&(e.key==='Enter'||e.key===' ')){e.preventDefault();this._toggle();}}
   render(){
     const hasKids=this._hasChildren();
-    return html\`<div class="row" style="\${hasKids?'':'cursor:default'}" @click=\${()=>hasKids&&(this.open=!this.open)}>\${hasKids?html\`<span class="chevron \${this.open?'open':''}">▶</span>\`:html\`<span class="chevron"></span>\`}\${this.icon?html\`<span class="icon">\${this.icon}</span>\`:nothing}<span>\${this.label}</span></div>\${this.open?html\`<div class="children"><slot></slot></div>\`:nothing}\`;
+    return html\`<div class="row" style="\${hasKids?'':'cursor:default'}" tabindex=\${hasKids?0:-1} role=\${hasKids?'button':'treeitem'} aria-expanded=\${hasKids?this.open:nothing} @click=\${this._toggle} @keydown=\${this._onKey}>\${hasKids?html\`<span class="chevron \${this.open?'open':''}" aria-hidden="true">▶</span>\`:html\`<span class="chevron"></span>\`}\${this.icon?html\`<span class="icon" aria-hidden="true">\${this.icon}</span>\`:nothing}<span>\${this.label}</span></div>\${this.open?html\`<div class="children" role="group"><slot></slot></div>\`:nothing}\`;
   }
 }
 customElements.define('wc-tree-item',WcTreeItem);
@@ -173,7 +181,8 @@ class WcCopy extends LitElement {
   async _copy(){
     try{await navigator.clipboard.writeText(this.text||'');this._copied=true;setTimeout(()=>this._copied=false,2000);}catch(e){console.error('Copy failed',e);}
   }
-  render(){return html\`<div class="wrap \${this._copied?'copied':''}" @click=\${this._copy.bind(this)} role="button" tabindex="0" aria-label="Copy to clipboard">\${window.__DOCSLIT_ICONS__?.copy?html\`<span class="icon" .innerHTML=\${window.__DOCSLIT_ICONS__.copy}></span>\`:nothing}\${this._copied?'Copied!':this.label||this.text||'Copy'}</div>\`;}
+  _onKey(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this._copy();}}
+  render(){return html\`<div class="wrap \${this._copied?'copied':''}" @click=\${this._copy.bind(this)} @keydown=\${this._onKey} role="button" tabindex="0" aria-label=\${this._copied?'Copied to clipboard':'Copy to clipboard'}>\${window.__DOCSLIT_ICONS__?.copy?html\`<span class="icon" .innerHTML=\${window.__DOCSLIT_ICONS__.copy}></span>\`:nothing}\${this._copied?'Copied!':this.label||this.text||'Copy'}</div>\`;}
 }
 customElements.define('wc-copy',WcCopy);
 `;

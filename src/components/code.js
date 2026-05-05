@@ -81,6 +81,7 @@ class WcCodeBlock extends LitElement {
     .var-span:hover{background:rgba(1,105,111,.12)}
     .copy-btn{background:none;border:1px solid var(--border,#2a2a2a);border-radius:5px;padding:4px 8px;cursor:pointer;color:var(--text3,#666);font-size:12px;font-family:'Inter',sans-serif;transition:color .15s,border-color .15s;flex-shrink:0;display:flex;align-items:center;gap:4px}
     .copy-btn:hover{color:#4f98a3;border-color:#4f98a3}
+    .copy-btn:focus-visible{outline:2px solid #01696f;outline-offset:2px}
     .copy-btn.copied{color:#34d399;border-color:rgba(16,185,129,.4)}
     @media(max-width:640px){.header{padding:8px 12px;}.filename{font-size:11px;}.lang{font-size:10px;}.line-numbers,.line-numbers span{font-size:12px;line-height:1.6;}pre{padding:10px 8px;font-size:12px;line-height:1.6;}}
   \`;
@@ -133,7 +134,7 @@ class WcCodeBlock extends LitElement {
     const nums=Array.from({length:count},(_,i)=>html\`<span>\${i+1}</span>\`);
     const hasHeader=this.filename||this.language;
     return html\`<div class="wrap">
-      \${hasHeader?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code">\${this._copied?'✓ Copied':'⧉ Copy'}</button></div>\`:nothing}
+      \${hasHeader?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied to clipboard':'Copy code to clipboard'}>\${this._copied?'✓ Copied':'⧉ Copy'}</button></div>\`:nothing}
       <div class="body"><div class="line-numbers">\${nums}</div><pre>\${this._renderCode()}</pre></div>
     </div>\`;
   }
@@ -152,15 +153,27 @@ class WcCodeGroup extends LitElement {
     button{background:none;border:none;border-bottom:2px solid transparent;padding:9px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:#555;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-bottom:-1px;transition:all .15s}
     button.active{color:#4f98a3;border-bottom-color:#01696f;background:var(--code-bg,#161616)}
     button:hover{color:#a0a0a0}
+    button:focus-visible{outline:2px solid #01696f;outline-offset:-2px;border-radius:4px 4px 0 0}
     .panel{display:none}.panel.active{display:block}
     pre{margin:0;padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--code-text,#e2e8f0);max-width:100%;box-sizing:border-box;scrollbar-width:none}
     pre::-webkit-scrollbar{display:none}
     @media(max-width:640px){button{padding:7px 12px;font-size:11px;}pre{padding:10px 8px;font-size:12px;}}
+    @media(prefers-reduced-motion:reduce){button{transition:none}}
   \`;
   constructor(){super();this._active=0;}
+  _onKey(e,i,total){
+    let next=i;
+    if(e.key==='ArrowRight')next=Math.min(i+1,total-1);
+    else if(e.key==='ArrowLeft')next=Math.max(i-1,0);
+    else if(e.key==='Home')next=0;
+    else if(e.key==='End')next=total-1;
+    else return;
+    e.preventDefault();this._active=next;
+    this.updateComplete.then(()=>{const btn=this.shadowRoot.querySelectorAll('[role=tab]')[next];if(btn)btn.focus();});
+  }
   render(){
     const tabs=Array.from(this.querySelectorAll('wc-code-tab'));
-    return html\`<div class="tabbar">\${tabs.map((t,i)=>html\`<button class="\${i===this._active?'active':''}" @click=\${()=>this._active=i}>\${t.label||t.getAttribute('label')||'Tab '+(i+1)}</button>\`)}</div>\${tabs.map((t,i)=>html\`<div class="panel \${i===this._active?'active':''}"><pre>\${t.textContent}</pre></div>\`)}\`;
+    return html\`<div class="tabbar" role="tablist">\${tabs.map((t,i)=>{const label=t.label||t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button role="tab" aria-selected=\${active} tabindex=\${active?0:-1} class="\${active?'active':''}" @click=\${()=>this._active=i} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div>\${tabs.map((t,i)=>html\`<div class="panel \${i===this._active?'active':''}" role="tabpanel"><pre>\${t.textContent}</pre></div>\`)}\`;
   }
 }
 customElements.define('wc-code-group',WcCodeGroup);

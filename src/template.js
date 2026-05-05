@@ -39,6 +39,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   ${buildStyles()}
 </head>
 <body>
+<a class="skip-link" href="#docs-content">Skip to content</a>
 <nav class="nav">
   <div class="nav-left">
     <button class="nav-menu-btn" id="nav-menu-btn" aria-label="Open navigation" aria-expanded="false">
@@ -63,10 +64,10 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   <div class="search-modal" role="dialog" aria-modal="true" aria-label="Search documentation">
     <div class="search-input-wrap">
       <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-      <input class="search-input" id="search-input" type="text" placeholder="Search docs…" autocomplete="off" spellcheck="false" oninput="handleSearchInput(this.value)" onkeydown="handleSearchKey(event)">
+      <input class="search-input" id="search-input" type="text" placeholder="Search docs…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="search-results" aria-activedescendant="" oninput="handleSearchInput(this.value)" onkeydown="handleSearchKey(event)">
       <div class="search-kbd"><kbd>Esc</kbd></div>
     </div>
-    <div class="search-results" id="search-results"></div>
+    <div class="search-results" id="search-results" role="listbox" aria-label="Search results"></div>
     <div class="search-footer">
       <div class="search-hint"><kbd>↑</kbd><kbd>↓</kbd> navigate</div>
       <div class="search-hint"><kbd>↵</kbd> open</div>
@@ -86,18 +87,18 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
-      <div class="sidebar-scroll" id="sidebar-scroll">
+      <nav class="sidebar-scroll" id="sidebar-scroll" aria-label="Documentation pages">
       ${sidebarHtml}
-      </div>
+      </nav>
     </aside>
     <div class="docs-main-col">
       <div class="docs-nav-top">
         <div class="docs-breadcrumb">${siteTitle} › <span id="docs-breadcrumb-current">Loading…</span></div>
       </div>
       <div class="docs-main">
-        <div class="docs-content" id="docs-content">
+        <main class="docs-content" id="docs-content" role="main">
           <div class="loading-state">Loading…</div>
-        </div>
+        </main>
         <div class="docs-toc" id="docs-toc"></div>
       </div>
     </div>
@@ -688,11 +689,30 @@ function openSearch() {
   _searchActive = -1;
   _renderDefaultResults();
   document.body.style.overflow = 'hidden';
+  overlay.addEventListener('keydown', _trapFocus);
 }
 
 function closeSearch() {
-  document.getElementById('search-overlay').classList.remove('open');
+  var overlay = document.getElementById('search-overlay');
+  overlay.classList.remove('open');
+  overlay.removeEventListener('keydown', _trapFocus);
   document.body.style.overflow = '';
+  var trigger = document.getElementById('search-trigger');
+  if (trigger) trigger.focus();
+}
+
+function _trapFocus(e) {
+  if (e.key !== 'Tab') return;
+  var modal = document.querySelector('.search-modal');
+  var focusable = modal.querySelectorAll('input, button, [tabindex]:not([tabindex="-1"])');
+  if (!focusable.length) return;
+  var first = focusable[0];
+  var last = focusable[focusable.length - 1];
+  if (e.shiftKey) {
+    if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+  } else {
+    if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
 }
 
 function handleOverlayClick(e) {
@@ -716,7 +736,7 @@ function _renderDefaultResults() {
 }
 
 function _renderItem(item, idx) {
-  return '<div class="search-item" data-idx="' + idx + '" data-id="' + _esc(item.id) + '" onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()">' +
+  return '<div class="search-item" id="search-opt-' + idx + '" role="option" data-idx="' + idx + '" data-id="' + _esc(item.id) + '" onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()">' +
     '<div class="search-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>' +
     '<div class="search-item-text"><div class="search-item-title">' + _esc(item.title) + '</div>' +
     (item.desc ? '<div class="search-item-desc">' + _esc(item.desc) + '</div>' : '') +
@@ -726,7 +746,7 @@ function _renderItem(item, idx) {
 }
 
 function _renderItemHl(item, idx, query) {
-  return '<div class="search-item" data-idx="' + idx + '" data-id="' + _esc(item.id) + '" onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()">' +
+  return '<div class="search-item" id="search-opt-' + idx + '" role="option" data-idx="' + idx + '" data-id="' + _esc(item.id) + '" onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()">' +
     '<div class="search-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>' +
     '<div class="search-item-text"><div class="search-item-title">' + _highlight(item.title, query) + '</div>' +
     (item.desc ? '<div class="search-item-desc">' + _highlight(item.desc, query) + '</div>' : '') +
@@ -811,8 +831,14 @@ function handleSearchKey(e) {
 
 function _updateActive() {
   var items = document.querySelectorAll('.search-item');
-  items.forEach(function(el, i) { el.classList.toggle('active', i === _searchActive); });
-  if (items[_searchActive]) items[_searchActive].scrollIntoView({ block: 'nearest' });
+  items.forEach(function(el, i) { el.classList.toggle('active', i === _searchActive); el.setAttribute('aria-selected', i === _searchActive ? 'true' : 'false'); });
+  var input = document.getElementById('search-input');
+  if (items[_searchActive]) {
+    items[_searchActive].scrollIntoView({ block: 'nearest' });
+    if (input) input.setAttribute('aria-activedescendant', items[_searchActive].id);
+  } else {
+    if (input) input.setAttribute('aria-activedescendant', '');
+  }
 }
 
 function selectSearchItem(el) {
@@ -1279,6 +1305,45 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 @media(max-width:400px) {
   .docs-content { padding: 20px 16px 40px; }
   .docs-content h1 { font-size: 22px; }
+}
+
+/* SKIP LINK */
+.skip-link {
+  position: fixed; top: -100px; left: 16px; z-index: 9999;
+  padding: 8px 16px; background: var(--accent); color: #fff;
+  font-family: var(--font-sans); font-size: 14px; font-weight: 600;
+  border-radius: 0 0 var(--radius) var(--radius);
+  text-decoration: none; transition: top .15s;
+}
+.skip-link:focus { top: 0; outline: none; }
+
+/* FOCUS INDICATORS */
+*:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+  border-radius: 4px;
+}
+.sidebar-item:focus-visible { outline-offset: -2px; }
+.search-input:focus-visible { outline: none; }
+.theme-btn:focus-visible, .nav-menu-btn:focus-visible,
+.search-trigger:focus-visible, .version-select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+/* LINKS — underline for distinguishability */
+.docs-content a { text-decoration: underline; text-decoration-color: var(--accent-dim2); text-underline-offset: 2px; }
+.docs-content a:hover { text-decoration-color: var(--accent-light); }
+
+/* REDUCED MOTION */
+@media(prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .search-modal { animation: none; }
+  .docs-sidebar { transition: none; }
+}
+
+/* HIGH CONTRAST */
+@media(prefers-contrast: more) {
+  :root { --border: #555; --border2: #777; --text2: #ccc; --text3: #aaa; }
+  html.light { --border: #999; --border2: #777; --text2: #333; --text3: #555; }
 }
 </style>`;
 }

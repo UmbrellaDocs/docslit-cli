@@ -62,13 +62,17 @@ class WcExpandable extends LitElement {
     .wrap{border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden;min-width:0}
     .hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--surface2,#1a1a1a);cursor:pointer;user-select:none;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:var(--text,#f0f0f0);gap:12px;min-width:0}
     .hdr:hover{background:var(--surface3,#222)}
+    .hdr:focus-visible{outline:2px solid #01696f;outline-offset:-2px}
     .body{padding:14px 18px;background:var(--surface,#111);font-family:'Inter',sans-serif;font-size:14px;color:var(--text2,#a0a0a0);line-height:1.7;min-width:0}
     .chevron{transition:transform .2s;color:var(--text3,#666);font-size:11px;flex-shrink:0}
     .chevron.open{transform:rotate(180deg)}
     ::slotted(*){max-width:100%;overflow-x:auto}
     @media(max-width:640px){.hdr{padding:10px 14px;}.body{padding:10px 14px;font-size:13px;}}
+    @media(prefers-reduced-motion:reduce){.chevron{transition:none}}
   \`;
-  render(){return html\`<div class="wrap"><div class="hdr" @click=\${()=>this.open=!this.open} role="button" aria-expanded=\${this.open}><span>\${this.title}</span><span class="chevron \${this.open?'open':''}">▼</span></div>\${this.open?html\`<div class="body"><slot></slot></div>\`:nothing}</div>\`;}
+  _toggle(){this.open=!this.open;}
+  _onKey(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this._toggle();}}
+  render(){return html\`<div class="wrap"><div class="hdr" @click=\${this._toggle} @keydown=\${this._onKey} role="button" tabindex="0" aria-expanded=\${this.open}><span>\${this.title}</span><span class="chevron \${this.open?'open':''}" aria-hidden="true">▼</span></div>\${this.open?html\`<div class="body" role="region"><slot></slot></div>\`:nothing}</div>\`;}
 }
 customElements.define('wc-expandable',WcExpandable);
 
@@ -81,13 +85,18 @@ class WcAccordion extends LitElement {
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#999}
     .wrap{border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden;min-width:0}
     .hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--surface2,#1a1a1a);cursor:pointer;user-select:none;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;color:var(--text,#f0f0f0);gap:12px;min-width:0}
+    .hdr:hover{background:var(--surface3,#222)}
+    .hdr:focus-visible{outline:2px solid #01696f;outline-offset:-2px}
     .body{padding:16px 18px;background:var(--surface,#111);font-family:'Inter',sans-serif;font-size:14px;color:var(--text2,#a0a0a0);line-height:1.7;min-width:0;overflow:hidden}
     .chevron{transition:transform .2s;color:var(--text3,#666);font-size:12px;flex-shrink:0}
     .chevron.open{transform:rotate(180deg)}
     ::slotted(*){max-width:100%;overflow-x:auto}
     @media(max-width:640px){.hdr{padding:12px 14px;font-size:14px;}.body{padding:12px 14px;font-size:13px;}}
+    @media(prefers-reduced-motion:reduce){.chevron{transition:none}}
   \`;
-  render(){return html\`<div class="wrap"><div class="hdr" @click=\${()=>this._open=!this._open}><span>\${this.title}</span><span class="chevron \${this._open?'open':''}">▼</span></div>\${this._open?html\`<div class="body"><slot></slot></div>\`:nothing}</div>\`;}
+  _toggle(){this._open=!this._open;}
+  _onKey(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this._toggle();}}
+  render(){return html\`<div class="wrap"><div class="hdr" @click=\${this._toggle} @keydown=\${this._onKey} role="button" tabindex="0" aria-expanded=\${this._open}><span>\${this.title}</span><span class="chevron \${this._open?'open':''}" aria-hidden="true">▼</span></div>\${this._open?html\`<div class="body" role="region"><slot></slot></div>\`:nothing}</div>\`;}
 }
 customElements.define('wc-accordion',WcAccordion);
 
