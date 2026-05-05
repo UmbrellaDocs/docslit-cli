@@ -127,17 +127,26 @@ customElements.define('wc-schema',WcSchema);
 
 // ── WC-MERMAID ─────────────────────────────────────────────────────────────
 class WcMermaid extends LitElement {
-  static properties={_svg:{type:String,state:true},_error:{type:String,state:true}};
+  static properties={_svg:{type:String,state:true},_error:{type:String,state:true},_expanded:{type:Boolean,state:true}};
   static styles=css\`
     :host{display:block;margin:0 0 16px}
-    :host([theme="dark"]){--surface:#111;--border:#2a2a2a}
-    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2}
-    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;padding:24px;overflow-x:auto;text-align:center}
+    :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--text3:#666}
+    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--text3:#999}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;padding:24px;overflow-x:auto;text-align:center;position:relative}
     .loading{color:#555;font-family:'Inter',sans-serif;font-size:13px}
     .error{color:#f87171;font-family:'JetBrains Mono',monospace;font-size:12px;white-space:pre-wrap;text-align:left}
     .diagram{display:inline-block;max-width:100%}
     .diagram svg{max-width:100%;height:auto}
+    .expand-btn{position:absolute;top:10px;right:10px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:6px;padding:5px 8px;cursor:pointer;color:var(--text3,#666);font-size:14px;line-height:1;display:flex;align-items:center;gap:4px;font-family:'Inter',sans-serif;font-size:11px;transition:color .15s,border-color .15s;z-index:1}
+    .expand-btn:hover{color:#4f98a3;border-color:#4f98a3}
+    .overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:32px;box-sizing:border-box}
+    .modal{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:12px;padding:48px 32px 32px;width:90vw;height:90vh;overflow:auto;position:relative;display:flex;align-items:center;justify-content:center}
+    .modal-diagram{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+    .modal-diagram svg{width:100%;height:100%;max-width:100%;max-height:100%}
+    .close-btn{position:absolute;top:12px;right:12px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:6px;padding:6px 12px;cursor:pointer;color:var(--text3,#666);font-family:'Inter',sans-serif;font-size:12px;transition:color .15s,border-color .15s;z-index:1}
+    .close-btn:hover{color:#f87171;border-color:#f87171}
   \`;
+  constructor(){super();this._expanded=false;}
   connectedCallback(){super.connectedCallback();this._code=this.textContent.trim();}
   async firstUpdated(){await this._renderDiagram();}
   async _renderDiagram(){
@@ -153,10 +162,12 @@ class WcMermaid extends LitElement {
       this._svg=svg;
     }catch(e){this._error=e.message;}
   }
+  _open(){this._expanded=true;}
+  _close(e){if(e.target===e.currentTarget||e.target.classList.contains('close-btn'))this._expanded=false;}
   render(){
     if(this._error)return html\`<div class="wrap"><pre class="error">\${this._error}</pre></div>\`;
     if(!this._svg)return html\`<div class="wrap"><div class="loading">Rendering diagram…</div></div>\`;
-    return html\`<div class="wrap"><div class="diagram" .innerHTML=\${this._svg}></div></div>\`;
+    return html\`<div class="wrap"><button class="expand-btn" @click=\${this._open} title="Expand diagram">\u{2922} Expand</button><div class="diagram" .innerHTML=\${this._svg}></div></div>\${this._expanded?html\`<div class="overlay" @click=\${this._close}><div class="modal"><button class="close-btn" @click=\${this._close}>✕ Close</button><div class="modal-diagram" .innerHTML=\${this._svg}></div></div></div>\`:nothing}\`;
   }
 }
 customElements.define('wc-mermaid',WcMermaid);
