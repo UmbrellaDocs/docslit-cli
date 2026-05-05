@@ -1,6 +1,6 @@
 {
   "name": "docslit",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "The docs framework for the web platform era. Markdown + Lit web components",
   "homepage": "https://docslit.com",
   "repository": {
@@ -34,10 +34,11 @@
   "license": "AGPL-3.0-only",
   "dependencies": {
     "chokidar": "^5.0.0",
-    "fflate": "^0.8.2",
     "express": "^5.2.1",
+    "fflate": "^0.8.2",
     "fs-extra": "^11.3.4",
     "gray-matter": "^4.0.3",
+    "isomorphic-git": "^1.37.6",
     "marked": "^18.0.3",
     "picocolors": "^1.1.1",
     "ws": "^8.20.0"

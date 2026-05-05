@@ -6,7 +6,7 @@ import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import chokidar from 'chokidar';
 import pc from 'picocolors';
-import { loadConfig, getAllPageIds } from './config.js';
+import { loadConfig, getAllPageIds, getVersionConfig, gitReadFile, getVersionSidebar } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell } from './template.js';
 
@@ -57,12 +57,39 @@ export async function dev({ port = 3000 } = {}) {
     res.json({ config: freshConfig });
   });
 
-  // API: serve a single markdown page
+  // API: serve a single markdown page (versioned: /api/page/:version/:id)
+  app.get('/api/page/:version/:id', async (req, res) => {
+    const { version, id } = req.params;
+    const vc = getVersionConfig(config);
+    if (!vc) return res.status(400).json({ error: 'Versioning not enabled' });
+
+    const entry = vc.list.find(v => v.version === version);
+    if (!entry) return res.status(404).json({ error: `Version "${version}" not found` });
+
+    // For the current branch version, serve from disk
+    const docsDir = path.join(cwd, 'docs');
+    const mdPath = path.resolve(docsDir, `${id}.md`);
+    if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
+      const raw = await fs.readFile(mdPath, 'utf8');
+      const { meta, html } = parseDoc(raw);
+      return res.json({ id, meta, html });
+    }
+
+    // For other versions, try git show
+    const raw = await gitReadFile(entry.branch, `docs/${id}.md`, cwd);
+    if (raw) {
+      const { meta, html } = parseDoc(raw);
+      return res.json({ id, meta, html });
+    }
+
+    res.status(404).json({ error: `Page "${id}" not found in version ${version}` });
+  });
+
+  // API: serve a single markdown page (unversioned)
   app.get('/api/page/:id', async (req, res) => {
     const id = req.params.id;
     const docsDir = path.join(cwd, 'docs');
     const mdPath = path.resolve(docsDir, `${id}.md`);
-    // Prevent path traversal — resolved path must stay inside docs/
     if (!mdPath.startsWith(docsDir + path.sep)) {
       return res.status(400).json({ error: 'Invalid page id' });
     }
@@ -96,10 +123,29 @@ export async function dev({ port = 3000 } = {}) {
   app.use('/components', express.static(path.join(cwd, 'components')));
 
   // Catch-all: serve the app shell
-  app.get('/{*path}', (req, res) => {
-    const freshConfig = loadConfig(cwd);
+  app.get('/{*path}', async (req, res) => {
+    const vc = getVersionConfig(config);
+    let shellConfig = config;
+    let currentVersion = null;
+
+    if (vc) {
+      currentVersion = vc.default;
+      const pathMatch = req.path.match(/^\/([^/]+)\//);
+      if (pathMatch) {
+        const requestedVersion = pathMatch[1];
+        const entry = vc.list.find(v => v.version === requestedVersion);
+        if (entry) {
+          currentVersion = entry.version;
+          if (entry.version !== vc.default) {
+            const versionSidebar = await getVersionSidebar(entry.branch, cwd);
+            if (versionSidebar.length) shellConfig = { ...config, sidebar: versionSidebar };
+          }
+        }
+      }
+    }
+
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(renderShell({ config, mode: 'dev', port }));
+    res.send(renderShell({ config: shellConfig, mode: 'dev', port, versionConfig: vc, currentVersion }));
   });
 
   server.listen(port, () => {

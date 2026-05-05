@@ -1,5 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
+import git from 'isomorphic-git';
+import nodeFs from 'node:fs';
 
 export async function loadConfig(cwd) {
   const configPath = path.join(cwd, 'docslit.json');
@@ -25,4 +27,55 @@ export function getAllPageIds(config) {
     }
   }
   return ids;
+}
+
+export function getVersionConfig(config) {
+  if (!config.versions || !config.versions.list || !config.versions.list.length) return null;
+  return config.versions;
+}
+
+export async function gitReadFile(branch, filePath, dir) {
+  try {
+    const oid = await git.resolveRef({ fs: nodeFs, dir, ref: branch });
+    const { blob } = await git.readBlob({ fs: nodeFs, dir, oid, filepath: filePath });
+    return new TextDecoder().decode(blob);
+  } catch {
+    return null;
+  }
+}
+
+export async function getVersionSidebar(branch, dir) {
+  const raw = await gitReadFile(branch, 'docslit.json', dir);
+  if (!raw) return [];
+  try {
+    const config = JSON.parse(raw);
+    return config.sidebar || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getChangedDocs(defaultBranch, versionBranch, dir) {
+  try {
+    await git.resolveRef({ fs: nodeFs, dir, ref: defaultBranch });
+    await git.resolveRef({ fs: nodeFs, dir, ref: versionBranch });
+    const changed = [];
+    await git.walk({
+      fs: nodeFs,
+      dir,
+      trees: [git.TREE({ ref: defaultBranch }), git.TREE({ ref: versionBranch })],
+      map: async function(filepath, [entryA, entryB]) {
+        if (!filepath.startsWith('docs/')) return;
+        if (!filepath.endsWith('.md')) return;
+        const oidA = entryA ? await entryA.oid() : null;
+        const oidB = entryB ? await entryB.oid() : null;
+        if (oidA !== oidB) {
+          changed.push(filepath.replace(/^docs\//, '').replace(/\.md$/, ''));
+        }
+      },
+    });
+    return changed;
+  } catch {
+    return [];
+  }
 }

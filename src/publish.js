@@ -73,6 +73,9 @@ export async function publish(args) {
   const formData = new FormData();
   formData.append('project', projectSlug);
   formData.append('name', docsConfig.name || projectSlug);
+  if (docsConfig.versions) {
+    formData.append('versions', JSON.stringify(docsConfig.versions));
+  }
   formData.append(
     'site',
     new Blob([zipBuffer], { type: 'application/zip' }),

@@ -4,6 +4,45 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
+## 0.1.6
+
+### What's new
+
+**Multi-version documentation support** — docslit now supports hosting multiple versions of documentation on a single site with a version selector. Versions map to git branches, so teams can maintain separate branches for each product release (e.g. `docs-v1`, `docs-v2`) and build them into a unified site with shareable versioned URLs like `/v2/getting-started`.
+
+This feature is fully opt-in. Add a `versions` block to `docslit.json` to enable it:
+
+```json
+{
+  "versions": {
+    "default": "v2",
+    "list": [
+      { "version": "v1", "branch": "docs-v1", "tag": "Legacy" },
+      { "version": "v2", "branch": "main", "tag": "Latest" }
+    ]
+  }
+}
+```
+
+Key capabilities:
+- **Deduplicated builds** — the default version is built fully; other versions only build pages that actually differ (detected via `git diff`). Shared pages are stored once and referenced via a `_manifest.json` fallback, keeping storage costs and build times minimal.
+- **Version selector** — a dropdown appears in the nav bar showing all versions with optional tags (Latest, Legacy, Deprecated, etc.). Switching versions preserves the current page context.
+- **Versioned URLs** — every page gets a version prefix (`/v1/page`, `/v2/page`) for direct linking. The root URL redirects to the default version.
+- **Dev server support** — the dev server serves the current branch with full hot-reload. Other versions are available read-only via `git show` from their branches.
+- **Per-version sidebars** — each version can have its own sidebar navigation, read from that branch's `docslit.json`.
+- **SEO pages** — thin HTML pages for each version include version-aware redirects.
+- **llms.txt** — each version gets its own `llms.txt` and `llms-full.txt`.
+
+**Import versioning** — the Mintlify import tool now detects versioned navigation (`navigation.versions` in `mint.json`) and offers four strategies:
+1. **Branch-based versioning (recommended)** — automatically creates git branches per version, distributes the right pages to each branch, and writes the versioning config.
+2. **Keep only latest** — imports just the default version's pages.
+3. **Merge all versions** — flattens everything into a single unversioned site.
+4. **Skip** — imports all files without versioning config for manual setup later.
+
+**Security improvement** — all git operations now use `isomorphic-git` (pure JavaScript) instead of shelling out to the `git` CLI via `execSync`. This eliminates any command injection risk from branch names or file paths, and removes the requirement for git to be installed on the system.
+
+---
+
 ## 0.1.5
 
 ### What's new

@@ -2,6 +2,9 @@ import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
 import matter from 'gray-matter';
+import readline from 'node:readline';
+import git from 'isomorphic-git';
+import nodeFs from 'node:fs';
 
 // ─── Mintlify → DocsLit component map ─────────────────────────────────────────
 // tag:         output wc-* tag (null = special handling)
@@ -497,6 +500,174 @@ function printReport({ sourceDir, outDir, dryRun, files, totalStats, allIssues, 
   console.log(`    ${pc.dim('https://docslit.com/docs/components')}\n`);
 }
 
+// ─── Version handling ─────────────────────────────────────────────────────────
+
+function detectMintlifyVersions(srcConfig) {
+  if (!srcConfig?.navigation?.versions) return null;
+  const versions = srcConfig.navigation.versions;
+  if (!Array.isArray(versions) || versions.length < 2) return null;
+  return versions;
+}
+
+function mintVersionedNavToSidebars(versions) {
+  const result = new Map();
+  for (const v of versions) {
+    const sidebar = mintNavToSidebar(v.groups || []);
+    result.set(v.version, sidebar);
+  }
+  return result;
+}
+
+function getAllPagesFromSidebar(sidebar) {
+  const pages = new Set();
+  for (const group of sidebar) {
+    for (const page of (group.pages || [])) pages.add(page);
+  }
+  return pages;
+}
+
+function promptInput(text) {
+  return new Promise(resolve => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(text, answer => { rl.close(); resolve(answer.trim()); });
+  });
+}
+
+async function isGitRepo(dir) {
+  try {
+    await git.findRoot({ fs: nodeFs, filepath: dir });
+    return true;
+  } catch { return false; }
+}
+
+async function isGitClean(dir) {
+  try {
+    const matrix = await git.statusMatrix({ fs: nodeFs, dir });
+    return matrix.every(([, head, workdir, stage]) => head === 1 && workdir === 1 && stage === 1);
+  } catch { return false; }
+}
+
+async function promptVersionStrategy(versions) {
+  const versionNames = versions.map(v => v.version).join(', ');
+  const defaultVersion = versions.find(v => v.default)?.version || versions[versions.length - 1].version;
+
+  console.log(`\n  ${pc.bold('Versioned documentation detected:')} ${pc.cyan(versionNames)}`);
+  console.log(`  ${pc.dim(`Default version: ${defaultVersion}`)}\n`);
+  console.log(`  How would you like to handle versions?\n`);
+  console.log(`    ${pc.bold('1.')} Set up branch-based versioning ${pc.green('(recommended)')}`);
+  console.log(`       Creates a git branch per version with only that version's`);
+  console.log(`       pages. Shared pages exist on all branches.\n`);
+  console.log(`    ${pc.bold('2.')} Keep only the latest version`);
+  console.log(`       Imports only the default/latest version's pages.\n`);
+  console.log(`    ${pc.bold('3.')} Merge all versions into one`);
+  console.log(`       All pages from all versions, no version selector.\n`);
+  console.log(`    ${pc.bold('4.')} Skip — import everything, decide later`);
+  console.log(`       Imports all files without versioning config.\n`);
+
+  const answer = await promptInput(`  Choice [1]: `);
+  const choice = parseInt(answer) || 1;
+  if (choice < 1 || choice > 4) return 1;
+  return choice;
+}
+
+const GIT_AUTHOR = { name: 'DocsLit Import', email: 'import@docslit.com' };
+
+async function gitAddAll(dir) {
+  const matrix = await git.statusMatrix({ fs: nodeFs, dir });
+  for (const [filepath, , workdir] of matrix) {
+    if (workdir === 0) {
+      await git.remove({ fs: nodeFs, dir, filepath });
+    } else {
+      await git.add({ fs: nodeFs, dir, filepath });
+    }
+  }
+}
+
+async function setupBranchVersioning({ outDir, versions, sidebarsByVersion }) {
+  if (!await isGitRepo(outDir)) {
+    console.log(`\n  ${pc.yellow('!')} Output directory is not a git repo. Initializing one...`);
+    await git.init({ fs: nodeFs, dir: outDir });
+  }
+
+  if (!await isGitClean(outDir)) {
+    console.log(`  ${pc.yellow('!')} Uncommitted changes detected. Committing imported files first...`);
+    await gitAddAll(outDir);
+    await git.commit({ fs: nodeFs, dir: outDir, author: GIT_AUTHOR, message: 'chore: initial import from Mintlify' });
+  }
+
+  const defaultVersion = versions.find(v => v.default)?.version || versions[versions.length - 1].version;
+  const defaultSidebar = sidebarsByVersion.get(defaultVersion) || [];
+  const defaultPages = getAllPagesFromSidebar(defaultSidebar);
+  const createdBranches = [];
+
+  const mainBranch = await git.currentBranch({ fs: nodeFs, dir: outDir, fullname: false }) || 'main';
+
+  for (const v of versions) {
+    if (v.version === defaultVersion) continue;
+    const branchName = `docs-${v.version.replace(/[^a-zA-Z0-9._-]/g, '-')}`;
+    const versionSidebar = sidebarsByVersion.get(v.version) || [];
+    const versionPages = getAllPagesFromSidebar(versionSidebar);
+
+    await git.branch({ fs: nodeFs, dir: outDir, ref: branchName });
+    await git.checkout({ fs: nodeFs, dir: outDir, ref: branchName });
+
+    const docsDir = path.join(outDir, 'docs');
+    if (await fs.pathExists(docsDir)) {
+      const allDocFiles = await walkMdFiles(docsDir);
+      for (const filePath of allDocFiles) {
+        const rel = path.relative(docsDir, filePath).replace(/\.(md|mdx)$/, '').replace(/\\/g, '/');
+        if (!versionPages.has(rel)) {
+          await fs.remove(filePath);
+        }
+      }
+    }
+
+    const versionConfig = { name: `Documentation (${v.version})`, sidebar: versionSidebar };
+    await fs.writeFile(path.join(outDir, 'docslit.json'), JSON.stringify(versionConfig, null, 2));
+
+    await gitAddAll(outDir);
+    try {
+      await git.commit({ fs: nodeFs, dir: outDir, author: GIT_AUTHOR, message: `docs: import ${v.version} from Mintlify` });
+    } catch { /* empty commit is fine */ }
+
+    createdBranches.push({ version: v.version, branch: branchName });
+    await git.checkout({ fs: nodeFs, dir: outDir, ref: mainBranch });
+  }
+
+  const docsDir = path.join(outDir, 'docs');
+  if (await fs.pathExists(docsDir)) {
+    const allDocFiles = await walkMdFiles(docsDir);
+    for (const filePath of allDocFiles) {
+      const rel = path.relative(docsDir, filePath).replace(/\.(md|mdx)$/, '').replace(/\\/g, '/');
+      if (!defaultPages.has(rel)) {
+        await fs.remove(filePath);
+      }
+    }
+  }
+
+  const versionsList = [
+    { version: defaultVersion, branch: mainBranch, tag: 'Latest' },
+    ...createdBranches.map(b => ({ version: b.version, branch: b.branch })),
+  ];
+
+  const mainConfig = {
+    name: 'Documentation',
+    versions: { default: defaultVersion, list: versionsList },
+    sidebar: defaultSidebar,
+  };
+
+  await fs.writeFile(path.join(outDir, 'docslit.json'), JSON.stringify(mainConfig, null, 2));
+  await gitAddAll(outDir);
+  try {
+    await git.commit({ fs: nodeFs, dir: outDir, author: GIT_AUTHOR, message: `docs: set up versioning for ${defaultVersion} (default)` });
+  } catch { /* empty commit is fine */ }
+
+  console.log(`\n  ${pc.green('✓')} Created branches: ${createdBranches.map(b => pc.cyan(b.branch)).join(', ')}`);
+  console.log(`  ${pc.green('✓')} Default version ${pc.cyan(defaultVersion)} on ${pc.cyan(mainBranch)}`);
+
+  return mainConfig;
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export async function importDocs(args) {
   const sourceDir = path.resolve(process.cwd(), args[0] ?? '.');
@@ -584,32 +755,89 @@ export async function importDocs(args) {
   // ── 5. Build docslit.json ───────────────────────────────────────────────────
   const projectName = srcConfig?.name ?? path.basename(sourceDir);
   let sidebar;
+  let docslitConfig;
 
-  if (detectedFormat === 'mintlify' && srcConfig?.navigation) {
-    sidebar = mintNavToSidebar(srcConfig.navigation);
+  // Check for Mintlify versioned navigation
+  const mintVersions = detectedFormat === 'mintlify' ? detectMintlifyVersions(srcConfig) : null;
+
+  if (mintVersions && !dryRun) {
+    const strategy = await promptVersionStrategy(mintVersions);
+    const sidebarsByVersion = mintVersionedNavToSidebars(mintVersions);
+    const defaultVersion = mintVersions.find(v => v.default)?.version || mintVersions[mintVersions.length - 1].version;
+
+    if (strategy === 1) {
+      // Branch-based versioning
+      await fs.ensureDir(outDir);
+      await fs.ensureDir(path.join(outDir, 'docs'));
+      await fs.ensureDir(path.join(outDir, 'components'));
+      await fs.writeFile(path.join(outDir, '.gitignore'), 'node_modules/\ndist/\n');
+
+      docslitConfig = await setupBranchVersioning({ outDir, versions: mintVersions, sidebarsByVersion });
+    } else if (strategy === 2) {
+      // Keep only latest
+      sidebar = sidebarsByVersion.get(defaultVersion) || [];
+      docslitConfig = {
+        name: projectName,
+        ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
+        ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
+        sidebar,
+      };
+    } else if (strategy === 3) {
+      // Merge all
+      const allSidebars = [];
+      const seenGroups = new Set();
+      for (const [, sb] of sidebarsByVersion) {
+        for (const group of sb) {
+          const key = group.group + ':' + group.pages.join(',');
+          if (!seenGroups.has(key)) { seenGroups.add(key); allSidebars.push(group); }
+        }
+      }
+      sidebar = allSidebars;
+      docslitConfig = {
+        name: projectName,
+        ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
+        ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
+        sidebar,
+      };
+    } else {
+      // Skip — use default version sidebar, no versions config
+      sidebar = sidebarsByVersion.get(defaultVersion) || [];
+      docslitConfig = {
+        name: projectName,
+        ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
+        ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
+        sidebar,
+      };
+    }
   } else {
-    // Auto-discover: convert relative file paths to slugs
-    const slugs = files.map(f => f.rel.replace(/\.(mdx?|md)$/, '').replace(/\\/g, '/'));
-    sidebar = autoSidebar(slugs);
+    if (detectedFormat === 'mintlify' && srcConfig?.navigation) {
+      sidebar = mintNavToSidebar(Array.isArray(srcConfig.navigation) ? srcConfig.navigation : (srcConfig.navigation.groups || srcConfig.navigation));
+    } else {
+      const slugs = files.map(f => f.rel.replace(/\.(mdx?|md)$/, '').replace(/\\/g, '/'));
+      sidebar = autoSidebar(slugs);
+    }
+    docslitConfig = {
+      name: projectName,
+      ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
+      ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
+      sidebar,
+    };
   }
 
-  const docslitConfig = {
-    name: projectName,
-    ...(srcConfig?.logo?.dark  ? { logo: srcConfig.logo.dark }  : {}),
-    ...(srcConfig?.favicon     ? { favicon: srcConfig.favicon }  : {}),
-    sidebar,
-  };
-
-  if (!dryRun) {
+  if (mintVersions && !dryRun) {
+    const strategy = docslitConfig.versions ? 1 : 0;
+    if (strategy !== 1) {
+      await fs.ensureDir(outDir);
+      await fs.ensureDir(path.join(outDir, 'docs'));
+      await fs.ensureDir(path.join(outDir, 'components'));
+      await fs.writeFile(path.join(outDir, 'docslit.json'), JSON.stringify(docslitConfig, null, 2), 'utf8');
+      await fs.writeFile(path.join(outDir, '.gitignore'), 'node_modules/\ndist/\n');
+    }
+  } else if (!dryRun) {
     await fs.ensureDir(outDir);
     await fs.ensureDir(path.join(outDir, 'docs'));
     await fs.ensureDir(path.join(outDir, 'components'));
-    await fs.writeFile(
-      path.join(outDir, 'docslit.json'),
-      JSON.stringify(docslitConfig, null, 2),
-      'utf8'
-    );
-    // .gitignore
+    await fs.writeFile(path.join(outDir, 'docslit.json'), JSON.stringify(docslitConfig, null, 2), 'utf8');
     await fs.writeFile(path.join(outDir, '.gitignore'), 'node_modules/\ndist/\n');
   }
 

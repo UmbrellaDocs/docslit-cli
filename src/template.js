@@ -1,6 +1,6 @@
 import { buildComponents } from './components/index.js';
 
-export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [] }) {
+export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null }) {
   const sidebarHtml = buildSidebarHtml(config, draftPageIds);
   const siteTitle = config.name || 'DocsLit';
   const wsScript = mode === 'dev' ? buildWsScript(port) : '';
@@ -8,6 +8,10 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   const inlinePages = offline && pagesData
     ? `<script>window.__DOCSLIT_PAGES__ = ${JSON.stringify(pagesData)};</script>`
     : '';
+  const versionScript = versionConfig
+    ? `<script>window.__DOCSLIT_VERSIONS__ = ${JSON.stringify({ current: currentVersion, default: versionConfig.default, list: versionConfig.list })};</script>`
+    : '';
+  const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
   const importMap = mode === 'dev'
     ? `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`
     : `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js","marked":"https://esm.sh/marked@18","dompurify":"https://esm.sh/dompurify@3"}}`;
@@ -43,6 +47,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
     </a>
   </div>
   <div class="nav-links">
+    ${versionSelectorHtml}
     <button class="theme-btn" id="theme-btn" onclick="toggleTheme()"></button>
   </div>
 </nav>
@@ -68,6 +73,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
 </div>
 
 ${inlinePages}
+${versionScript}
 <script type="importmap">${importMap}</script>
 <script type="module">
 ${buildComponents()}
@@ -167,19 +173,28 @@ function closeSidebar() {
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeSidebar(); });
 })();
 
+function switchVersion(v) {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  if (!vc) return;
+  var pageId = _pageFromUrl() || 'introduction';
+  window.location.href = '/' + v + '/' + pageId;
+}
+
 window.loadPage = loadPage;
 window.activateSidebar = activateSidebar;
 window.closeSidebar = closeSidebar;
 window.openSidebar = openSidebar;
+window.switchVersion = switchVersion;
 </script>
 </body>
 </html>`;
 }
 
-export function renderSeoPage({ config, id, meta, html }) {
+export function renderSeoPage({ config, id, meta, html, versionSlug = null }) {
   const siteTitle = config.name || 'DocsLit';
   const pageTitle = meta.title || id;
   const desc = meta.description || meta.desc || '';
+  const redirectBase = versionSlug ? `'/${escHtml(versionSlug)}/'` : `location.href.replace(/\\/docs\\/[^/]*$/,'/')`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -188,7 +203,7 @@ export function renderSeoPage({ config, id, meta, html }) {
 <title>${escHtml(pageTitle)} — ${escHtml(siteTitle)}</title>
 ${desc ? `<meta name="description" content="${escHtml(desc)}">` : ''}
 <style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.6}h1,h2,h3{line-height:1.3}pre{background:#f4f4f4;padding:1rem;overflow:auto;border-radius:4px}code{background:#f4f4f4;padding:.1em .3em;border-radius:2px}a{color:#01696f}img{max-width:100%}</style>
-<script>var _id=${JSON.stringify(id)};location.replace(location.href.replace(/\/docs\/[^/]*$/,'/')+'#'+_id);</script>
+<script>var _id=${JSON.stringify(id)};location.replace(${redirectBase}+_id);</script>
 </head>
 <body>
 ${html}
@@ -222,6 +237,15 @@ function buildSidebarHtml(config, draftIds = []) {
   return html;
 }
 
+function buildVersionSelector(versionConfig, currentVersion) {
+  const options = versionConfig.list.map(v => {
+    const label = v.tag ? `${escHtml(v.version)} (${escHtml(v.tag)})` : escHtml(v.version);
+    const selected = v.version === currentVersion ? ' selected' : '';
+    return `<option value="${escHtml(v.version)}"${selected}>${label}</option>`;
+  }).join('');
+  return `<select class="version-select" id="version-select" onchange="switchVersion(this.value)" aria-label="Documentation version">${options}</select>`;
+}
+
 function toLabel(id) {
   return id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -244,10 +268,19 @@ function buildWsScript(port) {
 function buildDevLoader() {
   return `
 function _docsBase() {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  if (vc) return '/' + vc.current + '/';
   const p = window.location.pathname;
   return p.slice(0, p.lastIndexOf('/') + 1);
 }
 function _pageFromUrl() {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  if (vc) {
+    const p = window.location.pathname;
+    const prefix = '/' + vc.current + '/';
+    if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
+    return null;
+  }
   const p = window.location.pathname;
   return p.slice(_docsBase().length) || null;
 }
@@ -261,7 +294,9 @@ async function loadPage(id, el) {
   const content = document.getElementById('docs-content');
   content.innerHTML = '<div class="loading-state">Loading…</div>';
   try {
-    const res = await fetch('/api/page/' + id);
+    var vc = window.__DOCSLIT_VERSIONS__;
+    const apiPath = vc ? '/api/page/' + vc.current + '/' + id : '/api/page/' + id;
+    const res = await fetch(apiPath);
     if (!res.ok) throw new Error(res.statusText);
     const { meta, html } = await res.json();
     const logoText = document.querySelector('.nav-logo-text');
@@ -324,10 +359,19 @@ const _cache = {};
 let _marked, _purify;
 
 function _docsBase() {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  if (vc) return '/' + vc.current + '/';
   const p = window.location.pathname;
   return p.slice(0, p.lastIndexOf('/') + 1);
 }
 function _pageFromUrl() {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  if (vc) {
+    const p = window.location.pathname;
+    const prefix = '/' + vc.current + '/';
+    if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
+    return null;
+  }
   const p = window.location.pathname;
   return p.slice(_docsBase().length) || null;
 }
@@ -359,7 +403,14 @@ async function _fetchPage(id) {
   if (_cache[id] !== undefined) return _cache[id];
   try {
     const res = await fetch(_docsBase() + 'docs/' + id + '.md');
-    if (!res.ok) throw new Error('Not found');
+    if (!res.ok) {
+      var vc = window.__DOCSLIT_VERSIONS__;
+      if (vc && vc.current !== vc.default) {
+        const fallback = await fetch('/' + vc.default + '/docs/' + id + '.md');
+        if (fallback.ok) { _cache[id] = _parseFrontmatter(await fallback.text()); return _cache[id]; }
+      }
+      throw new Error('Not found');
+    }
     _cache[id] = _parseFrontmatter(await res.text());
   } catch(e) { _cache[id] = null; }
   return _cache[id];
@@ -421,10 +472,19 @@ function buildOfflineLoader() {
 const _pages = window.__DOCSLIT_PAGES__ || {};
 
 function _docsBase() {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  if (vc) return '/' + vc.current + '/';
   const p = window.location.pathname;
   return p.slice(0, p.lastIndexOf('/') + 1);
 }
 function _pageFromUrl() {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  if (vc) {
+    const p = window.location.pathname;
+    const prefix = '/' + vc.current + '/';
+    if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
+    return null;
+  }
   const p = window.location.pathname;
   return p.slice(_docsBase().length) || null;
 }
@@ -581,6 +641,18 @@ html.light .nav { background: rgba(255,255,255,.93); }
   color: var(--text2); transition: all .15s;
 }
 .theme-btn:hover { background: var(--surface3); }
+.version-select {
+  height: 34px; padding: 0 28px 0 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text2);
+  font-family: var(--font-sans); font-size: 13px; font-weight: 500;
+  cursor: pointer; appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  transition: all .15s;
+}
+.version-select:hover { background-color: var(--surface3); border-color: var(--border2); }
+.version-select:focus { outline: none; border-color: var(--accent); }
 
 /* OVERLAY */
 .sidebar-overlay {

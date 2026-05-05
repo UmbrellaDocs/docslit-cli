@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs-extra';
 import pc from 'picocolors';
-import { loadConfig, getAllPageIds } from './config.js';
+import { loadConfig, getAllPageIds, getVersionConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell, renderSeoPage } from './template.js';
 
@@ -9,26 +9,41 @@ export async function build({ out = 'dist', offline = false } = {}) {
   const cwd = process.cwd();
   const config = await loadConfig(cwd);
   const outDir = path.resolve(cwd, out);
+  const versionConfig = getVersionConfig(config);
 
   const modeLabel = offline ? ' (offline mode)' : '';
   console.log(`\n  ${pc.bold('DocsLit')} building static site${modeLabel}...\n`);
 
   await fs.emptyDir(outDir);
 
-  // Copy user components
+  // Copy user components (shared across versions)
   const componentsDir = path.join(cwd, 'components');
   if (await fs.pathExists(componentsDir)) {
     await fs.copy(componentsDir, path.join(outDir, 'components'));
     console.log(`  ${pc.green('✓')} Copied components/`);
   }
 
-  // Collect all page data — parse every page, separate drafts
+  if (versionConfig) {
+    await buildVersioned({ config, versionConfig, cwd, outDir, out, offline });
+  } else {
+    await buildSingle({ config, cwd, outDir, out, offline });
+  }
+
+  const sizeKb = await getDirSize(outDir);
+  console.log(`\n  ${pc.bold('Done!')} Output: ${pc.cyan(path.relative(cwd, outDir))}/ (${sizeKb} KB)\n`);
+  if (offline) {
+    console.log(`  Open directly:  ${pc.cyan(`open ${out}/index.html`)}  ${pc.dim('(no server needed)')}`);
+  } else {
+    console.log(`  Serve locally:  ${pc.cyan(`npx serve ${out}`)}`);
+  }
+  console.log(`  Deploy to:      GitHub Pages, Vercel, Netlify, S3, or any static host\n`);
+}
+
+async function buildSingle({ config, cwd, outDir, out, offline }) {
   const pageIds = getAllPageIds(config);
   const pagesData = {};
   const draftPageIds = [];
-  let built = 0;
-  let drafts = 0;
-  let failed = 0;
+  let built = 0, drafts = 0, failed = 0;
 
   for (const id of pageIds) {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
@@ -48,7 +63,6 @@ export async function build({ out = 'dist', offline = false } = {}) {
     }
 
     pagesData[id] = { meta, html };
-    // Preserve source .md in dist/docs/{slug}.md — used by llms.txt links
     await fs.ensureDir(path.join(outDir, 'docs'));
     await fs.copyFile(mdPath, path.join(outDir, 'docs', `${id}.md`));
     built++;
@@ -58,9 +72,7 @@ export async function build({ out = 'dist', offline = false } = {}) {
   const draftNote = drafts ? pc.dim(` (${drafts} draft${drafts !== 1 ? 's' : ''} hidden)`) : '';
 
   if (offline) {
-    const indexHtml = renderShell({
-      config, mode: 'static', out, pagesData, offline: true, draftPageIds,
-    });
+    const indexHtml = renderShell({ config, mode: 'static', out, pagesData, offline: true, draftPageIds });
     await fs.writeFile(path.join(outDir, 'index.html'), indexHtml);
     console.log(`  ${pc.green('✓')} Built index.html — ${built} page${built !== 1 ? 's' : ''} inlined${draftNote}${skippedNote}`);
   } else {
@@ -69,24 +81,106 @@ export async function build({ out = 'dist', offline = false } = {}) {
     console.log(`  ${pc.green('✓')} Built index.html (${built} page${built !== 1 ? 's' : ''}${draftNote}${skippedNote})`);
   }
 
-  // Thin SEO pages — minimal HTML with content for crawlers, JS redirects to SPA
   for (const [id, { meta, html }] of Object.entries(pagesData)) {
     const pageHtml = renderSeoPage({ config, id, meta, html });
     await fs.ensureDir(path.join(outDir, 'docs'));
     await fs.writeFile(path.join(outDir, 'docs', `${id}.html`), pageHtml);
   }
 
-  // llms.txt + llms-full.txt — always generated, never includes drafts
   await generateLlmsTxt({ config, pagesData, outDir });
+}
 
-  const sizeKb = await getDirSize(outDir);
-  console.log(`\n  ${pc.bold('Done!')} Output: ${pc.cyan(path.relative(cwd, outDir))}/ (${sizeKb} KB)\n`);
-  if (offline) {
-    console.log(`  Open directly:  ${pc.cyan(`open ${out}/index.html`)}  ${pc.dim('(no server needed)')}`);
-  } else {
-    console.log(`  Serve locally:  ${pc.cyan(`npx serve ${out}`)}`);
+async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline }) {
+  const defaultVersion = versionConfig.default;
+  const defaultEntry = versionConfig.list.find(v => v.version === defaultVersion);
+  const defaultBranch = defaultEntry?.branch || 'main';
+
+  console.log(`  ${pc.bold('Versions:')} ${versionConfig.list.map(v => v.version === defaultVersion ? pc.cyan(v.version + ' (default)') : v.version).join(', ')}\n`);
+
+  // Build default version fully from the working directory
+  const defaultDir = path.join(outDir, defaultVersion);
+  const defaultPageIds = getAllPageIds(config);
+  const defaultPagesData = {};
+  const draftPageIds = [];
+  let built = 0;
+
+  for (const id of defaultPageIds) {
+    const mdPath = path.join(cwd, 'docs', `${id}.md`);
+    if (!await fs.pathExists(mdPath)) continue;
+    const raw = await fs.readFile(mdPath, 'utf8');
+    const { meta, html } = parseDoc(raw);
+    if (meta.draft === true) { draftPageIds.push(id); continue; }
+    defaultPagesData[id] = { meta, html };
+    await fs.ensureDir(path.join(defaultDir, 'docs'));
+    await fs.copyFile(mdPath, path.join(defaultDir, 'docs', `${id}.md`));
+    built++;
   }
-  console.log(`  Deploy to:      GitHub Pages, Vercel, Netlify, S3, or any static host\n`);
+
+  const defaultShell = renderShell({
+    config, mode: 'static', out, draftPageIds,
+    versionConfig, currentVersion: defaultVersion,
+    ...(offline ? { pagesData: defaultPagesData, offline: true } : {}),
+  });
+  await fs.writeFile(path.join(defaultDir, 'index.html'), defaultShell);
+
+  for (const [id, { meta, html }] of Object.entries(defaultPagesData)) {
+    const pageHtml = renderSeoPage({ config, id, meta, html, versionSlug: defaultVersion });
+    await fs.ensureDir(path.join(defaultDir, 'docs'));
+    await fs.writeFile(path.join(defaultDir, 'docs', `${id}.html`), pageHtml);
+  }
+
+  await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir });
+  console.log(`  ${pc.green('✓')} ${defaultVersion}: ${built} pages (full build)`);
+
+  // Build non-default versions — only changed pages
+  for (const entry of versionConfig.list) {
+    if (entry.version === defaultVersion) continue;
+    const versionDir = path.join(outDir, entry.version);
+    const versionBranch = entry.branch;
+
+    const versionSidebar = await getVersionSidebar(versionBranch, cwd);
+    const versionConf = { ...config, sidebar: versionSidebar.length ? versionSidebar : config.sidebar };
+    const versionPageIds = getAllPageIds(versionConf);
+    const changedSlugs = new Set(await getChangedDocs(defaultBranch, versionBranch, cwd));
+    const manifest = {};
+    const versionPagesData = {};
+    let vBuilt = 0;
+
+    for (const id of versionPageIds) {
+      if (changedSlugs.has(id)) {
+        const raw = await gitReadFile(versionBranch, `docs/${id}.md`, cwd);
+        if (!raw) continue;
+        const { meta, html } = parseDoc(raw);
+        if (meta.draft === true) continue;
+        versionPagesData[id] = { meta, html };
+        await fs.ensureDir(path.join(versionDir, 'docs'));
+        await fs.writeFile(path.join(versionDir, 'docs', `${id}.md`), raw);
+        await fs.writeFile(path.join(versionDir, 'docs', `${id}.html`),
+          renderSeoPage({ config: versionConf, id, meta, html, versionSlug: entry.version }));
+        manifest[id] = entry.version;
+        vBuilt++;
+      } else {
+        manifest[id] = defaultVersion;
+        if (defaultPagesData[id]) versionPagesData[id] = defaultPagesData[id];
+      }
+    }
+
+    const versionShell = renderShell({
+      config: versionConf, mode: 'static', out, draftPageIds: [],
+      versionConfig, currentVersion: entry.version,
+      ...(offline ? { pagesData: versionPagesData, offline: true } : {}),
+    });
+    await fs.ensureDir(versionDir);
+    await fs.writeFile(path.join(versionDir, 'index.html'), versionShell);
+    await fs.writeFile(path.join(versionDir, '_manifest.json'), JSON.stringify(manifest, null, 2));
+    await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir });
+
+    console.log(`  ${pc.green('✓')} ${entry.version}: ${vBuilt} changed page${vBuilt !== 1 ? 's' : ''} built, ${Object.keys(manifest).length - vBuilt} shared from ${defaultVersion}`);
+  }
+
+  // Root index.html redirects to default version
+  const rootRedirect = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/${defaultVersion}/"><script>location.replace('/${defaultVersion}/');</script></head></html>`;
+  await fs.writeFile(path.join(outDir, 'index.html'), rootRedirect);
 }
 
 // ── llms.txt generation ────────────────────────────────────────────────────

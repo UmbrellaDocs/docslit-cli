@@ -1,10 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { readFileSync } from 'fs';
+import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
+import git from 'isomorphic-git';
+import * as nodeFs from 'node:fs';
 import { parseDoc } from './markdown.js';
-import { getAllPageIds } from './config.js';
+import { getAllPageIds, getVersionConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
+import { renderShell, renderSeoPage } from './template.js';
 import { buildComponents } from './components/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -231,4 +234,237 @@ describe('buildComponents', () => {
       expect(output).toContain(`customElements.define('${tag}'`);
     });
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// config.js — getVersionConfig
+// ─────────────────────────────────────────────────────────────────────────────
+describe('getVersionConfig', () => {
+  it('returns null when no versions field', () => {
+    expect(getVersionConfig({ name: 'Test', sidebar: [] })).toBeNull();
+  });
+
+  it('returns null when versions.list is empty', () => {
+    expect(getVersionConfig({ versions: { default: 'v1', list: [] } })).toBeNull();
+  });
+
+  it('returns null when versions field exists but has no list', () => {
+    expect(getVersionConfig({ versions: { default: 'v1' } })).toBeNull();
+  });
+
+  it('returns the versions object when properly configured', () => {
+    const config = {
+      versions: {
+        default: 'v2',
+        list: [
+          { version: 'v1', branch: 'docs-v1' },
+          { version: 'v2', branch: 'main', tag: 'Latest' },
+        ],
+      },
+    };
+    const result = getVersionConfig(config);
+    expect(result).not.toBeNull();
+    expect(result!.default).toBe('v2');
+    expect(result!.list).toHaveLength(2);
+    expect(result!.list[1].tag).toBe('Latest');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// config.js — git helpers (isomorphic-git)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('git helpers (isomorphic-git)', () => {
+  const tmpDir = path.join(__dirname, '../.test-git-repo');
+  const author = { name: 'Test', email: 'test@test.com' };
+
+  beforeAll(async () => {
+    // Create a temporary git repo with two branches
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+    mkdirSync(tmpDir, { recursive: true });
+
+    await git.init({ fs: nodeFs, dir: tmpDir, defaultBranch: 'main' });
+
+    // Create docs directory and files on main
+    mkdirSync(path.join(tmpDir, 'docs'), { recursive: true });
+    writeFileSync(path.join(tmpDir, 'docs', 'intro.md'), '---\ntitle: Intro\n---\n# Intro\n');
+    writeFileSync(path.join(tmpDir, 'docs', 'setup.md'), '---\ntitle: Setup v2\n---\n# Setup v2\n');
+    writeFileSync(path.join(tmpDir, 'docslit.json'), JSON.stringify({
+      name: 'Test Docs',
+      sidebar: [{ group: 'Guide', pages: ['intro', 'setup'] }],
+    }));
+
+    await git.add({ fs: nodeFs, dir: tmpDir, filepath: 'docs/intro.md' });
+    await git.add({ fs: nodeFs, dir: tmpDir, filepath: 'docs/setup.md' });
+    await git.add({ fs: nodeFs, dir: tmpDir, filepath: 'docslit.json' });
+    await git.commit({ fs: nodeFs, dir: tmpDir, author, message: 'initial' });
+
+    // Create docs-v1 branch with a different setup.md
+    await git.branch({ fs: nodeFs, dir: tmpDir, ref: 'docs-v1' });
+    await git.checkout({ fs: nodeFs, dir: tmpDir, ref: 'docs-v1' });
+
+    writeFileSync(path.join(tmpDir, 'docs', 'setup.md'), '---\ntitle: Setup v1\n---\n# Setup v1\n');
+    writeFileSync(path.join(tmpDir, 'docslit.json'), JSON.stringify({
+      name: 'Test Docs v1',
+      sidebar: [{ group: 'Guide', pages: ['intro', 'setup'] }],
+    }));
+
+    await git.add({ fs: nodeFs, dir: tmpDir, filepath: 'docs/setup.md' });
+    await git.add({ fs: nodeFs, dir: tmpDir, filepath: 'docslit.json' });
+    await git.commit({ fs: nodeFs, dir: tmpDir, author, message: 'v1 changes' });
+
+    // Go back to main
+    await git.checkout({ fs: nodeFs, dir: tmpDir, ref: 'main' });
+  });
+
+  afterAll(() => {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+  });
+
+  it('gitReadFile reads a file from the current branch', async () => {
+    const content = await gitReadFile('main', 'docs/intro.md', tmpDir);
+    expect(content).toContain('# Intro');
+  });
+
+  it('gitReadFile reads a file from another branch', async () => {
+    const content = await gitReadFile('docs-v1', 'docs/setup.md', tmpDir);
+    expect(content).toContain('Setup v1');
+  });
+
+  it('gitReadFile returns null for non-existent file', async () => {
+    const content = await gitReadFile('main', 'docs/nonexistent.md', tmpDir);
+    expect(content).toBeNull();
+  });
+
+  it('gitReadFile returns null for non-existent branch', async () => {
+    const content = await gitReadFile('no-such-branch', 'docs/intro.md', tmpDir);
+    expect(content).toBeNull();
+  });
+
+  it('getVersionSidebar reads sidebar from another branch', async () => {
+    const sidebar = await getVersionSidebar('docs-v1', tmpDir);
+    expect(sidebar).toHaveLength(1);
+    expect(sidebar[0].group).toBe('Guide');
+    expect(sidebar[0].pages).toEqual(['intro', 'setup']);
+  });
+
+  it('getVersionSidebar returns empty array for non-existent branch', async () => {
+    const sidebar = await getVersionSidebar('no-such-branch', tmpDir);
+    expect(sidebar).toEqual([]);
+  });
+
+  it('getChangedDocs finds only files that differ between branches', async () => {
+    const changed = await getChangedDocs('main', 'docs-v1', tmpDir);
+    expect(changed).toContain('setup');
+    expect(changed).not.toContain('intro');
+  });
+
+  it('getChangedDocs returns empty array for identical branches', async () => {
+    const changed = await getChangedDocs('main', 'main', tmpDir);
+    expect(changed).toEqual([]);
+  });
+
+  it('getChangedDocs returns empty array for non-existent branch', async () => {
+    const changed = await getChangedDocs('main', 'no-such-branch', tmpDir);
+    expect(changed).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// template.js — version selector rendering
+// ─────────────────────────────────────────────────────────────────────────────
+describe('renderShell — versioning', () => {
+  const baseConfig = { name: 'Test', sidebar: [{ group: 'G', pages: ['intro'] }] };
+  const versionConfig = {
+    default: 'v2',
+    list: [
+      { version: 'v1', branch: 'docs-v1', tag: 'Legacy' },
+      { version: 'v2', branch: 'main', tag: 'Latest' },
+    ],
+  };
+
+  it('does not inject version selector when versionConfig is null', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+    expect(html).not.toContain('<select class="version-select"');
+    expect(html).not.toContain('window.__DOCSLIT_VERSIONS__ =');
+  });
+
+  it('injects version selector when versionConfig is provided', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
+    expect(html).toContain('<select class="version-select"');
+    expect(html).toContain('v1 (Legacy)');
+    expect(html).toContain('v2 (Latest)');
+  });
+
+  it('marks the current version as selected', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v1' });
+    expect(html).toContain('value="v1" selected');
+    expect(html).not.toContain('value="v2" selected');
+  });
+
+  it('injects __DOCSLIT_VERSIONS__ script with correct data', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
+    expect(html).toContain('window.__DOCSLIT_VERSIONS__');
+    expect(html).toContain('"current":"v2"');
+    expect(html).toContain('"default":"v2"');
+  });
+
+  it('includes switchVersion function in output', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
+    expect(html).toContain('function switchVersion');
+  });
+
+  it('includes version-select CSS styles', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+    expect(html).toContain('.version-select');
+  });
+});
+
+describe('renderShell — versioned loaders', () => {
+  const baseConfig = { name: 'Test', sidebar: [{ group: 'G', pages: ['intro'] }] };
+  const versionConfig = {
+    default: 'v2',
+    list: [
+      { version: 'v1', branch: 'docs-v1' },
+      { version: 'v2', branch: 'main' },
+    ],
+  };
+
+  it('dev loader uses versioned API path when __DOCSLIT_VERSIONS__ is set', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
+    expect(html).toContain("'/api/page/' + vc.current + '/' + id");
+  });
+
+  it('static loader includes fallback fetch to default version', () => {
+    const html = renderShell({ config: baseConfig, mode: 'static', versionConfig, currentVersion: 'v1' });
+    expect(html).toContain("vc.default + '/docs/'");
+  });
+
+  it('all three loaders reference __DOCSLIT_VERSIONS__ for versioned routing', () => {
+    for (const mode of ['dev', 'static'] as const) {
+      const html = renderShell({ config: baseConfig, mode, port: 3000, versionConfig, currentVersion: 'v2' });
+      expect(html).toContain('__DOCSLIT_VERSIONS__');
+    }
+    const offlineHtml = renderShell({
+      config: baseConfig, mode: 'static', versionConfig, currentVersion: 'v2',
+      pagesData: { intro: { meta: {}, html: '<p>hi</p>' } }, offline: true,
+    });
+    expect(offlineHtml).toContain('__DOCSLIT_VERSIONS__');
+  });
+});
+
+describe('renderSeoPage — versioning', () => {
+  const config = { name: 'Test' };
+  const meta = { title: 'Intro', description: 'Intro page' };
+  const html = '<h1>Intro</h1>';
+
+  it('generates standard redirect without versionSlug', () => {
+    const page = renderSeoPage({ config, id: 'intro', meta, html });
+    expect(page).toContain("location.replace(location.href");
+  });
+
+  it('generates versioned redirect with versionSlug', () => {
+    const page = renderSeoPage({ config, id: 'intro', meta, html, versionSlug: 'v2' });
+    expect(page).toContain("'/v2/'");
+    expect(page).not.toContain("location.href.replace");
+  });
 });
