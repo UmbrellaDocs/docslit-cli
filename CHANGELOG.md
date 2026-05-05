@@ -46,6 +46,8 @@ The search index (`search-index.json`) is generated at build time alongside `llm
 - **Dev** — fetches from a live `/api/search-index` endpoint that rebuilds on every request (always fresh)
 - **Offline** — index inlined into the page as `window.__DOCSLIT_SEARCH_INDEX__`
 
+**Sidebar filter** — a filter input is now fixed at the top of the sidebar. As you type, non-matching pages are hidden instantly and matching text is highlighted in yellow. A clear button appears when the filter is active, and a friendly empty state is shown when no pages match. Works on both desktop and mobile sidebar.
+
 **Security improvement** — all git operations now use `isomorphic-git` (pure JavaScript) instead of shelling out to the `git` CLI via `execSync`. This eliminates any command injection risk from branch names or file paths, and removes the requirement for git to be installed on the system.
 
 ---
