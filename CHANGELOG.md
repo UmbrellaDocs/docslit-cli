@@ -39,6 +39,13 @@ Key capabilities:
 3. **Merge all versions** — flattens everything into a single unversioned site.
 4. **Skip** — imports all files without versioning config for manual setup later.
 
+**Full-text search** — a Cmd+K / Ctrl+K search modal is now built into the nav bar. It uses FlexSearch (loaded lazily from esm.sh on first open) to search across all pages with instant prefix-matched results as you type. Results are grouped by sidebar section with highlighted matches, and support full keyboard navigation (arrow keys, Enter, Escape).
+
+The search index (`search-index.json`) is generated at build time alongside `llms.txt` in the same pass — zero extra file reads or iteration. Estimated overhead: ~2-5 KB per page (plain text only, no HTML markup). Works across all three modes:
+- **Static** — fetches `search-index.json` on first search open
+- **Dev** — fetches from a live `/api/search-index` endpoint that rebuilds on every request (always fresh)
+- **Offline** — index inlined into the page as `window.__DOCSLIT_SEARCH_INDEX__`
+
 **Security improvement** — all git operations now use `isomorphic-git` (pure JavaScript) instead of shelling out to the `git` CLI via `execSync`. This eliminates any command injection risk from branch names or file paths, and removes the requirement for git to be installed on the system.
 
 ---

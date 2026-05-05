@@ -468,3 +468,86 @@ describe('renderSeoPage — versioning', () => {
     expect(page).not.toContain("location.href.replace");
   });
 });
+
+// ── Search ───────────────────────────────────────────────────────────────────
+
+describe('renderShell — search UI', () => {
+  const config = { name: 'Test', sidebar: [{ group: 'Guide', pages: ['intro', 'setup'] }] };
+
+  it('includes search trigger button in nav', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('search-trigger');
+    expect(html).toContain('Search…');
+    expect(html).toContain('⌘K');
+  });
+
+  it('includes search overlay modal markup', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('search-overlay');
+    expect(html).toContain('search-modal');
+    expect(html).toContain('search-input');
+    expect(html).toContain('Search docs…');
+  });
+
+  it('includes search JS functions', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('function openSearch');
+    expect(html).toContain('function closeSearch');
+    expect(html).toContain('function handleSearchInput');
+    expect(html).toContain('function handleSearchKey');
+    expect(html).toContain('function selectSearchItem');
+  });
+
+  it('includes Cmd+K keyboard shortcut handler', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain("e.key === 'k'");
+    expect(html).toContain('e.metaKey');
+    expect(html).toContain('e.ctrlKey');
+  });
+
+  it('includes FlexSearch CDN import', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('flexsearch');
+  });
+
+  it('fetches search-index.json in static mode', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('search-index.json');
+  });
+
+  it('fetches /api/search-index in dev mode', () => {
+    const html = renderShell({ config, mode: 'dev' });
+    expect(html).toContain('/api/search-index');
+  });
+
+  it('includes search CSS styles', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('.search-trigger');
+    expect(html).toContain('.search-overlay');
+    expect(html).toContain('.search-modal');
+    expect(html).toContain('.search-item');
+    expect(html).toContain('mark.hl');
+  });
+});
+
+describe('renderShell — search offline mode', () => {
+  const config = { name: 'Test', sidebar: [{ group: 'Guide', pages: ['intro'] }] };
+  const pagesData = { intro: { meta: { title: 'Intro' }, html: '<h1>Intro</h1>' } };
+  const searchIndex = [{ id: 'intro', title: 'Intro', group: 'Guide', desc: '', body: 'content' }];
+
+  it('inlines search index when offline with searchIndex', () => {
+    const html = renderShell({ config, mode: 'static', offline: true, pagesData, searchIndex });
+    expect(html).toContain('window.__DOCSLIT_SEARCH_INDEX__');
+    expect(html).toContain('"id":"intro"');
+  });
+
+  it('does not inline search index when not offline', () => {
+    const html = renderShell({ config, mode: 'static', searchIndex });
+    expect(html).not.toContain('window.__DOCSLIT_SEARCH_INDEX__ =');
+  });
+
+  it('does not inline search index when no searchIndex provided', () => {
+    const html = renderShell({ config, mode: 'static', offline: true, pagesData });
+    expect(html).not.toContain('window.__DOCSLIT_SEARCH_INDEX__ =');
+  });
+});

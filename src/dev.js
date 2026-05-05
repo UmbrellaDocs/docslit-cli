@@ -116,6 +116,39 @@ export async function dev({ port = 3000 } = {}) {
     res.send(await fs.readFile(mdPath, 'utf8'));
   });
 
+  // API: search index
+  app.get('/api/search-index/:version?', async (req, res) => {
+    const freshConfig = await loadConfig(cwd);
+    const pageIds = getAllPageIds(freshConfig);
+    const docsDir = path.join(cwd, 'docs');
+    const index = [];
+
+    const groupMap = {};
+    for (const group of (freshConfig.sidebar || [])) {
+      for (const id of (group.pages || [])) groupMap[id] = group.group || 'Pages';
+    }
+
+    for (const id of pageIds) {
+      const mdPath = path.resolve(docsDir, `${id}.md`);
+      if (!mdPath.startsWith(docsDir + path.sep)) continue;
+      if (!await fs.pathExists(mdPath)) continue;
+      const raw = await fs.readFile(mdPath, 'utf8');
+      const { meta } = parseDoc(raw);
+      if (meta.draft === true) continue;
+      const bodyMatch = raw.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
+      const body = bodyMatch ? bodyMatch[1].trim() : raw.trim();
+      index.push({
+        id,
+        title: meta.title || id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        group: groupMap[id] || 'Pages',
+        desc: meta.description || meta.desc || '',
+        body,
+      });
+    }
+
+    res.json(index);
+  });
+
   // Serve local Lit vendor bundles (no CDN requests)
   app.use('/vendor', express.static(path.join(__dirname, 'vendor')));
 
