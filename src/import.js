@@ -220,7 +220,14 @@ function convertContent(body, filePath) {
     return `<wc-steps>${numbered}</wc-steps>`;
   });
 
-  // 5. Detect any remaining PascalCase JSX-style tags (unknown Mintlify or custom components)
+  // 5. Strip remaining JSX expressions {…} that aren't inside code spans/blocks.
+  // These are MDX interpolations (e.g. {props.name}, {<Foo />}) that have no markdown equivalent.
+  out = out.replace(/```[\s\S]*?```|`[^`]+`|(\{[^{}]*\})/g, (match, jsxExpr) => {
+    // If it matched a code block/span, leave it alone; otherwise drop the JSX expression
+    return jsxExpr !== undefined ? '' : match;
+  });
+
+  // 7. Detect any remaining PascalCase JSX-style tags (unknown Mintlify or custom components)
   const unknownTags = [];
   const unknownRe = /<([A-Z][a-zA-Z]+)[\s/>]/g;
   let m;
@@ -231,7 +238,7 @@ function convertContent(body, filePath) {
     issues.push(`Unknown components not converted: ${unknownTags.map(t => `<${t}>`).join(', ')}`);
   }
 
-  // 6. Trim leading/trailing blank lines left by removed imports
+  // 8. Trim leading/trailing blank lines left by removed imports
   out = out.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n');
 
   return { converted: out, stats, issues };
@@ -240,7 +247,28 @@ function convertContent(body, filePath) {
 // ─── File converter ───────────────────────────────────────────────────────────
 async function convertFile(srcPath, outPath, relPath) {
   const raw = await fs.readFile(srcPath, 'utf8');
-  const { data: frontmatter, content: body } = matter(raw);
+
+  // gray-matter can throw on malformed YAML (e.g. multiline implicit keys, bare `<` values).
+  // Fall back to a simple regex extraction so the file isn't lost entirely.
+  let frontmatter = {};
+  let body = raw;
+  try {
+    const parsed = matter(raw);
+    frontmatter = parsed.data;
+    body = parsed.content;
+  } catch {
+    const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+    if (m) {
+      body = m[2];
+      for (const line of m[1].split('\n')) {
+        const ci = line.indexOf(':');
+        if (ci < 1) continue;
+        const k = line.slice(0, ci).trim();
+        const v = line.slice(ci + 1).trim().replace(/^['"]|['"]$/g, '');
+        if (/^[a-zA-Z_][\w_-]*$/.test(k)) frontmatter[k] = v;
+      }
+    }
+  }
 
   const { converted, stats, issues } = convertContent(body, relPath);
 
@@ -253,11 +281,25 @@ async function convertFile(srcPath, outPath, relPath) {
   for (const k of ['openapi', 'api', 'mode', 'noindex', 'deprecated']) {
     delete frontmatter[k];
   }
+  // Strip any frontmatter values that contain HTML/JSX — they confuse yaml serialisers downstream
+  for (const [k, v] of Object.entries(frontmatter)) {
+    if (typeof v === 'string' && /<[a-zA-Z]/.test(v)) delete frontmatter[k];
+  }
 
-  // Rebuild the file: frontmatter + converted body
+  // Rebuild the file: frontmatter + converted body.
+  // matter.stringify can also throw when values contain characters js-yaml dislikes;
+  // fall back to a simple hand-rolled serialiser.
   let out = '';
-  if (Object.keys(frontmatter).length) {
-    out = matter.stringify(converted, frontmatter);
+  const fm = frontmatter;
+  if (Object.keys(fm).length) {
+    try {
+      out = matter.stringify(converted, fm);
+    } catch {
+      const lines = Object.entries(fm)
+        .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object')
+        .map(([k, v]) => `${k}: ${JSON.stringify(String(v))}`);
+      out = lines.length ? `---\n${lines.join('\n')}\n---\n${converted}` : converted;
+    }
   } else {
     out = converted;
   }
@@ -514,8 +556,9 @@ export async function importDocs(args) {
         files.push({ rel, ok: true, wasmdx });
       } else {
         // Dry run — still parse to collect stats
-        const raw     = await fs.readFile(srcPath, 'utf8');
-        const { content: body } = matter(raw);
+        const raw = await fs.readFile(srcPath, 'utf8');
+        let body = raw;
+        try { body = matter(raw).content; } catch { body = raw.replace(/^---[\s\S]*?---\r?\n?/, ''); }
         const { stats, issues } = convertContent(body, rel);
         for (const [k, v] of stats) totalStats.set(k, (totalStats.get(k) ?? 0) + v);
         if (issues.length) allIssues.push({ rel, issues });
