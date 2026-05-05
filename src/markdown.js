@@ -18,7 +18,7 @@ const BLOCK_RE = /CODEBLOCK_\d+_END|^#{1,6} |^[|]|^[-*+] |^```/m;
 function extractOuterWcBlocks(src) {
   const results = [];
   // Match both open tags (<wc-foo ...>) and close tags (</wc-foo>)
-  const TOKEN = /<(\/?)(wc-[a-z][a-z0-9-]*)(\s[^>]*)?(\/?)>/g;
+  const TOKEN = /<(\/?)(wc-[a-z][a-z0-9-]*)(\s[^>]*?)?\s*(\/?)>/g;
   let m;
   let stack = []; // [{name, start}]
 
@@ -66,8 +66,11 @@ function processWcBlock(raw, codeBlocks) {
   // Leave code components untouched
   if (/^<wc-code/.test(raw)) return raw;
 
-  // Self-closing — nothing to render inside
-  if (/\/>$/.test(raw.trimEnd())) return raw;
+  // Self-closing — convert to open+close pair (HTML custom elements ignore />)
+  if (/\/>$/.test(raw.trimEnd())) {
+    const nameMatch = raw.match(/<(wc-[a-z][a-z0-9-]*)/);
+    return nameMatch ? raw.trimEnd().replace(/\s*\/>$/, `></${nameMatch[1]}>`) : raw;
+  }
 
   // Split into open-tag / content / close-tag
   const openEnd = raw.indexOf('>') + 1;

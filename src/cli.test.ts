@@ -124,6 +124,34 @@ describe('parseDoc', () => {
     const { meta } = parseDoc('Just some text.\n');
     expect(meta).toEqual({});
   });
+
+  it('converts self-closing wc-* tags to open+close pairs for HTML compatibility', () => {
+    const raw = '<wc-var name="X" default="hello" />\n';
+    const { html } = parseDoc(raw);
+    expect(html).toContain('<wc-var name="X" default="hello"></wc-var>');
+    expect(html).not.toContain('/>');
+  });
+
+  it('preserves content after self-closing wc-* tags', () => {
+    const raw = '<wc-var name="X" default="val" />\n\n<wc-callout>After var</wc-callout>\n';
+    const { html } = parseDoc(raw);
+    expect(html).toContain('<wc-var');
+    expect(html).toContain('<wc-callout>');
+    expect(html).toContain('After var');
+  });
+
+  it('preserves special characters like && inside wc-code-block', () => {
+    const raw = '<wc-code-block>mkdir foo && cd foo</wc-code-block>\n';
+    const { html } = parseDoc(raw);
+    expect(html).toContain('mkdir foo && cd foo');
+    expect(html).not.toContain('&amp;');
+  });
+
+  it('preserves {{VAR}} placeholders inside wc-code-block', () => {
+    const raw = '<wc-code-block>curl {{API_URL}}/status</wc-code-block>\n';
+    const { html } = parseDoc(raw);
+    expect(html).toContain('{{API_URL}}');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -186,7 +214,7 @@ describe('buildComponents', () => {
     // Navigation
     'wc-steps', 'wc-step', 'wc-tabs', 'wc-tab', 'wc-view', 'wc-view-panel',
     // Code
-    'wc-code-block', 'wc-code-group', 'wc-code-tab',
+    'wc-var', 'wc-code-block', 'wc-code-group', 'wc-code-tab',
     // Media & Files
     'wc-icon', 'wc-file', 'wc-dir', 'wc-files', 'wc-tree', 'wc-tree-item', 'wc-download', 'wc-copy',
     // Data & API

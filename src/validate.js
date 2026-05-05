@@ -8,7 +8,7 @@ const BUILTIN_COMPONENTS = new Set([
   'wc-button', 'wc-callout', 'wc-banner', 'wc-badge', 'wc-tooltip', 'wc-update',
   'wc-columns', 'wc-frame', 'wc-panel', 'wc-expandable', 'wc-accordion', 'wc-aside',
   'wc-step', 'wc-steps', 'wc-tabs', 'wc-tab', 'wc-view',
-  'wc-codeblock', 'wc-code-group', 'wc-code-playground',
+  'wc-var', 'wc-codeblock', 'wc-code-group', 'wc-code-playground',
   'wc-image', 'wc-video', 'wc-file-download',
   'wc-param', 'wc-response-field', 'wc-api-explorer',
   'wc-tiles', 'wc-card',

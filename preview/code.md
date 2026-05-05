@@ -65,6 +65,34 @@ const html = renderShell({
 }
 customElements.define('wc-callout', WcCallout);</wc-code-block>
 
+## wc-var
+
+Defines a page-level variable that users can edit inline. All instances of the same variable stay in sync, and `{{VAR_NAME}}` placeholders inside code blocks are substituted automatically. When users copy a code block, the edited value is what gets copied.
+
+### Inline variable
+
+Replace <wc-var name="PROJECT_NAME" default="my-app"></wc-var> with your project name. Click the variable to edit it, every code block on this page updates automatically.
+
+<wc-code-block language="bash">mkdir {{PROJECT_NAME}} && cd {{PROJECT_NAME}}</wc-code-block>
+
+<wc-code-block filename="setup.sh" language="bash">#!/bin/bash
+echo "Setting up {{PROJECT_NAME}}..."
+git init {{PROJECT_NAME}}
+cd {{PROJECT_NAME}}
+npm init -y</wc-code-block>
+
+### Multiple variables
+
+Replace <wc-var name="API_KEY" default="your-api-key"></wc-var> with your API key and <wc-var name="REGION" default="us-east-1"></wc-var> with your preferred region.
+
+<wc-code-block language="bash">curl -H "Authorization: Bearer {{API_KEY}}" \
+  https://{{REGION}}.api.example.com/v2/status</wc-code-block>
+
+<wc-code-block filename="config.yaml" language="yaml">provider:
+  region: {{REGION}}
+  credentials:
+    api_key: {{API_KEY}}</wc-code-block>
+
 ## wc-code-group / wc-code-tab
 
 A tabbed code group for showing the same snippet in multiple languages. Each `wc-code-tab` has a `label` attribute and its content is read as plain text (no HTML parsing).
