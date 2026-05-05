@@ -8,6 +8,9 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   const inlinePages = offline && pagesData
     ? `<script>window.__DOCSLIT_PAGES__ = ${JSON.stringify(pagesData)};</script>`
     : '';
+  const importMap = mode === 'dev'
+    ? `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`
+    : `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js","marked":"https://esm.sh/marked@18","dompurify":"https://esm.sh/dompurify@3"}}`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -65,8 +68,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
 </div>
 
 ${inlinePages}
-<!-- Lit 3.x — served from local vendor bundle -->
-<script type="importmap">{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}</script>
+<script type="importmap">${importMap}</script>
 <script type="module">
 ${buildComponents()}
 </script>
@@ -174,16 +176,24 @@ window.openSidebar = openSidebar;
 </html>`;
 }
 
-export function renderStaticPage({ config, id, meta, html }) {
+export function renderSeoPage({ config, id, meta, html }) {
   const siteTitle = config.name || 'DocsLit';
   const pageTitle = meta.title || id;
-  return renderShell({ config, mode: 'static' }).replace(
-    '<div class="loading-state">Loading…</div>',
-    injectPageMeta(meta) + html
-  ).replace(
-    `<title>${siteTitle} — DocsLit</title>`,
-    `<title>${pageTitle} — ${siteTitle}</title>`
-  );
+  const desc = meta.description || meta.desc || '';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(pageTitle)} — ${escHtml(siteTitle)}</title>
+${desc ? `<meta name="description" content="${escHtml(desc)}">` : ''}
+<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.6}h1,h2,h3{line-height:1.3}pre{background:#f4f4f4;padding:1rem;overflow:auto;border-radius:4px}code{background:#f4f4f4;padding:.1em .3em;border-radius:2px}a{color:#01696f}img{max-width:100%}</style>
+<script>var _id=${JSON.stringify(id)};location.replace(location.href.replace(/\/docs\/[^/]*$/,'/')+'#'+_id);</script>
+</head>
+<body>
+${html}
+</body>
+</html>`;
 }
 
 function injectPageMeta(meta) {
@@ -310,7 +320,8 @@ window.addEventListener('popstate', () => {
 
 function buildStaticLoader() {
   return `
-let _pages = {};
+const _cache = {};
+let _marked, _purify;
 
 function _docsBase() {
   const p = window.location.pathname;
@@ -321,22 +332,50 @@ function _pageFromUrl() {
   return p.slice(_docsBase().length) || null;
 }
 
-async function _loadPages() {
+function _parseFrontmatter(text) {
+  const m = text.match(/^---\\n([\\s\\S]*?)\\n---\\n?([\\s\\S]*)$/);
+  if (!m) return { meta: {}, content: text };
+  const meta = {};
+  m[1].split('\\n').forEach(line => {
+    const i = line.indexOf(':');
+    if (i < 0) return;
+    const k = line.slice(0, i).trim();
+    const v = line.slice(i + 1).trim().replace(/^['"]|['"]$/g, '');
+    if (k) meta[k] = v;
+  });
+  return { meta, content: m[2] };
+}
+
+async function _getMd() {
+  if (!_marked) {
+    const [{ marked }, { default: DOMPurify }] = await Promise.all([import('marked'), import('dompurify')]);
+    _marked = marked;
+    _purify = DOMPurify;
+  }
+  return { marked: _marked, purify: _purify };
+}
+
+async function _fetchPage(id) {
+  if (_cache[id] !== undefined) return _cache[id];
   try {
-    const res = await fetch(_docsBase() + 'pages.json');
-    _pages = await res.json();
-  } catch(e) { _pages = {}; }
+    const res = await fetch(_docsBase() + 'docs/' + id + '.md');
+    if (!res.ok) throw new Error('Not found');
+    _cache[id] = _parseFrontmatter(await res.text());
+  } catch(e) { _cache[id] = null; }
+  return _cache[id];
 }
 
 async function loadPage(id, el) {
-  if (!Object.keys(_pages).length) await _loadPages();
   activateSidebar(id);
   const target = _docsBase() + id;
   if (location.pathname !== target) history.pushState({page: id}, '', target);
   const content = document.getElementById('docs-content');
-  const data = _pages[id];
-  if (!data) { content.innerHTML = '<div class="loading-state" style="color:#f87171">Page not found: ' + id + '</div>'; return; }
-  const { meta, html } = data;
+  content.textContent = 'Loading…';
+  const data = await _fetchPage(id);
+  if (!data) { content.textContent = 'Page not found: ' + id; return; }
+  const { meta, content: mdText } = data;
+  const { marked, purify } = await _getMd();
+  const safeHtml = purify.sanitize(marked.parse(mdText));
   const logoText = document.querySelector('.nav-logo-text');
   const crumb = document.getElementById('docs-breadcrumb-current');
   if (meta.title) {
@@ -350,10 +389,9 @@ async function loadPage(id, el) {
   if (meta.updated) parts.push('<span>•</span><span>Updated ' + meta.updated + '</span>');
   const metaBar = parts.length ? '<div class="page-meta">' + parts.join('') + '</div>' : '';
   const tmp = document.createElement('div');
-  tmp.innerHTML = html;
+  tmp.innerHTML = safeHtml;
   const h1 = tmp.querySelector('h1');
   content.innerHTML = '';
-  if (meta.draft) content.insertAdjacentHTML('beforeend', '<div class="draft-banner" role="status"><span><strong>Draft page</strong> — not visible in production builds.</span></div>');
   if (h1) { content.appendChild(document.importNode(h1,true)); if(metaBar) content.insertAdjacentHTML('beforeend', metaBar); tmp.querySelector('h1').remove(); }
   else if (metaBar) content.insertAdjacentHTML('beforeend', metaBar);
   content.insertAdjacentHTML('beforeend', tmp.innerHTML);
@@ -362,9 +400,8 @@ async function loadPage(id, el) {
   content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
 }
 
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener('DOMContentLoaded', () => {
   _updateThemeBtn();
-  await _loadPages();
   const fromPath = _pageFromUrl();
   const fromHash = location.hash.slice(1);
   const firstEl = document.querySelector('.sidebar-item');

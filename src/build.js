@@ -3,7 +3,7 @@ import fs from 'fs-extra';
 import pc from 'picocolors';
 import { loadConfig, getAllPageIds } from './config.js';
 import { parseDoc } from './markdown.js';
-import { renderShell, renderStaticPage } from './template.js';
+import { renderShell, renderSeoPage } from './template.js';
 
 export async function build({ out = 'dist', offline = false } = {}) {
   const cwd = process.cwd();
@@ -66,16 +66,12 @@ export async function build({ out = 'dist', offline = false } = {}) {
   } else {
     const indexHtml = renderShell({ config, mode: 'static', out, draftPageIds });
     await fs.writeFile(path.join(outDir, 'index.html'), indexHtml);
-    await fs.writeFile(
-      path.join(outDir, 'pages.json'),
-      JSON.stringify(pagesData, null, 2)
-    );
-    console.log(`  ${pc.green('✓')} Built index.html + pages.json (${built} page${built !== 1 ? 's' : ''}${draftNote}${skippedNote})`);
+    console.log(`  ${pc.green('✓')} Built index.html (${built} page${built !== 1 ? 's' : ''}${draftNote}${skippedNote})`);
   }
 
-  // Per-page static HTML for SEO / direct linking
+  // Thin SEO pages — minimal HTML with content for crawlers, JS redirects to SPA
   for (const [id, { meta, html }] of Object.entries(pagesData)) {
-    const pageHtml = renderStaticPage({ config, id, meta, html });
+    const pageHtml = renderSeoPage({ config, id, meta, html });
     await fs.ensureDir(path.join(outDir, 'docs'));
     await fs.writeFile(path.join(outDir, 'docs', `${id}.html`), pageHtml);
   }
