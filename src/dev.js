@@ -74,6 +74,21 @@ export async function dev({ port = 3000 } = {}) {
     res.json({ id, meta, html });
   });
 
+  // Serve raw markdown source for AI agents: GET /page.md or GET /docs/page.md
+  app.get(/\.md$/, async (req, res) => {
+    const slug = req.path.replace(/\.md$/, '').replace(/^\//, '').replace(/^docs\//, '');
+    const docsDir = path.join(cwd, 'docs');
+    const mdPath = path.resolve(docsDir, `${slug}.md`);
+    if (!mdPath.startsWith(docsDir + path.sep)) {
+      return res.status(400).send('Invalid path');
+    }
+    if (!await fs.pathExists(mdPath)) {
+      return res.status(404).send('Not found');
+    }
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.send(await fs.readFile(mdPath, 'utf8'));
+  });
+
   // Serve local Lit vendor bundles (no CDN requests)
   app.use('/vendor', express.static(path.join(__dirname, 'vendor')));
 

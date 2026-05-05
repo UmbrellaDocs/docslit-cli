@@ -4,6 +4,26 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
+## 0.1.5
+
+### What's new
+
+**Client-side markdown rendering** — Published sites now fetch `.md` files on-demand and render them in the browser using `marked` and `DOMPurify` from esm.sh. This replaces the old `pages.json` + full per-page HTML shell architecture. Per-page SEO pages are now thin (~3 KB vs ~80 KB), containing only the rendered content for crawlers while redirecting JS-enabled browsers to the SPA. The local dev server now also serves raw markdown at both `/page.md` and `/docs/page.md`, so agents and local tooling can fetch source files directly in development.
+
+**LLMs.txt improvements** — Generated `llms.txt` files now include a short header note showing where raw markdown lives for each page using the `{slug}.md` URL pattern, making it clearer for agents how to fetch source content page-by-page.
+
+**Build output accuracy** — Fixed a unit mismatch in `getDirSize` that caused the reported distribution size to be ~1000x smaller than actual.
+
+**Import robustness** — The import tool now gracefully handles malformed MDX frontmatter and JSX expressions:
+- Wraps gray-matter parsing in try/catch with regex fallback for files with invalid YAML
+- Strips frontmatter values containing HTML/JSX to prevent downstream serialization failures
+- Removes inline JSX interpolations `{…}` that aren't inside code blocks or spans
+- Falls back to JSON.stringify for frontmatter values that js-yaml can't handle
+
+**Dependency updates** — Replaced `archiver` with `fflate` for zip creation, making the client-side publish consistent with server-side extraction. Publish output now shows both compressed and uncompressed sizes.
+
+---
+
 ## 0.1.4
 
 ### What's new

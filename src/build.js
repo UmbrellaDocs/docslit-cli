@@ -111,6 +111,8 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
   // ── llms.txt ──
   const lines = [`# ${siteTitle}`];
   if (siteDesc) lines.push(`\n> ${siteDesc}`);
+  const mdBase = baseUrl ? `${baseUrl}/docs` : 'docs';
+  lines.push(`\n> Raw Markdown for each page is available at ${mdBase}/{slug}.md`);
   lines.push('');
 
   for (const group of (config.sidebar || [])) {
