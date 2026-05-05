@@ -169,12 +169,16 @@ function toLabel(id) {
 }
 
 async function getDirSize(dir) {
+  return Math.round(await getDirBytes(dir) / 1024);
+}
+
+async function getDirBytes(dir) {
   let total = 0;
   const entries = await fs.readdir(dir, { withFileTypes: true });
   for (const e of entries) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) total += await getDirSize(p);
+    if (e.isDirectory()) total += await getDirBytes(p);
     else total += (await fs.stat(p)).size;
   }
-  return Math.round(total / 1024);
+  return total;
 }
