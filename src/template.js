@@ -79,7 +79,16 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
 <div class="docs-page">
   <div class="docs-layout">
     <aside class="docs-sidebar" id="docs-sidebar">
+      <div class="sidebar-filter-wrap">
+        <svg class="sidebar-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input class="sidebar-filter" id="sidebar-filter" type="text" placeholder="Filter pages…" autocomplete="off" spellcheck="false" oninput="_filterSidebar(this.value)">
+        <button class="sidebar-filter-clear" id="sidebar-filter-clear" onclick="_clearSidebarFilter()" aria-label="Clear filter">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="sidebar-scroll" id="sidebar-scroll">
       ${sidebarHtml}
+      </div>
     </aside>
     <div class="docs-main-col">
       <div class="docs-nav-top">
@@ -205,11 +214,85 @@ function switchVersion(v) {
   window.location.href = '/' + v + '/' + pageId;
 }
 
+// ── SIDEBAR FILTER ───────────────────────────────────────────────────────
+function _filterSidebar(query) {
+  var clearBtn = document.getElementById('sidebar-filter-clear');
+  clearBtn.classList.toggle('visible', query.length > 0);
+
+  var scroll = document.getElementById('sidebar-scroll');
+  var q = query.trim().toLowerCase();
+
+  // Store original labels on first run
+  scroll.querySelectorAll('.sidebar-item').forEach(function(item) {
+    if (!item.dataset.label) item.dataset.label = item.textContent;
+  });
+
+  // Remove previous no-results message
+  var noResults = scroll.querySelector('.sidebar-no-results');
+  if (noResults) noResults.remove();
+
+  if (!q) {
+    scroll.querySelectorAll('.sidebar-item').forEach(function(item) {
+      item.innerHTML = _escFilter(item.dataset.label);
+      item.style.display = '';
+    });
+    scroll.querySelectorAll('.sidebar-section').forEach(function(s) { s.style.display = ''; });
+    scroll.querySelectorAll('.sidebar-group-title').forEach(function(g) { g.style.display = ''; });
+    return;
+  }
+
+  var anyVisible = false;
+  scroll.querySelectorAll('.sidebar-section').forEach(function(section) {
+    var items = section.querySelectorAll('.sidebar-item');
+    var groupVisible = false;
+
+    items.forEach(function(item) {
+      var text = item.dataset.label;
+      var lower = text.toLowerCase();
+      var idx = lower.indexOf(q);
+      if (idx >= 0) {
+        item.innerHTML = _escFilter(text.slice(0, idx))
+          + '<mark class="filter-hl">' + _escFilter(text.slice(idx, idx + q.length)) + '</mark>'
+          + _escFilter(text.slice(idx + q.length));
+        item.style.display = '';
+        groupVisible = true;
+        anyVisible = true;
+      } else {
+        item.style.display = 'none';
+      }
+    });
+
+    section.style.display = groupVisible ? '' : 'none';
+    var gt = section.querySelector('.sidebar-group-title');
+    if (gt) gt.style.display = groupVisible ? '' : 'none';
+  });
+
+  if (!anyVisible) {
+    var msg = document.createElement('div');
+    msg.className = 'sidebar-no-results';
+    msg.textContent = 'No pages match \\u201c' + query.trim() + '\\u201d';
+    scroll.appendChild(msg);
+  }
+}
+
+function _clearSidebarFilter() {
+  var input = document.getElementById('sidebar-filter');
+  input.value = '';
+  input.focus();
+  _filterSidebar('');
+}
+
+function _escFilter(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 window.loadPage = loadPage;
 window.activateSidebar = activateSidebar;
 window.closeSidebar = closeSidebar;
 window.openSidebar = openSidebar;
 window.switchVersion = switchVersion;
+window._filterSidebar = _filterSidebar;
+window._clearSidebarFilter = _clearSidebarFilter;
 </script>
 </body>
 </html>`;
@@ -902,15 +985,54 @@ html.light .nav { background: rgba(255,255,255,.93); }
   width: var(--sidebar-w); flex-shrink: 0;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
-  padding: 16px 0 80px;
+  padding: 0;
   position: sticky; top: var(--nav-h);
   height: calc(100vh - var(--nav-h));
-  overflow-y: auto; align-self: flex-start; z-index: 200;
+  display: flex; flex-direction: column;
+  align-self: flex-start; z-index: 200;
+}
+.sidebar-scroll {
   scrollbar-width: thin; scrollbar-color: var(--border) transparent;
 }
-.docs-sidebar::-webkit-scrollbar { width: 4px; }
-.docs-sidebar::-webkit-scrollbar-track { background: transparent; }
-.docs-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+/* SIDEBAR FILTER */
+.sidebar-filter-wrap {
+  position: sticky; top: 0; z-index: 10;
+  padding: 12px 14px 10px;
+  background: var(--sidebar-bg);
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-filter-icon { flex-shrink: 0; color: var(--text3); }
+.sidebar-filter {
+  flex: 1; min-width: 0; border: none; outline: none;
+  background: transparent; font-family: var(--font-sans);
+  font-size: 13px; color: var(--text); padding: 0;
+}
+.sidebar-filter::placeholder { color: var(--text3); }
+.sidebar-filter-clear {
+  display: none; width: 20px; height: 20px; padding: 0;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; cursor: pointer;
+  align-items: center; justify-content: center;
+  color: var(--text3); transition: all .12s; flex-shrink: 0;
+}
+.sidebar-filter-clear.visible { display: flex; }
+.sidebar-filter-clear:hover { background: var(--surface3); color: var(--text2); }
+.sidebar-scroll { overflow-y: auto; flex: 1; padding: 4px 0 80px; }
+.sidebar-item mark.filter-hl {
+  background: rgba(234,179,8,.25); color: inherit;
+  border-radius: 2px; padding: 0 1px;
+}
+html.light .sidebar-item mark.filter-hl { background: rgba(202,138,4,.2); }
+.sidebar-item.active mark.filter-hl { background: rgba(234,179,8,.35); }
+html.light .sidebar-item.active mark.filter-hl { background: rgba(202,138,4,.3); }
+.sidebar-no-results {
+  padding: 16px 18px; font-size: 13px; color: var(--text3); text-align: center;
+}
+
 .sidebar-section { margin-bottom: 2px; }
 .sidebar-group-title {
   padding: 18px 18px 5px;

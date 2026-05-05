@@ -551,3 +551,45 @@ describe('renderShell — search offline mode', () => {
     expect(html).not.toContain('window.__DOCSLIT_SEARCH_INDEX__ =');
   });
 });
+
+// ── Sidebar filter ───────────────────────────────────────────────────────
+
+describe('renderShell — sidebar filter', () => {
+  const config = { name: 'Test', sidebar: [{ group: 'Guide', pages: ['intro', 'setup'] }] };
+
+  it('includes filter input in sidebar', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('sidebar-filter');
+    expect(html).toContain('Filter pages…');
+  });
+
+  it('includes clear button', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('sidebar-filter-clear');
+    expect(html).toContain('_clearSidebarFilter()');
+  });
+
+  it('includes filter JS function', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('function _filterSidebar');
+    expect(html).toContain('function _clearSidebarFilter');
+  });
+
+  it('includes filter highlight CSS', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('.sidebar-filter-wrap');
+    expect(html).toContain('mark.filter-hl');
+    expect(html).toContain('.sidebar-no-results');
+  });
+
+  it('wraps sidebar items in a scrollable container', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('sidebar-scroll');
+    expect(html).toContain('id="sidebar-scroll"');
+  });
+
+  it('sidebar items have oninput wired to _filterSidebar', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('oninput="_filterSidebar(this.value)"');
+  });
+});
