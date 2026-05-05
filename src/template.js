@@ -379,19 +379,17 @@ function buildDevLoader() {
 function _docsBase() {
   var vc = window.__DOCSLIT_VERSIONS__;
   if (vc) return '/' + vc.current + '/';
-  const p = window.location.pathname;
-  return p.slice(0, p.lastIndexOf('/') + 1);
+  return '/';
 }
 function _pageFromUrl() {
   var vc = window.__DOCSLIT_VERSIONS__;
+  var p = window.location.pathname;
   if (vc) {
-    const p = window.location.pathname;
-    const prefix = '/' + vc.current + '/';
+    var prefix = '/' + vc.current + '/';
     if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
     return null;
   }
-  const p = window.location.pathname;
-  return p.slice(_docsBase().length) || null;
+  return p.slice(1) || null;
 }
 
 async function loadPage(id, el) {
@@ -470,19 +468,17 @@ let _marked, _purify;
 function _docsBase() {
   var vc = window.__DOCSLIT_VERSIONS__;
   if (vc) return '/' + vc.current + '/';
-  const p = window.location.pathname;
-  return p.slice(0, p.lastIndexOf('/') + 1);
+  return '/';
 }
 function _pageFromUrl() {
   var vc = window.__DOCSLIT_VERSIONS__;
+  var p = window.location.pathname;
   if (vc) {
-    const p = window.location.pathname;
-    const prefix = '/' + vc.current + '/';
+    var prefix = '/' + vc.current + '/';
     if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
     return null;
   }
-  const p = window.location.pathname;
-  return p.slice(_docsBase().length) || null;
+  return p.slice(1) || null;
 }
 
 function _parseFrontmatter(text) {
@@ -583,19 +579,17 @@ const _pages = window.__DOCSLIT_PAGES__ || {};
 function _docsBase() {
   var vc = window.__DOCSLIT_VERSIONS__;
   if (vc) return '/' + vc.current + '/';
-  const p = window.location.pathname;
-  return p.slice(0, p.lastIndexOf('/') + 1);
+  return '/';
 }
 function _pageFromUrl() {
   var vc = window.__DOCSLIT_VERSIONS__;
+  var p = window.location.pathname;
   if (vc) {
-    const p = window.location.pathname;
-    const prefix = '/' + vc.current + '/';
+    var prefix = '/' + vc.current + '/';
     if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
     return null;
   }
-  const p = window.location.pathname;
-  return p.slice(_docsBase().length) || null;
+  return p.slice(1) || null;
 }
 
 async function loadPage(id, el) {
