@@ -57,37 +57,46 @@ export async function dev({ port = 3000 } = {}) {
     res.json({ config: freshConfig });
   });
 
-  // API: serve a single markdown page (versioned: /api/page/:version/:id)
-  app.get('/api/page/:version/:id', async (req, res) => {
-    const { version, id } = req.params;
+  // API: serve a single markdown page (versioned and unversioned)
+  // Uses {*path} wildcard to support nested page IDs like commands/check
+  app.get('/api/page/{*path}', async (req, res) => {
+    const segments = Array.isArray(req.params.path) ? req.params.path.join('/') : req.params.path;
     const vc = getVersionConfig(config);
-    if (!vc) return res.status(400).json({ error: 'Versioning not enabled' });
 
-    const entry = vc.list.find(v => v.version === version);
-    if (!entry) return res.status(404).json({ error: `Version "${version}" not found` });
-
-    // For the current branch version, serve from disk
-    const docsDir = path.join(cwd, 'docs');
-    const mdPath = path.resolve(docsDir, `${id}.md`);
-    if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
-      const raw = await fs.readFile(mdPath, 'utf8');
-      const { meta, html } = parseDoc(raw);
-      return res.json({ id, meta, html });
+    let id, version;
+    if (vc) {
+      const parts = segments.split('/');
+      const maybeVersion = parts[0];
+      const entry = vc.list.find(v => v.version === maybeVersion);
+      if (entry) {
+        version = maybeVersion;
+        id = parts.slice(1).join('/');
+      } else {
+        id = segments;
+      }
+    } else {
+      id = segments;
     }
 
-    // For other versions, try git show
-    const raw = await gitReadFile(entry.branch, `docs/${id}.md`, cwd);
-    if (raw) {
-      const { meta, html } = parseDoc(raw);
-      return res.json({ id, meta, html });
+    if (!id) return res.status(400).json({ error: 'Missing page id' });
+
+    if (version) {
+      const entry = vc.list.find(v => v.version === version);
+      const docsDir = path.join(cwd, 'docs');
+      const mdPath = path.resolve(docsDir, `${id}.md`);
+      if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
+        const raw = await fs.readFile(mdPath, 'utf8');
+        const { meta, html } = parseDoc(raw);
+        return res.json({ id, meta, html });
+      }
+      const raw = await gitReadFile(entry.branch, `docs/${id}.md`, cwd);
+      if (raw) {
+        const { meta, html } = parseDoc(raw);
+        return res.json({ id, meta, html });
+      }
+      return res.status(404).json({ error: `Page "${id}" not found in version ${version}` });
     }
 
-    res.status(404).json({ error: `Page "${id}" not found in version ${version}` });
-  });
-
-  // API: serve a single markdown page (unversioned)
-  app.get('/api/page/:id', async (req, res) => {
-    const id = req.params.id;
     const docsDir = path.join(cwd, 'docs');
     const mdPath = path.resolve(docsDir, `${id}.md`);
     if (!mdPath.startsWith(docsDir + path.sep)) {
@@ -117,7 +126,7 @@ export async function dev({ port = 3000 } = {}) {
   });
 
   // API: search index
-  app.get('/api/search-index/:version?', async (req, res) => {
+  async function handleSearchIndex(req, res) {
     const freshConfig = await loadConfig(cwd);
     const pageIds = getAllPageIds(freshConfig);
     const docsDir = path.join(cwd, 'docs');
@@ -147,7 +156,9 @@ export async function dev({ port = 3000 } = {}) {
     }
 
     res.json(index);
-  });
+  }
+  app.get('/api/search-index', handleSearchIndex);
+  app.get('/api/search-index/:version', handleSearchIndex);
 
   // Serve local Lit vendor bundles (no CDN requests)
   app.use('/vendor', express.static(path.join(__dirname, 'vendor')));

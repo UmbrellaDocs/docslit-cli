@@ -63,8 +63,9 @@ async function buildSingle({ config, cwd, outDir, out, offline }) {
     }
 
     pagesData[id] = { meta, html };
-    await fs.ensureDir(path.join(outDir, 'docs'));
-    await fs.copyFile(mdPath, path.join(outDir, 'docs', `${id}.md`));
+    const destMd = path.join(outDir, 'docs', `${id}.md`);
+    await fs.ensureDir(path.dirname(destMd));
+    await fs.copyFile(mdPath, destMd);
     built++;
   }
 
@@ -84,8 +85,9 @@ async function buildSingle({ config, cwd, outDir, out, offline }) {
 
   for (const [id, { meta, html }] of Object.entries(pagesData)) {
     const pageHtml = renderSeoPage({ config, id, meta, html });
-    await fs.ensureDir(path.join(outDir, 'docs'));
-    await fs.writeFile(path.join(outDir, 'docs', `${id}.html`), pageHtml);
+    const destHtml = path.join(outDir, 'docs', `${id}.html`);
+    await fs.ensureDir(path.dirname(destHtml));
+    await fs.writeFile(destHtml, pageHtml);
   }
 
   await generateLlmsTxt({ config, pagesData, outDir });
@@ -112,8 +114,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const { meta, html } = parseDoc(raw);
     if (meta.draft === true) { draftPageIds.push(id); continue; }
     defaultPagesData[id] = { meta, html };
-    await fs.ensureDir(path.join(defaultDir, 'docs'));
-    await fs.copyFile(mdPath, path.join(defaultDir, 'docs', `${id}.md`));
+    const destMd = path.join(defaultDir, 'docs', `${id}.md`);
+    await fs.ensureDir(path.dirname(destMd));
+    await fs.copyFile(mdPath, destMd);
     built++;
   }
 
@@ -126,8 +129,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
 
   for (const [id, { meta, html }] of Object.entries(defaultPagesData)) {
     const pageHtml = renderSeoPage({ config, id, meta, html, versionSlug: defaultVersion });
-    await fs.ensureDir(path.join(defaultDir, 'docs'));
-    await fs.writeFile(path.join(defaultDir, 'docs', `${id}.html`), pageHtml);
+    const destHtml = path.join(defaultDir, 'docs', `${id}.html`);
+    await fs.ensureDir(path.dirname(destHtml));
+    await fs.writeFile(destHtml, pageHtml);
   }
 
   await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir });
@@ -154,8 +158,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
         const { meta, html } = parseDoc(raw);
         if (meta.draft === true) continue;
         versionPagesData[id] = { meta, html };
-        await fs.ensureDir(path.join(versionDir, 'docs'));
-        await fs.writeFile(path.join(versionDir, 'docs', `${id}.md`), raw);
+        const destMd = path.join(versionDir, 'docs', `${id}.md`);
+        await fs.ensureDir(path.dirname(destMd));
+        await fs.writeFile(destMd, raw);
         await fs.writeFile(path.join(versionDir, 'docs', `${id}.html`),
           renderSeoPage({ config: versionConf, id, meta, html, versionSlug: entry.version }));
         manifest[id] = entry.version;
