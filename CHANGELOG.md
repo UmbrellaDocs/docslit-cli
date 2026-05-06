@@ -8,6 +8,8 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ### What's new
 
+#### Multi-version documentation
+
 **Multi-version documentation support** — docslit now supports hosting multiple versions of documentation on a single site with a version selector. Versions map to git branches, so teams can maintain separate branches for each product release (e.g. `docs-v1`, `docs-v2`) and build them into a unified site with shareable versioned URLs like `/v2/getting-started`.
 
 This feature is fully opt-in. Add a `versions` block to `docslit.json` to enable it:
@@ -33,11 +35,7 @@ Key capabilities:
 - **SEO pages** — thin HTML pages for each version include version-aware redirects.
 - **llms.txt** — each version gets its own `llms.txt` and `llms-full.txt`.
 
-**Import versioning** — the Mintlify import tool now detects versioned navigation (`navigation.versions` in `mint.json`) and offers four strategies:
-1. **Branch-based versioning (recommended)** — automatically creates git branches per version, distributes the right pages to each branch, and writes the versioning config.
-2. **Keep only latest** — imports just the default version's pages.
-3. **Merge all versions** — flattens everything into a single unversioned site.
-4. **Skip** — imports all files without versioning config for manual setup later.
+#### Search and navigation
 
 **Full-text search** — a Cmd+K / Ctrl+K search modal is now built into the nav bar. It uses FlexSearch (loaded lazily from esm.sh on first open) to search across all pages with instant prefix-matched results as you type. Results are grouped by sidebar section with highlighted matches, and support full keyboard navigation (arrow keys, Enter, Escape).
 
@@ -48,7 +46,41 @@ The search index (`search-index.json`) is generated at build time alongside `llm
 
 **Sidebar filter** — a filter input is now fixed at the top of the sidebar. As you type, non-matching pages are hidden instantly and matching text is highlighted in yellow. A clear button appears when the filter is active, and a friendly empty state is shown when no pages match. Works on both desktop and mobile sidebar.
 
-**Accessibility** — comprehensive WCAG 2.1 AA improvements across the shell and all interactive components:
+**Sidebar filter keyboard navigation** — the sidebar filter input now supports full keyboard navigation. Arrow Down/Up moves through matching results with a visible highlight, Enter opens the selected page (or the only remaining match), and Escape clears the filter. The selection resets on each keystroke so navigation always starts fresh after typing.
+
+**404 page** — navigating to a non-existent page now shows a styled 404 page with the missing slug, a "Go to first page" link, and a "Search docs" button that opens the Cmd+K search modal. Replaces the previous plain-text error message across all three rendering modes (dev, static, offline).
+
+#### SEO and AI agent discovery
+
+**robots.txt** — static builds now generate a `robots.txt` at the site root with explicit `Allow: /` rules for all crawlers, plus named entries for AI-specific bots (GPTBot, Claude-Web, Google-Extended, OAI-SearchBot, PerplexityBot, Applebot-Extended). References `sitemap.xml` and `llms.txt` when a site URL is configured. Versioned builds list per-version sitemaps.
+
+**sitemap.xml** — static builds now generate an XML sitemap (per the sitemaps.org specification) listing the homepage and all documentation pages with `<lastmod>` dates. Requires `url` in `docslit.json` to produce absolute URLs. Versioned builds generate a separate sitemap per version directory.
+
+**Open Graph and Twitter Card meta tags** — SEO pages now include `og:title`, `og:description`, `og:url`, `og:type`, `og:site_name`, and `twitter:card` / `twitter:title` / `twitter:description` tags. A `<link rel="canonical">` tag is also added when a site URL is configured.
+
+**Structured data (JSON-LD)** — each SEO page now includes a `<script type="application/ld+json">` block with a `TechArticle` schema containing the page headline, description, URL, and parent site reference.
+
+#### Import improvements
+
+**Import versioning** — the Mintlify import tool now detects versioned navigation (`navigation.versions` in `mint.json`) and offers four strategies:
+1. **Branch-based versioning (recommended)** — automatically creates git branches per version, distributes the right pages to each branch, and writes the versioning config.
+2. **Keep only latest** — imports just the default version's pages.
+3. **Merge all versions** — flattens everything into a single unversioned site.
+4. **Skip** — imports all files without versioning config for manual setup later.
+
+**Expanded import detection** — the import tool now recognises 11 documentation frameworks: Mintlify (including `docs.json` and `.mintlifyignore`), Fern, GitBook (including `.gitbook.yaml`), Docusaurus, MkDocs, Sphinx, ReadMe, VuePress, VitePress, Starlight (Astro), and Nextra. Previously only Mintlify, Fern, and GitBook were detected.
+
+**Mintlify tabbed navigation support** — the import tool now correctly handles Mintlify's `navigation.tabs` config format, where groups are nested inside tabs. Previously this caused a crash.
+
+**Import resilience** — the import pipeline no longer crashes on unexpected config structures, malformed navigation, or inaccessible files. Each phase (detection, file conversion, sidebar building, asset copying) now degrades gracefully with a warning instead of a stack trace. If sidebar parsing fails, it falls back to auto-discovery from converted files.
+
+**Orphaned page detection** — after import, any converted files not referenced in the source navigation are added to an "Other Pages" sidebar group and flagged in the report. This prevents silently losing pages that exist on disk but weren't in the original site's nav config.
+
+**Icon support for imported docs** — Mintlify icon names (Font Awesome) are now mapped to built-in Lucide icons where a match exists (e.g. `sliders` → `settings`, `bolt` → `zap`). For icons without a Lucide equivalent, `wc-icon` fetches the individual SVG from Font Awesome's CDN at runtime and renders it inline — no CSS stylesheet needed, works inside any shadow DOM, and each SVG is cached after first fetch.
+
+#### Accessibility
+
+**Comprehensive WCAG 2.1 AA improvements** across the shell and all interactive components:
 - Skip-to-content link for keyboard users
 - Focus trap in search modal with focus return on close
 - `prefers-reduced-motion` support — disables all animations and transitions
@@ -61,23 +93,13 @@ The search index (`search-index.json`) is generated at build time alongside `llm
 - Content links underlined by default for color-independent distinguishability
 - Appropriate ARIA roles on callouts (`role="alert"` for warnings/errors), version selectors (`aria-pressed`), and copy buttons (dynamic `aria-label`)
 
-**Security improvement** — all git operations now use `isomorphic-git` (pure JavaScript) instead of shelling out to the `git` CLI via `execSync`. This eliminates any command injection risk from branch names or file paths, and removes the requirement for git to be installed on the system.
+#### Components
 
 **Accordion group component** — a new `wc-accordion-group` component visually connects adjacent accordions into a unified group with shared borders and rounded corners on the first and last items. The import tool now maps Mintlify's `<AccordionGroup>` to this component instead of stripping it.
 
-**Expanded import detection** — the import tool now recognises 11 documentation frameworks: Mintlify (including `docs.json` and `.mintlifyignore`), Fern, GitBook (including `.gitbook.yaml`), Docusaurus, MkDocs, Sphinx, ReadMe, VuePress, VitePress, Starlight (Astro), and Nextra. Previously only Mintlify, Fern, and GitBook were detected.
+#### Security
 
-**Mintlify tabbed navigation support** — the import tool now correctly handles Mintlify's `navigation.tabs` config format, where groups are nested inside tabs. Previously this caused a crash.
-
-**Import resilience** — the import pipeline no longer crashes on unexpected config structures, malformed navigation, or inaccessible files. Each phase (detection, file conversion, sidebar building, asset copying) now degrades gracefully with a warning instead of a stack trace. If sidebar parsing fails, it falls back to auto-discovery from converted files.
-
-**Orphaned page detection** — after import, any converted files not referenced in the source navigation are added to an "Other Pages" sidebar group and flagged in the report. This prevents silently losing pages that exist on disk but weren't in the original site's nav config.
-
-**Icon support for imported docs** — Mintlify icon names (Font Awesome) are now mapped to built-in Lucide icons where a match exists (e.g. `sliders` → `settings`, `bolt` → `zap`). For icons without a Lucide equivalent, `wc-icon` fetches the individual SVG from Font Awesome's CDN at runtime and renders it inline — no CSS stylesheet needed, works inside any shadow DOM, and each SVG is cached after first fetch.
-
-**404 page** — navigating to a non-existent page now shows a styled 404 page with the missing slug, a "Go to first page" link, and a "Search docs" button that opens the Cmd+K search modal. Replaces the previous plain-text error message across all three rendering modes (dev, static, offline).
-
-**Sidebar filter keyboard navigation** — the sidebar filter input now supports full keyboard navigation. Arrow Down/Up moves through matching results with a visible highlight, Enter opens the selected page (or the only remaining match), and Escape clears the filter. The selection resets on each keystroke so navigation always starts fresh after typing.
+**Security improvement** — all git operations now use `isomorphic-git` (pure JavaScript) instead of shelling out to the `git` CLI via `execSync`. This eliminates any command injection risk from branch names or file paths, and removes the requirement for git to be installed on the system.
 
 ---
 

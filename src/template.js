@@ -381,14 +381,44 @@ export function renderSeoPage({ config, id, meta, html, versionSlug = null }) {
   const siteTitle = config.name || 'DocsLit';
   const pageTitle = meta.title || id;
   const desc = meta.description || meta.desc || '';
+  const baseUrl = (config.url || '').replace(/\/$/, '');
   const redirectBase = versionSlug ? `'/${escHtml(versionSlug)}/'` : `location.href.replace(/\\/docs\\/[^/]*$/,'/')`;
+
+  const versionPrefix = versionSlug ? `/${versionSlug}` : '';
+  const canonicalUrl = baseUrl ? `${baseUrl}${versionPrefix}/${id}` : '';
+
+  let ogTags = '';
+  if (baseUrl) {
+    ogTags += `\n<link rel="canonical" href="${escHtml(canonicalUrl)}">`;
+    ogTags += `\n<meta property="og:url" content="${escHtml(canonicalUrl)}">`;
+  }
+  ogTags += `\n<meta property="og:type" content="article">`;
+  ogTags += `\n<meta property="og:title" content="${escHtml(pageTitle)}">`;
+  ogTags += `\n<meta property="og:site_name" content="${escHtml(siteTitle)}">`;
+  if (desc) ogTags += `\n<meta property="og:description" content="${escHtml(desc)}">`;
+  ogTags += `\n<meta name="twitter:card" content="summary">`;
+  ogTags += `\n<meta name="twitter:title" content="${escHtml(pageTitle)}">`;
+  if (desc) ogTags += `\n<meta name="twitter:description" content="${escHtml(desc)}">`;
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'TechArticle',
+    headline: pageTitle,
+    name: pageTitle,
+    isPartOf: { '@type': 'WebSite', name: siteTitle },
+  };
+  if (desc) jsonLd.description = desc;
+  if (canonicalUrl) jsonLd.url = canonicalUrl;
+  if (baseUrl) jsonLd.isPartOf.url = baseUrl;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escHtml(pageTitle)} — ${escHtml(siteTitle)}</title>
-${desc ? `<meta name="description" content="${escHtml(desc)}">` : ''}
+${desc ? `<meta name="description" content="${escHtml(desc)}">` : ''}${ogTags}
+<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
 <style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.6}h1,h2,h3{line-height:1.3}pre{background:#f4f4f4;padding:1rem;overflow:auto;border-radius:4px}code{background:#f4f4f4;padding:.1em .3em;border-radius:2px}a{color:#01696f}img{max-width:100%}</style>
 <script>var _id=${JSON.stringify(id)};location.replace(${redirectBase}+_id);</script>
 </head>

@@ -91,6 +91,11 @@ async function buildSingle({ config, cwd, outDir, out, offline }) {
   }
 
   await generateLlmsTxt({ config, pagesData, outDir });
+
+  if (!offline) {
+    await generateRobotsTxt({ config, outDir });
+    await generateSitemap({ config, pagesData, outDir });
+  }
 }
 
 async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline }) {
@@ -187,6 +192,15 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   // Root index.html redirects to default version
   const rootRedirect = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/${defaultVersion}/"><script>location.replace('/${defaultVersion}/');</script></head></html>`;
   await fs.writeFile(path.join(outDir, 'index.html'), rootRedirect);
+
+  if (!offline) {
+    const allPagesData = {};
+    for (const id of defaultPageIds) {
+      if (defaultPagesData[id]) allPagesData[id] = defaultPagesData[id];
+    }
+    await generateRobotsTxt({ config, outDir, versionConfig });
+    await generateSitemap({ config, pagesData: allPagesData, outDir, versionConfig, defaultVersion });
+  }
 }
 
 // ── llms.txt generation ────────────────────────────────────────────────────
@@ -298,6 +312,95 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
 
   const count = Object.keys(pagesData).length;
   console.log(`  ${pc.green('✓')} Generated llms.txt + llms-full.txt + search-index.json (${count} page${count !== 1 ? 's' : ''} indexed)`);
+}
+
+async function generateRobotsTxt({ config, outDir, versionConfig = null }) {
+  const baseUrl = (config.url || '').replace(/\/$/, '');
+  const lines = [
+    'User-agent: *',
+    'Allow: /',
+    '',
+    'User-agent: GPTBot',
+    'Allow: /',
+    '',
+    'User-agent: Google-Extended',
+    'Allow: /',
+    '',
+    'User-agent: Claude-Web',
+    'Allow: /',
+    '',
+    'User-agent: OAI-SearchBot',
+    'Allow: /',
+    '',
+    'User-agent: PerplexityBot',
+    'Allow: /',
+    '',
+    'User-agent: Applebot-Extended',
+    'Allow: /',
+  ];
+
+  if (baseUrl) {
+    lines.push('');
+    if (versionConfig) {
+      for (const v of versionConfig.list) {
+        lines.push(`Sitemap: ${baseUrl}/${v.version}/sitemap.xml`);
+      }
+    } else {
+      lines.push(`Sitemap: ${baseUrl}/sitemap.xml`);
+    }
+
+    lines.push(`Sitemap: ${baseUrl}/llms.txt`);
+  }
+
+  lines.push('');
+  await fs.writeFile(path.join(outDir, 'robots.txt'), lines.join('\n'));
+  console.log(`  ${pc.green('✓')} Generated robots.txt`);
+}
+
+async function generateSitemap({ config, pagesData, outDir, versionConfig = null, defaultVersion = null }) {
+  const baseUrl = (config.url || '').replace(/\/$/, '');
+  if (!baseUrl) {
+    console.log(`  ${pc.dim('○')} Skipped sitemap.xml — no url in docslit.json`);
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  if (versionConfig) {
+    for (const entry of versionConfig.list) {
+      const versionDir = path.join(outDir, entry.version);
+      const isDefault = entry.version === defaultVersion;
+      const priority = isDefault ? '1.0' : '0.6';
+      const urls = [];
+
+      urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(entry.version)}/</loc>\n    <lastmod>${today}</lastmod>\n    <priority>${priority}</priority>\n  </url>`);
+
+      for (const id of Object.keys(pagesData)) {
+        urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(entry.version)}/${escXml(id)}</loc>\n    <lastmod>${today}</lastmod>\n    <priority>${isDefault ? '0.8' : '0.5'}</priority>\n  </url>`);
+      }
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
+      await fs.ensureDir(versionDir);
+      await fs.writeFile(path.join(versionDir, 'sitemap.xml'), xml);
+    }
+  } else {
+    const urls = [];
+
+    urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/</loc>\n    <lastmod>${today}</lastmod>\n    <priority>1.0</priority>\n  </url>`);
+
+    for (const id of Object.keys(pagesData)) {
+      urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(id)}</loc>\n    <lastmod>${today}</lastmod>\n    <priority>0.8</priority>\n  </url>`);
+    }
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
+    await fs.writeFile(path.join(outDir, 'sitemap.xml'), xml);
+  }
+
+  console.log(`  ${pc.green('✓')} Generated sitemap.xml (${Object.keys(pagesData).length} URLs)`);
+}
+
+function escXml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
 function toLabel(id) {
