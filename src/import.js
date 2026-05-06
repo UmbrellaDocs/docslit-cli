@@ -16,6 +16,48 @@ import nodeFs from 'node:fs';
 // flatten:     drop the tag, keep inner text content
 // remove:      drop tag + all children
 
+// Font Awesome → built-in Lucide icon name mapping.
+// Icons not in this map are kept as-is and fetched from FA CDN at runtime.
+const FA_TO_LUCIDE = {
+  'check': 'check', 'check-circle': 'check', 'circle-check': 'check',
+  'times': 'x', 'xmark': 'x', 'circle-xmark': 'x', 'times-circle': 'x',
+  'exclamation-triangle': 'warning', 'triangle-exclamation': 'warning',
+  'info-circle': 'info', 'circle-info': 'info',
+  'exclamation-circle': 'error', 'circle-exclamation': 'error',
+  'arrow-right': 'arrow-right', 'arrow-left': 'arrow-left',
+  'arrow-up': 'arrow-up', 'arrow-down': 'arrow-down',
+  'chevron-right': 'chevron-right', 'angle-right': 'chevron-right',
+  'chevron-down': 'chevron-down', 'angle-down': 'chevron-down',
+  'external-link': 'external-link', 'external-link-alt': 'external-link',
+  'up-right-from-square': 'external-link', 'arrow-up-right-from-square': 'external-link',
+  'link': 'link', 'chain': 'link',
+  'copy': 'copy', 'clone': 'copy',
+  'download': 'download', 'cloud-download': 'download', 'cloud-arrow-down': 'download',
+  'code': 'code',
+  'terminal': 'terminal',
+  'file': 'file', 'file-alt': 'file', 'file-lines': 'file',
+  'folder': 'folder', 'folder-open': 'folder',
+  'search': 'search', 'magnifying-glass': 'search',
+  'star': 'star',
+  'bolt': 'zap', 'lightning': 'zap', 'zap': 'zap',
+  'book': 'book', 'book-open': 'book',
+  'cog': 'settings', 'gear': 'settings', 'sliders': 'settings',
+  'sliders-h': 'settings', 'wrench': 'settings',
+  'user': 'user', 'user-circle': 'user', 'circle-user': 'user',
+  'home': 'home', 'house': 'home',
+  'th-large': 'grid', 'grid': 'grid', 'table-cells-large': 'grid',
+  'list': 'list', 'list-ul': 'list', 'bars': 'list',
+  'eye': 'eye',
+  'lock': 'lock',
+  'box': 'package', 'cube': 'package', 'cubes': 'package',
+  'globe': 'globe', 'earth-americas': 'globe', 'earth': 'globe',
+  'microchip': 'cpu', 'chip': 'cpu',
+  'rocket': 'zap', 'paper-plane': 'zap',
+  'shield': 'lock', 'shield-alt': 'lock', 'shield-halved': 'lock',
+  'plug': 'zap', 'power-off': 'zap',
+  'envelope': 'file', 'mail': 'file',
+};
+
 const COMPONENT_MAP = {
   // ── Callouts ────────────────────────────────────────────────────────────────
   Note:    { tag: 'wc-callout', fixedAttrs: { type: 'info',    title: 'Note'    } },
@@ -27,14 +69,14 @@ const COMPONENT_MAP = {
   Check:   { tag: 'wc-callout', fixedAttrs: { type: 'success', title: 'Check'   } },
   Success: { tag: 'wc-callout', fixedAttrs: { type: 'success', title: 'Success' } },
   // ── Cards ────────────────────────────────────────────────────────────────────
-  Card:      { tag: 'wc-card',  passAttrs: ['title', 'icon', 'href', 'color'] },
+  Card:      { tag: 'wc-card',  passAttrs: ['title', 'href', 'color'], attrRename: { icon: 'icon-name' } },
   CardGroup: { tag: 'wc-tiles', passAttrs: ['cols'] },
   // ── Tabs ─────────────────────────────────────────────────────────────────────
   Tabs: { tag: 'wc-tabs' },
   Tab:  { tag: 'wc-tab', attrRename: { title: 'label' }, passAttrs: ['label'] },
   // ── Accordion ────────────────────────────────────────────────────────────────
   Accordion:      { tag: 'wc-accordion', passAttrs: ['title'] },
-  AccordionGroup: { tag: null, unwrap: true },
+  AccordionGroup: { tag: 'wc-accordion-group' },
   // ── Steps ────────────────────────────────────────────────────────────────────
   Steps: { tag: 'wc-steps' },
   Step:  { tag: 'wc-step', passAttrs: ['title'], autoNumber: true },
@@ -138,7 +180,9 @@ function buildAttrs(rawAttrStr, config) {
     if (prop.type === 'bool' && prop.value === false) continue;
     if (prop.type === 'bool' && prop.value === true)  { parts.push(dest); continue; }
     if (prop.type === 'complex' || prop.value === null) continue; // can't convert
-    parts.push(`${dest}="${prop.value}"`);
+    let val = prop.value;
+    if (prop.name === 'icon' && typeof val === 'string') val = FA_TO_LUCIDE[val] || val;
+    parts.push(`${dest}="${val}"`);
   }
 
   return parts.join(' ');
@@ -318,26 +362,84 @@ async function convertFile(srcPath, outPath, relPath) {
 // ─── Config detection ─────────────────────────────────────────────────────────
 // Returns { format, config } where format = 'mintlify' | 'fern' | 'gitbook' | 'none'
 async function detectSourceConfig(sourceDir) {
-  // Mintlify
-  const mintJson = path.join(sourceDir, 'mint.json');
-  if (await fs.pathExists(mintJson)) {
-    try {
-      const raw = await fs.readFile(mintJson, 'utf8');
-      return { format: 'mintlify', config: JSON.parse(raw) };
-    } catch { /* fall through */ }
+  const exists = (rel) => fs.pathExists(path.join(sourceDir, rel));
+  const readJson = async (rel) => {
+    try { return JSON.parse(await fs.readFile(path.join(sourceDir, rel), 'utf8')); }
+    catch { return null; }
+  };
+
+  // Mintlify — mint.json or docs.json
+  for (const f of ['mint.json', 'docs.json']) {
+    if (await exists(f)) {
+      const config = await readJson(f);
+      if (config) return { format: 'mintlify', config };
+    }
+  }
+  if (await exists('.mintlifyignore') || await exists('.mintlify')) {
+    return { format: 'mintlify', config: null };
   }
 
   // Fern
-  const fernConfig = path.join(sourceDir, 'fern', 'fern.config.json');
-  const fernDocs   = path.join(sourceDir, 'fern', 'docs.yml');
-  if (await fs.pathExists(fernConfig)) {
+  if (await exists('fern/fern.config.json') || await exists('fern.config.json')) {
+    const fernConfig = (await exists('fern/fern.config.json'))
+      ? path.join(sourceDir, 'fern', 'fern.config.json')
+      : path.join(sourceDir, 'fern.config.json');
+    const fernDocs = path.join(sourceDir, 'fern', 'docs.yml');
     return { format: 'fern', config: { fernConfig, fernDocs } };
   }
 
-  // GitBook / plain
-  const summary = path.join(sourceDir, 'SUMMARY.md');
-  if (await fs.pathExists(summary)) {
+  // GitBook — SUMMARY.md or .gitbook.yaml
+  if (await exists('SUMMARY.md') || await exists('.gitbook.yaml') || await exists('.gitbook.yml')) {
+    const summary = path.join(sourceDir, 'SUMMARY.md');
     return { format: 'gitbook', config: { summary } };
+  }
+
+  // Docusaurus — docusaurus.config.{js,ts,mjs,mts,cjs}
+  for (const ext of ['js', 'ts', 'mjs', 'mts', 'cjs']) {
+    if (await exists(`docusaurus.config.${ext}`)) {
+      return { format: 'docusaurus', config: null };
+    }
+  }
+
+  // MkDocs
+  if (await exists('mkdocs.yml') || await exists('mkdocs.yaml')) {
+    return { format: 'mkdocs', config: null };
+  }
+
+  // Sphinx
+  if (await exists('conf.py')) {
+    return { format: 'sphinx', config: null };
+  }
+
+  // ReadMe
+  if (await exists('rdme.json') || await exists('.rdme.json')) {
+    return { format: 'readme', config: null };
+  }
+
+  // VuePress
+  if (await exists('.vuepress/config.js') || await exists('.vuepress/config.ts')) {
+    return { format: 'vuepress', config: null };
+  }
+
+  // VitePress
+  for (const ext of ['js', 'ts', 'mjs', 'mts']) {
+    if (await exists(`.vitepress/config.${ext}`)) {
+      return { format: 'vitepress', config: null };
+    }
+  }
+
+  // Starlight (Astro)
+  for (const ext of ['mjs', 'ts', 'js']) {
+    if (await exists(`astro.config.${ext}`)) {
+      return { format: 'starlight', config: null };
+    }
+  }
+
+  // Nextra (Next.js + theme.config)
+  for (const ext of ['jsx', 'tsx', 'js', 'ts']) {
+    if (await exists(`theme.config.${ext}`)) {
+      return { format: 'nextra', config: null };
+    }
   }
 
   return { format: 'none', config: null };
@@ -346,16 +448,25 @@ async function detectSourceConfig(sourceDir) {
 // ─── Sidebar builder ──────────────────────────────────────────────────────────
 // Converts Mintlify navigation → DocsLit sidebar groups.
 function mintNavToSidebar(navigation = []) {
+  let groups = [];
+  if (Array.isArray(navigation)) {
+    groups = navigation;
+  } else if (navigation.tabs && Array.isArray(navigation.tabs)) {
+    for (const tab of navigation.tabs) {
+      groups.push(...(tab.groups || []));
+    }
+  } else if (navigation.groups && Array.isArray(navigation.groups)) {
+    groups = navigation.groups;
+  }
+
   const sidebar = [];
-  for (const group of navigation) {
+  for (const group of groups) {
     if (!group.group) continue;
     const pages = [];
     for (const page of (group.pages || [])) {
       if (typeof page === 'string') {
-        // "path/to/page" → keep as slug (strip .mdx/.md)
         pages.push(page.replace(/\.(mdx?|md)$/, ''));
       } else if (page.group) {
-        // Nested group — flatten into same level with prefixed slug comment
         for (const sub of (page.pages || [])) {
           if (typeof sub === 'string') pages.push(sub.replace(/\.(mdx?|md)$/, ''));
         }
@@ -381,7 +492,9 @@ function autoSidebar(slugs) {
 // ─── File walker ──────────────────────────────────────────────────────────────
 async function walkMdFiles(dir) {
   const files = [];
-  const entries = await fs.readdir(dir, { withFileTypes: true });
+  let entries;
+  try { entries = await fs.readdir(dir, { withFileTypes: true }); }
+  catch { return files; }
   for (const e of entries) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) {
@@ -693,13 +806,30 @@ export async function importDocs(args) {
   if (dryRun) console.log(pc.yellow('  Dry run — scanning only, no files written.\n'));
 
   // ── 1. Detect source format ─────────────────────────────────────────────────
-  const { format: detectedFormat, config: srcConfig } = await detectSourceConfig(sourceDir);
+  let detectedFormat = 'none';
+  let srcConfig = null;
+  try {
+    const detected = await detectSourceConfig(sourceDir);
+    detectedFormat = detected.format;
+    srcConfig = detected.config;
+  } catch (err) {
+    console.log(`  ${pc.yellow('!')} Could not detect source format: ${err.message}`);
+    console.log(`  ${pc.dim('Falling back to auto-discovery mode.')}`);
+  }
   const formatLabel = {
-    mintlify: 'Mintlify (mint.json)',
-    fern:     'Fern (fern.config.json)',
-    gitbook:  'GitBook (SUMMARY.md)',
-    none:     'Unknown (auto-discovered)',
-  }[detectedFormat];
+    mintlify:   'Mintlify',
+    fern:       'Fern',
+    gitbook:    'GitBook',
+    docusaurus: 'Docusaurus',
+    mkdocs:     'MkDocs',
+    sphinx:     'Sphinx',
+    readme:     'ReadMe',
+    vuepress:   'VuePress',
+    vitepress:  'VitePress',
+    starlight:  'Starlight (Astro)',
+    nextra:     'Nextra (Next.js)',
+    none:       'Unknown (auto-discovered)',
+  }[detectedFormat] || 'Unknown';
   console.log(`  Detected: ${pc.cyan(formatLabel)}\n`);
 
   // ── 2. Walk all .md / .mdx files ────────────────────────────────────────────
@@ -743,12 +873,18 @@ export async function importDocs(args) {
   // ── 4. Copy static assets ───────────────────────────────────────────────────
   if (!dryRun) {
     const assetExts = /\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|mp4|mp3|woff2?|ttf|otf)$/i;
-    for (const srcPath of await walkAllFiles(sourceDir)) {
+    let allSourceFiles = [];
+    try { allSourceFiles = await walkAllFiles(sourceDir); } catch { /* skip assets on walk failure */ }
+    for (const srcPath of allSourceFiles) {
       if (!assetExts.test(srcPath)) continue;
       const rel     = path.relative(sourceDir, srcPath);
       const outPath = path.join(outDir, 'docs', rel);
-      await fs.ensureDir(path.dirname(outPath));
-      await fs.copy(srcPath, outPath);
+      try {
+        await fs.ensureDir(path.dirname(outPath));
+        await fs.copy(srcPath, outPath);
+      } catch {
+        console.log(`  ${pc.yellow('!')} Skipped asset ${rel} — could not copy`);
+      }
     }
   }
 
@@ -756,52 +892,77 @@ export async function importDocs(args) {
   const projectName = srcConfig?.name ?? path.basename(sourceDir);
   let sidebar;
   let docslitConfig;
+  const autoFallback = () => {
+    const slugs = files.filter(f => !f.error).map(f => f.rel.replace(/\.(mdx?|md)$/, '').replace(/\\/g, '/'));
+    return autoSidebar(slugs);
+  };
 
   // Check for Mintlify versioned navigation
-  const mintVersions = detectedFormat === 'mintlify' ? detectMintlifyVersions(srcConfig) : null;
+  let mintVersions = null;
+  try {
+    mintVersions = detectedFormat === 'mintlify' ? detectMintlifyVersions(srcConfig) : null;
+  } catch (err) {
+    console.log(`  ${pc.yellow('!')} Could not parse version config: ${err.message}`);
+    console.log(`  ${pc.dim('Continuing without versioning.')}`);
+  }
 
-  if (mintVersions && !dryRun) {
-    const strategy = await promptVersionStrategy(mintVersions);
-    const sidebarsByVersion = mintVersionedNavToSidebars(mintVersions);
-    const defaultVersion = mintVersions.find(v => v.default)?.version || mintVersions[mintVersions.length - 1].version;
+  try {
+    if (mintVersions && !dryRun) {
+      const strategy = await promptVersionStrategy(mintVersions);
+      const sidebarsByVersion = mintVersionedNavToSidebars(mintVersions);
+      const defaultVersion = mintVersions.find(v => v.default)?.version || mintVersions[mintVersions.length - 1].version;
 
-    if (strategy === 1) {
-      // Branch-based versioning
-      await fs.ensureDir(outDir);
-      await fs.ensureDir(path.join(outDir, 'docs'));
-      await fs.ensureDir(path.join(outDir, 'components'));
-      await fs.writeFile(path.join(outDir, '.gitignore'), 'node_modules/\ndist/\n');
+      if (strategy === 1) {
+        // Branch-based versioning
+        await fs.ensureDir(outDir);
+        await fs.ensureDir(path.join(outDir, 'docs'));
+        await fs.ensureDir(path.join(outDir, 'components'));
+        await fs.writeFile(path.join(outDir, '.gitignore'), 'node_modules/\ndist/\n');
 
-      docslitConfig = await setupBranchVersioning({ outDir, versions: mintVersions, sidebarsByVersion });
-    } else if (strategy === 2) {
-      // Keep only latest
-      sidebar = sidebarsByVersion.get(defaultVersion) || [];
-      docslitConfig = {
-        name: projectName,
-        ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
-        ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
-        sidebar,
-      };
-    } else if (strategy === 3) {
-      // Merge all
-      const allSidebars = [];
-      const seenGroups = new Set();
-      for (const [, sb] of sidebarsByVersion) {
-        for (const group of sb) {
-          const key = group.group + ':' + group.pages.join(',');
-          if (!seenGroups.has(key)) { seenGroups.add(key); allSidebars.push(group); }
+        docslitConfig = await setupBranchVersioning({ outDir, versions: mintVersions, sidebarsByVersion });
+      } else if (strategy === 2) {
+        // Keep only latest
+        sidebar = sidebarsByVersion.get(defaultVersion) || [];
+        docslitConfig = {
+          name: projectName,
+          ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
+          ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
+          sidebar,
+        };
+      } else if (strategy === 3) {
+        // Merge all
+        const allSidebars = [];
+        const seenGroups = new Set();
+        for (const [, sb] of sidebarsByVersion) {
+          for (const group of sb) {
+            const key = group.group + ':' + group.pages.join(',');
+            if (!seenGroups.has(key)) { seenGroups.add(key); allSidebars.push(group); }
+          }
         }
+        sidebar = allSidebars;
+        docslitConfig = {
+          name: projectName,
+          ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
+          ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
+          sidebar,
+        };
+      } else {
+        // Skip — use default version sidebar, no versions config
+        sidebar = sidebarsByVersion.get(defaultVersion) || [];
+        docslitConfig = {
+          name: projectName,
+          ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
+          ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
+          sidebar,
+        };
       }
-      sidebar = allSidebars;
-      docslitConfig = {
-        name: projectName,
-        ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
-        ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
-        sidebar,
-      };
     } else {
-      // Skip — use default version sidebar, no versions config
-      sidebar = sidebarsByVersion.get(defaultVersion) || [];
+      if (detectedFormat === 'mintlify' && srcConfig?.navigation) {
+        sidebar = mintNavToSidebar(srcConfig.navigation);
+      }
+      if (!sidebar || !sidebar.length) {
+        sidebar = autoFallback();
+      }
       docslitConfig = {
         name: projectName,
         ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
@@ -809,19 +970,33 @@ export async function importDocs(args) {
         sidebar,
       };
     }
-  } else {
-    if (detectedFormat === 'mintlify' && srcConfig?.navigation) {
-      sidebar = mintNavToSidebar(Array.isArray(srcConfig.navigation) ? srcConfig.navigation : (srcConfig.navigation.groups || srcConfig.navigation));
-    } else {
-      const slugs = files.map(f => f.rel.replace(/\.(mdx?|md)$/, '').replace(/\\/g, '/'));
-      sidebar = autoSidebar(slugs);
-    }
+  } catch (err) {
+    console.log(`  ${pc.yellow('!')} Error building sidebar: ${err.message}`);
+    console.log(`  ${pc.dim('Falling back to auto-discovered sidebar from converted files.')}`);
+    sidebar = autoFallback();
     docslitConfig = {
       name: projectName,
-      ...(srcConfig?.logo?.dark ? { logo: srcConfig.logo.dark } : {}),
-      ...(srcConfig?.favicon ? { favicon: srcConfig.favicon } : {}),
       sidebar,
     };
+  }
+
+  // ── 5b. Reconcile sidebar with converted files ──────────────────────────────
+  const sidebarPageSet = new Set();
+  for (const group of (docslitConfig.sidebar || [])) {
+    for (const page of (group.pages || [])) sidebarPageSet.add(page);
+  }
+  const convertedSlugs = files
+    .filter(f => !f.error)
+    .map(f => f.rel.replace(/\.(mdx?|md)$/, '').replace(/\\/g, '/'));
+  const orphanedSlugs = convertedSlugs.filter(s => !sidebarPageSet.has(s));
+
+  if (orphanedSlugs.length) {
+    if (!docslitConfig.sidebar) docslitConfig.sidebar = [];
+    docslitConfig.sidebar.push({ group: 'Other Pages', pages: orphanedSlugs });
+    allIssues.push({
+      rel: 'docslit.json',
+      issues: [`${orphanedSlugs.length} converted file${orphanedSlugs.length !== 1 ? 's were' : ' was'} not in the source navigation and ${orphanedSlugs.length !== 1 ? 'have' : 'has'} been added to an "Other Pages" sidebar group: ${orphanedSlugs.join(', ')}`],
+    });
   }
 
   if (mintVersions && !dryRun) {
@@ -862,7 +1037,9 @@ function getFlag(args, flag) {
 
 async function walkAllFiles(dir) {
   const result = [];
-  const entries = await fs.readdir(dir, { withFileTypes: true });
+  let entries;
+  try { entries = await fs.readdir(dir, { withFileTypes: true }); }
+  catch { return result; }
   for (const e of entries) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) {

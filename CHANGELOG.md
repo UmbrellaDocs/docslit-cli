@@ -63,6 +63,22 @@ The search index (`search-index.json`) is generated at build time alongside `llm
 
 **Security improvement** — all git operations now use `isomorphic-git` (pure JavaScript) instead of shelling out to the `git` CLI via `execSync`. This eliminates any command injection risk from branch names or file paths, and removes the requirement for git to be installed on the system.
 
+**Accordion group component** — a new `wc-accordion-group` component visually connects adjacent accordions into a unified group with shared borders and rounded corners on the first and last items. The import tool now maps Mintlify's `<AccordionGroup>` to this component instead of stripping it.
+
+**Expanded import detection** — the import tool now recognises 11 documentation frameworks: Mintlify (including `docs.json` and `.mintlifyignore`), Fern, GitBook (including `.gitbook.yaml`), Docusaurus, MkDocs, Sphinx, ReadMe, VuePress, VitePress, Starlight (Astro), and Nextra. Previously only Mintlify, Fern, and GitBook were detected.
+
+**Mintlify tabbed navigation support** — the import tool now correctly handles Mintlify's `navigation.tabs` config format, where groups are nested inside tabs. Previously this caused a crash.
+
+**Import resilience** — the import pipeline no longer crashes on unexpected config structures, malformed navigation, or inaccessible files. Each phase (detection, file conversion, sidebar building, asset copying) now degrades gracefully with a warning instead of a stack trace. If sidebar parsing fails, it falls back to auto-discovery from converted files.
+
+**Orphaned page detection** — after import, any converted files not referenced in the source navigation are added to an "Other Pages" sidebar group and flagged in the report. This prevents silently losing pages that exist on disk but weren't in the original site's nav config.
+
+**Icon support for imported docs** — Mintlify icon names (Font Awesome) are now mapped to built-in Lucide icons where a match exists (e.g. `sliders` → `settings`, `bolt` → `zap`). For icons without a Lucide equivalent, `wc-icon` fetches the individual SVG from Font Awesome's CDN at runtime and renders it inline — no CSS stylesheet needed, works inside any shadow DOM, and each SVG is cached after first fetch.
+
+**404 page** — navigating to a non-existent page now shows a styled 404 page with the missing slug, a "Go to first page" link, and a "Search docs" button that opens the Cmd+K search modal. Replaces the previous plain-text error message across all three rendering modes (dev, static, offline).
+
+**Sidebar filter keyboard navigation** — the sidebar filter input now supports full keyboard navigation. Arrow Down/Up moves through matching results with a visible highlight, Enter opens the selected page (or the only remaining match), and Escape clears the filter. The selection resets on each keystroke so navigation always starts fresh after typing.
+
 ---
 
 ## 0.1.5

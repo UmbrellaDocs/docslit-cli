@@ -100,6 +100,20 @@ class WcAccordion extends LitElement {
 }
 customElements.define('wc-accordion',WcAccordion);
 
+// ── WC-ACCORDION-GROUP ────────────────────────────────────────────────
+class WcAccordionGroup extends LitElement {
+  static styles=css\`
+    :host{display:block;margin:0 0 16px}
+    ::slotted(wc-accordion),::slotted(wc-expandable){margin-bottom:0 !important;border-radius:0 !important}
+    ::slotted(wc-accordion:first-child),::slotted(wc-expandable:first-child){border-radius:10px 10px 0 0 !important}
+    ::slotted(wc-accordion:last-child),::slotted(wc-expandable:last-child){border-radius:0 0 10px 10px !important}
+    ::slotted(wc-accordion:only-child),::slotted(wc-expandable:only-child){border-radius:10px !important}
+    ::slotted(wc-accordion+wc-accordion),::slotted(wc-expandable+wc-expandable),::slotted(wc-accordion+wc-expandable),::slotted(wc-expandable+wc-accordion){border-top:none !important}
+  \`;
+  render(){return html\`<slot></slot>\`;}
+}
+customElements.define('wc-accordion-group',WcAccordionGroup);
+
 // ── WC-ASIDE ───────────────────────────────────────────────────────────────
 class WcAside extends LitElement {
   static properties={title:{type:String}};

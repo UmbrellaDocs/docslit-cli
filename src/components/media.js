@@ -40,6 +40,10 @@ export default `
   };
   window.__DOCSLIT_ICONS__ = _ICONS;
 
+  const _FA_BRANDS = new Set(['github','git','docker','npm','node-js','node','python','java','react','angular','vue-js','aws','google','apple','windows','linux','slack','discord','twitter','x-twitter','facebook','youtube','instagram','stripe','shopify','wordpress','php','rust','golang','swift','android','chrome','firefox','safari','edge','figma','bitbucket','gitlab','jira','confluence','stack-overflow','dev','medium','codepen','css3','html5','js','sass','bootstrap','markdown','digital-ocean','cloudflare','microsoft','ubuntu','debian','fedora','redhat','centos','freebsd','raspberry-pi','usb','bluetooth','paypal','cc-visa','cc-mastercard','cc-amex']);
+  const _faCache={};
+  const _faPending={};
+
   class WcIcon extends LitElement {
     static properties={name:{type:String},size:{type:Number},color:{type:String}};
     static styles=css\`
@@ -47,11 +51,27 @@ export default `
       span{display:flex;align-items:center;justify-content:center}
       svg{width:var(--icon-size,16px);height:var(--icon-size,16px);color:var(--icon-color,currentColor)}
     \`;
+    connectedCallback(){super.connectedCallback();if(this.name&&!_ICONS[this.name]&&!_faCache[this.name])this._fetchFa();}
+    updated(changed){if(changed.has('name')&&this.name&&!_ICONS[this.name]&&!_faCache[this.name])this._fetchFa();}
+    async _fetchFa(){
+      const n=this.name;
+      if(_faPending[n]){_faPending[n].then(()=>this.requestUpdate());return;}
+      const prefix=_FA_BRANDS.has(n)?'brands':'solid';
+      _faPending[n]=fetch('https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/svgs/'+prefix+'/'+n+'.svg')
+        .then(r=>r.ok?r.text():null)
+        .then(svg=>{if(svg){_faCache[n]=svg;}delete _faPending[n];})
+        .catch(()=>{delete _faPending[n];});
+      await _faPending[n];
+      this.requestUpdate();
+    }
     render(){
-      const svg=_ICONS[this.name]||_ICONS['file'];
       const s=this.size||16;
       const c=this.color||'currentColor';
-      return html\`<span style="color:\${c};width:\${s}px;height:\${s}px" .innerHTML=\${svg.replace('<svg','<svg width="'+s+'" height="'+s+'"')}></span>\`;
+      const svg=_ICONS[this.name]||_faCache[this.name];
+      if(svg){
+        return html\`<span style="color:\${c};width:\${s}px;height:\${s}px" .innerHTML=\${svg.replace(/<svg/,'<svg width="'+s+'" height="'+s+'" fill="currentColor"')}></span>\`;
+      }
+      return html\`<span style="color:\${c};width:\${s}px;height:\${s}px"></span>\`;
     }
   }
   customElements.define('wc-icon',WcIcon);

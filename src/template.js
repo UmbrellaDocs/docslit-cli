@@ -82,7 +82,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
     <aside class="docs-sidebar" id="docs-sidebar">
       <div class="sidebar-filter-wrap">
         <svg class="sidebar-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input class="sidebar-filter" id="sidebar-filter" type="text" placeholder="Filter pages…" autocomplete="off" spellcheck="false" oninput="_filterSidebar(this.value)">
+        <input class="sidebar-filter" id="sidebar-filter" type="text" placeholder="Filter pages…" autocomplete="off" spellcheck="false" oninput="_filterSidebar(this.value)" onkeydown="_filterKey(event)">
         <button class="sidebar-filter-clear" id="sidebar-filter-clear" onclick="_clearSidebarFilter()" aria-label="Clear filter">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
@@ -153,6 +153,24 @@ function buildToc(container) {
 }
 
 // ── TABLE WRAPPING ────────────────────────────────────────────────────────
+function _show404(id) {
+  var content = document.getElementById('docs-content');
+  var crumb = document.getElementById('docs-breadcrumb-current');
+  if (crumb) crumb.textContent = 'Page not found';
+  document.title = 'Page not found';
+  var toc = document.getElementById('docs-toc');
+  if (toc) toc.innerHTML = '';
+  content.innerHTML =
+    '<div class="not-found">' +
+    '<div class="not-found-code">404</div>' +
+    '<h1 class="not-found-title">Page not found</h1>' +
+    '<p class="not-found-desc">The page' + (id ? ' <code>' + id + '</code>' : '') + ' doesn\\u2019t exist or may have been moved.</p>' +
+    '<div class="not-found-actions">' +
+    '<a class="not-found-btn" href="#" onclick="var f=document.querySelector(\\'.sidebar-item\\');if(f)loadPage(f.dataset.page,f);return false;">Go to first page</a>' +
+    '<button class="not-found-btn not-found-btn-alt" onclick="openSearch()">Search docs</button>' +
+    '</div></div>';
+}
+
 function _wrapTables(container) {
   container.querySelectorAll('table').forEach(function(t) {
     if (!t.parentElement || t.parentElement.classList.contains('table-wrap')) return;
@@ -216,6 +234,24 @@ function switchVersion(v) {
 }
 
 // ── SIDEBAR FILTER ───────────────────────────────────────────────────────
+var _filterIdx = -1;
+
+function _getVisibleItems() {
+  return Array.from(document.querySelectorAll('.sidebar-item')).filter(function(el) {
+    return el.style.display !== 'none' && el.offsetParent !== null;
+  });
+}
+
+function _updateFilterActive() {
+  var items = _getVisibleItems();
+  items.forEach(function(el, i) {
+    el.classList.toggle('filter-focus', i === _filterIdx);
+  });
+  if (_filterIdx >= 0 && items[_filterIdx]) {
+    items[_filterIdx].scrollIntoView({ block: 'nearest' });
+  }
+}
+
 function _filterSidebar(query) {
   var clearBtn = document.getElementById('sidebar-filter-clear');
   clearBtn.classList.toggle('visible', query.length > 0);
@@ -223,19 +259,20 @@ function _filterSidebar(query) {
   var scroll = document.getElementById('sidebar-scroll');
   var q = query.trim().toLowerCase();
 
-  // Store original labels on first run
   scroll.querySelectorAll('.sidebar-item').forEach(function(item) {
     if (!item.dataset.label) item.dataset.label = item.textContent;
   });
 
-  // Remove previous no-results message
   var noResults = scroll.querySelector('.sidebar-no-results');
   if (noResults) noResults.remove();
+
+  _filterIdx = -1;
 
   if (!q) {
     scroll.querySelectorAll('.sidebar-item').forEach(function(item) {
       item.innerHTML = _escFilter(item.dataset.label);
       item.style.display = '';
+      item.classList.remove('filter-focus');
     });
     scroll.querySelectorAll('.sidebar-section').forEach(function(s) { s.style.display = ''; });
     scroll.querySelectorAll('.sidebar-group-title').forEach(function(g) { g.style.display = ''; });
@@ -248,6 +285,7 @@ function _filterSidebar(query) {
     var groupVisible = false;
 
     items.forEach(function(item) {
+      item.classList.remove('filter-focus');
       var text = item.dataset.label;
       var lower = text.toLowerCase();
       var idx = lower.indexOf(q);
@@ -276,6 +314,45 @@ function _filterSidebar(query) {
   }
 }
 
+function _filterKey(e) {
+  var items = _getVisibleItems();
+  if (!items.length) return;
+  var input = document.getElementById('sidebar-filter');
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _filterIdx = Math.min(_filterIdx + 1, items.length - 1);
+    _updateFilterActive();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (_filterIdx <= 0) { _filterIdx = -1; _updateFilterActive(); return; }
+    _filterIdx--;
+    _updateFilterActive();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_filterIdx >= 0 && items[_filterIdx]) {
+      var id = items[_filterIdx].dataset.page;
+      input.value = '';
+      _filterSidebar('');
+      loadPage(id, items[_filterIdx]);
+      if (window.innerWidth <= 1024) closeSidebar();
+    } else if (items.length === 1) {
+      var id = items[0].dataset.page;
+      input.value = '';
+      _filterSidebar('');
+      loadPage(id, items[0]);
+      if (window.innerWidth <= 1024) closeSidebar();
+    }
+  } else if (e.key === 'Escape') {
+    if (input.value) {
+      e.preventDefault();
+      e.stopPropagation();
+      input.value = '';
+      _filterSidebar('');
+    }
+  }
+}
+
 function _clearSidebarFilter() {
   var input = document.getElementById('sidebar-filter');
   input.value = '';
@@ -293,6 +370,7 @@ window.closeSidebar = closeSidebar;
 window.openSidebar = openSidebar;
 window.switchVersion = switchVersion;
 window._filterSidebar = _filterSidebar;
+window._filterKey = _filterKey;
 window._clearSidebarFilter = _clearSidebarFilter;
 </script>
 </body>
@@ -424,7 +502,7 @@ async function loadPage(id, el) {
     buildToc(content);
     content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
   } catch(e) {
-    content.innerHTML = '<div class="loading-state" style="color:#f87171">Error: ' + e.message + '</div>';
+    _show404(id);
   }
 }
 
@@ -528,7 +606,7 @@ async function loadPage(id, el) {
   const content = document.getElementById('docs-content');
   content.textContent = 'Loading…';
   const data = await _fetchPage(id);
-  if (!data) { content.textContent = 'Page not found: ' + id; return; }
+  if (!data) { _show404(id); return; }
   const { meta, content: mdText } = data;
   const { marked, purify } = await _getMd();
   const safeHtml = purify.sanitize(marked.parse(mdText));
@@ -598,7 +676,7 @@ async function loadPage(id, el) {
   if (location.pathname !== target) history.pushState({page: id}, '', target);
   const content = document.getElementById('docs-content');
   const data = _pages[id];
-  if (!data) { content.innerHTML = '<div class="loading-state" style="color:#f87171">Page not found: ' + id + '</div>'; return; }
+  if (!data) { _show404(id); return; }
   const { meta, html } = data;
   const logoText = document.querySelector('.nav-logo-text');
   const crumb = document.getElementById('docs-breadcrumb-current');
@@ -665,7 +743,7 @@ async function _loadSearchIndex() {
     }
     var { default: FlexSearch } = await import('https://esm.sh/flexsearch@0.7.43/dist/flexsearch.bundle.module.min.js');
     _searchFlex = new FlexSearch.Document({
-      document: { id: 'id', index: ['title', 'desc', 'body'], store: ['title', 'group', 'desc'] },
+      document: { id: 'id', index: ['title', 'desc', 'body'], store: ['id', 'title', 'group', 'desc'] },
       tokenize: 'forward',
       resolution: 9,
     });
@@ -1049,6 +1127,8 @@ html.light .nav { background: rgba(255,255,255,.93); }
 html.light .sidebar-item mark.filter-hl { background: rgba(202,138,4,.2); }
 .sidebar-item.active mark.filter-hl { background: rgba(234,179,8,.35); }
 html.light .sidebar-item.active mark.filter-hl { background: rgba(202,138,4,.3); }
+.sidebar-item.filter-focus { background: var(--surface2, #1a1a1a); color: var(--text, #f0f0f0); }
+html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 .sidebar-no-results {
   padding: 16px 18px; font-size: 13px; color: var(--text3); text-align: center;
 }
@@ -1339,5 +1419,16 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
   :root { --border: #555; --border2: #777; --text2: #ccc; --text3: #aaa; }
   html.light { --border: #999; --border2: #777; --text2: #333; --text3: #555; }
 }
+.not-found { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 80px 24px 40px; }
+.not-found-code { font-size: 96px; font-weight: 800; letter-spacing: -4px; color: var(--border2, #333); font-family: 'Inter', sans-serif; line-height: 1; margin-bottom: 8px; }
+.not-found-title { font-size: 24px; font-weight: 700; color: var(--text, #f0f0f0); margin: 0 0 12px; font-family: 'Inter', sans-serif; }
+.not-found-desc { font-size: 15px; color: var(--text2, #a0a0a0); margin: 0 0 32px; line-height: 1.6; font-family: 'Inter', sans-serif; }
+.not-found-desc code { background: var(--surface2, #1a1a1a); padding: 2px 7px; border-radius: 4px; font-size: 13px; }
+.not-found-actions { display: flex; gap: 12px; }
+.not-found-btn { display: inline-flex; align-items: center; padding: 10px 20px; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; text-decoration: none; cursor: pointer; background: #01696f; color: #fff; border: none; }
+.not-found-btn:hover { background: #017f86; }
+.not-found-btn-alt { background: var(--surface2, #1a1a1a); color: var(--text, #f0f0f0); border: 1px solid var(--border, #2a2a2a); }
+.not-found-btn-alt:hover { background: var(--surface3, #222); }
+@media(max-width: 640px) { .not-found-code { font-size: 64px; } .not-found-title { font-size: 20px; } .not-found-actions { flex-direction: column; } }
 </style>`;
 }
