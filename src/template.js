@@ -15,15 +15,129 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
     ? `<script>window.__DOCSLIT_VERSIONS__ = ${JSON.stringify({ current: currentVersion, default: versionConfig.default, list: versionConfig.list })};</script>`
     : '';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
-  const importMap = mode === 'dev'
-    ? `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`
-    : `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js","marked":"https://esm.sh/marked@18","dompurify":"https://esm.sh/dompurify@3"}}`;
+  const importMap = buildImportMap(mode);
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <script>
+  ${buildThemeInit()}
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${siteTitle} — DocsLit</title>
+  ${buildFontLinks()}
+  ${buildStyles()}
+</head>
+<body>
+${buildNavHtml(siteTitle, versionSelectorHtml)}
+${buildSearchOverlayHtml()}
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…')}
+
+${inlinePages}
+${inlineSearch}
+${versionScript}
+<script type="importmap">${importMap}</script>
+<script type="module">
+${buildComponents()}
+</script>
+<script>
+${buildAppScript(mode, loaderScript, wsScript)}
+</script>
+</body>
+</html>`;
+}
+
+export function renderPage({ config, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null }) {
+  const sidebarHtml = buildSidebarHtml(config, draftPageIds, id);
+  const siteTitle = config.name || 'DocsLit';
+  const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
+  const importMap = buildImportMap('static');
+  const versionScript = versionConfig
+    ? `<script>window.__DOCSLIT_VERSIONS__ = ${JSON.stringify({ current: currentVersion, default: versionConfig.default, list: versionConfig.list })};</script>`
+    : '';
+
+  const pageTitle = meta.title || toLabel(id);
+  const desc = meta.description || meta.desc || '';
+  const baseUrl = (config.url || '').replace(/\/$/, '');
+  const versionPrefix = currentVersion ? `/${currentVersion}` : '';
+  const canonicalUrl = baseUrl ? `${baseUrl}${versionPrefix}/${id}` : '';
+
+  let seoTags = '';
+  if (desc) seoTags += `\n  <meta name="description" content="${escHtml(desc)}">`;
+  if (canonicalUrl) {
+    seoTags += `\n  <link rel="canonical" href="${escHtml(canonicalUrl)}">`;
+    seoTags += `\n  <meta property="og:url" content="${escHtml(canonicalUrl)}">`;
+  }
+  seoTags += `\n  <meta property="og:type" content="article">`;
+  seoTags += `\n  <meta property="og:title" content="${escHtml(pageTitle)}">`;
+  seoTags += `\n  <meta property="og:site_name" content="${escHtml(siteTitle)}">`;
+  if (desc) seoTags += `\n  <meta property="og:description" content="${escHtml(desc)}">`;
+  seoTags += `\n  <meta name="twitter:card" content="summary">`;
+  seoTags += `\n  <meta name="twitter:title" content="${escHtml(pageTitle)}">`;
+  if (desc) seoTags += `\n  <meta name="twitter:description" content="${escHtml(desc)}">`;
+
+  const jsonLd = { '@context': 'https://schema.org', '@type': 'TechArticle', headline: pageTitle, name: pageTitle, isPartOf: { '@type': 'WebSite', name: siteTitle } };
+  if (desc) jsonLd.description = desc;
+  if (canonicalUrl) jsonLd.url = canonicalUrl;
+  if (baseUrl) jsonLd.isPartOf.url = baseUrl;
+
+  const depth = id.split('/').length - 1;
+  const assetPrefix = '../'.repeat(depth);
+
+  const groupName = (config.sidebar || []).find(g => (g.pages || []).includes(id))?.group || '';
+  const breadcrumbText = groupName ? `${escHtml(groupName)} › ${escHtml(pageTitle)}` : escHtml(pageTitle);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  ${buildThemeInit()}
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escHtml(pageTitle)} — ${escHtml(siteTitle)}</title>${seoTags}
+  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+  ${buildFontLinks()}
+  <link rel="stylesheet" href="${assetPrefix}docslit.css">
+</head>
+<body>
+${buildNavHtml(siteTitle, versionSelectorHtml)}
+${buildSearchOverlayHtml()}
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+${buildMainLayoutHtml(sidebarHtml, siteTitle, html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id)), breadcrumbText)}
+
+${versionScript}
+<script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
+<script type="importmap">${importMap}</script>
+<script type="module" src="${assetPrefix}docslit.js"></script>
+<script src="${assetPrefix}docslit-app.js"></script>
+</body>
+</html>`;
+}
+
+export function buildStylesFile() {
+  const raw = buildStyles();
+  return raw.replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
+}
+
+export function buildComponentsFile(mode = 'static') {
+  return buildComponents();
+}
+
+export function buildAppFile(mode = 'static') {
+  const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
+  const wsScript = mode === 'dev' ? buildWsScript(3000) : '';
+  return buildAppScript(mode, loaderScript, wsScript);
+}
+
+function buildImportMap(mode) {
+  return mode === 'dev'
+    ? `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`
+    : `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js","marked":"https://esm.sh/marked@18","dompurify":"https://esm.sh/dompurify@3"}}`;
+}
+
+function buildThemeInit() {
+  return `<script>
     (function(){
       var s=localStorage.getItem('docslit-theme')||'system';
       var h=document.documentElement;
@@ -31,15 +145,16 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
       a(s);window.__themeMode=s;
       window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',function(){if((localStorage.getItem('docslit-theme')||'system')==='system')a('system');});
     })();
-  </script>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${siteTitle} — DocsLit</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  ${buildStyles()}
-</head>
-<body>
-<a class="skip-link" href="#docs-content">Skip to content</a>
+  </script>`;
+}
+
+function buildFontLinks() {
+  return `<link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">`;
+}
+
+function buildNavHtml(siteTitle, versionSelectorHtml) {
+  return `<a class="skip-link" href="#docs-content">Skip to content</a>
 <nav class="nav">
   <div class="nav-left">
     <button class="nav-menu-btn" id="nav-menu-btn" aria-label="Open navigation" aria-expanded="false">
@@ -59,8 +174,11 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
     ${versionSelectorHtml}
     <button class="theme-btn" id="theme-btn" onclick="toggleTheme()"></button>
   </div>
-</nav>
-<div class="search-overlay" id="search-overlay" onclick="handleOverlayClick(event)">
+</nav>`;
+}
+
+function buildSearchOverlayHtml() {
+  return `<div class="search-overlay" id="search-overlay" onclick="handleOverlayClick(event)">
   <div class="search-modal" role="dialog" aria-modal="true" aria-label="Search documentation">
     <div class="search-input-wrap">
       <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
@@ -74,10 +192,11 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
       <div class="search-hint"><kbd>Esc</kbd> close</div>
     </div>
   </div>
-</div>
-<div class="sidebar-overlay" id="sidebar-overlay"></div>
+</div>`;
+}
 
-<div class="docs-page">
+function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText) {
+  return `<div class="docs-page">
   <div class="docs-layout">
     <aside class="docs-sidebar" id="docs-sidebar">
       <div class="sidebar-filter-wrap">
@@ -93,27 +212,21 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
     </aside>
     <div class="docs-main-col">
       <div class="docs-nav-top">
-        <div class="docs-breadcrumb">${siteTitle} › <span id="docs-breadcrumb-current">Loading…</span></div>
+        <div class="docs-breadcrumb">${siteTitle} › <span id="docs-breadcrumb-current">${breadcrumbText}</span></div>
       </div>
       <div class="docs-main">
         <main class="docs-content" id="docs-content" role="main">
-          <div class="loading-state">Loading…</div>
+          ${contentHtml}
         </main>
         <div class="docs-toc" id="docs-toc"></div>
       </div>
     </div>
   </div>
-</div>
+</div>`;
+}
 
-${inlinePages}
-${inlineSearch}
-${versionScript}
-<script type="importmap">${importMap}</script>
-<script type="module">
-${buildComponents()}
-</script>
-<script>
-${buildTheme()}
+function buildAppScript(mode, loaderScript, wsScript) {
+  return `${buildTheme()}
 ${loaderScript}
 ${buildSearchScript(mode)}
 ${wsScript}
@@ -364,80 +477,103 @@ function _escFilter(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function _docsBase() {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  if (vc) return '/' + vc.current + '/';
+  return '/';
+}
+function _pageFromUrl() {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  var p = window.location.pathname.replace(/\\.html$/, '');
+  if (vc) {
+    var prefix = '/' + vc.current + '/';
+    if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
+    return null;
+  }
+  return p.slice(1) || null;
+}
+function _escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _toLabel(id) {
+  var name = id.indexOf('/') !== -1 ? id.split('/').pop() : id;
+  return name.replace(/-/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
+}
+function _groupFor(id) {
+  var el = document.querySelector('.sidebar-item[data-page="' + id + '"]');
+  if (!el) return '';
+  var section = el.closest('.sidebar-section');
+  if (!section) return '';
+  var title = section.querySelector('.sidebar-group-title');
+  return title ? title.textContent.trim() : '';
+}
+function _setBreadcrumb(id, title) {
+  var crumb = document.getElementById('docs-breadcrumb-current');
+  if (!crumb) return;
+  var group = _groupFor(id);
+  crumb.textContent = group ? group + ' \\u203A ' + title : title;
+}
+function _mdButtons(id) {
+  return '<span class="meta-sep">|</span>' +
+    '<button class="meta-btn" onclick="copyMd()" title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button>' +
+    '<span class="meta-sep">|</span>' +
+    '<button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>';
+}
+function _buildMetaBar(meta, id) {
+  const parts = [];
+  if (meta.tag) parts.push('<span>' + _escHtml(meta.tag) + '</span>');
+  if (meta.component) parts.push('<span>\\u2022</span><span>' + _escHtml(meta.component) + '</span>');
+  if (meta.readtime) parts.push('<span>\\u2022</span><span>' + _escHtml(meta.readtime) + '</span>');
+  if (meta.updated) parts.push('<span>\\u2022</span><span>Updated ' + _escHtml(meta.updated) + '</span>');
+  parts.push(_mdButtons(id));
+  return '<div class="page-meta">' + parts.join('') + '</div>';
+}
+
+async function copyMd() {
+  try {
+    var id = window.__DOCSLIT_CURRENT_PAGE__ || window.__DOCSLIT_PAGE_ID__ || '';
+    if (!id) return;
+    var res = await fetch(_docsBase() + id + '.md');
+    if (!res.ok) throw new Error('Not found');
+    var text = await res.text();
+    await navigator.clipboard.writeText(text);
+    var btn = document.querySelector('.meta-btn');
+    if (btn) { var orig = btn.innerHTML; btn.innerHTML = btn.innerHTML.replace('Copy as Markdown', 'Copied!'); setTimeout(function() { btn.innerHTML = orig; }, 2000); }
+  } catch(e) { console.error('Copy failed', e); }
+}
+
 window.loadPage = loadPage;
 window.activateSidebar = activateSidebar;
 window.closeSidebar = closeSidebar;
 window.openSidebar = openSidebar;
 window.switchVersion = switchVersion;
+function viewMd() {
+  var id = window.__DOCSLIT_CURRENT_PAGE__ || window.__DOCSLIT_PAGE_ID__ || '';
+  if (id) window.open(_docsBase() + id + '.md', '_blank');
+}
+window.copyMd = copyMd;
+window.viewMd = viewMd;
 window._filterSidebar = _filterSidebar;
 window._filterKey = _filterKey;
-window._clearSidebarFilter = _clearSidebarFilter;
-</script>
-</body>
-</html>`;
+window._clearSidebarFilter = _clearSidebarFilter;`;
 }
 
-export function renderSeoPage({ config, id, meta, html, versionSlug = null }) {
-  const siteTitle = config.name || 'DocsLit';
-  const pageTitle = meta.title || id;
-  const desc = meta.description || meta.desc || '';
-  const baseUrl = (config.url || '').replace(/\/$/, '');
-  const redirectBase = versionSlug ? `'/${escHtml(versionSlug)}/'` : `location.href.replace(/\\/docs\\/[^/]*$/,'/')`;
 
-  const versionPrefix = versionSlug ? `/${versionSlug}` : '';
-  const canonicalUrl = baseUrl ? `${baseUrl}${versionPrefix}/${id}` : '';
-
-  let ogTags = '';
-  if (baseUrl) {
-    ogTags += `\n<link rel="canonical" href="${escHtml(canonicalUrl)}">`;
-    ogTags += `\n<meta property="og:url" content="${escHtml(canonicalUrl)}">`;
-  }
-  ogTags += `\n<meta property="og:type" content="article">`;
-  ogTags += `\n<meta property="og:title" content="${escHtml(pageTitle)}">`;
-  ogTags += `\n<meta property="og:site_name" content="${escHtml(siteTitle)}">`;
-  if (desc) ogTags += `\n<meta property="og:description" content="${escHtml(desc)}">`;
-  ogTags += `\n<meta name="twitter:card" content="summary">`;
-  ogTags += `\n<meta name="twitter:title" content="${escHtml(pageTitle)}">`;
-  if (desc) ogTags += `\n<meta name="twitter:description" content="${escHtml(desc)}">`;
-
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'TechArticle',
-    headline: pageTitle,
-    name: pageTitle,
-    isPartOf: { '@type': 'WebSite', name: siteTitle },
-  };
-  if (desc) jsonLd.description = desc;
-  if (canonicalUrl) jsonLd.url = canonicalUrl;
-  if (baseUrl) jsonLd.isPartOf.url = baseUrl;
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escHtml(pageTitle)} — ${escHtml(siteTitle)}</title>
-${desc ? `<meta name="description" content="${escHtml(desc)}">` : ''}${ogTags}
-<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
-<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.6}h1,h2,h3{line-height:1.3}pre{background:#f4f4f4;padding:1rem;overflow:auto;border-radius:4px}code{background:#f4f4f4;padding:.1em .3em;border-radius:2px}a{color:#01696f}img{max-width:100%}</style>
-<script>var _id=${JSON.stringify(id)};location.replace(${redirectBase}+_id);</script>
-</head>
-<body>
-${html}
-</body>
-</html>`;
+function mdButtons(id) {
+  return `<span class="meta-sep">|</span><button class="meta-btn" onclick="copyMd()" title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button><span class="meta-sep">|</span><button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>`;
 }
 
-function injectPageMeta(meta) {
+function injectPageMeta(meta, id) {
   const parts = [];
   if (meta.tag) parts.push(`<span>${escHtml(meta.tag)}</span>`);
   if (meta.component) parts.push(`<span>•</span><span>${escHtml(meta.component)}</span>`);
   if (meta.readtime) parts.push(`<span>•</span><span>${escHtml(meta.readtime)}</span>`);
   if (meta.updated) parts.push(`<span>•</span><span>Updated ${escHtml(meta.updated)}</span>`);
-  return parts.length ? `<div class="page-meta">${parts.join('')}</div>` : '';
+  parts.push(mdButtons(id));
+  return `<div class="page-meta">${parts.join('')}</div>`;
 }
 
-function buildSidebarHtml(config, draftIds = []) {
+function buildSidebarHtml(config, draftIds = [], activePageId = null) {
   const draftSet = new Set(draftIds);
   let html = '';
   for (const group of (config.sidebar || [])) {
@@ -447,7 +583,8 @@ function buildSidebarHtml(config, draftIds = []) {
     html += `<div class="sidebar-group-title">${escHtml(group.group || '')}</div>`;
     for (const page of visiblePages) {
       const label = toLabel(page);
-      html += `<a class="sidebar-item" data-page="${escHtml(page)}" href="${escHtml(page)}" onclick="loadPage('${escHtml(page)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
+      const activeClass = page === activePageId ? ' active' : '';
+      html += `<a class="sidebar-item${activeClass}" data-page="${escHtml(page)}" href="${escHtml(page)}" onclick="loadPage('${escHtml(page)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
     }
     html += `</div>`;
   }
@@ -464,7 +601,8 @@ function buildVersionSelector(versionConfig, currentVersion) {
 }
 
 function toLabel(id) {
-  return id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const name = id.includes('/') ? id.split('/').pop() : id;
+  return name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -484,28 +622,12 @@ function buildWsScript(port) {
 
 function buildDevLoader() {
   return `
-function _docsBase() {
-  var vc = window.__DOCSLIT_VERSIONS__;
-  if (vc) return '/' + vc.current + '/';
-  return '/';
-}
-function _pageFromUrl() {
-  var vc = window.__DOCSLIT_VERSIONS__;
-  var p = window.location.pathname;
-  if (vc) {
-    var prefix = '/' + vc.current + '/';
-    if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
-    return null;
-  }
-  return p.slice(1) || null;
-}
-
 async function loadPage(id, el) {
+  window.__DOCSLIT_CURRENT_PAGE__ = id;
   activateSidebar(id);
   const target = _docsBase() + id;
   if (location.pathname !== target) history.pushState({page: id}, '', target);
-  const crumb = document.getElementById('docs-breadcrumb-current');
-  if (crumb) crumb.textContent = _toLabel(id);
+  _setBreadcrumb(id, _toLabel(id));
   const content = document.getElementById('docs-content');
   content.innerHTML = '<div class="loading-state">Loading…</div>';
   try {
@@ -517,16 +639,16 @@ async function loadPage(id, el) {
     const logoText = document.querySelector('.nav-logo-text');
     if (meta.title) {
       document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
-      if (crumb) crumb.textContent = meta.title;
+      _setBreadcrumb(id, meta.title);
     }
     content.innerHTML = '';
     if (meta.draft) content.insertAdjacentHTML('beforeend', '<div class="draft-banner" role="status"><span><strong>Draft page</strong> — not visible in production. Remove <code>draft: true</code> from frontmatter to publish.</span></div>');
-    const metaBar = _buildMetaBar(meta);
+    const metaBar = _buildMetaBar(meta, id);
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
     const h1 = tmp.querySelector('h1');
-    if (h1) { content.appendChild(document.importNode(h1, true)); if (metaBar) content.insertAdjacentHTML('beforeend', metaBar); tmp.querySelector('h1').remove(); }
-    else if (metaBar) content.insertAdjacentHTML('beforeend', metaBar);
+    if (h1) { content.appendChild(document.importNode(h1, true)); content.insertAdjacentHTML('beforeend', metaBar); tmp.querySelector('h1').remove(); }
+    else { content.insertAdjacentHTML('beforeend', metaBar); }
     content.insertAdjacentHTML('beforeend', tmp.innerHTML);
     _wrapTables(content);
     buildToc(content);
@@ -534,22 +656,6 @@ async function loadPage(id, el) {
   } catch(e) {
     _show404(id);
   }
-}
-
-function _escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function _buildMetaBar(meta) {
-  const parts = [];
-  if (meta.tag) parts.push('<span>' + _escHtml(meta.tag) + '</span>');
-  if (meta.component) parts.push('<span>•</span><span>' + _escHtml(meta.component) + '</span>');
-  if (meta.readtime) parts.push('<span>•</span><span>' + _escHtml(meta.readtime) + '</span>');
-  if (meta.updated) parts.push('<span>•</span><span>Updated ' + _escHtml(meta.updated) + '</span>');
-  return parts.length ? '<div class="page-meta">' + parts.join('') + '</div>' : '';
-}
-
-function _toLabel(id) {
-  return id.replace(/-/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -573,22 +679,6 @@ function buildStaticLoader() {
 const _cache = {};
 let _marked, _purify;
 
-function _docsBase() {
-  var vc = window.__DOCSLIT_VERSIONS__;
-  if (vc) return '/' + vc.current + '/';
-  return '/';
-}
-function _pageFromUrl() {
-  var vc = window.__DOCSLIT_VERSIONS__;
-  var p = window.location.pathname;
-  if (vc) {
-    var prefix = '/' + vc.current + '/';
-    if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
-    return null;
-  }
-  return p.slice(1) || null;
-}
-
 function _parseFrontmatter(text) {
   const m = text.match(/^---\\n([\\s\\S]*?)\\n---\\n?([\\s\\S]*)$/);
   if (!m) return { meta: {}, content: text };
@@ -607,6 +697,12 @@ async function _getMd() {
   if (!_marked) {
     const [{ marked }, { default: DOMPurify }] = await Promise.all([import('marked'), import('dompurify')]);
     _marked = marked;
+    var _origSanitize = DOMPurify.sanitize.bind(DOMPurify);
+    DOMPurify.sanitize = function(dirty, opts) {
+      return _origSanitize(dirty, Object.assign({
+        CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^wc-/, attributeNameCheck: /.*/, allowCustomizedBuiltInElements: false }
+      }, opts || {}));
+    };
     _purify = DOMPurify;
   }
   return { marked: _marked, purify: _purify };
@@ -615,11 +711,11 @@ async function _getMd() {
 async function _fetchPage(id) {
   if (_cache[id] !== undefined) return _cache[id];
   try {
-    const res = await fetch(_docsBase() + 'docs/' + id + '.md');
+    const res = await fetch(_docsBase() + id + '.md');
     if (!res.ok) {
       var vc = window.__DOCSLIT_VERSIONS__;
       if (vc && vc.current !== vc.default) {
-        const fallback = await fetch('/' + vc.default + '/docs/' + id + '.md');
+        const fallback = await fetch('/' + vc.default + '/' + id + '.md');
         if (fallback.ok) { _cache[id] = _parseFrontmatter(await fallback.text()); return _cache[id]; }
       }
       throw new Error('Not found');
@@ -630,6 +726,7 @@ async function _fetchPage(id) {
 }
 
 async function loadPage(id, el) {
+  window.__DOCSLIT_CURRENT_PAGE__ = id;
   activateSidebar(id);
   const target = _docsBase() + id;
   if (location.pathname !== target) history.pushState({page: id}, '', target);
@@ -641,23 +738,17 @@ async function loadPage(id, el) {
   const { marked, purify } = await _getMd();
   const safeHtml = purify.sanitize(marked.parse(mdText));
   const logoText = document.querySelector('.nav-logo-text');
-  const crumb = document.getElementById('docs-breadcrumb-current');
   if (meta.title) {
     document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
-    if (crumb) crumb.textContent = meta.title;
+    _setBreadcrumb(id, meta.title);
   }
-  const parts = [];
-  if (meta.tag) parts.push('<span>' + meta.tag + '</span>');
-  if (meta.component) parts.push('<span>•</span><span>' + meta.component + '</span>');
-  if (meta.readtime) parts.push('<span>•</span><span>' + meta.readtime + '</span>');
-  if (meta.updated) parts.push('<span>•</span><span>Updated ' + meta.updated + '</span>');
-  const metaBar = parts.length ? '<div class="page-meta">' + parts.join('') + '</div>' : '';
+  const metaBar = _buildMetaBar(meta, id);
   const tmp = document.createElement('div');
   tmp.innerHTML = safeHtml;
   const h1 = tmp.querySelector('h1');
   content.innerHTML = '';
-  if (h1) { content.appendChild(document.importNode(h1,true)); if(metaBar) content.insertAdjacentHTML('beforeend', metaBar); tmp.querySelector('h1').remove(); }
-  else if (metaBar) content.insertAdjacentHTML('beforeend', metaBar);
+  if (h1) { content.appendChild(document.importNode(h1,true)); content.insertAdjacentHTML('beforeend', metaBar); tmp.querySelector('h1').remove(); }
+  else { content.insertAdjacentHTML('beforeend', metaBar); }
   content.insertAdjacentHTML('beforeend', tmp.innerHTML);
   _wrapTables(content);
   buildToc(content);
@@ -666,12 +757,23 @@ async function loadPage(id, el) {
 
 window.addEventListener('DOMContentLoaded', () => {
   _updateThemeBtn();
-  const fromPath = _pageFromUrl();
-  const fromHash = location.hash.slice(1);
-  const firstEl = document.querySelector('.sidebar-item');
-  const firstId = fromPath || fromHash || (firstEl && firstEl.dataset.page) || 'introduction';
-  history.replaceState({page: firstId}, '', _docsBase() + firstId);
-  loadPage(firstId, document.querySelector(\`.sidebar-item[data-page="\${firstId}"]\`));
+  var preRenderedId = window.__DOCSLIT_PAGE_ID__;
+  if (preRenderedId) {
+    window.__DOCSLIT_CURRENT_PAGE__ = preRenderedId;
+    activateSidebar(preRenderedId);
+    var content = document.getElementById('docs-content');
+    _wrapTables(content);
+    buildToc(content);
+    content.insertAdjacentHTML('beforeend', _buildPrevNext(preRenderedId));
+    history.replaceState({page: preRenderedId}, '', location.pathname);
+  } else {
+    const fromPath = _pageFromUrl();
+    const fromHash = location.hash.slice(1);
+    const firstEl = document.querySelector('.sidebar-item');
+    const firstId = fromPath || fromHash || (firstEl && firstEl.dataset.page) || 'introduction';
+    history.replaceState({page: firstId}, '', _docsBase() + firstId);
+    loadPage(firstId, document.querySelector(\`.sidebar-item[data-page="\${firstId}"]\`));
+  }
 });
 
 window.addEventListener('popstate', () => {
@@ -684,23 +786,8 @@ function buildOfflineLoader() {
   return `
 const _pages = window.__DOCSLIT_PAGES__ || {};
 
-function _docsBase() {
-  var vc = window.__DOCSLIT_VERSIONS__;
-  if (vc) return '/' + vc.current + '/';
-  return '/';
-}
-function _pageFromUrl() {
-  var vc = window.__DOCSLIT_VERSIONS__;
-  var p = window.location.pathname;
-  if (vc) {
-    var prefix = '/' + vc.current + '/';
-    if (p.startsWith(prefix)) return p.slice(prefix.length) || null;
-    return null;
-  }
-  return p.slice(1) || null;
-}
-
 async function loadPage(id, el) {
+  window.__DOCSLIT_CURRENT_PAGE__ = id;
   activateSidebar(id);
   const target = _docsBase() + id;
   if (location.pathname !== target) history.pushState({page: id}, '', target);
@@ -709,24 +796,18 @@ async function loadPage(id, el) {
   if (!data) { _show404(id); return; }
   const { meta, html } = data;
   const logoText = document.querySelector('.nav-logo-text');
-  const crumb = document.getElementById('docs-breadcrumb-current');
   if (meta.title) {
     document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
-    if (crumb) crumb.textContent = meta.title;
+    _setBreadcrumb(id, meta.title);
   }
-  const parts = [];
-  if (meta.tag) parts.push('<span>' + meta.tag + '</span>');
-  if (meta.component) parts.push('<span>•</span><span>' + meta.component + '</span>');
-  if (meta.readtime) parts.push('<span>•</span><span>' + meta.readtime + '</span>');
-  if (meta.updated) parts.push('<span>•</span><span>Updated ' + meta.updated + '</span>');
-  const metaBar = parts.length ? '<div class="page-meta">' + parts.join('') + '</div>' : '';
+  const metaBar = _buildMetaBar(meta, id);
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
   const h1 = tmp.querySelector('h1');
   content.innerHTML = '';
   if (meta.draft) content.insertAdjacentHTML('beforeend', '<div class="draft-banner" role="status"><span><strong>Draft page</strong> — not visible in production builds.</span></div>');
-  if (h1) { content.appendChild(document.importNode(h1,true)); if(metaBar) content.insertAdjacentHTML('beforeend', metaBar); tmp.querySelector('h1').remove(); }
-  else if (metaBar) content.insertAdjacentHTML('beforeend', metaBar);
+  if (h1) { content.appendChild(document.importNode(h1,true)); content.insertAdjacentHTML('beforeend', metaBar); tmp.querySelector('h1').remove(); }
+  else { content.insertAdjacentHTML('beforeend', metaBar); }
   content.insertAdjacentHTML('beforeend', tmp.innerHTML);
   _wrapTables(content);
   buildToc(content);
@@ -1239,7 +1320,7 @@ html.light .docs-content tr:hover td { background: rgba(0,0,0,.015); }
 /* LIGHT-DOM WC-* LAYOUT — applied before Lit upgrades elements, independent of shadow DOM.
    Prevents inline-display flash and guarantees consistent block spacing. */
 wc-callout, wc-alert, wc-banner, wc-update,
-wc-card, wc-tiles, wc-prompt,
+wc-card, wc-prompt,
 wc-fields, wc-response-fields, wc-color, wc-table, wc-schema, wc-mermaid,
 wc-endpoint, wc-runnable-endpoint,
 wc-steps, wc-tabs, wc-view,
@@ -1253,6 +1334,10 @@ wc-anchor, wc-indent, wc-visibility, wc-versions, wc-page-meta {
 
 /* PAGE META */
 .page-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 0 0 24px; font-size: 13px; color: var(--text3); border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+.meta-sep { color: var(--border); font-size: 14px; user-select: none; }
+.meta-btn { display: inline-flex; align-items: center; gap: 5px; background: none; border: none; padding: 0; font-family: var(--font-sans); font-size: 13px; color: var(--text3); cursor: pointer; text-decoration: none; transition: color .15s; }
+.meta-btn:hover { color: var(--accent-light); }
+.meta-btn svg { flex-shrink: 0; }
 
 /* PREV / NEXT */
 .page-nav { display: flex; justify-content: space-between; gap: 12px; margin: 56px 0 0; padding-top: 24px; border-top: 1px solid var(--border); }

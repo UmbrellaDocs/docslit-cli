@@ -7,7 +7,7 @@ import git from 'isomorphic-git';
 import * as nodeFs from 'node:fs';
 import { parseDoc } from './markdown.js';
 import { getAllPageIds, getVersionConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
-import { renderShell, renderSeoPage } from './template.js';
+import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile } from './template.js';
 import { buildComponents } from './components/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -436,7 +436,7 @@ describe('renderShell — versioned loaders', () => {
 
   it('static loader includes fallback fetch to default version', () => {
     const html = renderShell({ config: baseConfig, mode: 'static', versionConfig, currentVersion: 'v1' });
-    expect(html).toContain("vc.default + '/docs/'");
+    expect(html).toContain("vc.default + '/'");
   });
 
   it('all three loaders reference __DOCSLIT_VERSIONS__ for versioned routing', () => {
@@ -449,23 +449,6 @@ describe('renderShell — versioned loaders', () => {
       pagesData: { intro: { meta: {}, html: '<p>hi</p>' } }, offline: true,
     });
     expect(offlineHtml).toContain('__DOCSLIT_VERSIONS__');
-  });
-});
-
-describe('renderSeoPage — versioning', () => {
-  const config = { name: 'Test' };
-  const meta = { title: 'Intro', description: 'Intro page' };
-  const html = '<h1>Intro</h1>';
-
-  it('generates standard redirect without versionSlug', () => {
-    const page = renderSeoPage({ config, id: 'intro', meta, html });
-    expect(page).toContain("location.replace(location.href");
-  });
-
-  it('generates versioned redirect with versionSlug', () => {
-    const page = renderSeoPage({ config, id: 'intro', meta, html, versionSlug: 'v2' });
-    expect(page).toContain("'/v2/'");
-    expect(page).not.toContain("location.href.replace");
   });
 });
 
@@ -708,5 +691,173 @@ describe('components — accessibility', () => {
 
   it('components include prefers-reduced-motion', () => {
     expect(components).toContain('prefers-reduced-motion');
+  });
+});
+
+// ── renderPage — per-route HTML ──────────────────────────────────────────
+
+describe('renderPage — per-route HTML', () => {
+  const config = { name: 'TestSite', sidebar: [{ group: 'Guide', pages: ['intro', 'setup'] }] };
+  const meta = { title: 'Introduction', description: 'Getting started guide' };
+  const pageHtml = '<h1>Introduction</h1><p>Welcome to the docs.</p>';
+
+  it('includes pre-rendered content', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('<h1>Introduction</h1>');
+    expect(html).toContain('<p>Welcome to the docs.</p>');
+    expect(html).not.toContain('Loading…');
+  });
+
+  it('sets page-specific title', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('<title>Introduction — TestSite</title>');
+  });
+
+  it('includes SEO meta tags', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('og:title');
+    expect(html).toContain('og:type');
+    expect(html).toContain('twitter:card');
+    expect(html).toContain('application/ld+json');
+  });
+
+  it('includes description meta when provided', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('name="description"');
+    expect(html).toContain('Getting started guide');
+  });
+
+  it('references external CSS instead of inline styles', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('href="docslit.css"');
+    expect(html).not.toMatch(/<style>[^<]{1000,}<\/style>/);
+  });
+
+  it('references external JS files', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('src="docslit.js"');
+    expect(html).toContain('src="docslit-app.js"');
+  });
+
+  it('sets __DOCSLIT_PAGE_ID__', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('window.__DOCSLIT_PAGE_ID__ = "intro"');
+  });
+
+  it('marks active sidebar item', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('sidebar-item active');
+    expect(html).toMatch(/data-page="intro"[^>]*>.*?Intro/);
+  });
+
+  it('includes version selector when versionConfig provided', () => {
+    const vc = { default: 'v1', list: [{ version: 'v1', branch: 'main', tag: 'Latest' }] };
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [], versionConfig: vc, currentVersion: 'v1' });
+    expect(html).toContain('version-select');
+    expect(html).toContain('__DOCSLIT_VERSIONS__');
+  });
+
+  it('includes theme init script in head', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('docslit-theme');
+    expect(html).toContain('__themeMode');
+  });
+
+  it('includes import map', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('importmap');
+    expect(html).toContain('esm.sh/lit@3');
+  });
+
+  it('computes asset prefix for nested page IDs', () => {
+    const html = renderPage({ config, id: 'commands/check', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('href="../docslit.css"');
+    expect(html).toContain('src="../docslit.js"');
+    expect(html).toContain('src="../docslit-app.js"');
+  });
+
+  it('includes canonical URL when config.url is set', () => {
+    const cfgWithUrl = { ...config, url: 'https://docs.example.com' };
+    const html = renderPage({ config: cfgWithUrl, id: 'intro', meta, html: pageHtml, draftPageIds: [], versionConfig: { default: 'v1', list: [] }, currentVersion: 'v1' });
+    expect(html).toContain('rel="canonical"');
+    expect(html).toContain('https://docs.example.com/v1/intro');
+  });
+
+  it('includes breadcrumb with page title', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('docs-breadcrumb-current');
+    expect(html).toContain('>Introduction<');
+  });
+
+  it('includes skip link for accessibility', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('skip-link');
+    expect(html).toContain('Skip to content');
+  });
+
+  it('hides draft pages from sidebar', () => {
+    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: ['setup'] });
+    expect(html).not.toContain('data-page="setup"');
+    expect(html).toContain('data-page="intro"');
+  });
+});
+
+// ── buildStylesFile ─────────────────────────────────────────────────────
+
+describe('buildStylesFile', () => {
+  it('returns CSS without style tags', () => {
+    const css = buildStylesFile();
+    expect(css).not.toContain('<style>');
+    expect(css).not.toContain('</style>');
+    expect(css).toContain(':root');
+  });
+
+  it('contains theme variables', () => {
+    const css = buildStylesFile();
+    expect(css).toContain('--bg:');
+    expect(css).toContain('--accent:');
+    expect(css).toContain('html.light');
+  });
+});
+
+// ── buildAppFile ────────────────────────────────────────────────────────
+
+describe('buildAppFile', () => {
+  it('contains all required functions for static mode', () => {
+    const js = buildAppFile('static');
+    expect(js).toContain('function loadPage');
+    expect(js).toContain('function toggleTheme');
+    expect(js).toContain('function openSearch');
+    expect(js).toContain('function activateSidebar');
+    expect(js).toContain('function buildToc');
+    expect(js).toContain('function _buildPrevNext');
+    expect(js).toContain('function _filterSidebar');
+  });
+
+  it('contains pre-render check for __DOCSLIT_PAGE_ID__', () => {
+    const js = buildAppFile('static');
+    expect(js).toContain('__DOCSLIT_PAGE_ID__');
+  });
+
+  it('exports functions to window', () => {
+    const js = buildAppFile('static');
+    expect(js).toContain('window.loadPage');
+    expect(js).toContain('window.openSidebar');
+    expect(js).toContain('window.switchVersion');
+  });
+
+  it('strips .html from pathname in _pageFromUrl', () => {
+    const js = buildAppFile('static');
+    expect(js).toContain(".replace(/\\.html$/, '')");
+  });
+});
+
+// ── buildComponentsFile ─────────────────────────────────────────────────
+
+describe('buildComponentsFile', () => {
+  it('returns ES module with Lit import', () => {
+    const js = buildComponentsFile('static');
+    expect(js).toContain("import { LitElement");
+    expect(js).toContain('customElements.define');
   });
 });

@@ -3,7 +3,7 @@ import fs from 'fs-extra';
 import pc from 'picocolors';
 import { loadConfig, getAllPageIds, getVersionConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
-import { renderShell, renderSeoPage } from './template.js';
+import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
 
 export async function build({ out = 'dist', offline = false } = {}) {
   const cwd = process.cwd();
@@ -19,8 +19,11 @@ export async function build({ out = 'dist', offline = false } = {}) {
   // Copy user components (shared across versions)
   const componentsDir = path.join(cwd, 'components');
   if (await fs.pathExists(componentsDir)) {
-    await fs.copy(componentsDir, path.join(outDir, 'components'));
-    console.log(`  ${pc.green('✓')} Copied components/`);
+    const entries = await fs.readdir(componentsDir);
+    if (entries.length) {
+      await fs.copy(componentsDir, path.join(outDir, 'components'));
+      console.log(`  ${pc.green('✓')} Copied components/`);
+    }
   }
 
   if (versionConfig) {
@@ -34,7 +37,7 @@ export async function build({ out = 'dist', offline = false } = {}) {
   if (offline) {
     console.log(`  Open directly:  ${pc.cyan(`open ${out}/index.html`)}  ${pc.dim('(no server needed)')}`);
   } else {
-    console.log(`  Serve locally:  ${pc.cyan(`npx serve ${out}`)}`);
+    console.log(`  Serve locally:  ${pc.cyan('npx serve dist')}`);
   }
   console.log(`  Deploy to:      GitHub Pages, Vercel, Netlify, S3, or any static host\n`);
 }
@@ -63,7 +66,7 @@ async function buildSingle({ config, cwd, outDir, out, offline }) {
     }
 
     pagesData[id] = { meta, html };
-    const destMd = path.join(outDir, 'docs', `${id}.md`);
+    const destMd = path.join(outDir, `${id}.md`);
     await fs.ensureDir(path.dirname(destMd));
     await fs.copyFile(mdPath, destMd);
     built++;
@@ -78,16 +81,23 @@ async function buildSingle({ config, cwd, outDir, out, offline }) {
     await fs.writeFile(path.join(outDir, 'index.html'), indexHtml);
     console.log(`  ${pc.green('✓')} Built index.html — ${built} page${built !== 1 ? 's' : ''} inlined${draftNote}${skippedNote}`);
   } else {
-    const indexHtml = renderShell({ config, mode: 'static', out, draftPageIds });
-    await fs.writeFile(path.join(outDir, 'index.html'), indexHtml);
-    console.log(`  ${pc.green('✓')} Built index.html (${built} page${built !== 1 ? 's' : ''}${draftNote}${skippedNote})`);
-  }
+    await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile());
+    await fs.writeFile(path.join(outDir, 'docslit.js'), buildComponentsFile('static'));
+    await fs.writeFile(path.join(outDir, 'docslit-app.js'), buildAppFile('static'));
 
-  for (const [id, { meta, html }] of Object.entries(pagesData)) {
-    const pageHtml = renderSeoPage({ config, id, meta, html });
-    const destHtml = path.join(outDir, 'docs', `${id}.html`);
-    await fs.ensureDir(path.dirname(destHtml));
-    await fs.writeFile(destHtml, pageHtml);
+    const publishedIds = Object.keys(pagesData);
+    for (const [id, { meta, html }] of Object.entries(pagesData)) {
+      const pageHtml = renderPage({ config, id, meta, html, draftPageIds });
+      const destHtml = path.join(outDir, `${id}.html`);
+      await fs.ensureDir(path.dirname(destHtml));
+      await fs.writeFile(destHtml, pageHtml);
+    }
+
+    if (publishedIds.length) {
+      await fs.copyFile(path.join(outDir, `${publishedIds[0]}.html`), path.join(outDir, 'index.html'));
+    }
+
+    console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} + shared assets${draftNote}${skippedNote}`);
   }
 
   await generateLlmsTxt({ config, pagesData, outDir });
@@ -119,24 +129,35 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const { meta, html } = parseDoc(raw);
     if (meta.draft === true) { draftPageIds.push(id); continue; }
     defaultPagesData[id] = { meta, html };
-    const destMd = path.join(defaultDir, 'docs', `${id}.md`);
+    const destMd = path.join(defaultDir, `${id}.md`);
     await fs.ensureDir(path.dirname(destMd));
     await fs.copyFile(mdPath, destMd);
     built++;
   }
 
-  const defaultShell = renderShell({
-    config, mode: 'static', out, draftPageIds,
-    versionConfig, currentVersion: defaultVersion,
-    ...(offline ? { pagesData: defaultPagesData, offline: true, searchIndex: buildSearchIndex(config, defaultPagesData) } : {}),
-  });
-  await fs.writeFile(path.join(defaultDir, 'index.html'), defaultShell);
+  if (offline) {
+    const defaultShell = renderShell({
+      config, mode: 'static', out, draftPageIds,
+      versionConfig, currentVersion: defaultVersion,
+      pagesData: defaultPagesData, offline: true, searchIndex: buildSearchIndex(config, defaultPagesData),
+    });
+    await fs.writeFile(path.join(defaultDir, 'index.html'), defaultShell);
+  } else {
+    await fs.writeFile(path.join(defaultDir, 'docslit.css'), buildStylesFile());
+    await fs.writeFile(path.join(defaultDir, 'docslit.js'), buildComponentsFile('static'));
+    await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), buildAppFile('static'));
 
-  for (const [id, { meta, html }] of Object.entries(defaultPagesData)) {
-    const pageHtml = renderSeoPage({ config, id, meta, html, versionSlug: defaultVersion });
-    const destHtml = path.join(defaultDir, 'docs', `${id}.html`);
-    await fs.ensureDir(path.dirname(destHtml));
-    await fs.writeFile(destHtml, pageHtml);
+    const publishedIds = Object.keys(defaultPagesData);
+    for (const [id, { meta, html }] of Object.entries(defaultPagesData)) {
+      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion });
+      const destHtml = path.join(defaultDir, `${id}.html`);
+      await fs.ensureDir(path.dirname(destHtml));
+      await fs.writeFile(destHtml, pageHtml);
+    }
+
+    if (publishedIds.length) {
+      await fs.copyFile(path.join(defaultDir, `${publishedIds[0]}.html`), path.join(defaultDir, 'index.html'));
+    }
   }
 
   await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir });
@@ -166,8 +187,6 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
         const destMd = path.join(versionDir, 'docs', `${id}.md`);
         await fs.ensureDir(path.dirname(destMd));
         await fs.writeFile(destMd, raw);
-        await fs.writeFile(path.join(versionDir, 'docs', `${id}.html`),
-          renderSeoPage({ config: versionConf, id, meta, html, versionSlug: entry.version }));
         manifest[id] = entry.version;
         vBuilt++;
       } else {
@@ -176,21 +195,42 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       }
     }
 
-    const versionShell = renderShell({
-      config: versionConf, mode: 'static', out, draftPageIds: [],
-      versionConfig, currentVersion: entry.version,
-      ...(offline ? { pagesData: versionPagesData, offline: true, searchIndex: buildSearchIndex(versionConf, versionPagesData) } : {}),
-    });
     await fs.ensureDir(versionDir);
-    await fs.writeFile(path.join(versionDir, 'index.html'), versionShell);
+
+    if (offline) {
+      const versionShell = renderShell({
+        config: versionConf, mode: 'static', out, draftPageIds: [],
+        versionConfig, currentVersion: entry.version,
+        pagesData: versionPagesData, offline: true, searchIndex: buildSearchIndex(versionConf, versionPagesData),
+      });
+      await fs.writeFile(path.join(versionDir, 'index.html'), versionShell);
+    } else {
+      await fs.writeFile(path.join(versionDir, 'docslit.css'), buildStylesFile());
+      await fs.writeFile(path.join(versionDir, 'docslit.js'), buildComponentsFile('static'));
+      await fs.writeFile(path.join(versionDir, 'docslit-app.js'), buildAppFile('static'));
+
+      const vPublishedIds = Object.keys(versionPagesData);
+      for (const [id, { meta, html }] of Object.entries(versionPagesData)) {
+        const pageHtml = renderPage({ config: versionConf, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version });
+        const destHtml = path.join(versionDir, `${id}.html`);
+        await fs.ensureDir(path.dirname(destHtml));
+        await fs.writeFile(destHtml, pageHtml);
+      }
+
+      if (vPublishedIds.length) {
+        await fs.copyFile(path.join(versionDir, `${vPublishedIds[0]}.html`), path.join(versionDir, 'index.html'));
+      }
+    }
+
     await fs.writeFile(path.join(versionDir, '_manifest.json'), JSON.stringify(manifest, null, 2));
     await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir });
 
     console.log(`  ${pc.green('✓')} ${entry.version}: ${vBuilt} changed page${vBuilt !== 1 ? 's' : ''} built, ${Object.keys(manifest).length - vBuilt} shared from ${defaultVersion}`);
   }
 
-  // Root index.html redirects to default version
-  const rootRedirect = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/${defaultVersion}/"><script>location.replace('/${defaultVersion}/');</script></head></html>`;
+  // Root index.html redirects to default version's first page
+  const defaultFirstId = Object.keys(defaultPagesData)[0] || 'introduction';
+  const rootRedirect = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/${defaultVersion}/${defaultFirstId}"><script>location.replace('/${defaultVersion}/${defaultFirstId}');</script></head></html>`;
   await fs.writeFile(path.join(outDir, 'index.html'), rootRedirect);
 
   if (!offline) {
@@ -263,7 +303,7 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
       const { meta } = pagesData[id];
       const title = meta.title || toLabel(id);
       const desc = meta.description || meta.desc || '';
-      const mdUrl = baseUrl ? `${baseUrl}/docs/${id}.md` : `docs/${id}.md`;
+      const mdUrl = baseUrl ? `${baseUrl}/${id}.md` : `${id}.md`;
       lines.push(desc ? `- [${title}](${mdUrl}): ${desc}` : `- [${title}](${mdUrl})`);
     }
     lines.push('');
@@ -288,7 +328,7 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
       if (await fs.pathExists(mdPath)) {
         const src = await fs.readFile(mdPath, 'utf8');
         fullParts.push('---');
-        fullParts.push(`# Source: docs/${id}.md`);
+        fullParts.push(`# Source: ${id}.md`);
         fullParts.push('');
         fullParts.push(src.trim());
         fullParts.push('');

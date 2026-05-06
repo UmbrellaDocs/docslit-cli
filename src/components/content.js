@@ -27,7 +27,7 @@ class WcTile extends LitElement {
     :host{display:block}
     :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--border2:#3a3a3a;--text:#f0f0f0;--text3:#666}
     :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--border2:#d0d0d0;--text:#0f0f0f;--text3:#999}
-    a{display:flex;align-items:flex-start;gap:14px;padding:16px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;text-decoration:none;color:inherit;transition:all .15s;height:100%}
+    a{display:flex;align-items:flex-start;gap:14px;padding:16px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;text-decoration:none;color:inherit;transition:all .15s;box-sizing:border-box}
     a:hover{border-color:var(--border2,#3a3a3a);filter:brightness(1.03)}
     .icon{width:38px;height:38px;background:rgba(1,105,111,.12);border:1px solid rgba(1,105,111,.2);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}
     .info{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -39,14 +39,12 @@ class WcTile extends LitElement {
 }
 customElements.define('wc-tile',WcTile);
 
-class WcTiles extends LitElement {
-  static properties={cols:{type:Number}};
-  static styles=css\`
-    :host{display:block;margin:0 0 16px}
-    .grid{display:grid;gap:14px}
-    @media(max-width:640px){.grid{grid-template-columns:1fr !important}}
-  \`;
-  render(){const c=this.cols||3;return html\`<div class="grid" style="grid-template-columns:repeat(\${c},1fr)"><slot></slot></div>\`;}
+class WcTiles extends HTMLElement {
+  static get observedAttributes(){return ['cols'];}
+  constructor(){super();this.attachShadow({mode:'open'});this.shadowRoot.innerHTML='<style>:host{display:grid;gap:14px;margin:0 0 20px}@media(max-width:640px){:host{grid-template-columns:1fr !important}}::slotted(*){min-width:0}</style><slot></slot>';}
+  connectedCallback(){this._updateCols();}
+  attributeChangedCallback(){this._updateCols();}
+  _updateCols(){const c=this.getAttribute('cols');this.style.gridTemplateColumns=c?'repeat('+c+',1fr)':'repeat(auto-fill,minmax(220px,1fr))';}
 }
 customElements.define('wc-tiles',WcTiles);
 

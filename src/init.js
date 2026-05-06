@@ -14,7 +14,6 @@ export async function init(args) {
   console.log(`\n  ${pc.bold('DocsLit')} — Scaffolding new project in ${pc.cyan(dirName)}/\n`);
 
   await fs.ensureDir(path.join(target, 'docs'));
-  await fs.ensureDir(path.join(target, 'components'));
 
   // docslit.json
   await fs.writeFile(path.join(target, 'docslit.json'), JSON.stringify({
@@ -233,7 +232,6 @@ This inlines all page data into \`dist/index.html\` so it works by double-clicki
   console.log(`  ${pc.green('✓')} Created ${pc.cyan('docs/introduction.md')}`);
   console.log(`  ${pc.green('✓')} Created ${pc.cyan('docs/installation.md')}`);
   console.log(`  ${pc.green('✓')} Created ${pc.cyan('docs/quickstart.md')}`);
-  console.log(`  ${pc.green('✓')} Created ${pc.cyan('components/')} (drop your custom components here)\n`);
 
   console.log(`  ${pc.bold('Done!')} Now run:\n`);
   console.log(`    ${pc.cyan(`cd ${dirName}`)}`);

@@ -916,7 +916,6 @@ export async function importDocs(args) {
         // Branch-based versioning
         await fs.ensureDir(outDir);
         await fs.ensureDir(path.join(outDir, 'docs'));
-        await fs.ensureDir(path.join(outDir, 'components'));
         await fs.writeFile(path.join(outDir, '.gitignore'), 'node_modules/\ndist/\n');
 
         docslitConfig = await setupBranchVersioning({ outDir, versions: mintVersions, sidebarsByVersion });
@@ -1004,14 +1003,12 @@ export async function importDocs(args) {
     if (strategy !== 1) {
       await fs.ensureDir(outDir);
       await fs.ensureDir(path.join(outDir, 'docs'));
-      await fs.ensureDir(path.join(outDir, 'components'));
       await fs.writeFile(path.join(outDir, 'docslit.json'), JSON.stringify(docslitConfig, null, 2), 'utf8');
       await fs.writeFile(path.join(outDir, '.gitignore'), 'node_modules/\ndist/\n');
     }
   } else if (!dryRun) {
     await fs.ensureDir(outDir);
     await fs.ensureDir(path.join(outDir, 'docs'));
-    await fs.ensureDir(path.join(outDir, 'components'));
     await fs.writeFile(path.join(outDir, 'docslit.json'), JSON.stringify(docslitConfig, null, 2), 'utf8');
     await fs.writeFile(path.join(outDir, '.gitignore'), 'node_modules/\ndist/\n');
   }

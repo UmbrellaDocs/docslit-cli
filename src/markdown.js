@@ -3,6 +3,14 @@ import matter from 'gray-matter';
 
 marked.setOptions({ gfm: true, breaks: false });
 
+const renderer = new marked.Renderer();
+renderer.code = function ({ text, lang }) {
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const langAttr = lang ? ` language="${lang}"` : '';
+  return `<wc-code-block${langAttr}>${escaped}</wc-code-block>\n`;
+};
+marked.use({ renderer });
+
 export function parseDoc(rawContent) {
   const { data: meta, content: body } = matter(rawContent);
   const html = renderMarkdown(body);
@@ -157,6 +165,10 @@ function renderMarkdown(src) {
     html = html.replace(`<p>${placeholder}</p>`, rendered);
     html = html.replace(placeholder, rendered); // fallback
   }
+
+  html = html.replace(/<wc-code-block[\s\S]*?<\/wc-code-block>|(\{\{([A-Z_][A-Z0-9_]*)\}\})/g,
+    (match, varMatch, name) => varMatch ? `<wc-var name="${name}" readonly></wc-var>` : match
+  );
 
   return html;
 }

@@ -8,7 +8,7 @@ if(!window.__docslit_vars__){
 
 // ── WC-VAR ────────────────────────────────────────────────────────────────
 class WcVar extends LitElement {
-  static properties={name:{type:String},default:{type:String},_editing:{type:Boolean,state:true},_value:{type:String,state:true}};
+  static properties={name:{type:String},default:{type:String},readonly:{type:Boolean},_editing:{type:Boolean,state:true},_value:{type:String,state:true}};
   static styles=css\`
     :host{display:inline;vertical-align:baseline}
     .badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:4px;background:rgba(1,105,111,.1);border:1px solid rgba(1,105,111,.3);font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;font-style:italic;color:#4f98a3;cursor:pointer;transition:background .15s,border-color .15s;vertical-align:baseline;line-height:inherit}
@@ -54,6 +54,9 @@ class WcVar extends LitElement {
     document.dispatchEvent(new CustomEvent('docslit-var-change',{detail:{name:this.name,value:val}}));
   }
   render(){
+    if(this.readonly){
+      return html\`<span class="badge" style="cursor:default;border:none;background:none;padding:0">\${this._value}</span>\`;
+    }
     if(this._editing){
       return html\`<span class="edit-wrap"><input .value=\${this._value} @blur=\${this._commit} @keydown=\${this._onKeydown} /><button class="clear-btn" @mousedown=\${(e)=>{e.preventDefault();this._reset();}} title="Reset to default">✕</button></span>\`;
     }
@@ -70,7 +73,7 @@ class WcCodeBlock extends LitElement {
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666;--code-bg:#161616}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text3:#999;--code-bg:#f6f8fa;--code-text:#24292f;--code-ln:#bbb}
     .wrap{background:var(--code-bg,#161616);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden;width:100%;box-sizing:border-box}
-    .header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--surface,#111);border-bottom:1px solid var(--border,#2a2a2a);gap:8px;flex-wrap:wrap;width:100%;box-sizing:border-box}
+    .header{display:flex;align-items:center;justify-content:space-between;padding:3px 3px;background:var(--surface,#111);border-bottom:1px solid var(--border,#2a2a2a);gap:8px;flex-wrap:wrap;width:100%;box-sizing:border-box}
     .filename{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3,#666);word-break:break-all;flex:1;min-width:0}
     .lang{font-size:11px;color:var(--text3,#666);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0}
     .body{display:flex;overflow:hidden;width:100%;box-sizing:border-box}

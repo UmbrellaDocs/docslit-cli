@@ -32,7 +32,6 @@ Key capabilities:
 - **Versioned URLs** — every page gets a version prefix (`/v1/page`, `/v2/page`) for direct linking. The root URL redirects to the default version.
 - **Dev server support** — the dev server serves the current branch with full hot-reload. Other versions are available read-only via `git show` from their branches.
 - **Per-version sidebars** — each version can have its own sidebar navigation, read from that branch's `docslit.json`.
-- **SEO pages** — thin HTML pages for each version include version-aware redirects.
 - **llms.txt** — each version gets its own `llms.txt` and `llms-full.txt`.
 
 #### Search and navigation
@@ -50,15 +49,17 @@ The search index (`search-index.json`) is generated at build time alongside `llm
 
 **404 page** — navigating to a non-existent page now shows a styled 404 page with the missing slug, a "Go to first page" link, and a "Search docs" button that opens the Cmd+K search modal. Replaces the previous plain-text error message across all three rendering modes (dev, static, offline).
 
-#### SEO and AI agent discovery
+#### Static builds and SEO
+
+**Per-route HTML pages** — static builds now generate a full HTML file for every page route (e.g. `dist/0.1/introduction.html`) instead of a single SPA shell. Each page includes the complete shell structure (nav, sidebar, content, TOC) with pre-rendered content visible before JavaScript loads. Shared CSS and JavaScript are externalized into `docslit.css`, `docslit.js`, and `docslit-app.js` to avoid duplication. This means the built site works on any static host (Netlify, Vercel, GitHub Pages, S3, Cloudflare Pages) without SPA fallback configuration or rewrite rules.
 
 **robots.txt** — static builds now generate a `robots.txt` at the site root with explicit `Allow: /` rules for all crawlers, plus named entries for AI-specific bots (GPTBot, Claude-Web, Google-Extended, OAI-SearchBot, PerplexityBot, Applebot-Extended). References `sitemap.xml` and `llms.txt` when a site URL is configured. Versioned builds list per-version sitemaps.
 
 **sitemap.xml** — static builds now generate an XML sitemap (per the sitemaps.org specification) listing the homepage and all documentation pages with `<lastmod>` dates. Requires `url` in `docslit.json` to produce absolute URLs. Versioned builds generate a separate sitemap per version directory.
 
-**Open Graph and Twitter Card meta tags** — SEO pages now include `og:title`, `og:description`, `og:url`, `og:type`, `og:site_name`, and `twitter:card` / `twitter:title` / `twitter:description` tags. A `<link rel="canonical">` tag is also added when a site URL is configured.
+**Open Graph and Twitter Card meta tags** — every page now includes `og:title`, `og:description`, `og:url`, `og:type`, `og:site_name`, and `twitter:card` / `twitter:title` / `twitter:description` tags. A `<link rel="canonical">` tag is also added when a site URL is configured.
 
-**Structured data (JSON-LD)** — each SEO page now includes a `<script type="application/ld+json">` block with a `TechArticle` schema containing the page headline, description, URL, and parent site reference.
+**Structured data (JSON-LD)** — every page now includes a `<script type="application/ld+json">` block with a `TechArticle` schema containing the page headline, description, URL, and parent site reference.
 
 #### Import improvements
 
@@ -107,7 +108,7 @@ The search index (`search-index.json`) is generated at build time alongside `llm
 
 ### What's new
 
-**Client-side markdown rendering** — Published sites now fetch `.md` files on-demand and render them in the browser using `marked` and `DOMPurify` from esm.sh. This replaces the old `pages.json` + full per-page HTML shell architecture. Per-page SEO pages are now thin (~3 KB vs ~80 KB), containing only the rendered content for crawlers while redirecting JS-enabled browsers to the SPA. The local dev server now also serves raw markdown at both `/page.md` and `/docs/page.md`, so agents and local tooling can fetch source files directly in development.
+**Client-side markdown rendering** — Published sites now fetch `.md` files on-demand and render them in the browser using `marked` and `DOMPurify` from esm.sh. The local dev server now also serves raw markdown at both `/page.md` and `/docs/page.md`, so agents and local tooling can fetch source files directly in development.
 
 **LLMs.txt improvements** — Generated `llms.txt` files now include a short header note showing where raw markdown lives for each page using the `{slug}.md` URL pattern, making it clearer for agents how to fetch source content page-by-page.
 

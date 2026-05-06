@@ -112,7 +112,14 @@ export async function dev({ port = 3000 } = {}) {
 
   // Serve raw markdown source for AI agents: GET /page.md or GET /docs/page.md
   app.get(/\.md$/, async (req, res) => {
-    const slug = req.path.replace(/\.md$/, '').replace(/^\//, '').replace(/^docs\//, '');
+    let slug = req.path.replace(/\.md$/, '').replace(/^\//, '');
+    const vc = config.versions;
+    if (vc) {
+      for (const v of vc.list) {
+        if (slug.startsWith(v.version + '/')) { slug = slug.slice(v.version.length + 1); break; }
+      }
+    }
+    slug = slug.replace(/^docs\//, '');
     const docsDir = path.join(cwd, 'docs');
     const mdPath = path.resolve(docsDir, `${slug}.md`);
     if (!mdPath.startsWith(docsDir + path.sep)) {
