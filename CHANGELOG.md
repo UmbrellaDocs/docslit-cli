@@ -61,6 +61,28 @@ The search index (`search-index.json`) is generated at build time alongside `llm
 
 **Structured data (JSON-LD)** — every page now includes a `<script type="application/ld+json">` block with a `TechArticle` schema containing the page headline, description, URL, and parent site reference.
 
+#### Variable substitution
+
+**Fenced code block variables** — fenced code blocks (` ```lang `) are now rendered as `<wc-code-block>` elements instead of plain `<pre><code>`. This means `{{VAR}}` placeholders in fenced code blocks are now substituted reactively when the user edits a `<wc-var>` on the page. Copy buttons and line numbers are also now available on all code blocks automatically.
+
+**Inline variable references** — `{{VAR}}` patterns in regular Markdown prose are now automatically converted to `<wc-var name="VAR" readonly>` elements. These display the current variable value inline and update reactively when the variable is changed elsewhere on the page. Variables inside `<wc-code-block>` are left as-is since the component handles its own substitution.
+
+#### Markdown source buttons
+
+**Copy as Markdown / View as Markdown** — every page now shows "Copy as Markdown" and "View as Markdown" buttons in the page meta bar (next to reading time). Copy fetches the raw `.md` source and copies it to the clipboard. View opens the `.md` file in a new tab. Works across dev, static, and offline modes.
+
+**Markdown files at page-level paths** — static builds now place `.md` source files alongside their HTML pages (e.g. `/0.1/introduction.md`) instead of in a `/docs/` subdirectory. The `llms.txt` URLs and SPA fetch paths are updated to match.
+
+#### Nested page IDs
+
+**Folder-based page organization** — page IDs in `docslit.json` now support folder paths (e.g. `getting-started/introduction`). The sidebar strips folder prefixes from labels, showing just the page name. Breadcrumbs include the sidebar group (e.g. "Getting Started > Introduction"). All internal link resolution, `.md` file serving, and static builds work with nested paths.
+
+#### Bug fixes
+
+**SPA navigation component rendering** — fixed an issue where web components (`<wc-*>` tags) were stripped during client-side navigation. DOMPurify is now configured to preserve custom elements matching `^wc-` with all attributes.
+
+**Tiles grid layout** — fixed `wc-tiles` overlapping by using CSS grid on the host element directly. Removed the `height:100%` on inner anchors that caused row height miscalculation. Tiles now default to `auto-fill` columns with a 220px minimum when `cols` is not specified.
+
 #### Import improvements
 
 **Import versioning** — the Mintlify import tool now detects versioned navigation (`navigation.versions` in `mint.json`) and offers four strategies:
