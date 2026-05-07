@@ -1383,10 +1383,10 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 }
 .docs-breadcrumb { font-size: 13px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .docs-breadcrumb span { color: var(--text2); }
-.docs-main { flex: 1; display: flex; }
+.docs-main { flex: 1; display: flex; justify-content: center; }
 
 /* CONTENT */
-.docs-content { flex: 1; min-width: 0; max-width: 780px; padding: 48px 56px 80px; }
+.docs-content { flex: 0 1 780px; min-width: 0; max-width: 780px; padding: 48px 56px 80px; }
 
 /* TOC */
 .docs-toc {
@@ -1583,7 +1583,8 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 /* RESPONSIVE */
 @media(max-width:1280px) {
   .docs-toc { display: none; }
-  .docs-content { max-width: 100%; }
+  /* No TOC means content can grow naturally — restore flex grow + full width. */
+  .docs-content { flex: 1 1 auto; max-width: 100%; }
 }
 @media(max-width:1100px) {
   .docs-content { padding: 40px 44px 72px; }
