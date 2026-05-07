@@ -4,7 +4,7 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
-## 0.1.7
+## 0.1.6
 
 ### What's new
 
@@ -26,20 +26,6 @@ This is purely additive — the canonical `wc-*` syntax keeps working unchanged,
 **Scrollbar polish** — fixed a layout flash that occurred when navigating between pages: `loadPage` briefly emptied the content, the browser dropped the scrollbar, the viewport widened by a few pixels, and then snapped back. Now `scrollbar-gutter: stable` reserves the gutter at all times, so SPA page swaps don't reflow.
 
 **Auto-hiding scrollbar** — the document scrollbar is now transparent by default and only fades in while the user is actively scrolling or has moved the mouse to within 24px of the right edge. Replaces the macOS overlay scrollbar fade-in/out, which used to flash visibly during navigation. Disabled animation under `prefers-reduced-motion`.
-
-#### Bug fixes
-
-**`ParamField` / `ResponseField` mappings corrected** — these were pointing at `wc-param` and `wc-response-field`, neither of which is a registered component. They now correctly map to `wc-field`, with the user wrapping groups in `<wc-fields>` or `<wc-response-fields>` themselves (Mintlify has no equivalent wrapper concept). Affects both the parse-time bridge and `docslit import`.
-
-**Validator inline-code consistency** — the unknown-component check now strips inline backtick spans alongside fenced code blocks. Documentation pages that mention a component by name (e.g. `` `<wc-foo>` `` in a table cell) no longer trigger false-positive warnings.
-
-**Validator built-in registry refreshed** — the `BUILTIN_COMPONENTS` set used by validate had drifted from the actual registered components: it referenced several non-existent tags (`wc-codeblock`, `wc-image`, `wc-video`, `wc-math`, `wc-if`, `wc-divider`, `wc-spacer`, `wc-table-row`, `wc-table-cell`) and was missing real ones (`wc-accordion-group`, `wc-icon`, `wc-files`, `wc-tree-item`, `wc-color`, `wc-schema`, `wc-endpoint`, `wc-runnable-endpoint`, `wc-prompt`, `wc-tile`, `wc-version`, `wc-visibility`, `wc-view-panel`, `wc-code-tab`, `wc-fields`, `wc-response-fields`, `wc-field`, `wc-alert`). The set now mirrors `buildComponents()` exactly.
-
----
-
-## 0.1.6
-
-### What's new
 
 #### Multi-version documentation
 
@@ -111,6 +97,12 @@ The search index (`search-index.json`) is generated at build time alongside `llm
 **Folder-based page organization** — page IDs in `docslit.json` now support folder paths (e.g. `getting-started/introduction`). The sidebar strips folder prefixes from labels, showing just the page name. Breadcrumbs include the sidebar group (e.g. "Getting Started > Introduction"). All internal link resolution, `.md` file serving, and static builds work with nested paths.
 
 #### Bug fixes
+
+**`ParamField` / `ResponseField` mappings corrected** — these were pointing at `wc-param` and `wc-response-field`, neither of which is a registered component. They now correctly map to `wc-field`, with the user wrapping groups in `<wc-fields>` or `<wc-response-fields>` themselves (Mintlify has no equivalent wrapper concept). Affects both the parse-time bridge and `docslit import`.
+
+**Validator inline-code consistency** — the unknown-component check now strips inline backtick spans alongside fenced code blocks. Documentation pages that mention a component by name (e.g. `` `<wc-foo>` `` in a table cell) no longer trigger false-positive warnings.
+
+**Validator built-in registry refreshed** — the `BUILTIN_COMPONENTS` set used by validate had drifted from the actual registered components: it referenced several non-existent tags (`wc-codeblock`, `wc-image`, `wc-video`, `wc-math`, `wc-if`, `wc-divider`, `wc-spacer`, `wc-table-row`, `wc-table-cell`) and was missing real ones (`wc-accordion-group`, `wc-icon`, `wc-files`, `wc-tree-item`, `wc-color`, `wc-schema`, `wc-endpoint`, `wc-runnable-endpoint`, `wc-prompt`, `wc-tile`, `wc-version`, `wc-visibility`, `wc-view-panel`, `wc-code-tab`, `wc-fields`, `wc-response-fields`, `wc-field`, `wc-alert`). The set now mirrors `buildComponents()` exactly.
 
 **SPA navigation component rendering** — fixed an issue where web components (`<wc-*>` tags) were stripped during client-side navigation. DOMPurify is now configured to preserve custom elements matching `^wc-` with all attributes.
 
