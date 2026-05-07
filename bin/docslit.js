@@ -40,6 +40,8 @@ const help = `
                           Also used by import (default: <source>-docslit)
     --offline             Inline all page data into index.html so the site
                           works by double-clicking the file (no server needed)
+    --no-minify           (build only) Skip CSS/JS minification — useful when
+                          inspecting the built output. Default is to minify.
     --dry-run             (import only) Scan and report without writing files
     --strict              (validate only) Treat warnings as errors
 `;
@@ -64,8 +66,9 @@ if (command === 'init') {
 } else if (command === 'build') {
   const out = getFlag(args, '--out') || 'dist';
   const offline = args.includes('--offline');
+  const minify = !args.includes('--no-minify');
   const { build } = await import('../src/build.js');
-  await build({ out, offline });
+  await build({ out, offline, minify });
 } else if (command === 'import') {
   const restArgs = args.slice(1);
   if (!restArgs[0] || restArgs[0].startsWith('--')) {

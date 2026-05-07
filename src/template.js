@@ -1,6 +1,20 @@
 import { buildComponents } from './components/index.js';
+import esbuild from 'esbuild';
 
-export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null }) {
+// ── Minification helpers ──────────────────────────────────────────────────
+// Used by build.js (default on) but bypassed by tests and dev mode so the
+// served output stays readable for debugging. esbuild's transformSync keeps
+// these calls synchronous so renderShell/renderPage don't need to go async.
+function _minifyJS(code) {
+  try { return esbuild.transformSync(code, { loader: 'js', minify: true, legalComments: 'none' }).code; }
+  catch { return code; }
+}
+function _minifyCSS(code) {
+  try { return esbuild.transformSync(code, { loader: 'css', minify: true }).code; }
+  catch { return code; }
+}
+
+export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false }) {
   const sidebarHtml = buildSidebarHtml(config, draftPageIds);
   const siteTitle = config.name || 'DocsLit';
   const wsScript = mode === 'dev' ? buildWsScript(port) : '';
@@ -17,6 +31,14 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
   const importMap = buildImportMap(mode);
 
+  const stylesBlock = minify
+    ? `<style>${_minifyCSS(buildStyles().replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
+    : buildStyles();
+  const componentsBlock = minify ? _minifyJS(buildComponents()) : buildComponents();
+  const appBlock = minify
+    ? _minifyJS(buildAppScript(mode, loaderScript, wsScript))
+    : buildAppScript(mode, loaderScript, wsScript);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,7 +47,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${siteTitle} — DocsLit</title>
   ${buildFontLinks()}
-  ${buildStyles()}
+  ${stylesBlock}
 </head>
 <body>
 ${buildNavHtml(siteTitle, versionSelectorHtml)}
@@ -39,10 +61,10 @@ ${inlineSearch}
 ${versionScript}
 <script type="importmap">${importMap}</script>
 <script type="module">
-${buildComponents()}
+${componentsBlock}
 </script>
 <script>
-${buildAppScript(mode, loaderScript, wsScript)}
+${appBlock}
 </script>
 </body>
 </html>`;
@@ -115,19 +137,21 @@ ${versionScript}
 </html>`;
 }
 
-export function buildStylesFile() {
-  const raw = buildStyles();
-  return raw.replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
+export function buildStylesFile({ minify = false } = {}) {
+  const raw = buildStyles().replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
+  return minify ? _minifyCSS(raw) : raw;
 }
 
-export function buildComponentsFile(mode = 'static') {
-  return buildComponents();
+export function buildComponentsFile(mode = 'static', { minify = false } = {}) {
+  const raw = buildComponents();
+  return minify ? _minifyJS(raw) : raw;
 }
 
-export function buildAppFile(mode = 'static') {
+export function buildAppFile(mode = 'static', { minify = false } = {}) {
   const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
   const wsScript = mode === 'dev' ? buildWsScript(3000) : '';
-  return buildAppScript(mode, loaderScript, wsScript);
+  const raw = buildAppScript(mode, loaderScript, wsScript);
+  return minify ? _minifyJS(raw) : raw;
 }
 
 function buildImportMap(mode) {

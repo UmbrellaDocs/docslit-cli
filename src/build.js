@@ -36,14 +36,15 @@ async function _warnIfLargeOffline(htmlPath, pageCount, label) {
   console.log(`     — per-page HTML with shared assets and faster first load.`);
 }
 
-export async function build({ out = 'dist', offline = false } = {}) {
+export async function build({ out = 'dist', offline = false, minify = true } = {}) {
   const cwd = process.cwd();
   const config = await loadConfig(cwd);
   const outDir = path.resolve(cwd, out);
   const versionConfig = getVersionConfig(config);
 
   const modeLabel = offline ? ' (offline mode)' : '';
-  console.log(`\n  ${pc.bold('DocsLit')} building static site${modeLabel}...\n`);
+  const minifyLabel = minify ? '' : ' (unminified)';
+  console.log(`\n  ${pc.bold('DocsLit')} building static site${modeLabel}${minifyLabel}...\n`);
 
   await fs.emptyDir(outDir);
 
@@ -58,9 +59,9 @@ export async function build({ out = 'dist', offline = false } = {}) {
   }
 
   if (versionConfig) {
-    await buildVersioned({ config, versionConfig, cwd, outDir, out, offline });
+    await buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify });
   } else {
-    await buildSingle({ config, cwd, outDir, out, offline });
+    await buildSingle({ config, cwd, outDir, out, offline, minify });
   }
 
   const sizeKb = await getDirSize(outDir);
@@ -73,7 +74,7 @@ export async function build({ out = 'dist', offline = false } = {}) {
   console.log(`  Deploy to:      GitHub Pages, Vercel, Netlify, S3, or any static host\n`);
 }
 
-async function buildSingle({ config, cwd, outDir, out, offline }) {
+async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
   const pageIds = getAllPageIds(config);
   const pagesData = {};
   const draftPageIds = [];
@@ -108,15 +109,15 @@ async function buildSingle({ config, cwd, outDir, out, offline }) {
 
   if (offline) {
     const searchIndex = buildSearchIndex(config, pagesData);
-    const indexHtml = renderShell({ config, mode: 'static', out, pagesData, offline: true, draftPageIds, searchIndex });
+    const indexHtml = renderShell({ config, mode: 'static', out, pagesData, offline: true, draftPageIds, searchIndex, minify });
     const indexPath = path.join(outDir, 'index.html');
     await fs.writeFile(indexPath, indexHtml);
     console.log(`  ${pc.green('✓')} Built index.html — ${built} page${built !== 1 ? 's' : ''} inlined${draftNote}${skippedNote}`);
     await _warnIfLargeOffline(indexPath, built);
   } else {
-    await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile());
-    await fs.writeFile(path.join(outDir, 'docslit.js'), buildComponentsFile('static'));
-    await fs.writeFile(path.join(outDir, 'docslit-app.js'), buildAppFile('static'));
+    await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile({ minify }));
+    await fs.writeFile(path.join(outDir, 'docslit.js'), buildComponentsFile('static', { minify }));
+    await fs.writeFile(path.join(outDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
     const publishedIds = Object.keys(pagesData);
     for (const [id, { meta, html }] of Object.entries(pagesData)) {
@@ -141,7 +142,7 @@ async function buildSingle({ config, cwd, outDir, out, offline }) {
   }
 }
 
-async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline }) {
+async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify }) {
   const defaultVersion = versionConfig.default;
   const defaultEntry = versionConfig.list.find(v => v.version === defaultVersion);
   const defaultBranch = defaultEntry?.branch || 'main';
@@ -172,15 +173,15 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const defaultShell = renderShell({
       config, mode: 'static', out, draftPageIds,
       versionConfig, currentVersion: defaultVersion,
-      pagesData: defaultPagesData, offline: true, searchIndex: buildSearchIndex(config, defaultPagesData),
+      pagesData: defaultPagesData, offline: true, searchIndex: buildSearchIndex(config, defaultPagesData), minify,
     });
     const defaultIndexPath = path.join(defaultDir, 'index.html');
     await fs.writeFile(defaultIndexPath, defaultShell);
     await _warnIfLargeOffline(defaultIndexPath, built, defaultVersion);
   } else {
-    await fs.writeFile(path.join(defaultDir, 'docslit.css'), buildStylesFile());
-    await fs.writeFile(path.join(defaultDir, 'docslit.js'), buildComponentsFile('static'));
-    await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), buildAppFile('static'));
+    await fs.writeFile(path.join(defaultDir, 'docslit.css'), buildStylesFile({ minify }));
+    await fs.writeFile(path.join(defaultDir, 'docslit.js'), buildComponentsFile('static', { minify }));
+    await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
     const publishedIds = Object.keys(defaultPagesData);
     for (const [id, { meta, html }] of Object.entries(defaultPagesData)) {
@@ -236,15 +237,15 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       const versionShell = renderShell({
         config: versionConf, mode: 'static', out, draftPageIds: [],
         versionConfig, currentVersion: entry.version,
-        pagesData: versionPagesData, offline: true, searchIndex: buildSearchIndex(versionConf, versionPagesData),
+        pagesData: versionPagesData, offline: true, searchIndex: buildSearchIndex(versionConf, versionPagesData), minify,
       });
       const versionIndexPath = path.join(versionDir, 'index.html');
       await fs.writeFile(versionIndexPath, versionShell);
       await _warnIfLargeOffline(versionIndexPath, Object.keys(versionPagesData).length, entry.version);
     } else {
-      await fs.writeFile(path.join(versionDir, 'docslit.css'), buildStylesFile());
-      await fs.writeFile(path.join(versionDir, 'docslit.js'), buildComponentsFile('static'));
-      await fs.writeFile(path.join(versionDir, 'docslit-app.js'), buildAppFile('static'));
+      await fs.writeFile(path.join(versionDir, 'docslit.css'), buildStylesFile({ minify }));
+      await fs.writeFile(path.join(versionDir, 'docslit.js'), buildComponentsFile('static', { minify }));
+      await fs.writeFile(path.join(versionDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
       const vPublishedIds = Object.keys(versionPagesData);
       for (const [id, { meta, html }] of Object.entries(versionPagesData)) {

@@ -38,7 +38,8 @@ for (const { entry, out } of ENTRIES) {
       bundle: true,
       format: 'esm',
       write: false,
-      minify: false,
+      minify: true,
+      legalComments: 'none',
     });
     const text = result.outputFiles[0].text;
     await fs.writeFile(destPath, text, 'utf8');
