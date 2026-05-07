@@ -1427,21 +1427,21 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 }
 
 /* TYPOGRAPHY */
-.docs-content h1 { font-size: 34px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 14px; line-height: 1.15; color: var(--text); }
-.docs-content h2 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin: 40px 0 14px; padding-top: 4px; color: var(--text); }
-.docs-content h3 { font-size: 17px; font-weight: 600; margin: 28px 0 10px; color: var(--text); }
-.docs-content h4 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+.docs-content h1 { font-size: 32px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 14px; line-height: 1.15; color: var(--text); }
+.docs-content h2 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; margin: 40px 0 14px; padding-top: 4px; color: var(--text); }
+.docs-content h3 { font-size: 19px; font-weight: 600; margin: 28px 0 10px; color: var(--text); }
+.docs-content h4 { font-size: 16px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
 .docs-content p { color: var(--text2); line-height: 1.8; margin-bottom: 16px; }
 .docs-content ul, .docs-content ol { color: var(--text2); line-height: 1.9; margin: 0 0 16px 24px; }
 .docs-content li { margin-bottom: 4px; }
 .docs-content strong { color: var(--text); }
-.docs-content code { font-family: var(--font-mono); font-size: .84em; background: var(--surface2); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent-light); word-break: break-word; }
+.docs-content code { font-family: var(--font-mono); font-size: .875em; background: var(--surface2); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent-light); word-break: break-word; }
 .docs-content pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; overflow-x: auto; margin: 20px 0; -webkit-overflow-scrolling: touch; }
-.docs-content pre code { background: none; border: none; padding: 0; color: #e2e8f0; font-size: 13px; line-height: 1.7; word-break: normal; }
+.docs-content pre code { background: none; border: none; padding: 0; color: #e2e8f0; font-size: 14px; line-height: 1.7; word-break: normal; }
 .docs-content a { color: var(--accent-light); text-decoration: none; }
 .docs-content a:hover { text-decoration: underline; }
 .docs-content .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: var(--radius-lg); margin: 20px 0; }
-.docs-content table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 480px; }
+.docs-content table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 480px; }
 .docs-content .table-wrap table { margin: 0; min-width: unset; }
 .docs-content th { text-align: left; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border); font-weight: 600; color: var(--text2); white-space: nowrap; }
 .docs-content td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: top; line-height: 1.6; }
@@ -1603,8 +1603,8 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 @media(max-width:768px) {
   .docs-content { padding: 28px 28px 56px; }
   .docs-content h1 { font-size: 28px; }
-  .docs-content h2 { font-size: 20px; margin: 32px 0 12px; }
-  .docs-content h3 { font-size: 16px; }
+  .docs-content h2 { font-size: 22px; margin: 32px 0 12px; }
+  .docs-content h3 { font-size: 18px; }
   .docs-nav-top { padding: 0 20px; }
 }
 @media(max-width:640px) {
@@ -1616,9 +1616,9 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
   .search-modal { margin: 0 12px; }
   .search-overlay { padding-top: 60px; }
   .docs-content { padding: 24px 20px 48px; }
-  .docs-content h1 { font-size: 25px; }
-  .docs-content h2 { font-size: 18px; margin: 28px 0 10px; }
-  .docs-content h3 { font-size: 15px; }
+  .docs-content h1 { font-size: 24px; }
+  .docs-content h2 { font-size: 20px; margin: 28px 0 10px; }
+  .docs-content h3 { font-size: 17px; }
   .docs-content pre { padding: 14px 16px; }
   .docs-nav-top { height: 40px; padding: 0 16px; }
   .docs-breadcrumb { font-size: 12px; }
