@@ -5,6 +5,37 @@ import { loadConfig, getAllPageIds, getVersionConfig, getVersionSidebar, getChan
 import { parseDoc } from './markdown.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
 
+// Soft thresholds at which a single-file offline bundle starts to feel slow:
+// browsers can parse much larger HTML, but ~5MB / 200 pages is the point where
+// initial JSON.parse cost and memory footprint become noticeable to users.
+const OFFLINE_SIZE_WARN_BYTES = 5 * 1024 * 1024;
+const OFFLINE_PAGES_WARN_COUNT = 200;
+
+function _formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
+  return (b / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+async function _warnIfLargeOffline(htmlPath, pageCount, label) {
+  const stat = await fs.stat(htmlPath);
+  const sizeOver = stat.size > OFFLINE_SIZE_WARN_BYTES;
+  const countOver = pageCount > OFFLINE_PAGES_WARN_COUNT;
+  if (!sizeOver && !countOver) return;
+
+  const reason = sizeOver && countOver
+    ? `${pageCount} pages, ${_formatBytes(stat.size)}`
+    : sizeOver ? _formatBytes(stat.size) : `${pageCount} pages`;
+  const tag = label ? ` (${label})` : '';
+
+  console.log('');
+  console.log(`  ${pc.yellow('⚠')}  ${pc.yellow(pc.bold('Large offline bundle'))}${tag} — ${reason}`);
+  console.log(`     Offline mode inlines every page into one HTML file. At this size the`);
+  console.log(`     browser's initial parse and memory footprint get noticeable.`);
+  console.log(`     For sites this size, prefer the default build: ${pc.cyan('docslit build')}`);
+  console.log(`     — per-page HTML with shared assets and faster first load.`);
+}
+
 export async function build({ out = 'dist', offline = false } = {}) {
   const cwd = process.cwd();
   const config = await loadConfig(cwd);
@@ -78,8 +109,10 @@ async function buildSingle({ config, cwd, outDir, out, offline }) {
   if (offline) {
     const searchIndex = buildSearchIndex(config, pagesData);
     const indexHtml = renderShell({ config, mode: 'static', out, pagesData, offline: true, draftPageIds, searchIndex });
-    await fs.writeFile(path.join(outDir, 'index.html'), indexHtml);
+    const indexPath = path.join(outDir, 'index.html');
+    await fs.writeFile(indexPath, indexHtml);
     console.log(`  ${pc.green('✓')} Built index.html — ${built} page${built !== 1 ? 's' : ''} inlined${draftNote}${skippedNote}`);
+    await _warnIfLargeOffline(indexPath, built);
   } else {
     await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile());
     await fs.writeFile(path.join(outDir, 'docslit.js'), buildComponentsFile('static'));
@@ -141,7 +174,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       versionConfig, currentVersion: defaultVersion,
       pagesData: defaultPagesData, offline: true, searchIndex: buildSearchIndex(config, defaultPagesData),
     });
-    await fs.writeFile(path.join(defaultDir, 'index.html'), defaultShell);
+    const defaultIndexPath = path.join(defaultDir, 'index.html');
+    await fs.writeFile(defaultIndexPath, defaultShell);
+    await _warnIfLargeOffline(defaultIndexPath, built, defaultVersion);
   } else {
     await fs.writeFile(path.join(defaultDir, 'docslit.css'), buildStylesFile());
     await fs.writeFile(path.join(defaultDir, 'docslit.js'), buildComponentsFile('static'));
@@ -203,7 +238,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
         versionConfig, currentVersion: entry.version,
         pagesData: versionPagesData, offline: true, searchIndex: buildSearchIndex(versionConf, versionPagesData),
       });
-      await fs.writeFile(path.join(versionDir, 'index.html'), versionShell);
+      const versionIndexPath = path.join(versionDir, 'index.html');
+      await fs.writeFile(versionIndexPath, versionShell);
+      await _warnIfLargeOffline(versionIndexPath, Object.keys(versionPagesData).length, entry.version);
     } else {
       await fs.writeFile(path.join(versionDir, 'docslit.css'), buildStylesFile());
       await fs.writeFile(path.join(versionDir, 'docslit.js'), buildComponentsFile('static'));
