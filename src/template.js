@@ -242,27 +242,87 @@ function activateSidebar(id) {
 }
 
 // ── TOC ───────────────────────────────────────────────────────────────────
+let _tocObserver = null;
+let _tocClickGuardUntil = 0;
+
+function _setActiveToc(id) {
+  const toc = document.getElementById('docs-toc');
+  if (!toc) return;
+  toc.querySelectorAll('.toc-item').forEach(a => {
+    a.classList.toggle('active', a.dataset.tocTarget === id);
+  });
+}
+
 function _tocScroll(id) {
   const el = document.getElementById(id);
   if (!el) return;
   const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 60;
   const top = el.getBoundingClientRect().top + window.scrollY - navH - 44 - 16;
   history.pushState(null, '', location.pathname + '#' + id);
+  // Mark active immediately so the user sees their click land before the
+  // scroll arrives; ignore observer callbacks for a beat so smooth-scrolling
+  // doesn't briefly reassign through intermediate headings.
+  _setActiveToc(id);
+  _tocClickGuardUntil = Date.now() + 700;
   window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
 }
 
 function buildToc(container) {
   const toc = document.getElementById('docs-toc');
   if (!toc) return;
+
+  if (_tocObserver) { _tocObserver.disconnect(); _tocObserver = null; }
+  while (toc.firstChild) toc.removeChild(toc.firstChild);
+
   const headings = Array.from(container.querySelectorAll('h2, h3'));
-  if (headings.length < 2) { toc.innerHTML = ''; return; }
-  toc.innerHTML = '<div class="toc-title">On this page</div>' +
-    headings.map(h => {
-      const id = h.id || h.textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-');
-      h.id = id;
-      const indent = h.tagName === 'H3' ? ' style="padding-left:12px"' : '';
-      return \`<a class="toc-item" href="#\${id}"\${indent} onclick="_tocScroll(this.getAttribute('href').slice(1));return false;">\${h.textContent}</a>\`;
-    }).join('');
+  if (headings.length < 2) return;
+
+  const title = document.createElement('div');
+  title.className = 'toc-title';
+  title.textContent = 'On this page';
+  toc.appendChild(title);
+
+  const list = document.createElement('ul');
+  list.className = 'toc-list';
+  for (const h of headings) {
+    const id = h.id || h.textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+    h.id = id;
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.className = 'toc-item' + (h.tagName === 'H3' ? ' toc-item-sub' : '');
+    a.dataset.tocTarget = id;
+    a.href = '#' + id;
+    a.textContent = h.textContent;
+    a.addEventListener('click', (e) => { e.preventDefault(); _tocScroll(id); });
+    li.appendChild(a);
+    list.appendChild(li);
+  }
+  toc.appendChild(list);
+
+  // Track the topmost heading whose top has crossed the active line (just
+  // below the sticky nav). Picks the lowest heading still "above the line",
+  // which is the section the user is currently reading.
+  const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 60;
+  const activeLineY = navH + 60;
+  const compute = () => {
+    if (Date.now() < _tocClickGuardUntil) return;
+    let current = headings[0];
+    for (const h of headings) {
+      if (h.getBoundingClientRect().top - activeLineY < 1) current = h;
+      else break;
+    }
+    if (current) _setActiveToc(current.id);
+  };
+  _tocObserver = new IntersectionObserver(compute, {
+    rootMargin: \`-\${activeLineY}px 0px -70% 0px\`,
+    threshold: [0, 1],
+  });
+  headings.forEach(h => _tocObserver.observe(h));
+
+  // Seed: matching hash → that heading; otherwise the first one.
+  const hashId = decodeURIComponent(location.hash.slice(1));
+  const seed = (hashId && headings.find(h => h.id === hashId)) || headings[0];
+  _setActiveToc(seed.id);
 }
 
 // ── TABLE WRAPPING ────────────────────────────────────────────────────────
@@ -827,7 +887,26 @@ window.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('popstate', () => {
   const id = _pageFromUrl() || document.querySelector('.sidebar-item')?.dataset.page || 'introduction';
   loadPage(id, document.querySelector(\`.sidebar-item[data-page="\${id}"]\`));
-});`;
+});
+
+// ── Scrollbar reveal ─────────────────────────────────────────────────────────────────────
+// Show the scrollbar thumb only while the user is actively scrolling or
+// hovering near the right edge. Keeps the page visually clean during SPA
+// page swaps where macOS would otherwise fade its overlay scrollbar in/out.
+(function() {
+  let _scrollbarHideTimer = null;
+  function _showScrollbar() {
+    document.documentElement.classList.add('scrolling');
+    if (_scrollbarHideTimer) clearTimeout(_scrollbarHideTimer);
+    _scrollbarHideTimer = setTimeout(() => {
+      document.documentElement.classList.remove('scrolling');
+    }, 1200);
+  }
+  window.addEventListener('scroll', _showScrollbar, { passive: true });
+  window.addEventListener('mousemove', (e) => {
+    if (e.clientX > window.innerWidth - 24) _showScrollbar();
+  }, { passive: true });
+})();`;
 }
 
 function buildSearchScript(mode) {
@@ -1107,6 +1186,38 @@ html.light {
   --accent-dim: rgba(1,105,111,.08); --accent-dim2: rgba(1,105,111,.15);
   --sidebar-bg: #f5f5f5; --code-bg: #1e1e1e;
 }
+html {
+  /* Reserve the scrollbar gutter at all times so SPA page swaps don't flash:
+     during the brief moment loadPage() clears innerHTML, the page would
+     otherwise become non-scrollable, the browser drops the scrollbar, the
+     viewport widens, and everything reflows — then snaps back when the new
+     content lands. scrollbar-gutter holds the slot. */
+  scrollbar-gutter: stable;
+  /* Firefox: hide the thumb by default; .scrolling reveals it. */
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+html.scrolling {
+  scrollbar-color: var(--border) transparent;
+}
+/* Webkit/Blink: render a real (layout-occupying) scrollbar with a transparent
+   thumb so the macOS overlay scrollbar never kicks in to fade in/out during
+   navigation. The thumb only appears when the user scrolls or moves the mouse
+   to the right edge — see the JS shim further down. */
+html::-webkit-scrollbar { width: 10px; }
+html::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color .25s;
+}
+html.scrolling::-webkit-scrollbar-thumb { background-color: var(--border); }
+html.scrolling::-webkit-scrollbar-thumb:hover { background-color: var(--text3); }
+@media (prefers-reduced-motion: reduce) {
+  html::-webkit-scrollbar-thumb { transition: none; }
+}
 html, body {
   font-family: var(--font-sans);
   background: var(--bg); color: var(--text);
@@ -1288,8 +1399,32 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 }
 .docs-toc::-webkit-scrollbar { display: none; }
 .toc-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--text3); margin-bottom: 10px; }
-.toc-item { font-size: 13px; color: var(--text3); margin-bottom: 6px; transition: color .12s; text-decoration: none; display: block; line-height: 1.4; }
+.toc-list {
+  list-style: none; margin: 0; padding: 0;
+  border-left: 1px solid var(--border);
+}
+.toc-list li { margin: 0; padding: 0; }
+.toc-item {
+  position: relative;
+  display: block;
+  font-size: 13px; line-height: 1.4;
+  color: var(--text3);
+  text-decoration: none;
+  padding: 4px 0 4px 14px;
+  margin-left: -1px; /* align the active accent with the static line */
+  border-left: 2px solid transparent;
+  transition: color .12s, border-color .12s, font-weight .12s;
+}
+.toc-item-sub { padding-left: 26px; }
 .toc-item:hover { color: var(--text2); }
+.toc-item.active {
+  color: var(--accent-light);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toc-item { transition: none; }
+}
 
 /* TYPOGRAPHY */
 .docs-content h1 { font-size: 34px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 14px; line-height: 1.15; color: var(--text); }

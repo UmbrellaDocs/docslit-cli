@@ -6,6 +6,7 @@ import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
 import git from 'isomorphic-git';
 import * as nodeFs from 'node:fs';
 import { parseDoc } from './markdown.js';
+import { rewriteMdxTags, pascalToWcKebab, COMPONENT_MAP } from './mdx-bridge.js';
 import { getAllPageIds, getVersionConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
 import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile } from './template.js';
 import { buildComponents } from './components/index.js';
@@ -154,6 +155,108 @@ describe('parseDoc', () => {
     const raw = '<wc-code-block>curl {{API_URL}}/status</wc-code-block>\n';
     const { html } = parseDoc(raw);
     expect(html).toContain('{{API_URL}}');
+  });
+
+  it('rewrites Mintlify-style <Tip> as <wc-callout type="tip">', () => {
+    const { html } = parseDoc('<Tip>Use cache</Tip>\n');
+    expect(html).toContain('<wc-callout');
+    expect(html).toContain('type="tip"');
+    expect(html).toContain('title="Tip"');
+    expect(html).toContain('Use cache');
+  });
+
+  it('rewrites <Card icon="rocket"> with attribute renaming', () => {
+    const raw = '<Card title="Quickstart" icon="rocket" href="/start">Get going.</Card>\n';
+    const { html } = parseDoc(raw);
+    expect(html).toContain('<wc-card');
+    expect(html).toContain('title="Quickstart"');
+    expect(html).toContain('icon-name="zap"'); // rocket → zap via FA_TO_LUCIDE
+    expect(html).toContain('href="/start"');
+  });
+
+  it('rewrites self-closing <Card /> to a paired wc-card', () => {
+    const { html } = parseDoc('<Card title="Solo" />\n');
+    expect(html).toContain('<wc-card');
+    expect(html).toContain('title="Solo"');
+    expect(html).toContain('</wc-card>');
+    expect(html).not.toContain('/>');
+  });
+
+  it('applies convention fallback for unmapped PascalCase tags', () => {
+    const { html } = parseDoc('<CustomThing prop="x">Body</CustomThing>\n');
+    expect(html).toContain('<wc-custom-thing');
+    expect(html).toContain('prop="x"');
+    expect(html).toContain('</wc-custom-thing>');
+  });
+
+  it('does not rewrite PascalCase tags inside fenced code blocks', () => {
+    const raw = '```jsx\n<Callout>literal source</Callout>\n```\n';
+    const { html } = parseDoc(raw);
+    expect(html).toContain('&lt;Callout&gt;');
+    expect(html).not.toContain('<wc-callout');
+  });
+
+  it('does not rewrite PascalCase tags inside inline backticks', () => {
+    const { html } = parseDoc('Use `<Callout>` for warnings.\n');
+    expect(html).toContain('<code>&lt;Callout&gt;</code>');
+    expect(html).not.toContain('<wc-callout');
+  });
+
+  it('auto-numbers <Step> inside <Steps>', () => {
+    const raw = '<Steps>\n<Step title="A">First</Step>\n<Step title="B">Second</Step>\n</Steps>\n';
+    const { html } = parseDoc(raw);
+    expect(html).toContain('n="1"');
+    expect(html).toContain('n="2"');
+  });
+
+  it('drops <Tooltip> wrapper but keeps inner content (flatten)', () => {
+    const { html } = parseDoc('Hover <Tooltip tip="hi">here</Tooltip> for info.\n');
+    expect(html).not.toContain('Tooltip');
+    expect(html).not.toContain('wc-tooltip');
+    expect(html).toContain('Hover');
+    expect(html).toContain('here');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mdx-bridge — pascalToWcKebab + rewriteMdxTags
+// ─────────────────────────────────────────────────────────────────────────────
+describe('pascalToWcKebab', () => {
+  it('handles simple PascalCase', () => {
+    expect(pascalToWcKebab('CardGroup')).toBe('wc-card-group');
+  });
+
+  it('handles consecutive uppercase letters (acronyms)', () => {
+    expect(pascalToWcKebab('APIDocsCard')).toBe('wc-api-docs-card');
+    expect(pascalToWcKebab('MyAPIBlock')).toBe('wc-my-api-block');
+  });
+
+  it('handles single-word names', () => {
+    expect(pascalToWcKebab('Tip')).toBe('wc-tip');
+  });
+});
+
+describe('rewriteMdxTags', () => {
+  it('returns input untouched when there are no PascalCase tags', () => {
+    expect(rewriteMdxTags('plain text and <wc-card></wc-card>')).toBe('plain text and <wc-card></wc-card>');
+  });
+
+  it('leaves unmapped PascalCase alone when conventionFallback is false', () => {
+    const out = rewriteMdxTags('<CustomThing>x</CustomThing>', { conventionFallback: false });
+    expect(out).toContain('<CustomThing>');
+    expect(out).not.toContain('wc-custom-thing');
+  });
+
+  it('still rewrites mapped components when conventionFallback is false', () => {
+    const out = rewriteMdxTags('<Tip>hi</Tip>', { conventionFallback: false });
+    expect(out).toContain('<wc-callout');
+    expect(out).toContain('type="tip"');
+  });
+
+  it('exports the COMPONENT_MAP with expected aliases', () => {
+    expect(COMPONENT_MAP.Tip.tag).toBe('wc-callout');
+    expect(COMPONENT_MAP.CardGroup.tag).toBe('wc-tiles');
+    expect(COMPONENT_MAP.Tooltip.flatten).toBe(true);
   });
 });
 

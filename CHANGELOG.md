@@ -4,6 +4,39 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
+## 0.1.7
+
+### What's new
+
+#### Drop-in MDX support
+
+**PascalCase tags work directly in `.md` files** — Mintlify-style component names (`<Tip>`, `<Card>`, `<Steps>`, `<CardGroup>`, `<Accordion>`, etc.) are now recognised at parse time and rewritten to the canonical `wc-*` form before rendering. Most Mintlify and Fern projects can be moved over without touching their source files. The conversion happens in two layers:
+
+1. **Explicit alias map** — ~25 known Mintlify/MDX component names map to their docslit equivalents, including attribute renames (e.g. `<Card icon="...">` → `<wc-card icon-name="...">`, with Font Awesome icon names mapped to Lucide where possible) and special handling (`<Tooltip>` and `<Snippet>` unwrap; `<Icon>` is removed in favour of using `<wc-icon>` directly).
+2. **Convention fallback** — any unmapped PascalCase tag is rewritten to `wc-kebab-case`. So a custom `<MyWidget>` becomes `<wc-my-widget>`, automatically picking up a registered custom component if one exists.
+
+`docslit validate` warns on PascalCase tags that resolve to a `wc-*` component which isn't registered, so unsupported components surface at validate time rather than as a blank element in the browser.
+
+This is purely additive — the canonical `wc-*` syntax keeps working unchanged, and both styles can be mixed in a single file. JSX expressions (`{props.foo}`), `import`/`export` statements, and JS-valued attributes are not supported; for those, run `docslit import` for a deep one-time conversion.
+
+#### Navigation and layout
+
+**On-this-page active section tracking** — the right-hand TOC now shows a vertical guide line with a colored accent that follows the user as they scroll. The active section updates via `IntersectionObserver` (no layout thrashing), and clicking a TOC item highlights it instantly without waiting for the smooth-scroll to finish. Sub-headings (h3) are visually indented under their parent h2.
+
+**Scrollbar polish** — fixed a layout flash that occurred when navigating between pages: `loadPage` briefly emptied the content, the browser dropped the scrollbar, the viewport widened by a few pixels, and then snapped back. Now `scrollbar-gutter: stable` reserves the gutter at all times, so SPA page swaps don't reflow.
+
+**Auto-hiding scrollbar** — the document scrollbar is now transparent by default and only fades in while the user is actively scrolling or has moved the mouse to within 24px of the right edge. Replaces the macOS overlay scrollbar fade-in/out, which used to flash visibly during navigation. Disabled animation under `prefers-reduced-motion`.
+
+#### Bug fixes
+
+**`ParamField` / `ResponseField` mappings corrected** — these were pointing at `wc-param` and `wc-response-field`, neither of which is a registered component. They now correctly map to `wc-field`, with the user wrapping groups in `<wc-fields>` or `<wc-response-fields>` themselves (Mintlify has no equivalent wrapper concept). Affects both the parse-time bridge and `docslit import`.
+
+**Validator inline-code consistency** — the unknown-component check now strips inline backtick spans alongside fenced code blocks. Documentation pages that mention a component by name (e.g. `` `<wc-foo>` `` in a table cell) no longer trigger false-positive warnings.
+
+**Validator built-in registry refreshed** — the `BUILTIN_COMPONENTS` set used by validate had drifted from the actual registered components: it referenced several non-existent tags (`wc-codeblock`, `wc-image`, `wc-video`, `wc-math`, `wc-if`, `wc-divider`, `wc-spacer`, `wc-table-row`, `wc-table-cell`) and was missing real ones (`wc-accordion-group`, `wc-icon`, `wc-files`, `wc-tree-item`, `wc-color`, `wc-schema`, `wc-endpoint`, `wc-runnable-endpoint`, `wc-prompt`, `wc-tile`, `wc-version`, `wc-visibility`, `wc-view-panel`, `wc-code-tab`, `wc-fields`, `wc-response-fields`, `wc-field`, `wc-alert`). The set now mirrors `buildComponents()` exactly.
+
+---
+
 ## 0.1.6
 
 ### What's new

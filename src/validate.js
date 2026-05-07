@@ -2,20 +2,29 @@ import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
 import matter from 'gray-matter';
+import { COMPONENT_MAP, pascalToWcKebab } from './mdx-bridge.js';
 
 // ─── Built-in component registry ──────────────────────────────────────────────
+// Mirrors the components actually registered by buildComponents() — keep this
+// set in sync with src/components/*.js. The cli.test.ts asserts on the same list.
 const BUILTIN_COMPONENTS = new Set([
-  'wc-button', 'wc-callout', 'wc-banner', 'wc-badge', 'wc-tooltip', 'wc-update',
-  'wc-columns', 'wc-frame', 'wc-panel', 'wc-expandable', 'wc-accordion', 'wc-aside',
-  'wc-step', 'wc-steps', 'wc-tabs', 'wc-tab', 'wc-view',
-  'wc-var', 'wc-codeblock', 'wc-code-group', 'wc-code-playground',
-  'wc-image', 'wc-video', 'wc-file-download',
-  'wc-param', 'wc-response-field', 'wc-api-explorer',
-  'wc-tiles', 'wc-card',
-  'wc-mermaid', 'wc-math',
-  'wc-anchor', 'wc-indent', 'wc-if', 'wc-versions', 'wc-page-meta',
-  'wc-table', 'wc-table-row', 'wc-table-cell',
-  'wc-divider', 'wc-spacer',
+  // Text & callouts
+  'wc-callout', 'wc-alert', 'wc-banner', 'wc-badge', 'wc-tooltip', 'wc-update',
+  // Layout
+  'wc-columns', 'wc-frame', 'wc-panel', 'wc-expandable', 'wc-accordion', 'wc-accordion-group', 'wc-aside',
+  // Navigation
+  'wc-steps', 'wc-step', 'wc-tabs', 'wc-tab', 'wc-view', 'wc-view-panel',
+  // Code
+  'wc-var', 'wc-code-block', 'wc-code-group', 'wc-code-tab',
+  // Media & Files
+  'wc-icon', 'wc-file', 'wc-dir', 'wc-files', 'wc-tree', 'wc-tree-item', 'wc-download', 'wc-copy',
+  // Data & API
+  'wc-field', 'wc-fields', 'wc-response-fields', 'wc-color', 'wc-table',
+  'wc-schema', 'wc-mermaid', 'wc-endpoint', 'wc-runnable-endpoint',
+  // Content
+  'wc-card', 'wc-tile', 'wc-tiles', 'wc-button', 'wc-prompt',
+  // Utility
+  'wc-anchor', 'wc-indent', 'wc-visibility', 'wc-version', 'wc-versions', 'wc-page-meta',
 ]);
 
 // Known valid frontmatter keys
@@ -300,16 +309,46 @@ async function checkComponents(files, dir, issues) {
   for (const file of files) {
     const rel = path.relative(dir, file);
     const raw = await fs.readFile(file, 'utf8');
-    // Strip code fences only — we still want to catch components in inline code
-    const src = stripCodeFences(raw);
+    // Strip both fenced blocks and inline backtick spans — text inside
+    // backticks renders as <code>, not as an HTML tag, so docs that talk
+    // *about* a component shouldn't trigger the unknown-component check.
+    const src = stripProtectedContent(raw);
 
-    const tagRe = /<(wc-[\w-]+)[\s>]/g;
-    let m;
-    while ((m = tagRe.exec(src)) !== null) {
+    const wcRe = /<(wc-[\w-]+)[\s>]/g;
+    for (const m of src.matchAll(wcRe)) {
       const tag = m[1];
       if (!BUILTIN_COMPONENTS.has(tag) && !customComponents.has(tag)) {
         issues.push(issue('warning', rel, lineOf(raw, m.index),
           `Unknown component <${tag}> — not a built-in and not found in components/`));
+      }
+    }
+
+    // PascalCase tags get rewritten by mdx-bridge at parse time. Surface any
+    // that won't resolve to a real component so the user finds out at validate
+    // time instead of as a blank element in the browser.
+    const pascalRe = /<([A-Z][A-Za-z0-9]+)[\s/>]/g;
+    const seenAt = new Map(); // name → first index, to dedupe per file
+    for (const m of src.matchAll(pascalRe)) {
+      const name = m[1];
+      if (seenAt.has(name)) continue;
+      seenAt.set(name, m.index);
+
+      // Mapped explicit alias → resolves to cfg.tag (or is dropped via remove/flatten/unwrap)
+      const cfg = COMPONENT_MAP[name];
+      if (cfg) {
+        if (!cfg.tag) continue; // intentionally dropped — fine
+        if (!BUILTIN_COMPONENTS.has(cfg.tag) && !customComponents.has(cfg.tag)) {
+          issues.push(issue('warning', rel, lineOf(raw, m.index),
+            `<${name}> maps to <${cfg.tag}>, which isn't registered — components/${cfg.tag}.js missing?`));
+        }
+        continue;
+      }
+
+      // Convention fallback → wc-pascal-case
+      const fallback = pascalToWcKebab(name);
+      if (!BUILTIN_COMPONENTS.has(fallback) && !customComponents.has(fallback)) {
+        issues.push(issue('warning', rel, lineOf(raw, m.index),
+          `<${name}> will render as <${fallback}>, which isn't a built-in and isn't in components/`));
       }
     }
   }

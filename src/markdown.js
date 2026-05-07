@@ -1,5 +1,6 @@
 import { marked } from 'marked';
 import matter from 'gray-matter';
+import { rewriteMdxTags } from './mdx-bridge.js';
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -139,6 +140,10 @@ function renderMarkdown(src) {
     codeBlocks.push(m);
     return `CODEBLOCK_${codeBlocks.length - 1}_END`;
   });
+
+  // 1a. Rewrite MDX-style PascalCase tags (e.g. <Tip>, <Card>) into wc-* tags
+  // before the wc-* extractor runs. Convention fallback is on by default.
+  safe = rewriteMdxTags(safe);
 
   // 2. Extract and pre-process all top-level wc-* blocks.
   //    We do this in reverse index order so replacements don't shift positions.
