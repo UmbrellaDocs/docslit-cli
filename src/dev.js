@@ -173,9 +173,27 @@ export async function dev({ port = 3000 } = {}) {
   // Serve custom user components
   app.use('/components', express.static(path.join(cwd, 'components')));
 
-  // Catch-all: serve the app shell
+  // Catch-all: serve the app shell (or raw Markdown via Accept header)
   app.get('/{*path}', async (req, res) => {
     const vc = getVersionConfig(config);
+
+    // Content negotiation: serve raw Markdown when Accept: text/markdown
+    if (req.accepts('text/markdown') && !req.accepts('text/html')) {
+      let slug = req.path.replace(/^\//, '').replace(/\/$/, '') || 'index';
+      if (vc) {
+        for (const v of vc.list) {
+          if (slug.startsWith(v.version + '/')) { slug = slug.slice(v.version.length + 1); break; }
+        }
+      }
+      const docsDir = path.join(cwd, 'docs');
+      const mdPath = path.resolve(docsDir, `${slug}.md`);
+      if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+        return res.send(await fs.readFile(mdPath, 'utf8'));
+      }
+      return res.status(404).send('Not found');
+    }
+
     let shellConfig = config;
     let currentVersion = null;
 
