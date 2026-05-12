@@ -3,7 +3,7 @@
 export default `
 // ── WC-FIELD / WC-FIELDS ───────────────────────────────────────────────────
 class WcField extends LitElement {
-  static properties={name:{type:String},type:{type:String},required:{type:Boolean},description:{type:String},default:{type:String},deprecated:{type:Boolean},in:{type:String},enum:{type:String},format:{type:String},pattern:{type:String},minimum:{type:String},maximum:{type:String},example:{type:String},collapsible:{type:Boolean},_expanded:{type:Boolean,state:true}};
+  static properties={name:{type:String},type:{type:String},required:{type:Boolean},description:{type:String},default:{type:String},deprecated:{type:Boolean},in:{type:String},enum:{type:String},format:{type:String},pattern:{type:String},minimum:{type:String},maximum:{type:String},maxlength:{type:String},minlength:{type:String},example:{type:String},collapsible:{type:Boolean},_expanded:{type:Boolean,state:true}};
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666}
@@ -17,6 +17,9 @@ class WcField extends LitElement {
     .in-badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface2,#1a1a1a);color:var(--text3,#666);border:1px solid var(--border,#2a2a2a);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
     .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
     .desc{color:var(--text2,#a0a0a0);line-height:1.6;font-size:13px}
+    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:3px;color:#4f98a3}
+    .desc a{color:#4f98a3;text-decoration:none}
+    .desc a:hover{text-decoration:underline}
     .constraint{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .default-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .example-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
@@ -38,7 +41,9 @@ class WcField extends LitElement {
     if(this.minimum!==null&&this.minimum!==undefined&&this.maximum!==null&&this.maximum!==undefined)constraints.push(this.minimum+' – '+this.maximum);
     else if(this.minimum!==null&&this.minimum!==undefined)constraints.push('≥ '+this.minimum);
     else if(this.maximum!==null&&this.maximum!==undefined)constraints.push('≤ '+this.maximum);
-    return html\`<div class="row"><div class="left"><div class="name \${this.collapsible?'toggle':''}  \${this._expanded?'open':''}" @click=\${this.collapsible?this._toggle.bind(this):null}><span>\${this.name}</span>\${this.in?html\`<span class="in-badge">\${this.in}</span>\`:nothing}\${typeLabel?html\`<span class="type-badge">\${typeLabel}</span>\`:nothing}\${this.required?html\`<span class="req">required</span>\`:nothing}</div>\${constraints.length?html\`<div class="constraint">\${constraints.join(' · ')}</div>\`:nothing}\${this.default!==undefined&&this.default!==null?html\`<div class="default-val">Default: \${this.default}</div>\`:nothing}\${this.example!==undefined&&this.example!==null?html\`<div class="example-val">Example: <code>\${this.example}</code></div>\`:nothing}</div><div>\${this.description?html\`<div class="desc">\${this.description}</div>\`:nothing}<div class="\${this.collapsible&&!this._expanded?'collapsed':''}"><slot></slot></div></div></div>\`;}
+    if(this.maxlength)constraints.push('≤ '+this.maxlength+' characters');
+    if(this.minlength)constraints.push('≥ '+this.minlength+' characters');
+    return html\`<div class="row"><div class="left"><div class="name \${this.collapsible?'toggle':''}  \${this._expanded?'open':''}" @click=\${this.collapsible?this._toggle.bind(this):null}><span>\${this.name}</span>\${this.in?html\`<span class="in-badge">\${this.in}</span>\`:nothing}\${typeLabel?html\`<span class="type-badge">\${typeLabel}</span>\`:nothing}\${this.required?html\`<span class="req">required</span>\`:nothing}</div>\${constraints.length?html\`<div class="constraint">\${constraints.join(' · ')}</div>\`:nothing}\${this.default!==undefined&&this.default!==null?html\`<div class="default-val">Default: \${this.default}</div>\`:nothing}\${this.example!==undefined&&this.example!==null?html\`<div class="example-val">Example: <code>\${this.example}</code></div>\`:nothing}</div><div>\${this.description?html\`<div class="desc"><span .innerHTML=\${_inlineMd(this.description)}></span></div>\`:nothing}<div class="\${this.collapsible&&!this._expanded?'collapsed':''}"><slot></slot></div></div></div>\`;}
 }
 customElements.define('wc-field',WcField);
 
@@ -53,12 +58,13 @@ class WcFields extends LitElement {
     .body{padding:0 16px}
     @media(max-width:768px){.header{grid-template-columns:1fr}}
   \`;
-  render(){return html\`<div class="wrap"><div class="header"><span>Parameter</span><span>Description</span></div><div class="body"><slot></slot></div></div>\`;}
+  render(){return html\`<div class="wrap"><div class="header"><span>\${this.title||'Parameter'}</span><span>Description</span></div><div class="body"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-fields',WcFields);
 
 // ── WC-RESPONSE-FIELDS ─────────────────────────────────────────────────────
 class WcResponseFields extends LitElement {
+  static properties={title:{type:String}};
   static styles=css\`
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
@@ -68,7 +74,7 @@ class WcResponseFields extends LitElement {
     .body{padding:0 16px}
     @media(max-width:768px){.header{grid-template-columns:1fr}}
   \`;
-  render(){return html\`<div class="wrap"><div class="header"><span>Field</span><span>Description</span></div><div class="body"><slot></slot></div></div>\`;}
+  render(){return html\`<div class="wrap"><div class="header"><span>\${this.title||'Field'}</span><span>Description</span></div><div class="body"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-response-fields',WcResponseFields);
 
@@ -247,7 +253,12 @@ class WcEndpoint extends LitElement {
     .security-label{color:var(--text3,#666);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-right:2px}
     .security-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
     .security-badge.open{background:rgba(16,185,129,.12);color:#34d399;border-color:rgba(16,185,129,.25)}
-    .desc{padding:10px 16px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text2,#a0a0a0);border-bottom:1px solid var(--border,#2a2a2a)}
+    .summary{padding:10px 16px 4px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;color:var(--text,#f0f0f0)}
+    .summary+.desc{padding-top:4px}
+    .desc{padding:10px 16px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text2,#a0a0a0);border-bottom:1px solid var(--border,#2a2a2a);line-height:1.6}
+    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:3px;color:#4f98a3}
+    .desc a{color:#4f98a3;text-decoration:none}
+    .desc a:hover{text-decoration:underline}
     .tabbar{display:flex;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);overflow-x:auto}
     button{background:none;border:none;border-bottom:2px solid transparent;padding:8px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3,#666);cursor:pointer;white-space:nowrap;flex-shrink:0;margin-bottom:-1px;transition:all .15s}
     button.active{color:#4f98a3;border-bottom-color:#01696f}
@@ -294,7 +305,7 @@ class WcEndpoint extends LitElement {
     return html\`<div class="wrap">
       <div class="url-bar"><span class="method \${m}">\${m}</span><code class="url">\${this.url||''}</code></div>
       \${this._renderSecurity()}
-      \${this.description||this.summary?html\`<div class="desc">\${this.description||this.summary}</div>\`:nothing}
+      \${this.summary&&this.description?html\`<div class="summary">\${this.summary}</div><div class="desc"><span .innerHTML=\${_inlineMd(this.description)}></span></div>\`:this.summary?html\`<div class="desc">\${this.summary}</div>\`:this.description?html\`<div class="desc"><span .innerHTML=\${_inlineMd(this.description)}></span></div>\`:nothing}
       \${sections.length>1?html\`<div class="tabbar">\${sections.map((s,i)=>html\`<button class="\${i===this._active?'active':''}" @click=\${()=>this._active=i}>\${s.label}</button>\`)}</div>\`:nothing}
       <slot></slot>
       \${tabs.length&&sections.length>1?html\`\${tabs.map((t,i)=>{const si=sections.findIndex(s=>s.type==='tab'&&s.idx===i);return html\`<div class="panel \${si===this._active?'active':''}"><pre>\${t.textContent}</pre></div>\`})}\`:nothing}

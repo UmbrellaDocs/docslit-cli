@@ -112,13 +112,15 @@ export async function openapiScaffold(args) {
       }
 
       const slug = toSlug(opId);
-      const title = toTitle(opId);
+      const title = ep.summary || toTitle(opId);
       const filePath = path.join(docsApiDir, `${slug}.md`);
+
+      const pageEntry = { id: `api/${slug}`, title, method: ep.method };
 
       if (await fs.pathExists(filePath)) {
         console.log(`  ${pc.dim('○')} Skipped ${slug}.md — file already exists`);
         skipped++;
-        tagPages.push(`api/${slug}`);
+        tagPages.push(pageEntry);
         continue;
       }
 
@@ -136,7 +138,7 @@ export async function openapiScaffold(args) {
       await fs.writeFile(filePath, content);
       console.log(`  ${pc.green('✓')} Created api/${slug}.md — ${ep.method} ${ep.path}`);
       created++;
-      tagPages.push(`api/${slug}`);
+      tagPages.push(pageEntry);
     }
     pageIdsByTag.set(tag, tagPages);
   }

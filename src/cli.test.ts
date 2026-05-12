@@ -9,7 +9,7 @@ import { parseDoc } from './markdown.js';
 import { rewriteMdxTags, pascalToWcKebab, COMPONENT_MAP } from './mdx-bridge.js';
 import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
 import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile } from './template.js';
-import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs } from './openapi.js';
+import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs, schemaToFields } from './openapi.js';
 import { buildComponents } from './components/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1018,14 +1018,27 @@ describe('getEndpoints', () => {
 
   it('extracts parameters with constraints', () => {
     const listPets = endpoints.find((e: any) => e.operationId === 'listPets');
-    expect(listPets.parameters).toHaveLength(1);
-    const limit = listPets.parameters[0];
-    expect(limit.name).toBe('limit');
+    expect(listPets.parameters).toHaveLength(2);
+    const limit = listPets.parameters.find((p: any) => p.name === 'limit');
     expect(limit.in).toBe('query');
     expect(limit.required).toBe(false);
     expect(limit.type).toBe('integer');
     expect(limit.minimum).toBe(1);
     expect(limit.maximum).toBe(100);
+  });
+
+  it('merges path-level parameters into operations', () => {
+    const listPets = endpoints.find((e: any) => e.operationId === 'listPets');
+    const header = listPets.parameters.find((p: any) => p.name === 'X-Request-ID');
+    expect(header).toBeDefined();
+    expect(header.in).toBe('header');
+    expect(header.format).toBe('uuid');
+  });
+
+  it('extracts maxLength from body fields', () => {
+    const createPet = endpoints.find((e: any) => e.operationId === 'createPet');
+    const nameField = createPet.bodyFields.find((f: any) => f.name === 'name');
+    expect(nameField.maxLength).toBe(100);
   });
 
   it('extracts request body fields', () => {
@@ -1140,10 +1153,29 @@ describe('resolveSpecRefs', () => {
   it('generates wc-fields with wc-field children from spec params', () => {
     const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
-    expect(resolved).toContain('<wc-fields>');
+    expect(resolved).toContain('<wc-fields title="Query Parameters">');
     expect(resolved).toContain('name="limit"');
     expect(resolved).toContain('type="integer"');
     expect(resolved).toContain('in="query"');
+  });
+
+  it('groups fields by type with separate wc-fields blocks', () => {
+    const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('<wc-fields title="Headers">');
+    expect(resolved).toContain('<wc-fields title="Query Parameters">');
+  });
+
+  it('passes description attribute to wc-endpoint', () => {
+    const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('description="');
+  });
+
+  it('adds maxlength attr to wc-field', () => {
+    const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toMatch(/wc-field[^>]*name="name"[^>]*maxlength="100"/);
   });
 
   it('generates body fields from request body', () => {
@@ -1296,6 +1328,107 @@ describe('getEndpoints — enriched data', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// schemaToFields — recursive schema walker
+// ─────────────────────────────────────────────────────────────────────────────
+describe('schemaToFields', () => {
+  it('extracts flat properties with types and constraints', () => {
+    const schema = {
+      type: 'object',
+      required: ['id'],
+      properties: {
+        id: { type: 'string', format: 'uuid', description: 'Unique ID' },
+        name: { type: 'string', maxLength: 100 },
+      },
+    };
+    const fields = schemaToFields(schema);
+    expect(fields).toHaveLength(2);
+    expect(fields[0].name).toBe('id');
+    expect(fields[0].required).toBe(true);
+    expect(fields[0].format).toBe('uuid');
+    expect(fields[1].maxLength).toBe(100);
+  });
+
+  it('handles nested objects with children', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        meta: {
+          type: 'object',
+          required: ['offset'],
+          properties: {
+            offset: { type: 'integer', description: 'Pagination offset' },
+            limit: { type: 'integer' },
+          },
+        },
+      },
+    };
+    const fields = schemaToFields(schema);
+    expect(fields).toHaveLength(1);
+    expect(fields[0].name).toBe('meta');
+    expect(fields[0].type).toBe('object');
+    expect(fields[0].children).toHaveLength(2);
+    expect(fields[0].children[0].name).toBe('offset');
+    expect(fields[0].children[0].required).toBe(true);
+  });
+
+  it('handles array of objects', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+            },
+          },
+        },
+      },
+    };
+    const fields = schemaToFields(schema);
+    expect(fields[0].type).toBe('array[object]');
+    expect(fields[0].children).toHaveLength(1);
+    expect(fields[0].children[0].name).toBe('id');
+  });
+
+  it('resolves allOf composition', () => {
+    const schema = {
+      allOf: [
+        { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] },
+        { properties: { b: { type: 'integer' } } },
+      ],
+    };
+    const fields = schemaToFields(schema);
+    expect(fields).toHaveLength(2);
+    expect(fields[0].name).toBe('a');
+    expect(fields[0].required).toBe(true);
+    expect(fields[1].name).toBe('b');
+  });
+});
+
+describe('response fields in getEndpoints', () => {
+  it('extracts response schema fields for 200 response', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    const endpoints = getEndpoints(spec);
+    const createPet = endpoints.find((e: any) => e.operationId === 'createPet');
+    const r201 = createPet.responses.find((r: any) => r.code === '201');
+    expect(r201.fields).toHaveLength(2);
+    expect(r201.fields[0].name).toBe('id');
+    expect(r201.fields[1].name).toBe('name');
+  });
+
+  it('renders wc-response-fields in resolveSpecRefs', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC, FIXTURE_OVERLAY);
+    const specData = getEndpoints(spec);
+    const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('<wc-response-fields');
+    expect(resolved).toContain('title="Response body application/json"');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // config.js — getOpenAPIConfig
 // ─────────────────────────────────────────────────────────────────────────────
 describe('getOpenAPIConfig', () => {
@@ -1385,8 +1518,8 @@ describe('openapi scaffold — file generation', () => {
     // Check content
     const content = readFileSync(path.join(tmpDir, 'docs', 'api', 'list-pets.md'), 'utf8');
     expect(content).toContain('ref="listPets"');
-    expect(content).toContain('title: List Pets');
-    expect(content).toContain('# List Pets');
+    expect(content).toContain('title: List all pets');
+    expect(content).toContain('# List all pets');
     expect(content).toContain('layout: api');
   });
 
@@ -1395,8 +1528,9 @@ describe('openapi scaffold — file generation', () => {
     expect(config.openapi).toBeDefined();
     const apiGroup = config.sidebar.find((g: any) => g.group === 'API Reference');
     expect(apiGroup).toBeDefined();
-    expect(apiGroup.pages).toContain('api/list-pets');
-    expect(apiGroup.pages).toContain('api/create-pet');
+    const pageIds = apiGroup.pages.map((p: any) => typeof p === 'string' ? p : p.id);
+    expect(pageIds).toContain('api/list-pets');
+    expect(pageIds).toContain('api/create-pet');
   });
 });
 

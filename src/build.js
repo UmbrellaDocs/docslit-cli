@@ -4,7 +4,7 @@ import pc from 'picocolors';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
-import { loadSpec, getEndpoints, resolveSpecRefs } from './openapi.js';
+import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs } from './openapi.js';
 
 // Soft thresholds at which a single-file offline bundle starts to feel slow:
 // browsers can parse much larger HTML, but ~5MB / 200 pages is the point where
@@ -83,6 +83,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
 
   // Load OpenAPI spec if configured
   let specData = null;
+  let apiMeta = null;
   const openapiConfig = getOpenAPIConfig(config);
   if (openapiConfig?.spec) {
     try {
@@ -91,6 +92,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
         openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
       );
       specData = getEndpoints(spec);
+      apiMeta = getApiMeta(spec);
       console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
     } catch (e) {
       console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
@@ -143,7 +145,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
 
     const publishedIds = Object.keys(pagesData);
     for (const [id, { meta, html, isApiPage }] of Object.entries(pagesData)) {
-      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, specData: isApiPage ? specData : null });
+      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, specData: isApiPage ? specData : null, apiMeta: isApiPage ? apiMeta : null });
       const destHtml = path.join(outDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -176,6 +178,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
 
   // Load OpenAPI spec if configured
   let specData = null;
+  let apiMeta = null;
   const openapiConfig = getOpenAPIConfig(config);
   if (openapiConfig?.spec) {
     try {
@@ -184,6 +187,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
         openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
       );
       specData = getEndpoints(spec);
+      apiMeta = getApiMeta(spec);
       console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
     } catch (e) {
       console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
@@ -228,7 +232,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
 
     const publishedIds = Object.keys(defaultPagesData);
     for (const [id, { meta, html, isApiPage }] of Object.entries(defaultPagesData)) {
-      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: isApiPage ? specData : null });
+      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: isApiPage ? specData : null, apiMeta: isApiPage ? apiMeta : null });
       const destHtml = path.join(defaultDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -357,6 +361,16 @@ function buildSearchIndex(config, pagesData) {
           desc: meta.description || meta.desc || '',
           body: '',
         });
+      } else if (item.id) {
+        if (!pagesData[item.id]) continue;
+        const { meta } = pagesData[item.id];
+        index.push({
+          id: item.id,
+          title: meta.title || item.title || toLabel(item.id),
+          group: groupName,
+          desc: meta.description || meta.desc || '',
+          body: '',
+        });
       } else if (item.pages) {
         collectPages(item.pages, groupName);
       }
@@ -389,6 +403,7 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
     const result = [];
     for (const item of (pages || [])) {
       if (typeof item === 'string' && pagesData[item]) result.push(item);
+      else if (typeof item === 'object' && item.id && pagesData[item.id]) result.push(item.id);
       else if (typeof item === 'object' && item.pages) result.push(...collectLlmsPages(item.pages));
     }
     return result;

@@ -24,6 +24,7 @@ export function getAllPageIds(config) {
   function collect(pages) {
     for (const item of (pages || [])) {
       if (typeof item === 'string') ids.push(item);
+      else if (item.id) ids.push(item.id);
       else if (item.pages) collect(item.pages);
     }
   }

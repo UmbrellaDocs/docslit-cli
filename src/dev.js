@@ -173,6 +173,7 @@ export async function dev({ port = 3000 } = {}) {
     function mapPages(pages, groupName) {
       for (const item of (pages || [])) {
         if (typeof item === 'string') groupMap[item] = groupName;
+        else if (item.id) groupMap[item.id] = groupName;
         else if (item.pages) mapPages(item.pages, groupName);
       }
     }

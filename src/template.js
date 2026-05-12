@@ -70,7 +70,7 @@ ${appBlock}
 </html>`;
 }
 
-export function renderPage({ config, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null }) {
+export function renderPage({ config, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null }) {
   const sidebarHtml = buildSidebarHtml(config, draftPageIds, id);
   const siteTitle = config.name || 'DocsLit';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
@@ -111,7 +111,7 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   const breadcrumbText = groupName ? `${escHtml(groupName)} › ${escHtml(pageTitle)}` : escHtml(pageTitle);
   const isApiPage = id.startsWith('api/') || meta.layout === 'api';
   const apiClass = isApiPage ? ' api-layout' : '';
-  const apiSidebar = isApiPage && specData ? buildApiSidebarHtml(specData, id) : null;
+  const apiSidebar = isApiPage && specData ? buildApiSidebarHtml(specData, id, apiMeta) : null;
   const effectiveSidebarHtml = apiSidebar || sidebarHtml;
 
   return `<!DOCTYPE html>
@@ -668,7 +668,11 @@ function buildSidebarHtml(config, draftIds = [], activePageId = null) {
     let out = '';
     for (const item of pages) {
       if (typeof item === 'object' && item.group) {
-        const subPages = (item.pages || []).filter(p => typeof p === 'string' ? !draftSet.has(p) : true);
+        const subPages = (item.pages || []).filter(p => {
+          if (typeof p === 'string') return !draftSet.has(p);
+          if (p.id) return !draftSet.has(p.id);
+          return true;
+        });
         if (!subPages.length) continue;
         out += `<div class="sidebar-subgroup">`;
         out += `<div class="sidebar-subgroup-title">${escHtml(item.group)}</div>`;
@@ -678,13 +682,26 @@ function buildSidebarHtml(config, draftIds = [], activePageId = null) {
         const label = toLabel(item);
         const activeClass = item === activePageId ? ' active' : '';
         out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item)}" href="${escHtml(item)}" onclick="loadPage('${escHtml(item)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
+      } else if (typeof item === 'object' && item.id && !draftSet.has(item.id)) {
+        const label = item.title || toLabel(item.id);
+        const activeClass = item.id === activePageId ? ' active' : '';
+        if (item.method) {
+          const methodClass = item.method.toLowerCase();
+          out += `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(item.id)}" href="${escHtml(item.id)}" onclick="loadPage('${escHtml(item.id)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${item.method}</span></a>`;
+        } else {
+          out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item.id)}" href="${escHtml(item.id)}" onclick="loadPage('${escHtml(item.id)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
+        }
       }
     }
     return out;
   }
   let html = '';
   for (const group of (config.sidebar || [])) {
-    const visiblePages = (group.pages || []).filter(p => typeof p === 'string' ? !draftSet.has(p) : true);
+    const visiblePages = (group.pages || []).filter(p => {
+      if (typeof p === 'string') return !draftSet.has(p);
+      if (p.id) return !draftSet.has(p.id);
+      return true;
+    });
     if (!visiblePages.length) continue;
     html += `<div class="sidebar-section">`;
     html += `<div class="sidebar-group-title">${escHtml(group.group || '')}</div>`;
@@ -694,26 +711,67 @@ function buildSidebarHtml(config, draftIds = [], activePageId = null) {
   return html;
 }
 
-function buildApiSidebarHtml(specData, activePageId) {
+function buildApiSidebarHtml(specData, activePageId, apiMeta) {
   const byTag = new Map();
   for (const ep of specData) {
     const tag = ep.tags[0] || 'Default';
     if (!byTag.has(tag)) byTag.set(tag, []);
     byTag.get(tag).push(ep);
   }
+
+  function renderEndpoint(ep) {
+    if (!ep.operationId) return '';
+    const slug = ep.operationId.replace(/([a-z])([A-Z])/g, '$1-$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2').toLowerCase();
+    const pageId = `api/${slug}`;
+    const activeClass = pageId === activePageId ? ' active' : '';
+    const methodClass = ep.method.toLowerCase();
+    const label = ep.summary || ep.path;
+    return `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(pageId)}" href="${escHtml(pageId)}" onclick="loadPage('${escHtml(pageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${ep.method}</span></a>`;
+  }
+
+  function renderTagSection(tagName) {
+    const eps = byTag.get(tagName);
+    if (!eps || !eps.length) return '';
+    let out = `<div class="sidebar-tag-section">`;
+    out += `<div class="sidebar-tag-title">${escHtml(tagName)}</div>`;
+    for (const ep of eps) out += renderEndpoint(ep);
+    out += `</div>`;
+    return out;
+  }
+
+  const tagGroups = apiMeta?.tagGroups || [];
   let html = '';
-  for (const [tag, eps] of byTag) {
-    html += `<div class="sidebar-section">`;
-    html += `<div class="sidebar-group-title">${escHtml(tag)}</div>`;
-    for (const ep of eps) {
-      if (!ep.operationId) continue;
-      const slug = ep.operationId.replace(/([a-z])([A-Z])/g, '$1-$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2').toLowerCase();
-      const pageId = `api/${slug}`;
-      const activeClass = pageId === activePageId ? ' active' : '';
-      const methodClass = ep.method.toLowerCase();
-      html += `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(pageId)}" href="${escHtml(pageId)}" onclick="loadPage('${escHtml(pageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"><span class="method-badge ${methodClass}">${ep.method}</span> ${escHtml(ep.path)}</a>`;
+
+  if (tagGroups.length) {
+    const renderedTags = new Set();
+    for (const group of tagGroups) {
+      let groupContent = '';
+      for (const tagName of group.tags) {
+        groupContent += renderTagSection(tagName);
+        renderedTags.add(tagName);
+      }
+      if (!groupContent) continue;
+      html += `<div class="sidebar-section">`;
+      html += `<div class="sidebar-group-title">${escHtml(group.name)}</div>`;
+      html += groupContent;
+      html += `</div>`;
     }
-    html += `</div>`;
+    for (const [tag] of byTag) {
+      if (!renderedTags.has(tag)) {
+        html += `<div class="sidebar-section">`;
+        html += `<div class="sidebar-group-title">${escHtml(tag)}</div>`;
+        const eps = byTag.get(tag);
+        for (const ep of eps) html += renderEndpoint(ep);
+        html += `</div>`;
+      }
+    }
+  } else {
+    for (const [tag, eps] of byTag) {
+      html += `<div class="sidebar-section">`;
+      html += `<div class="sidebar-group-title">${escHtml(tag)}</div>`;
+      for (const ep of eps) html += renderEndpoint(ep);
+      html += `</div>`;
+    }
   }
   return html;
 }
@@ -736,6 +794,7 @@ function findGroupForPage(sidebar, id) {
 function containsPage(pages, id) {
   for (const item of pages) {
     if (typeof item === 'string' && item === id) return true;
+    if (typeof item === 'object' && item.id && item.id === id) return true;
     if (typeof item === 'object' && item.pages && containsPage(item.pages, id)) return true;
   }
   return false;
@@ -1697,7 +1756,10 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 .method-badge.post { background: rgba(59,130,246,.15); color: #60a5fa; }
 .method-badge.put, .method-badge.patch { background: rgba(245,158,11,.15); color: #fbbf24; }
 .method-badge.delete { background: rgba(239,68,68,.15); color: #f87171; }
-.api-nav-item { font-size: 13px !important; font-family: var(--font-mono); display: flex !important; align-items: center; }
+.api-nav-item { font-size: 13px !important; font-family: var(--font-sans); display: flex !important; align-items: center; justify-content: space-between; gap: 8px; }
+.api-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-tag-section { margin: 0 0 4px; }
+.sidebar-tag-title { font-size: 13px; font-weight: 600; color: var(--text); padding: 6px 16px 4px; }
 
 /* RESPONSIVE */
 @media(max-width:1280px) {

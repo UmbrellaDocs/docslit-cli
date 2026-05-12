@@ -6,6 +6,13 @@ security:
   - apiKey: []
 paths:
   /pets:
+    parameters:
+      - name: X-Request-ID
+        in: header
+        required: false
+        schema:
+          type: string
+          format: uuid
     get:
       operationId: listPets
       summary: List all pets
@@ -63,6 +70,7 @@ paths:
               properties:
                 name:
                   type: string
+                  maxLength: 100
                   example: "Buddy"
                 tag:
                   type: string
