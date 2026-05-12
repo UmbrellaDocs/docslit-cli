@@ -7,8 +7,9 @@ import git from 'isomorphic-git';
 import * as nodeFs from 'node:fs';
 import { parseDoc } from './markdown.js';
 import { rewriteMdxTags, pascalToWcKebab, COMPONENT_MAP } from './mdx-bridge.js';
-import { getAllPageIds, getVersionConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
+import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
 import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile } from './template.js';
+import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs } from './openapi.js';
 import { buildComponents } from './components/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -962,5 +963,246 @@ describe('buildComponentsFile', () => {
     const js = buildComponentsFile('static');
     expect(js).toContain("import { LitElement");
     expect(js).toContain('customElements.define');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// openapi.js — spec loading and data extraction
+// ─────────────────────────────────────────────────────────────────────────────
+const FIXTURE_SPEC = path.join(__dirname, 'test-fixtures/petstore.yaml');
+const FIXTURE_OVERLAY = path.join(__dirname, 'test-fixtures/petstore-overlay.yaml');
+
+describe('loadSpec', () => {
+  it('parses a YAML spec and returns a resolved object', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    expect(spec.openapi).toBe('3.1.0');
+    expect(spec.info.title).toBe('Petstore API');
+    expect(spec.paths['/pets']).toBeDefined();
+  });
+
+  it('throws for a non-existent spec file', async () => {
+    await expect(loadSpec('/tmp/no-such-file.yaml')).rejects.toThrow('not found');
+  });
+
+  it('applies an overlay when provided', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC, FIXTURE_OVERLAY);
+    const createPet = spec.paths['/pets'].post;
+    expect(createPet.description).toContain('Creates a new pet');
+    expect(createPet['x-docslit-examples']).toHaveLength(1);
+    expect(createPet['x-docslit-examples'][0].label).toBe('cURL');
+  });
+
+  it('throws for a non-existent overlay file', async () => {
+    await expect(loadSpec(FIXTURE_SPEC, '/tmp/no-overlay.yaml')).rejects.toThrow('overlay not found');
+  });
+});
+
+describe('getEndpoints', () => {
+  let spec: any;
+  let endpoints: any[];
+
+  beforeAll(async () => {
+    spec = await loadSpec(FIXTURE_SPEC);
+    endpoints = getEndpoints(spec);
+  });
+
+  it('extracts all endpoints from spec', () => {
+    expect(endpoints).toHaveLength(3);
+  });
+
+  it('extracts method and path correctly', () => {
+    const listPets = endpoints.find((e: any) => e.operationId === 'listPets');
+    expect(listPets.method).toBe('GET');
+    expect(listPets.path).toBe('/pets');
+  });
+
+  it('extracts parameters with constraints', () => {
+    const listPets = endpoints.find((e: any) => e.operationId === 'listPets');
+    expect(listPets.parameters).toHaveLength(1);
+    const limit = listPets.parameters[0];
+    expect(limit.name).toBe('limit');
+    expect(limit.in).toBe('query');
+    expect(limit.required).toBe(false);
+    expect(limit.type).toBe('integer');
+    expect(limit.minimum).toBe(1);
+    expect(limit.maximum).toBe(100);
+  });
+
+  it('extracts request body fields', () => {
+    const createPet = endpoints.find((e: any) => e.operationId === 'createPet');
+    expect(createPet.bodyFields).toHaveLength(2);
+    const nameField = createPet.bodyFields.find((f: any) => f.name === 'name');
+    expect(nameField.in).toBe('body');
+    expect(nameField.required).toBe(true);
+    expect(nameField.type).toBe('string');
+  });
+
+  it('extracts tags', () => {
+    const getPet = endpoints.find((e: any) => e.operationId === 'getPet');
+    expect(getPet.tags).toEqual(['Pets']);
+  });
+
+  it('extracts summary', () => {
+    const getPet = endpoints.find((e: any) => e.operationId === 'getPet');
+    expect(getPet.summary).toBe('Get a pet by ID');
+  });
+});
+
+describe('getEndpoints — with overlay', () => {
+  it('includes x-docslit-examples from overlay', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC, FIXTURE_OVERLAY);
+    const endpoints = getEndpoints(spec);
+    const createPet = endpoints.find((e: any) => e.operationId === 'createPet');
+    expect(createPet.description).toContain('Creates a new pet');
+    expect(createPet.examples).toHaveLength(1);
+    expect(createPet.examples[0].label).toBe('cURL');
+  });
+});
+
+describe('getOperation', () => {
+  it('returns the matching operation by operationId', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    const op = getOperation(spec, 'getPet');
+    expect(op).not.toBeNull();
+    expect(op!.method).toBe('GET');
+    expect(op!.path).toBe('/pets/{petId}');
+  });
+
+  it('returns null for unknown operationId', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    expect(getOperation(spec, 'nonExistent')).toBeNull();
+  });
+});
+
+describe('getWebhooks', () => {
+  it('extracts webhooks from spec', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    const webhooks = getWebhooks(spec);
+    expect(webhooks).toHaveLength(1);
+    expect(webhooks[0].name).toBe('petAdopted');
+    expect(webhooks[0].method).toBe('POST');
+    expect(webhooks[0].summary).toBe('Pet was adopted');
+    expect(webhooks[0].payloadFields).toHaveLength(2);
+  });
+
+  it('returns empty array when no webhooks defined', async () => {
+    const webhooks = getWebhooks({ openapi: '3.1.0', paths: {} });
+    expect(webhooks).toEqual([]);
+  });
+});
+
+describe('getSecuritySchemes', () => {
+  it('extracts security schemes from spec', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    const schemes = getSecuritySchemes(spec);
+    expect(schemes.apiKey).toBeDefined();
+    expect(schemes.apiKey.type).toBe('apiKey');
+    expect(schemes.apiKey.name).toBe('X-API-Key');
+  });
+
+  it('returns empty object when no schemes defined', () => {
+    expect(getSecuritySchemes({ openapi: '3.1.0', paths: {} })).toEqual({});
+  });
+});
+
+describe('getUndocumentedOps', () => {
+  it('returns operationIds not in the provided refs', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    const undoc = getUndocumentedOps(spec, ['listPets']);
+    expect(undoc).toContain('createPet');
+    expect(undoc).toContain('getPet');
+    expect(undoc).not.toContain('listPets');
+  });
+
+  it('returns empty array when all ops are documented', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    const undoc = getUndocumentedOps(spec, ['listPets', 'createPet', 'getPet']);
+    expect(undoc).toEqual([]);
+  });
+});
+
+describe('resolveSpecRefs', () => {
+  let specData: any[];
+
+  beforeAll(async () => {
+    const spec = await loadSpec(FIXTURE_SPEC, FIXTURE_OVERLAY);
+    specData = getEndpoints(spec);
+  });
+
+  it('injects method and url into wc-endpoint with ref', () => {
+    const html = '<wc-endpoint ref="listPets">User prose</wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('method="GET"');
+    expect(resolved).toContain('url="/pets"');
+    expect(resolved).toContain('User prose');
+  });
+
+  it('generates wc-fields with wc-field children from spec params', () => {
+    const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('<wc-fields>');
+    expect(resolved).toContain('name="limit"');
+    expect(resolved).toContain('type="integer"');
+    expect(resolved).toContain('in="query"');
+  });
+
+  it('generates body fields from request body', () => {
+    const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('name="name"');
+    expect(resolved).toContain('in="body"');
+    expect(resolved).toContain('required');
+  });
+
+  it('preserves existing children', () => {
+    const html = '<wc-endpoint ref="listPets"><p>Custom content</p></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('<p>Custom content</p>');
+    expect(resolved).toContain('method="GET"');
+  });
+
+  it('injects examples from overlay', () => {
+    const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('<wc-code-tab');
+    expect(resolved).toContain('label="cURL"');
+    expect(resolved).toContain('language="bash"');
+  });
+
+  it('leaves unmatched refs unchanged', () => {
+    const html = '<wc-endpoint ref="nonExistent">Content</wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toBe(html);
+  });
+
+  it('handles multiple refs in one document', () => {
+    const html = '<wc-endpoint ref="listPets"></wc-endpoint>\n<wc-endpoint ref="getPet"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('method="GET" url="/pets"');
+    expect(resolved).toContain('method="GET" url="/pets/{petId}"');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// config.js — getOpenAPIConfig
+// ─────────────────────────────────────────────────────────────────────────────
+describe('getOpenAPIConfig', () => {
+  it('returns null when no openapi field', () => {
+    expect(getOpenAPIConfig({ name: 'Test', sidebar: [] })).toBeNull();
+  });
+
+  it('parses string shorthand', () => {
+    const result = getOpenAPIConfig({ openapi: 'spec.yaml' });
+    expect(result).toEqual({ spec: 'spec.yaml', overlay: null });
+  });
+
+  it('parses object form with spec and overlay', () => {
+    const result = getOpenAPIConfig({ openapi: { spec: 'api.yaml', overlay: 'overlay.yaml' } });
+    expect(result).toEqual({ spec: 'api.yaml', overlay: 'overlay.yaml' });
+  });
+
+  it('parses object form without overlay', () => {
+    const result = getOpenAPIConfig({ openapi: { spec: 'api.yaml' } });
+    expect(result).toEqual({ spec: 'api.yaml', overlay: null });
   });
 });

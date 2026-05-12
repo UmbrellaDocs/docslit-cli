@@ -1,0 +1,78 @@
+openapi: "3.1.0"
+info:
+  title: Petstore API
+  version: "1.0.0"
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      summary: List all pets
+      tags:
+        - Pets
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: A list of pets
+    post:
+      operationId: createPet
+      summary: Create a pet
+      tags:
+        - Pets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                tag:
+                  type: string
+      responses:
+        "201":
+          description: Pet created
+  /pets/{petId}:
+    get:
+      operationId: getPet
+      summary: Get a pet by ID
+      tags:
+        - Pets
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A single pet
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      name: X-API-Key
+      in: header
+webhooks:
+  petAdopted:
+    post:
+      summary: Pet was adopted
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                petId:
+                  type: string
+                adoptedBy:
+                  type: string

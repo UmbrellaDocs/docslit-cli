@@ -30,7 +30,7 @@ const BUILTIN_COMPONENTS = new Set([
 // Known valid frontmatter keys
 const VALID_FM_KEYS = new Set([
   'title', 'description', 'icon', 'tag', 'readtime', 'updated',
-  'sidebar_title', 'component', 'draft', 'order', 'redirect',
+  'sidebar_title', 'component', 'draft', 'order', 'redirect', 'layout',
 ]);
 
 // Recognised icon names (subset — just validates non-empty string)
@@ -119,6 +119,31 @@ async function checkConfig(dir) {
           `Duplicate page slug in sidebar: "${slug}"`));
       }
       seen.add(slug);
+    }
+  }
+
+  // Check OpenAPI spec configuration
+  if (config.openapi) {
+    const specFile = typeof config.openapi === 'string' ? config.openapi : config.openapi?.spec;
+    const overlayFile = typeof config.openapi === 'object' ? config.openapi?.overlay : null;
+
+    if (specFile) {
+      const specPath = path.join(dir, specFile);
+      if (!await fs.pathExists(specPath)) {
+        issues.push(issue('error', 'docslit.json', null,
+          `OpenAPI spec file not found: ${specFile}`));
+      }
+    } else {
+      issues.push(issue('error', 'docslit.json', null,
+        'openapi config is set but no spec file specified'));
+    }
+
+    if (overlayFile) {
+      const overlayPath = path.join(dir, overlayFile);
+      if (!await fs.pathExists(overlayPath)) {
+        issues.push(issue('error', 'docslit.json', null,
+          `OpenAPI overlay file not found: ${overlayFile}`));
+      }
     }
   }
 

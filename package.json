@@ -33,6 +33,7 @@
   ],
   "license": "AGPL-3.0-only",
   "dependencies": {
+    "@redocly/openapi-core": "^2.30.4",
     "chokidar": "^5.0.0",
     "express": "^5.2.1",
     "fflate": "^0.8.2",
@@ -40,6 +41,7 @@
     "gray-matter": "^4.0.3",
     "isomorphic-git": "^1.37.6",
     "marked": "^18.0.3",
+    "openapi-overlays-js": "^0.2.0",
     "picocolors": "^1.1.1",
     "ws": "^8.20.0"
   },

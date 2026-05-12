@@ -29,6 +29,14 @@ export function getAllPageIds(config) {
   return ids;
 }
 
+export function getOpenAPIConfig(config) {
+  if (!config.openapi) return null;
+  if (typeof config.openapi === 'string') {
+    return { spec: config.openapi, overlay: null };
+  }
+  return { spec: config.openapi.spec || null, overlay: config.openapi.overlay || null };
+}
+
 export function getVersionConfig(config) {
   if (!config.versions || !config.versions.list || !config.versions.list.length) return null;
   return config.versions;

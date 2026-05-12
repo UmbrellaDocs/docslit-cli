@@ -1,0 +1,15 @@
+overlay: 1.0.0
+info:
+  title: Petstore enrichments
+  version: 1.0.0
+actions:
+  - target: $.paths['/pets'].post
+    update:
+      description: Creates a new pet in the store and returns the created resource.
+      x-docslit-examples:
+        - label: cURL
+          lang: bash
+          code: |
+            curl -X POST https://api.petstore.com/pets \
+              -H "X-API-Key: {{API_KEY}}" \
+              -d '{"name": "Fido"}'
