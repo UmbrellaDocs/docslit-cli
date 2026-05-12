@@ -4,7 +4,7 @@ import pc from 'picocolors';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
-import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs } from './openapi.js';
+import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 
 // Soft thresholds at which a single-file offline bundle starts to feel slow:
 // browsers can parse much larger HTML, but ~5MB / 200 pages is the point where
@@ -124,7 +124,11 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
     pagesData[id] = { meta, html, isApiPage };
     const destMd = path.join(outDir, `${id}.md`);
     await fs.ensureDir(path.dirname(destMd));
-    await fs.copyFile(mdPath, destMd);
+    if (isApiPage && specData) {
+      await fs.writeFile(destMd, buildApiPageMarkdown(raw, specData));
+    } else {
+      await fs.copyFile(mdPath, destMd);
+    }
     built++;
   }
 
@@ -212,7 +216,11 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     defaultPagesData[id] = { meta, html, isApiPage };
     const destMd = path.join(defaultDir, `${id}.md`);
     await fs.ensureDir(path.dirname(destMd));
-    await fs.copyFile(mdPath, destMd);
+    if (isApiPage && specData) {
+      await fs.writeFile(destMd, buildApiPageMarkdown(raw, specData));
+    } else {
+      await fs.copyFile(mdPath, destMd);
+    }
     built++;
   }
 

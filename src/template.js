@@ -462,7 +462,10 @@ function _filterSidebar(query) {
   var q = query.trim().toLowerCase();
 
   scroll.querySelectorAll('.sidebar-item').forEach(function(item) {
-    if (!item.dataset.label) item.dataset.label = item.textContent;
+    if (!item.dataset.label) {
+      var labelEl = item.querySelector('.api-nav-label');
+      item.dataset.label = labelEl ? labelEl.textContent : item.textContent;
+    }
   });
 
   var noResults = scroll.querySelector('.sidebar-no-results');
@@ -472,7 +475,8 @@ function _filterSidebar(query) {
 
   if (!q) {
     scroll.querySelectorAll('.sidebar-item').forEach(function(item) {
-      item.innerHTML = _escFilter(item.dataset.label);
+      var target = item.querySelector('.api-nav-label') || item;
+      target.innerHTML = _escFilter(item.dataset.label);
       item.style.display = '';
       item.classList.remove('filter-focus');
     });
@@ -492,7 +496,8 @@ function _filterSidebar(query) {
       var lower = text.toLowerCase();
       var idx = lower.indexOf(q);
       if (idx >= 0) {
-        item.innerHTML = _escFilter(text.slice(0, idx))
+        var target = item.querySelector('.api-nav-label') || item;
+        target.innerHTML = _escFilter(text.slice(0, idx))
           + '<mark class="filter-hl">' + _escFilter(text.slice(idx, idx + q.length)) + '</mark>'
           + _escFilter(text.slice(idx + q.length));
         item.style.display = '';

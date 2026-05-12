@@ -9,7 +9,7 @@ import { parseDoc } from './markdown.js';
 import { rewriteMdxTags, pascalToWcKebab, COMPONENT_MAP } from './mdx-bridge.js';
 import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
 import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile } from './template.js';
-import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs, schemaToFields } from './openapi.js';
+import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs, schemaToFields, endpointToMarkdown, buildApiPageMarkdown } from './openapi.js';
 import { buildComponents } from './components/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1638,5 +1638,136 @@ describe('components — wc-endpoint upgrades', () => {
 
   it('wc-endpoint has summary property', () => {
     expect(components).toContain("summary:{type:String}");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// endpointToMarkdown + buildApiPageMarkdown
+// ─────────────────────────────────────────────────────────────────────────────
+describe('endpointToMarkdown', () => {
+  let spec: any;
+  let endpoints: any[];
+
+  beforeAll(async () => {
+    spec = await loadSpec(path.join(__dirname, 'test-fixtures/petstore.yaml'));
+    endpoints = getEndpoints(spec);
+  });
+
+  it('generates heading with method and path', () => {
+    const op = endpoints.find((e: any) => e.operationId === 'listPets');
+    const md = endpointToMarkdown(op);
+    expect(md).toContain('## GET /pets');
+  });
+
+  it('includes summary and description', () => {
+    const op = endpoints.find((e: any) => e.operationId === 'listPets');
+    const md = endpointToMarkdown(op);
+    expect(md).toContain('List all pets');
+  });
+
+  it('renders query parameters table', () => {
+    const op = endpoints.find((e: any) => e.operationId === 'listPets');
+    const md = endpointToMarkdown(op);
+    expect(md).toContain('### Query Parameters');
+    expect(md).toContain('`limit`');
+  });
+
+  it('renders request body fields', () => {
+    const op = endpoints.find((e: any) => e.operationId === 'createPet');
+    const md = endpointToMarkdown(op);
+    expect(md).toContain('### Request Body');
+    expect(md).toContain('`name`');
+    expect(md).toContain('**required**');
+  });
+
+  it('renders response sections', () => {
+    const op = endpoints.find((e: any) => e.operationId === 'createPet');
+    const md = endpointToMarkdown(op);
+    expect(md).toContain('### Responses');
+    expect(md).toContain('#### 201 Pet created');
+  });
+
+  it('renders response examples', () => {
+    const op = endpoints.find((e: any) => e.operationId === 'listPets');
+    const md = endpointToMarkdown(op);
+    expect(md).toContain('```json');
+    expect(md).toContain('Fido');
+  });
+
+  it('returns empty string for null input', () => {
+    expect(endpointToMarkdown(null)).toBe('');
+  });
+});
+
+describe('buildApiPageMarkdown', () => {
+  let spec: any;
+  let endpoints: any[];
+
+  beforeAll(async () => {
+    spec = await loadSpec(path.join(__dirname, 'test-fixtures/petstore.yaml'));
+    endpoints = getEndpoints(spec);
+  });
+
+  it('replaces wc-endpoint refs with enriched markdown', () => {
+    const raw = `---
+title: Pets API
+layout: api
+---
+
+# Pets API
+
+<wc-endpoint ref="listPets"></wc-endpoint>`;
+
+    const md = buildApiPageMarkdown(raw, endpoints);
+    expect(md).toContain('# Pets API');
+    expect(md).toContain('## GET /pets');
+    expect(md).toContain('`limit`');
+    expect(md).not.toContain('wc-endpoint');
+  });
+
+  it('preserves frontmatter', () => {
+    const raw = `---
+title: Test
+layout: api
+---
+
+<wc-endpoint ref="createPet"></wc-endpoint>`;
+
+    const md = buildApiPageMarkdown(raw, endpoints);
+    expect(md).toContain('---\ntitle: Test\nlayout: api\n---');
+  });
+
+  it('handles multiple refs', () => {
+    const raw = `---
+title: All
+---
+
+# All Endpoints
+
+<wc-endpoint ref="listPets"></wc-endpoint>
+<wc-endpoint ref="createPet"></wc-endpoint>`;
+
+    const md = buildApiPageMarkdown(raw, endpoints);
+    expect(md).toContain('## GET /pets');
+    expect(md).toContain('## POST /pets');
+  });
+
+  it('passes through content with no refs unchanged', () => {
+    const raw = `# Just a page\n\nNo API refs here.`;
+    const md = buildApiPageMarkdown(raw, endpoints);
+    expect(md).toBe(raw);
+  });
+
+  it('skips unknown refs gracefully', () => {
+    const raw = `---
+title: Missing
+---
+
+# Missing
+
+<wc-endpoint ref="nonExistentOp"></wc-endpoint>`;
+
+    const md = buildApiPageMarkdown(raw, endpoints);
+    expect(md).not.toContain('##');
   });
 });

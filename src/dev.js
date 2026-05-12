@@ -9,7 +9,7 @@ import pc from 'picocolors';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell } from './template.js';
-import { loadSpec, getEndpoints, resolveSpecRefs } from './openapi.js';
+import { loadSpec, getEndpoints, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -158,8 +158,10 @@ export async function dev({ port = 3000 } = {}) {
     if (!await fs.pathExists(mdPath)) {
       return res.status(404).send('Not found');
     }
+    const mdRaw = await fs.readFile(mdPath, 'utf8');
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.send(await fs.readFile(mdPath, 'utf8'));
+    const isApiPage = slug.startsWith('api/') || /^---\n[\s\S]*?layout:\s*api[\s\S]*?\n---/.test(mdRaw);
+    res.send(isApiPage && specData ? buildApiPageMarkdown(mdRaw, specData) : mdRaw);
   });
 
   // API: search index
@@ -225,8 +227,10 @@ export async function dev({ port = 3000 } = {}) {
       const docsDir = path.join(cwd, 'docs');
       const mdPath = path.resolve(docsDir, `${slug}.md`);
       if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
+        const mdRaw = await fs.readFile(mdPath, 'utf8');
+        const isApi = slug.startsWith('api/') || /^---\n[\s\S]*?layout:\s*api[\s\S]*?\n---/.test(mdRaw);
         res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-        return res.send(await fs.readFile(mdPath, 'utf8'));
+        return res.send(isApi && specData ? buildApiPageMarkdown(mdRaw, specData) : mdRaw);
       }
       return res.status(404).send('Not found');
     }

@@ -380,6 +380,130 @@ function buildFieldHtml(f) {
   return `<wc-field ${parts.join(' ')}></wc-field>`;
 }
 
+export function endpointToMarkdown(op) {
+  if (!op) return '';
+  const lines = [];
+
+  lines.push(`## ${op.method} ${op.path}\n`);
+  if (op.summary) lines.push(`${op.summary}\n`);
+  if (op.description) lines.push(`${op.description}\n`);
+
+  const paramGroups = [
+    { key: 'header', title: 'Headers' },
+    { key: 'path', title: 'Path Parameters' },
+    { key: 'query', title: 'Query Parameters' },
+    { key: 'cookie', title: 'Cookie Parameters' },
+  ];
+  for (const g of paramGroups) {
+    const fields = op.parameters.filter(f => f.in === g.key);
+    if (!fields.length) continue;
+    lines.push(`### ${g.title}\n`);
+    lines.push(fieldsToMarkdownTable(fields));
+  }
+
+  if (op.bodyFields.length) {
+    const title = op.requestBodyContentType ? `Request Body (${op.requestBodyContentType})` : 'Request Body';
+    lines.push(`### ${title}\n`);
+    lines.push(fieldsToMarkdown(op.bodyFields, 0));
+  }
+
+  if (op.responses.length) {
+    lines.push(`### Responses\n`);
+    for (const r of op.responses) {
+      const ct = r.content[0]?.mediaType || '';
+      lines.push(`#### ${r.code} ${r.description}${ct ? ` (${ct})` : ''}\n`);
+      if (r.fields?.length) {
+        lines.push(fieldsToMarkdown(r.fields, 0));
+      }
+      for (const c of r.content) {
+        for (const ex of c.examples) {
+          if (ex.value !== undefined) {
+            lines.push(`**Example${ex.summary && ex.summary !== 'Example' ? ` — ${ex.summary}` : ''}:**\n`);
+            lines.push('```json');
+            lines.push(typeof ex.value === 'string' ? ex.value : JSON.stringify(ex.value, null, 2));
+            lines.push('```\n');
+          }
+        }
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function fieldsToMarkdownTable(fields) {
+  const lines = ['| Name | Type | Required | Description |', '|---|---|---|---|'];
+  for (const f of fields) {
+    const type = f.format ? `${f.type} (${f.format})` : f.type;
+    const req = f.required ? 'Yes' : 'No';
+    const desc = buildFieldDesc(f);
+    lines.push(`| \`${f.name}\` | ${type} | ${req} | ${desc} |`);
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+function fieldsToMarkdown(fields, depth) {
+  const lines = [];
+  const indent = '  '.repeat(depth);
+  for (const f of fields) {
+    const type = f.format ? `${f.type} (${f.format})` : f.type;
+    const req = f.required ? ' **required**' : '';
+    lines.push(`${indent}- \`${f.name}\` *${type}*${req}${f.description ? ` — ${f.description}` : ''}`);
+
+    const extras = [];
+    if (f.enum) extras.push(`Enum: ${f.enum.join(', ')}`);
+    if (f.default !== null && f.default !== undefined) extras.push(`Default: \`${f.default}\``);
+    if (f.example !== null && f.example !== undefined) extras.push(`Example: \`${f.example}\``);
+    if (f.maxLength !== null) extras.push(`Max length: ${f.maxLength}`);
+    if (f.minLength !== null) extras.push(`Min length: ${f.minLength}`);
+    if (f.minimum !== null && f.maximum !== null) extras.push(`Range: ${f.minimum}–${f.maximum}`);
+    else if (f.minimum !== null) extras.push(`Min: ${f.minimum}`);
+    else if (f.maximum !== null) extras.push(`Max: ${f.maximum}`);
+    if (extras.length) lines.push(`${indent}  ${extras.join(' · ')}`);
+
+    if (f.children?.length) {
+      lines.push(fieldsToMarkdown(f.children, depth + 1));
+    }
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+function buildFieldDesc(f) {
+  const parts = [f.description || ''];
+  if (f.enum) parts.push(`Enum: ${f.enum.join(', ')}`);
+  if (f.default !== null && f.default !== undefined) parts.push(`Default: \`${f.default}\``);
+  if (f.example !== null && f.example !== undefined) parts.push(`Example: \`${f.example}\``);
+  return parts.filter(Boolean).join('. ').replace(/\|/g, '\\|');
+}
+
+export function buildApiPageMarkdown(raw, specData) {
+  const refRe = /<wc-endpoint\s[^>]*ref="([^"]+)"[^>]*>[\s\S]*?<\/wc-endpoint>/g;
+  const endpoints = Array.isArray(specData) ? specData : getEndpoints(specData);
+  const refs = [];
+  let m;
+  while ((m = refRe.exec(raw)) !== null) refs.push(m[1]);
+  if (!refs.length) return raw;
+
+  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  const frontmatter = fmMatch ? fmMatch[1] : '';
+  const body = fmMatch ? fmMatch[2] : raw;
+
+  const parts = [];
+  if (frontmatter) parts.push(`---\n${frontmatter}\n---\n`);
+
+  const titleMatch = body.match(/^#\s+(.+)/m);
+  if (titleMatch) parts.push(`# ${titleMatch[1]}\n`);
+
+  for (const ref of refs) {
+    const op = endpoints.find(e => e.operationId === ref);
+    if (op) parts.push(endpointToMarkdown(op));
+  }
+
+  return parts.join('\n');
+}
+
 function escapeAttr(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
