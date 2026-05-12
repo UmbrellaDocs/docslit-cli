@@ -416,6 +416,8 @@ function _placeApiExamples(content, isApi) {
     inlineWrap = document.createElement('div');
     inlineWrap.className = 'api-examples-inline';
   }
+  inlineWrap.innerHTML = '';
+  if (exPanel) exPanel.innerHTML = '';
   var pageNav = content.querySelector('.page-nav');
   if (pageNav) content.insertBefore(inlineWrap, pageNav);
   else content.appendChild(inlineWrap);
