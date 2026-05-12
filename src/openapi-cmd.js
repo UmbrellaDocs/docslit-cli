@@ -25,6 +25,22 @@ function toTitle(operationId) {
     .replace(/^./, c => c.toUpperCase());
 }
 
+function yamlValue(str) {
+  if (!str) return '""';
+  if (/[\n\r]/.test(str)) str = str.split(/\r?\n/)[0].trim();
+  if (/[:#{}[\],&*?|>!'"%@`]/.test(str) || str.trim() !== str) {
+    return `"${str.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  }
+  return str;
+}
+
+function tagDisplayName(tag) {
+  return tag
+    .replace(/Service$/, '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+}
+
 export async function openapiScaffold(args) {
   const specPath = args.find(a => !a.startsWith('--'));
   if (!specPath) {
@@ -109,9 +125,9 @@ export async function openapiScaffold(args) {
       const description = ep.description || ep.summary || '';
       const frontmatter = [
         '---',
-        `title: ${title}`,
+        `title: ${yamlValue(title)}`,
       ];
-      if (description) frontmatter.push(`description: ${description}`);
+      if (description) frontmatter.push(`description: ${yamlValue(description)}`);
       frontmatter.push('layout: api');
       frontmatter.push('---');
 
@@ -129,7 +145,7 @@ export async function openapiScaffold(args) {
   const info = spec.info || {};
   const introPath = path.join(docsDir, 'introduction.md');
   if (info.title && !await fs.pathExists(introPath)) {
-    const lines = ['---', `title: ${info.title}`, '---', ''];
+    const lines = ['---', `title: ${yamlValue(info.title)}`, '---', ''];
     lines.push(`# ${info.title}${info.version ? ` (${info.version})` : ''}`);
     lines.push('');
     const metaParts = [];
@@ -200,6 +216,17 @@ export async function openapiScaffold(args) {
       if (groupPages.length) {
         sidebar.push({ group: tg.name, pages: groupPages });
       }
+    }
+  } else if (pageIdsByTag.size > 1) {
+    const groups = [];
+    for (const [tag, pages] of pageIdsByTag) {
+      if (!pages.length) continue;
+      const meta = tagMeta.get(tag);
+      const displayName = meta?.displayName || tagDisplayName(tag);
+      groups.push({ group: displayName, pages });
+    }
+    if (groups.length) {
+      sidebar.push({ group: 'API Reference', pages: groups });
     }
   } else {
     if (allPageIds.length) {
