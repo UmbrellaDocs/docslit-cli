@@ -345,19 +345,25 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
 
 function buildSearchIndex(config, pagesData) {
   const index = [];
-  for (const group of (config.sidebar || [])) {
-    const groupName = group.group || 'Pages';
-    for (const id of (group.pages || [])) {
-      if (!pagesData[id]) continue;
-      const { meta } = pagesData[id];
-      index.push({
-        id,
-        title: meta.title || toLabel(id),
-        group: groupName,
-        desc: meta.description || meta.desc || '',
-        body: '',
-      });
+  function collectPages(pages, groupName) {
+    for (const item of (pages || [])) {
+      if (typeof item === 'string') {
+        if (!pagesData[item]) continue;
+        const { meta } = pagesData[item];
+        index.push({
+          id: item,
+          title: meta.title || toLabel(item),
+          group: groupName,
+          desc: meta.description || meta.desc || '',
+          body: '',
+        });
+      } else if (item.pages) {
+        collectPages(item.pages, groupName);
+      }
     }
+  }
+  for (const group of (config.sidebar || [])) {
+    collectPages(group.pages, group.group || 'Pages');
   }
   return index;
 }
@@ -379,8 +385,16 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
   lines.push(`\n> Raw Markdown for each page is available at ${mdBase}/{slug}.md`);
   lines.push('');
 
+  function collectLlmsPages(pages) {
+    const result = [];
+    for (const item of (pages || [])) {
+      if (typeof item === 'string' && pagesData[item]) result.push(item);
+      else if (typeof item === 'object' && item.pages) result.push(...collectLlmsPages(item.pages));
+    }
+    return result;
+  }
   for (const group of (config.sidebar || [])) {
-    const groupPages = (group.pages || []).filter(id => pagesData[id]);
+    const groupPages = collectLlmsPages(group.pages);
     if (!groupPages.length) continue;
 
     lines.push(`## ${group.group || 'Pages'}`);
@@ -407,7 +421,7 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
 
   for (const group of (config.sidebar || [])) {
     const groupName = group.group || 'Pages';
-    const groupPages = (group.pages || []).filter(id => pagesData[id]);
+    const groupPages = collectLlmsPages(group.pages);
     if (!groupPages.length) continue;
     for (const id of groupPages) {
       const mdPath = path.join(outDir, 'docs', `${id}.md`);

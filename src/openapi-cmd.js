@@ -3,6 +3,14 @@ import fs from 'fs-extra';
 import pc from 'picocolors';
 import { loadSpec, getEndpoints } from './openapi.js';
 
+function deriveOperationId(method, urlPath) {
+  const parts = urlPath.split('/').filter(Boolean).map(p => {
+    if (p.startsWith('{') && p.endsWith('}')) return 'By' + p[1].toUpperCase() + p.slice(2, -1);
+    return p[0].toUpperCase() + p.slice(1);
+  });
+  return method.toLowerCase() + parts.join('');
+}
+
 function toSlug(operationId) {
   return operationId
     .replace(/([a-z])([A-Z])/g, '$1-$2')
@@ -56,8 +64,15 @@ export async function openapiScaffold(args) {
     }
   }
 
-  const docsApiDir = path.join(cwd, 'docs', 'api');
+  const docsDir = path.join(cwd, 'docs');
+  const docsApiDir = path.join(docsDir, 'api');
   await fs.ensureDir(docsApiDir);
+
+  // Build tag metadata from spec.tags
+  const tagMeta = new Map();
+  for (const t of (spec.tags || [])) {
+    tagMeta.set(t.name, { displayName: t['x-displayName'] || t.name, description: t.description || '' });
+  }
 
   const byTag = new Map();
   for (const ep of endpoints) {
@@ -67,30 +82,27 @@ export async function openapiScaffold(args) {
   }
 
   let created = 0, skipped = 0;
-  const pageIds = [];
+  const pageIdsByTag = new Map();
 
   for (const [tag, eps] of byTag) {
+    const tagPages = [];
     for (const ep of eps) {
-      if (!ep.operationId) {
-        console.log(`  ${pc.yellow('!')} Skipped ${ep.method} ${ep.path} — no operationId`);
-        skipped++;
-        continue;
-      }
+      const opId = ep.operationId || deriveOperationId(ep.method, ep.path);
 
-      if (newOnly && existingRefs.has(ep.operationId)) {
+      if (newOnly && existingRefs.has(opId)) {
         console.log(`  ${pc.dim('○')} Skipped ${ep.operationId} — already documented`);
         skipped++;
         continue;
       }
 
-      const slug = toSlug(ep.operationId);
-      const title = toTitle(ep.operationId);
+      const slug = toSlug(opId);
+      const title = toTitle(opId);
       const filePath = path.join(docsApiDir, `${slug}.md`);
 
       if (await fs.pathExists(filePath)) {
         console.log(`  ${pc.dim('○')} Skipped ${slug}.md — file already exists`);
         skipped++;
-        pageIds.push(`api/${slug}`);
+        tagPages.push(`api/${slug}`);
         continue;
       }
 
@@ -103,13 +115,35 @@ export async function openapiScaffold(args) {
       frontmatter.push('layout: api');
       frontmatter.push('---');
 
-      const content = `${frontmatter.join('\n')}\n\n<wc-endpoint ref="${ep.operationId}">\n\n</wc-endpoint>\n`;
+      const content = `${frontmatter.join('\n')}\n\n# ${title}\n\n<wc-endpoint ref="${opId}">\n\n</wc-endpoint>\n`;
 
       await fs.writeFile(filePath, content);
       console.log(`  ${pc.green('✓')} Created api/${slug}.md — ${ep.method} ${ep.path}`);
       created++;
-      pageIds.push(`api/${slug}`);
+      tagPages.push(`api/${slug}`);
     }
+    pageIdsByTag.set(tag, tagPages);
+  }
+
+  // Generate intro page from spec.info
+  const info = spec.info || {};
+  const introPath = path.join(docsDir, 'introduction.md');
+  if (info.title && !await fs.pathExists(introPath)) {
+    const lines = ['---', `title: ${info.title}`, '---', ''];
+    lines.push(`# ${info.title}${info.version ? ` (${info.version})` : ''}`);
+    lines.push('');
+    const metaParts = [];
+    if (info.contact?.email) metaParts.push(`E-mail: [${info.contact.email}](mailto:${info.contact.email})`);
+    if (info.contact?.url) metaParts.push(`URL: [${info.contact.url}](${info.contact.url})`);
+    if (info.license?.name) {
+      const licenseText = info.license.url ? `[${info.license.name}](${info.license.url})` : info.license.name;
+      metaParts.push(`License: ${licenseText}`);
+    }
+    if (metaParts.length) { lines.push(metaParts.join(' | ')); lines.push(''); }
+    if (info.description) { lines.push(info.description); lines.push(''); }
+    await fs.writeFile(introPath, lines.join('\n'));
+    console.log(`  ${pc.green('✓')} Created introduction.md — API overview from spec info`);
+    created++;
   }
 
   // Update docslit.json
@@ -126,17 +160,53 @@ export async function openapiScaffold(args) {
     config.openapi = specPath;
   }
 
-  // Add/update API Reference sidebar group
-  const sidebar = config.sidebar || [];
-  const existingApiGroup = sidebar.find(g => g.group === 'API Reference');
-  if (existingApiGroup) {
-    const existingSet = new Set(existingApiGroup.pages);
-    for (const id of pageIds) {
-      if (!existingSet.has(id)) existingApiGroup.pages.push(id);
+  // Build sidebar from x-tagGroups (if present) or flat API Reference
+  const tagGroups = spec['x-tagGroups'];
+  const allPageIds = Array.from(pageIdsByTag.values()).flat();
+
+  // Remove default init-only groups from existing sidebar
+  const initOnlyPages = new Set(['introduction', 'installation', 'quickstart']);
+  const sidebar = (config.sidebar || []).filter(g => {
+    if (g.group === 'API Reference') return false;
+    if (tagGroups && tagMeta.size) {
+      const matchesTag = Array.from(tagMeta.values()).some(t => t.displayName === g.group);
+      if (matchesTag) return false;
+    }
+    return g.pages?.some(p => !initOnlyPages.has(p));
+  });
+
+  // Add intro page if it exists
+  if (await fs.pathExists(path.join(docsDir, 'introduction.md'))) {
+    const hasIntro = sidebar.some(g => g.pages?.includes('introduction'));
+    if (!hasIntro) {
+      sidebar.unshift({ group: info.title || 'Overview', pages: ['introduction'] });
+    }
+  }
+
+  if (tagGroups && tagGroups.length) {
+    for (const tg of tagGroups) {
+      const groupPages = [];
+      for (const tagName of (tg.tags || [])) {
+        const pages = pageIdsByTag.get(tagName) || [];
+        if (!pages.length) continue;
+        const meta = tagMeta.get(tagName);
+        const displayName = meta?.displayName || tagName;
+        if ((tg.tags || []).length > 1) {
+          groupPages.push({ group: displayName, pages });
+        } else {
+          groupPages.push(...pages);
+        }
+      }
+      if (groupPages.length) {
+        sidebar.push({ group: tg.name, pages: groupPages });
+      }
     }
   } else {
-    sidebar.push({ group: 'API Reference', pages: pageIds });
+    if (allPageIds.length) {
+      sidebar.push({ group: 'API Reference', pages: allPageIds });
+    }
   }
+
   config.sidebar = sidebar;
 
   await fs.writeJson(configPath, config, { spaces: 2 });

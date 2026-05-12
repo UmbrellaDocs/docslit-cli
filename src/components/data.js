@@ -3,7 +3,7 @@
 export default `
 // ── WC-FIELD / WC-FIELDS ───────────────────────────────────────────────────
 class WcField extends LitElement {
-  static properties={name:{type:String},type:{type:String},required:{type:Boolean},description:{type:String},default:{type:String},deprecated:{type:Boolean},in:{type:String},enum:{type:String},format:{type:String},pattern:{type:String},minimum:{type:String},maximum:{type:String},collapsible:{type:Boolean},_expanded:{type:Boolean,state:true}};
+  static properties={name:{type:String},type:{type:String},required:{type:Boolean},description:{type:String},default:{type:String},deprecated:{type:Boolean},in:{type:String},enum:{type:String},format:{type:String},pattern:{type:String},minimum:{type:String},maximum:{type:String},example:{type:String},collapsible:{type:Boolean},_expanded:{type:Boolean,state:true}};
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666}
@@ -19,6 +19,8 @@ class WcField extends LitElement {
     .desc{color:var(--text2,#a0a0a0);line-height:1.6;font-size:13px}
     .constraint{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .default-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
+    .example-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
+    .example-val code{font-size:11px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:3px;color:#4f98a3}
     .nested{padding-left:20px;border-left:2px solid var(--border,#2a2a2a);margin-top:8px}
     .toggle{cursor:pointer;user-select:none}
     .toggle::before{content:'▶';font-size:9px;margin-right:6px;display:inline-block;transition:transform .15s}
@@ -36,7 +38,7 @@ class WcField extends LitElement {
     if(this.minimum!==null&&this.minimum!==undefined&&this.maximum!==null&&this.maximum!==undefined)constraints.push(this.minimum+' – '+this.maximum);
     else if(this.minimum!==null&&this.minimum!==undefined)constraints.push('≥ '+this.minimum);
     else if(this.maximum!==null&&this.maximum!==undefined)constraints.push('≤ '+this.maximum);
-    return html\`<div class="row"><div class="left"><div class="name \${this.collapsible?'toggle':''}  \${this._expanded?'open':''}" @click=\${this.collapsible?this._toggle.bind(this):null}><span>\${this.name}</span>\${this.in?html\`<span class="in-badge">\${this.in}</span>\`:nothing}\${typeLabel?html\`<span class="type-badge">\${typeLabel}</span>\`:nothing}\${this.required?html\`<span class="req">required</span>\`:nothing}</div>\${constraints.length?html\`<div class="constraint">\${constraints.join(' · ')}</div>\`:nothing}\${this.default!==undefined&&this.default!==null?html\`<div class="default-val">Default: \${this.default}</div>\`:nothing}</div><div>\${this.description?html\`<div class="desc">\${this.description}</div>\`:nothing}<div class="\${this.collapsible&&!this._expanded?'collapsed':''}"><slot></slot></div></div></div>\`;}
+    return html\`<div class="row"><div class="left"><div class="name \${this.collapsible?'toggle':''}  \${this._expanded?'open':''}" @click=\${this.collapsible?this._toggle.bind(this):null}><span>\${this.name}</span>\${this.in?html\`<span class="in-badge">\${this.in}</span>\`:nothing}\${typeLabel?html\`<span class="type-badge">\${typeLabel}</span>\`:nothing}\${this.required?html\`<span class="req">required</span>\`:nothing}</div>\${constraints.length?html\`<div class="constraint">\${constraints.join(' · ')}</div>\`:nothing}\${this.default!==undefined&&this.default!==null?html\`<div class="default-val">Default: \${this.default}</div>\`:nothing}\${this.example!==undefined&&this.example!==null?html\`<div class="example-val">Example: <code>\${this.example}</code></div>\`:nothing}</div><div>\${this.description?html\`<div class="desc">\${this.description}</div>\`:nothing}<div class="\${this.collapsible&&!this._expanded?'collapsed':''}"><slot></slot></div></div></div>\`;}
 }
 customElements.define('wc-field',WcField);
 
@@ -69,6 +71,44 @@ class WcResponseFields extends LitElement {
   render(){return html\`<div class="wrap"><div class="header"><span>Field</span><span>Description</span></div><div class="body"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-response-fields',WcResponseFields);
+
+// ── WC-RESPONSE / WC-RESPONSES ────────────────────────────────────────────
+class WcResponse extends LitElement {
+  static properties={code:{type:String},description:{type:String},'content-type':{type:String}};
+  static styles=css\`
+    :host{display:block}
+    :host([theme="dark"]){--border:#2a2a2a;--text2:#a0a0a0;--text3:#666}
+    :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text3:#999}
+    .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:13px}
+    .row:last-child{border-bottom:none}
+    .code{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap}
+    .c2{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
+    .c3{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
+    .c4{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+    .c5{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+    .desc{color:var(--text2,#a0a0a0)}
+    .ct{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-left:auto}
+  \`;
+  render(){
+    const c=this.code||'';
+    const cls='c'+c[0];
+    return html\`<div class="row"><span class="code \${cls}">\${c}</span><span class="desc">\${this.description||''}</span>\${this['content-type']?html\`<span class="ct">\${this['content-type']}</span>\`:nothing}</div>\`;
+  }
+}
+customElements.define('wc-response',WcResponse);
+
+class WcResponses extends LitElement {
+  static styles=css\`
+    :host{display:block;margin:0 0 16px}
+    :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
+    :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text3:#999}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden}
+    .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666)}
+    .body{padding:0 16px}
+  \`;
+  render(){return html\`<div class="wrap"><div class="header">Responses</div><div class="body"><slot></slot></div></div>\`;}
+}
+customElements.define('wc-responses',WcResponses);
 
 // ── WC-COLOR ───────────────────────────────────────────────────────────────
 class WcColor extends LitElement {
@@ -190,7 +230,7 @@ customElements.define('wc-mermaid',WcMermaid);
 
 // ── WC-ENDPOINT ────────────────────────────────────────────────────────────
 class WcEndpoint extends LitElement {
-  static properties={method:{type:String},url:{type:String},description:{type:String},ref:{type:String},summary:{type:String},_active:{type:Number,state:true}};
+  static properties={method:{type:String},url:{type:String},description:{type:String},ref:{type:String},summary:{type:String},security:{type:String},_active:{type:Number,state:true}};
   static styles=css\`
     :host{display:block;margin:0 0 16px;min-width:0}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666;--code-text:#e2e8f0}
@@ -203,6 +243,10 @@ class WcEndpoint extends LitElement {
     .PUT,.PATCH{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
     .DELETE{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
     .url{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text,#f0f0f0);word-break:break-all}
+    .security{display:flex;gap:6px;padding:8px 16px;border-bottom:1px solid var(--border,#2a2a2a);flex-wrap:wrap;align-items:center;font-family:'Inter',sans-serif;font-size:11px}
+    .security-label{color:var(--text3,#666);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-right:2px}
+    .security-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
+    .security-badge.open{background:rgba(16,185,129,.12);color:#34d399;border-color:rgba(16,185,129,.25)}
     .desc{padding:10px 16px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text2,#a0a0a0);border-bottom:1px solid var(--border,#2a2a2a)}
     .tabbar{display:flex;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);overflow-x:auto}
     button{background:none;border:none;border-bottom:2px solid transparent;padding:8px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3,#666);cursor:pointer;white-space:nowrap;flex-shrink:0;margin-bottom:-1px;transition:all .15s}
@@ -213,17 +257,43 @@ class WcEndpoint extends LitElement {
     @media(max-width:640px){.url{font-size:12px;}pre{font-size:11px;padding:12px 10px;}}
   \`;
   constructor(){super();this._active=0;}
+  _renderSecurity(){
+    if(!this.security)return nothing;
+    try{
+      const schemes=JSON.parse(this.security);
+      if(!schemes.length)return html\`<div class="security"><span class="security-label">Auth:</span><span class="security-badge open">None required</span></div>\`;
+      return html\`<div class="security"><span class="security-label">Auth:</span>\${schemes.map(s=>{const name=Object.keys(s)[0];return html\`<span class="security-badge">\${name}</span>\`;})}</div>\`;
+    }catch(e){return nothing;}
+  }
+  _syncVisibility(){
+    const sections=this._sections||[];
+    if(sections.length<=1)return;
+    const active=sections[this._active];
+    const fields=Array.from(this.querySelectorAll('wc-fields'));
+    const responses=Array.from(this.querySelectorAll('wc-responses'));
+    const responseFields=Array.from(this.querySelectorAll('wc-response-fields'));
+    const codeTabs=Array.from(this.querySelectorAll('wc-code-tab'));
+    fields.forEach(el=>el.style.display=active?.type==='fields'?'':'none');
+    responses.forEach(el=>el.style.display=active?.type==='responses'?'':'none');
+    responseFields.forEach(el=>el.style.display=active?.type==='response'?'':'none');
+    codeTabs.forEach(el=>el.style.display='none');
+  }
+  updated(){this._syncVisibility();}
   render(){
     const tabs=Array.from(this.querySelectorAll('wc-code-tab'));
     const fields=Array.from(this.querySelectorAll('wc-fields'));
     const responseFields=Array.from(this.querySelectorAll('wc-response-fields'));
+    const responses=Array.from(this.querySelectorAll('wc-responses'));
     const m=(this.method||'GET').toUpperCase();
     const sections=[];
     if(fields.length)sections.push({label:'Parameters',type:'fields'});
+    if(responses.length)sections.push({label:'Responses',type:'responses'});
     if(responseFields.length)sections.push({label:'Response',type:'response'});
     if(tabs.length)tabs.forEach((t,i)=>sections.push({label:t.label||t.getAttribute('label')||'Snippet '+(i+1),type:'tab',idx:i}));
+    this._sections=sections;
     return html\`<div class="wrap">
       <div class="url-bar"><span class="method \${m}">\${m}</span><code class="url">\${this.url||''}</code></div>
+      \${this._renderSecurity()}
       \${this.description||this.summary?html\`<div class="desc">\${this.description||this.summary}</div>\`:nothing}
       \${sections.length>1?html\`<div class="tabbar">\${sections.map((s,i)=>html\`<button class="\${i===this._active?'active':''}" @click=\${()=>this._active=i}>\${s.label}</button>\`)}</div>\`:nothing}
       <slot></slot>
@@ -233,6 +303,72 @@ class WcEndpoint extends LitElement {
   }
 }
 customElements.define('wc-endpoint',WcEndpoint);
+
+// ── WC-API-EXAMPLES ───────────────────────────────────────────────────────
+class WcApiExamples extends LitElement {
+  static properties={ref:{type:String},method:{type:String},url:{type:String},data:{type:String},_activeStatus:{type:Number,state:true},_activeExample:{type:Number,state:true},_activeReqExample:{type:Number,state:true},_parsed:{type:Object,state:true}};
+  static styles=css\`
+    :host{display:block;margin:0 0 24px;--ex-bg:#0d0d0d;--ex-bg2:#161616;--ex-border:#2a2a2a;--ex-text:#f0f0f0;--ex-text2:#a0a0a0;--ex-text3:#888;--ex-code:#e2e8f0}
+    .wrap{background:var(--ex-bg);border:1px solid var(--ex-border);border-radius:10px;overflow:hidden}
+    .header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--ex-bg2);border-bottom:1px solid var(--ex-border);flex-wrap:wrap}
+    .method{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase}
+    .GET{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
+    .POST{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
+    .PUT,.PATCH{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+    .DELETE{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+    .ep-url{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ex-text);word-break:break-all}
+    .section-title{font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ex-text3);padding:12px 14px 6px}
+    .status-tabs{display:flex;gap:4px;padding:0 14px 8px}
+    .status-tab{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;padding:4px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--ex-border);background:transparent;color:var(--ex-text3);transition:all .15s}
+    .status-tab.active{background:rgba(16,185,129,.15);color:#34d399;border-color:rgba(16,185,129,.3)}
+    .status-tab.c4.active{background:rgba(245,158,11,.15);color:#fbbf24;border-color:rgba(245,158,11,.3)}
+    .status-tab.c5.active{background:rgba(239,68,68,.15);color:#f87171;border-color:rgba(239,68,68,.3)}
+    .meta{padding:4px 14px;font-family:'Inter',sans-serif;font-size:11px;color:var(--ex-text3)}
+    .example-select{padding:4px 14px 8px}
+    .example-select select{background:var(--ex-bg2);border:1px solid var(--ex-border);border-radius:4px;padding:4px 8px;font-family:'Inter',sans-serif;font-size:12px;color:var(--ex-text2);cursor:pointer;width:100%}
+    pre.code{margin:0;padding:14px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:var(--ex-code);background:var(--ex-bg2);max-height:400px;overflow-y:auto}
+    .empty{padding:14px;color:var(--ex-text3);font-family:'Inter',sans-serif;font-size:12px}
+  \`;
+  constructor(){super();this._activeStatus=0;this._activeExample=0;this._activeReqExample=0;this._parsed=null;}
+  updated(changed){if(changed.has('data')&&this.data){try{this._parsed=JSON.parse(this.data);}catch(e){this._parsed=null;}}}
+  _renderResponses(){
+    if(!this._parsed?.responses?.length)return nothing;
+    const resps=this._parsed.responses;
+    const active=resps[this._activeStatus]||resps[0];
+    const content=active?.content?.[0];
+    const examples=content?.examples||[];
+    const ex=examples[this._activeExample]||examples[0];
+    return html\`
+      <div class="section-title">Response samples</div>
+      <div class="status-tabs">\${resps.map((r,i)=>html\`<button class="status-tab \${i===this._activeStatus?'active':''} c\${r.code[0]}" @click=\${()=>{this._activeStatus=i;this._activeExample=0;}}>\${r.code}</button>\`)}</div>
+      \${content?html\`<div class="meta">Content type: \${content.mediaType}</div>\`:nothing}
+      \${examples.length>1?html\`<div class="example-select"><select @change=\${(e)=>this._activeExample=parseInt(e.target.value)}>\${examples.map((ex,i)=>html\`<option value="\${i}" ?selected=\${i===this._activeExample}>\${ex.summary||ex.name}</option>\`)}</select></div>\`:nothing}
+      \${ex?.value!==undefined?html\`<pre class="code">\${typeof ex.value==='string'?ex.value:JSON.stringify(ex.value,null,2)}</pre>\`:html\`<div class="empty">No example available</div>\`}
+    \`;
+  }
+  _renderRequestBody(){
+    if(!this._parsed?.requestBody?.length)return nothing;
+    const rb=this._parsed.requestBody[0];
+    const examples=rb?.examples||[];
+    const ex=examples[this._activeReqExample]||examples[0];
+    if(!ex)return nothing;
+    return html\`
+      <div class="section-title">Request body</div>
+      \${rb.mediaType?html\`<div class="meta">Content type: \${rb.mediaType}</div>\`:nothing}
+      \${examples.length>1?html\`<div class="example-select"><select @change=\${(e)=>this._activeReqExample=parseInt(e.target.value)}>\${examples.map((ex,i)=>html\`<option value="\${i}" ?selected=\${i===this._activeReqExample}>\${ex.summary||ex.name}</option>\`)}</select></div>\`:nothing}
+      \${ex?.value!==undefined?html\`<pre class="code">\${typeof ex.value==='string'?ex.value:JSON.stringify(ex.value,null,2)}</pre>\`:nothing}
+    \`;
+  }
+  render(){
+    const m=(this.method||'GET').toUpperCase();
+    return html\`<div class="wrap">
+      <div class="header"><span class="method \${m}">\${m}</span><span class="ep-url">\${this.url||''}</span></div>
+      \${this._renderResponses()}
+      \${this._renderRequestBody()}
+    </div>\`;
+  }
+}
+customElements.define('wc-api-examples',WcApiExamples);
 
 // ── WC-RUNNABLE-ENDPOINT ───────────────────────────────────────────────────
 class WcRunnableEndpoint extends LitElement {

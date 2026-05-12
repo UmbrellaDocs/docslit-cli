@@ -170,8 +170,14 @@ export async function dev({ port = 3000 } = {}) {
     const index = [];
 
     const groupMap = {};
+    function mapPages(pages, groupName) {
+      for (const item of (pages || [])) {
+        if (typeof item === 'string') groupMap[item] = groupName;
+        else if (item.pages) mapPages(item.pages, groupName);
+      }
+    }
     for (const group of (freshConfig.sidebar || [])) {
-      for (const id of (group.pages || [])) groupMap[id] = group.group || 'Pages';
+      mapPages(group.pages, group.group || 'Pages');
     }
 
     for (const id of pageIds) {

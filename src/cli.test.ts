@@ -1181,6 +1181,118 @@ describe('resolveSpecRefs', () => {
     expect(resolved).toContain('method="GET" url="/pets"');
     expect(resolved).toContain('method="GET" url="/pets/{petId}"');
   });
+
+  it('adds example and default attrs to wc-field', () => {
+    const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('example="10"');
+    expect(resolved).toContain('default="20"');
+  });
+
+  it('adds deprecated attr to wc-field', () => {
+    const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toMatch(/wc-field[^>]*name="tag"[^>]*deprecated/);
+  });
+
+  it('generates wc-responses with status codes', () => {
+    const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('<wc-responses>');
+    expect(resolved).toContain('code="200"');
+    expect(resolved).toContain('code="400"');
+    expect(resolved).toContain('description="A list of pets"');
+  });
+
+  it('generates wc-api-examples with response data', () => {
+    const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('<wc-api-examples');
+    expect(resolved).toContain('method="GET"');
+    expect(resolved).toContain('data="');
+  });
+
+  it('adds security attr to wc-endpoint', () => {
+    const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
+    const resolved = resolveSpecRefs(html, specData);
+    expect(resolved).toContain('security="');
+    expect(resolved).toContain('apiKey');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1.5 — getEndpoints enriched data extraction
+// ─────────────────────────────────────────────────────────────────────────────
+describe('getEndpoints — enriched data', () => {
+  let specData: any[];
+
+  beforeAll(async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    specData = getEndpoints(spec);
+  });
+
+  it('extracts example and default from parameters', () => {
+    const ep = specData.find((e: any) => e.operationId === 'listPets');
+    const limit = ep.parameters.find((p: any) => p.name === 'limit');
+    expect(limit.example).toBe(10);
+    expect(limit.default).toBe(20);
+  });
+
+  it('extracts deprecated flag from body fields', () => {
+    const ep = specData.find((e: any) => e.operationId === 'createPet');
+    const tag = ep.bodyFields.find((f: any) => f.name === 'tag');
+    expect(tag.deprecated).toBe(true);
+  });
+
+  it('extracts structured responses with status codes', () => {
+    const ep = specData.find((e: any) => e.operationId === 'listPets');
+    expect(ep.responses).toBeInstanceOf(Array);
+    expect(ep.responses.length).toBe(2);
+    expect(ep.responses[0].code).toBe('200');
+    expect(ep.responses[0].description).toBe('A list of pets');
+    expect(ep.responses[1].code).toBe('400');
+  });
+
+  it('extracts response examples', () => {
+    const ep = specData.find((e: any) => e.operationId === 'listPets');
+    const r200 = ep.responses.find((r: any) => r.code === '200');
+    expect(r200.content.length).toBe(1);
+    expect(r200.content[0].mediaType).toBe('application/json');
+    expect(r200.content[0].examples.length).toBe(1);
+    expect(r200.content[0].examples[0].summary).toBe('Two pets');
+    expect(r200.content[0].examples[0].value).toBeInstanceOf(Array);
+  });
+
+  it('extracts operation-level security', () => {
+    const ep = specData.find((e: any) => e.operationId === 'createPet');
+    expect(ep.security).toEqual([{ apiKey: [] }]);
+  });
+
+  it('returns null security when not set at operation level', () => {
+    const ep = specData.find((e: any) => e.operationId === 'listPets');
+    expect(ep.security).toBeNull();
+  });
+
+  it('extracts request body examples', () => {
+    const ep = specData.find((e: any) => e.operationId === 'createPet');
+    expect(ep.requestBodyExamples.length).toBe(1);
+    expect(ep.requestBodyExamples[0].mediaType).toBe('application/json');
+    expect(ep.requestBodyExamples[0].examples.length).toBe(1);
+    expect(ep.requestBodyExamples[0].examples[0].summary).toBe('Create a dog');
+  });
+
+  it('extracts example from body fields', () => {
+    const ep = specData.find((e: any) => e.operationId === 'createPet');
+    const name = ep.bodyFields.find((f: any) => f.name === 'name');
+    expect(name.example).toBe('Buddy');
+  });
+
+  it('extracts inline response example via media.example', () => {
+    const ep = specData.find((e: any) => e.operationId === 'getPet');
+    const r200 = ep.responses.find((r: any) => r.code === '200');
+    expect(r200.content[0].examples.length).toBe(1);
+    expect(r200.content[0].examples[0].value).toEqual({ id: 'abc123', name: 'Fido' });
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1274,6 +1386,7 @@ describe('openapi scaffold — file generation', () => {
     const content = readFileSync(path.join(tmpDir, 'docs', 'api', 'list-pets.md'), 'utf8');
     expect(content).toContain('ref="listPets"');
     expect(content).toContain('title: List Pets');
+    expect(content).toContain('# List Pets');
     expect(content).toContain('layout: api');
   });
 

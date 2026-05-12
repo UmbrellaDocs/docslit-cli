@@ -21,10 +21,14 @@ export async function loadConfig(cwd) {
 
 export function getAllPageIds(config) {
   const ids = [];
-  for (const group of (config.sidebar || [])) {
-    for (const page of (group.pages || [])) {
-      ids.push(page);
+  function collect(pages) {
+    for (const item of (pages || [])) {
+      if (typeof item === 'string') ids.push(item);
+      else if (item.pages) collect(item.pages);
     }
+  }
+  for (const group of (config.sidebar || [])) {
+    collect(group.pages);
   }
   return ids;
 }

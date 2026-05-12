@@ -4,6 +4,14 @@ import fs from 'fs-extra';
 import path from 'path';
 import { parseWithPointers } from '@stoplight/yaml';
 
+function deriveOperationId(method, urlPath) {
+  const parts = urlPath.split('/').filter(Boolean).map(p => {
+    if (p.startsWith('{') && p.endsWith('}')) return 'By' + p[1].toUpperCase() + p.slice(2, -1);
+    return p[0].toUpperCase() + p.slice(1);
+  });
+  return method.toLowerCase() + parts.join('');
+}
+
 export async function loadSpec(specPath, overlayPath = null) {
   const abs = path.resolve(specPath);
   if (!await fs.pathExists(abs)) {
@@ -11,7 +19,7 @@ export async function loadSpec(specPath, overlayPath = null) {
   }
 
   const config = await createConfig({});
-  const result = await bundle({ ref: abs, config });
+  const result = await bundle({ ref: abs, config, dereference: true });
 
   if (result.problems.length) {
     const errors = result.problems.filter(p => p.severity === 'error');
@@ -55,6 +63,9 @@ export function getEndpoints(spec) {
         pattern: p.schema?.pattern || null,
         minimum: p.schema?.minimum ?? null,
         maximum: p.schema?.maximum ?? null,
+        example: p.schema?.example ?? p.example ?? null,
+        default: p.schema?.default ?? null,
+        deprecated: !!p.deprecated,
       }));
 
       const bodySchema = operation.requestBody?.content?.['application/json']?.schema || null;
@@ -72,11 +83,14 @@ export function getEndpoints(spec) {
           pattern: prop.pattern || null,
           minimum: prop.minimum ?? null,
           maximum: prop.maximum ?? null,
+          example: prop.example ?? null,
+          default: prop.default ?? null,
+          deprecated: !!prop.deprecated,
         }));
       }
 
       endpoints.push({
-        operationId: operation.operationId || null,
+        operationId: operation.operationId || deriveOperationId(method.toUpperCase(), urlPath),
         method: method.toUpperCase(),
         path: urlPath,
         summary: operation.summary || '',
@@ -84,7 +98,28 @@ export function getEndpoints(spec) {
         tags: operation.tags || [],
         parameters: params,
         bodyFields,
-        responses: operation.responses || {},
+        responses: Object.entries(operation.responses || {}).map(([code, resp]) => ({
+          code,
+          description: resp.description || '',
+          content: Object.entries(resp.content || {}).map(([mediaType, media]) => ({
+            mediaType,
+            schema: media.schema || null,
+            examples: media.examples
+              ? Object.entries(media.examples).map(([name, ex]) => ({
+                  name, summary: ex.summary || name, value: ex.value
+                }))
+              : media.example
+                ? [{ name: 'default', summary: 'Example', value: media.example }]
+                : []
+          }))
+        })),
+        security: operation.security || null,
+        requestBodyExamples: Object.entries(operation.requestBody?.content || {}).map(([mediaType, media]) => ({
+          mediaType,
+          examples: media.examples
+            ? Object.entries(media.examples).map(([name, ex]) => ({ name, summary: ex.summary || name, value: ex.value }))
+            : media.example ? [{ name: 'default', summary: 'Example', value: media.example }] : []
+        })),
         examples: operation['x-docslit-examples'] || [],
       });
     }
@@ -135,6 +170,10 @@ export function getSecuritySchemes(spec) {
   return spec.components?.securitySchemes || {};
 }
 
+export function getSpecSecurity(spec) {
+  return spec.security || [];
+}
+
 export function getUndocumentedOps(spec, pageRefs) {
   const refSet = new Set(pageRefs);
   const endpoints = getEndpoints(spec);
@@ -154,6 +193,7 @@ export function resolveSpecRefs(html, specData) {
 
       const attrs = [`ref="${ref}"`, `method="${op.method}"`, `url="${op.path}"`];
       if (op.summary) attrs.push(`summary="${escapeAttr(op.summary)}"`);
+      if (op.security) attrs.push(`security="${escapeAttr(JSON.stringify(op.security))}"`);
 
       const existingAttrs = (before + after).trim();
       if (existingAttrs) attrs.push(existingAttrs);
@@ -161,18 +201,33 @@ export function resolveSpecRefs(html, specData) {
       const allFields = [...op.parameters, ...op.bodyFields];
       let fieldsHtml = '';
       if (allFields.length) {
-        const fieldTags = allFields.map(f => {
-          const parts = [`name="${escapeAttr(f.name)}"`, `type="${f.type}"`, `in="${f.in}"`];
+        const fieldTags = allFields.filter(f => f.name).map(f => {
+          const parts = [`name="${escapeAttr(f.name)}"`, `type="${f.type || 'string'}"`, `in="${f.in || 'query'}"`];
           if (f.required) parts.push('required');
+          if (f.deprecated) parts.push('deprecated');
           if (f.description) parts.push(`description="${escapeAttr(f.description)}"`);
           if (f.format) parts.push(`format="${f.format}"`);
           if (f.enum) parts.push(`enum="${escapeAttr(f.enum.join(', '))}"`);
           if (f.pattern) parts.push(`pattern="${escapeAttr(f.pattern)}"`);
           if (f.minimum !== null) parts.push(`minimum="${f.minimum}"`);
           if (f.maximum !== null) parts.push(`maximum="${f.maximum}"`);
+          if (f.example !== null && f.example !== undefined) parts.push(`example="${escapeAttr(String(f.example))}"`);
+          if (f.default !== null && f.default !== undefined) parts.push(`default="${escapeAttr(String(f.default))}"`);
           return `<wc-field ${parts.join(' ')}></wc-field>`;
         });
         fieldsHtml = `\n<wc-fields>${fieldTags.join('\n')}</wc-fields>\n`;
+      }
+
+      let responsesHtml = '';
+      if (op.responses.length) {
+        const responseTags = op.responses.map(r => {
+          const parts = [`code="${escapeAttr(r.code)}"`, `description="${escapeAttr(r.description)}"`];
+          if (r.content.length && r.content[0].mediaType) {
+            parts.push(`content-type="${escapeAttr(r.content[0].mediaType)}"`);
+          }
+          return `<wc-response ${parts.join(' ')}></wc-response>`;
+        });
+        responsesHtml = `\n<wc-responses>${responseTags.join('\n')}</wc-responses>\n`;
       }
 
       let examplesHtml = '';
@@ -183,13 +238,24 @@ export function resolveSpecRefs(html, specData) {
       }
 
       const trimmedChildren = children.trim();
-      const body = [fieldsHtml, trimmedChildren, examplesHtml].filter(Boolean).join('\n');
+      const body = [fieldsHtml, responsesHtml, trimmedChildren, examplesHtml].filter(Boolean).join('\n');
 
-      return `<wc-endpoint ${attrs.join(' ')}>${body}\n</wc-endpoint>`;
+      let examplePanelHtml = '';
+      const hasResponseExamples = op.responses.some(r => r.content.some(c => c.examples.length));
+      const hasRequestExamples = op.requestBodyExamples?.some(rb => rb.examples.length);
+      if (hasResponseExamples || hasRequestExamples) {
+        const exData = {
+          responses: op.responses.filter(r => r.content.some(c => c.examples.length)),
+          requestBody: (op.requestBodyExamples || []).filter(rb => rb.examples.length),
+        };
+        examplePanelHtml = `\n<wc-api-examples ref="${ref}" method="${op.method}" url="${escapeAttr(op.path)}" data="${escapeAttr(JSON.stringify(exData))}"></wc-api-examples>`;
+      }
+
+      return `<wc-endpoint ${attrs.join(' ')}>${body}\n</wc-endpoint>${examplePanelHtml}`;
     }
   );
 }
 
 function escapeAttr(s) {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

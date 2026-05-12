@@ -107,7 +107,7 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   const depth = id.split('/').length - 1;
   const assetPrefix = '../'.repeat(depth);
 
-  const groupName = (config.sidebar || []).find(g => (g.pages || []).includes(id))?.group || '';
+  const groupName = findGroupForPage(config.sidebar || [], id);
   const breadcrumbText = groupName ? `${escHtml(groupName)} › ${escHtml(pageTitle)}` : escHtml(pageTitle);
   const isApiPage = id.startsWith('api/') || meta.layout === 'api';
   const apiClass = isApiPage ? ' api-layout' : '';
@@ -224,7 +224,7 @@ function buildSearchOverlayHtml() {
 }
 
 function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText, isApiPage = false) {
-  const examplesPanel = isApiPage ? '\n        <div class="docs-examples" id="docs-examples"></div>' : '';
+  const examplesPanel = '\n        <div class="docs-examples" id="docs-examples"></div>';
   return `<div class="docs-page">
   <div class="docs-layout">
     <aside class="docs-sidebar" id="docs-sidebar">
@@ -664,17 +664,31 @@ function injectPageMeta(meta, id) {
 
 function buildSidebarHtml(config, draftIds = [], activePageId = null) {
   const draftSet = new Set(draftIds);
+  function renderPages(pages) {
+    let out = '';
+    for (const item of pages) {
+      if (typeof item === 'object' && item.group) {
+        const subPages = (item.pages || []).filter(p => typeof p === 'string' ? !draftSet.has(p) : true);
+        if (!subPages.length) continue;
+        out += `<div class="sidebar-subgroup">`;
+        out += `<div class="sidebar-subgroup-title">${escHtml(item.group)}</div>`;
+        out += renderPages(subPages);
+        out += `</div>`;
+      } else if (typeof item === 'string' && !draftSet.has(item)) {
+        const label = toLabel(item);
+        const activeClass = item === activePageId ? ' active' : '';
+        out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item)}" href="${escHtml(item)}" onclick="loadPage('${escHtml(item)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
+      }
+    }
+    return out;
+  }
   let html = '';
   for (const group of (config.sidebar || [])) {
-    const visiblePages = (group.pages || []).filter(p => !draftSet.has(p));
+    const visiblePages = (group.pages || []).filter(p => typeof p === 'string' ? !draftSet.has(p) : true);
     if (!visiblePages.length) continue;
     html += `<div class="sidebar-section">`;
     html += `<div class="sidebar-group-title">${escHtml(group.group || '')}</div>`;
-    for (const page of visiblePages) {
-      const label = toLabel(page);
-      const activeClass = page === activePageId ? ' active' : '';
-      html += `<a class="sidebar-item${activeClass}" data-page="${escHtml(page)}" href="${escHtml(page)}" onclick="loadPage('${escHtml(page)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
-    }
+    html += renderPages(visiblePages);
     html += `</div>`;
   }
   return html;
@@ -713,6 +727,19 @@ function buildVersionSelector(versionConfig, currentVersion) {
   return `<select class="version-select" id="version-select" onchange="switchVersion(this.value)" aria-label="Documentation version">${options}</select>`;
 }
 
+function findGroupForPage(sidebar, id) {
+  for (const g of sidebar) {
+    if (containsPage(g.pages || [], id)) return g.group || '';
+  }
+  return '';
+}
+function containsPage(pages, id) {
+  for (const item of pages) {
+    if (typeof item === 'string' && item === id) return true;
+    if (typeof item === 'object' && item.pages && containsPage(item.pages, id)) return true;
+  }
+  return false;
+}
 function toLabel(id) {
   const name = id.includes('/') ? id.split('/').pop() : id;
   return name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -749,6 +776,8 @@ async function loadPage(id, el) {
     const res = await fetch(apiPath);
     if (!res.ok) throw new Error(res.statusText);
     const { meta, html } = await res.json();
+    var isApi = id.startsWith('api/') || meta.layout === 'api';
+    if (isApi) document.body.classList.add('api-layout'); else document.body.classList.remove('api-layout');
     const logoText = document.querySelector('.nav-logo-text');
     if (meta.title) {
       document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
@@ -766,6 +795,9 @@ async function loadPage(id, el) {
     _wrapTables(content);
     buildToc(content);
     content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
+    var exPanel = document.getElementById('docs-examples');
+    if (isApi && exPanel) { exPanel.innerHTML = ''; content.querySelectorAll('wc-api-examples').forEach(function(el) { exPanel.appendChild(el); }); }
+    else if (exPanel) { exPanel.innerHTML = ''; }
   } catch(e) {
     _show404(id);
   }
@@ -848,6 +880,8 @@ async function loadPage(id, el) {
   const data = await _fetchPage(id);
   if (!data) { _show404(id); return; }
   const { meta, content: mdText } = data;
+  var isApi = id.startsWith('api/') || meta.layout === 'api';
+  if (isApi) document.body.classList.add('api-layout'); else document.body.classList.remove('api-layout');
   const { marked, purify } = await _getMd();
   const safeHtml = purify.sanitize(marked.parse(mdText));
   const logoText = document.querySelector('.nav-logo-text');
@@ -866,6 +900,9 @@ async function loadPage(id, el) {
   _wrapTables(content);
   buildToc(content);
   content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
+  var exPanel = document.getElementById('docs-examples');
+  if (isApi && exPanel) { exPanel.innerHTML = ''; content.querySelectorAll('wc-api-examples').forEach(function(el) { exPanel.appendChild(el); }); }
+  else if (exPanel) { exPanel.innerHTML = ''; }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -878,6 +915,8 @@ window.addEventListener('DOMContentLoaded', () => {
     _wrapTables(content);
     buildToc(content);
     content.insertAdjacentHTML('beforeend', _buildPrevNext(preRenderedId));
+    var exPanel = document.getElementById('docs-examples');
+    if (exPanel) { exPanel.innerHTML = ''; content.querySelectorAll('wc-api-examples').forEach(function(el) { exPanel.appendChild(el); }); }
     history.replaceState({page: preRenderedId}, '', location.pathname);
   } else {
     const fromPath = _pageFromUrl();
@@ -908,6 +947,8 @@ async function loadPage(id, el) {
   const data = _pages[id];
   if (!data) { _show404(id); return; }
   const { meta, html } = data;
+  var isApi = id.startsWith('api/') || meta.layout === 'api';
+  if (isApi) document.body.classList.add('api-layout'); else document.body.classList.remove('api-layout');
   const logoText = document.querySelector('.nav-logo-text');
   if (meta.title) {
     document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
@@ -925,6 +966,9 @@ async function loadPage(id, el) {
   _wrapTables(content);
   buildToc(content);
   content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
+  var exPanel = document.getElementById('docs-examples');
+  if (isApi && exPanel) { exPanel.innerHTML = ''; content.querySelectorAll('wc-api-examples').forEach(function(el) { exPanel.appendChild(el); }); }
+  else if (exPanel) { exPanel.innerHTML = ''; }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -1415,6 +1459,8 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
   text-transform: uppercase; letter-spacing: .1em; color: var(--text3);
 }
 .sidebar-section:first-child .sidebar-group-title { padding-top: 10px; }
+.sidebar-subgroup { margin-bottom: 2px; }
+.sidebar-subgroup-title { padding: 10px 18px 4px; font-size: 13px; font-weight: 600; color: var(--text2); }
 .sidebar-item {
   display: block; padding: 7px 18px 7px 20px;
   font-size: 14px; color: var(--text2);
@@ -1635,14 +1681,14 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 
 /* API LAYOUT — three-column Stripe-style for API reference pages */
 .api-layout .docs-main { justify-content: flex-start; }
-.api-layout .docs-content { flex: 1 1 auto; max-width: 640px; padding: 48px 40px 80px; }
+.api-layout .docs-content { flex: 1 1 auto; max-width: 720px; padding: 48px 40px 80px; }
 .api-layout .docs-toc { display: none; }
 .api-layout .docs-examples {
-  width: 420px; flex-shrink: 0;
-  background: var(--surface); border-left: 1px solid var(--border);
+  width: 480px; flex-shrink: 0;
+  background: transparent;
   position: sticky; top: calc(var(--nav-h) + 44px);
   align-self: flex-start; max-height: calc(100vh - var(--nav-h) - 44px);
-  overflow-y: auto; padding: 24px;
+  overflow-y: auto; padding: 48px 24px 24px;
 }
 .docs-examples { display: none; }
 .api-layout .docs-examples { display: block; }
