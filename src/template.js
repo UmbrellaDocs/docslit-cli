@@ -70,7 +70,7 @@ ${appBlock}
 </html>`;
 }
 
-export function renderPage({ config, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null }) {
+export function renderPage({ config, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null }) {
   const sidebarHtml = buildSidebarHtml(config, draftPageIds, id);
   const siteTitle = config.name || 'DocsLit';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
@@ -109,6 +109,10 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
 
   const groupName = (config.sidebar || []).find(g => (g.pages || []).includes(id))?.group || '';
   const breadcrumbText = groupName ? `${escHtml(groupName)} › ${escHtml(pageTitle)}` : escHtml(pageTitle);
+  const isApiPage = id.startsWith('api/') || meta.layout === 'api';
+  const apiClass = isApiPage ? ' api-layout' : '';
+  const apiSidebar = isApiPage && specData ? buildApiSidebarHtml(specData, id) : null;
+  const effectiveSidebarHtml = apiSidebar || sidebarHtml;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -121,12 +125,12 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   ${buildFontLinks()}
   <link rel="stylesheet" href="${assetPrefix}docslit.css">
 </head>
-<body>
+<body class="${apiClass.trim()}">
 ${buildNavHtml(siteTitle, versionSelectorHtml)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-${buildMainLayoutHtml(sidebarHtml, siteTitle, html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id)), breadcrumbText)}
+${buildMainLayoutHtml(effectiveSidebarHtml, siteTitle, html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id)), breadcrumbText, isApiPage)}
 
 ${versionScript}
 <script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
@@ -219,7 +223,8 @@ function buildSearchOverlayHtml() {
 </div>`;
 }
 
-function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText) {
+function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText, isApiPage = false) {
+  const examplesPanel = isApiPage ? '\n        <div class="docs-examples" id="docs-examples"></div>' : '';
   return `<div class="docs-page">
   <div class="docs-layout">
     <aside class="docs-sidebar" id="docs-sidebar">
@@ -242,7 +247,7 @@ function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText
         <main class="docs-content" id="docs-content" role="main">
           ${contentHtml}
         </main>
-        <div class="docs-toc" id="docs-toc"></div>
+        <div class="docs-toc" id="docs-toc"></div>${examplesPanel}
       </div>
     </div>
   </div>
@@ -669,6 +674,30 @@ function buildSidebarHtml(config, draftIds = [], activePageId = null) {
       const label = toLabel(page);
       const activeClass = page === activePageId ? ' active' : '';
       html += `<a class="sidebar-item${activeClass}" data-page="${escHtml(page)}" href="${escHtml(page)}" onclick="loadPage('${escHtml(page)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
+    }
+    html += `</div>`;
+  }
+  return html;
+}
+
+function buildApiSidebarHtml(specData, activePageId) {
+  const byTag = new Map();
+  for (const ep of specData) {
+    const tag = ep.tags[0] || 'Default';
+    if (!byTag.has(tag)) byTag.set(tag, []);
+    byTag.get(tag).push(ep);
+  }
+  let html = '';
+  for (const [tag, eps] of byTag) {
+    html += `<div class="sidebar-section">`;
+    html += `<div class="sidebar-group-title">${escHtml(tag)}</div>`;
+    for (const ep of eps) {
+      if (!ep.operationId) continue;
+      const slug = ep.operationId.replace(/([a-z])([A-Z])/g, '$1-$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2').toLowerCase();
+      const pageId = `api/${slug}`;
+      const activeClass = pageId === activePageId ? ' active' : '';
+      const methodClass = ep.method.toLowerCase();
+      html += `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(pageId)}" href="${escHtml(pageId)}" onclick="loadPage('${escHtml(pageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"><span class="method-badge ${methodClass}">${ep.method}</span> ${escHtml(ep.path)}</a>`;
     }
     html += `</div>`;
   }
@@ -1604,9 +1633,31 @@ wc-anchor, wc-indent, wc-visibility, wc-versions, wc-page-meta {
 }
 mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-radius: 2px; padding: 0 1px; }
 
+/* API LAYOUT — three-column Stripe-style for API reference pages */
+.api-layout .docs-main { justify-content: flex-start; }
+.api-layout .docs-content { flex: 1 1 auto; max-width: 640px; padding: 48px 40px 80px; }
+.api-layout .docs-toc { display: none; }
+.api-layout .docs-examples {
+  width: 420px; flex-shrink: 0;
+  background: var(--surface); border-left: 1px solid var(--border);
+  position: sticky; top: calc(var(--nav-h) + 44px);
+  align-self: flex-start; max-height: calc(100vh - var(--nav-h) - 44px);
+  overflow-y: auto; padding: 24px;
+}
+.docs-examples { display: none; }
+.api-layout .docs-examples { display: block; }
+.method-badge { font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; margin-right: 6px; }
+.method-badge.get { background: rgba(16,185,129,.15); color: #34d399; }
+.method-badge.post { background: rgba(59,130,246,.15); color: #60a5fa; }
+.method-badge.put, .method-badge.patch { background: rgba(245,158,11,.15); color: #fbbf24; }
+.method-badge.delete { background: rgba(239,68,68,.15); color: #f87171; }
+.api-nav-item { font-size: 13px !important; font-family: var(--font-mono); display: flex !important; align-items: center; }
+
 /* RESPONSIVE */
 @media(max-width:1280px) {
   .docs-toc { display: none; }
+  .api-layout .docs-examples { display: none; }
+  .api-layout .docs-content { max-width: 100%; }
   /* No TOC means content can grow naturally — restore flex grow + full width. */
   .docs-content { flex: 1 1 auto; max-width: 100%; }
 }

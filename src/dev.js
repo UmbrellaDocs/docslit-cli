@@ -6,9 +6,10 @@ import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import chokidar from 'chokidar';
 import pc from 'picocolors';
-import { loadConfig, getAllPageIds, getVersionConfig, gitReadFile, getVersionSidebar } from './config.js';
+import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell } from './template.js';
+import { loadSpec, getEndpoints, resolveSpecRefs } from './openapi.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,6 +18,24 @@ export async function dev({ port = 3000 } = {}) {
   const config = await loadConfig(cwd);
 
   console.log(`\n  ${pc.bold('DocsLit')} dev server starting...\n`);
+
+  // Load OpenAPI spec if configured
+  let specData = null;
+  async function reloadSpec() {
+    const openapiConfig = getOpenAPIConfig(config);
+    if (!openapiConfig?.spec) return;
+    try {
+      const spec = await loadSpec(
+        path.resolve(cwd, openapiConfig.spec),
+        openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
+      );
+      specData = getEndpoints(spec);
+      console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
+    } catch (e) {
+      console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
+    }
+  }
+  await reloadSpec();
 
   const app = express();
   const server = createServer(app);
@@ -36,17 +55,25 @@ export async function dev({ port = 3000 } = {}) {
   }
 
   // Watch for changes
-  const watcher = chokidar.watch([
+  const watchPaths = [
     path.join(cwd, 'docs/**/*.md'),
     path.join(cwd, 'docslit.json'),
     path.join(cwd, 'components/**/*.js'),
-  ], { ignoreInitial: true });
+  ];
+  const openapiConf = getOpenAPIConfig(config);
+  if (openapiConf?.spec) watchPaths.push(path.join(cwd, openapiConf.spec));
+  if (openapiConf?.overlay) watchPaths.push(path.join(cwd, openapiConf.overlay));
+
+  const watcher = chokidar.watch(watchPaths, { ignoreInitial: true });
 
   watcher.on('all', async (event, filePath) => {
     const rel = path.relative(cwd, filePath);
     console.log(`  ${pc.cyan('~')} ${rel} changed — reloading`);
     if (filePath.endsWith('docslit.json')) {
       Object.assign(config, await loadConfig(cwd));
+    }
+    if (openapiConf?.spec && (filePath.endsWith(openapiConf.spec) || (openapiConf.overlay && filePath.endsWith(openapiConf.overlay)))) {
+      await reloadSpec();
     }
     broadcast({ type: 'reload' });
   });
@@ -86,12 +113,14 @@ export async function dev({ port = 3000 } = {}) {
       const mdPath = path.resolve(docsDir, `${id}.md`);
       if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
         const raw = await fs.readFile(mdPath, 'utf8');
-        const { meta, html } = parseDoc(raw);
+        let { meta, html } = parseDoc(raw);
+        if (specData) html = resolveSpecRefs(html, specData);
         return res.json({ id, meta, html });
       }
       const raw = await gitReadFile(entry.branch, `docs/${id}.md`, cwd);
       if (raw) {
-        const { meta, html } = parseDoc(raw);
+        let { meta, html } = parseDoc(raw);
+        if (specData) html = resolveSpecRefs(html, specData);
         return res.json({ id, meta, html });
       }
       return res.status(404).json({ error: `Page "${id}" not found in version ${version}` });
@@ -106,7 +135,8 @@ export async function dev({ port = 3000 } = {}) {
       return res.status(404).json({ error: `Page "${id}" not found` });
     }
     const raw = await fs.readFile(mdPath, 'utf8');
-    const { meta, html } = parseDoc(raw);
+    let { meta, html } = parseDoc(raw);
+    if (specData) html = resolveSpecRefs(html, specData);
     res.json({ id, meta, html });
   });
 

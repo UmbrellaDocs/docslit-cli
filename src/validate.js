@@ -379,7 +379,62 @@ async function checkComponents(files, dir, issues) {
   }
 }
 
-// ─── 8. Orphan check ──────────────────────────────────────────────────────────
+// ─── 8. OpenAPI ref check ─────────────────────────────────────────────────────
+async function checkOpenAPIRefs(files, dir, config, issues) {
+  const openapiField = config?.openapi;
+  if (!openapiField) return;
+
+  const specFile = typeof openapiField === 'string' ? openapiField : openapiField?.spec;
+  if (!specFile) return;
+
+  const specPath = path.join(dir, specFile);
+  if (!await fs.pathExists(specPath)) return;
+
+  let specData;
+  try {
+    const { loadSpec, getEndpoints, getUndocumentedOps } = await import('./openapi.js');
+    const overlayFile = typeof openapiField === 'object' ? openapiField?.overlay : null;
+    const spec = await loadSpec(specPath, overlayFile ? path.join(dir, overlayFile) : null);
+    specData = getEndpoints(spec);
+
+    const pageRefs = new Set();
+    for (const file of files) {
+      const content = await fs.readFile(file, 'utf8');
+      const re = /<wc-endpoint[^>]*ref="([^"]+)"/g;
+      let m;
+      while ((m = re.exec(content)) !== null) {
+        pageRefs.add(m[1]);
+      }
+    }
+
+    // Check for invalid refs (refs that don't match any operationId)
+    const validOps = new Set(specData.filter(e => e.operationId).map(e => e.operationId));
+    for (const ref of pageRefs) {
+      if (!validOps.has(ref)) {
+        const file = files.find(f => {
+          const c = fs.readFileSync(f, 'utf8');
+          return c.includes(`ref="${ref}"`);
+        });
+        const rel = file ? path.relative(dir, file) : null;
+        issues.push(issue('error', rel, null,
+          `Invalid OpenAPI ref="${ref}" — no matching operationId in spec`));
+      }
+    }
+
+    // Check for undocumented endpoints
+    const undoc = getUndocumentedOps(spec, [...pageRefs]);
+    for (const opId of undoc) {
+      const ep = specData.find(e => e.operationId === opId);
+      issues.push(issue('warning', null, null,
+        `Undocumented endpoint: ${ep.method} ${ep.path} (${opId}) — run \`docslit openapi scaffold --new-only\` to generate`));
+    }
+  } catch (e) {
+    issues.push(issue('warning', null, null,
+      `Failed to validate OpenAPI refs: ${e.message}`));
+  }
+}
+
+// ─── 9. Orphan check ──────────────────────────────────────────────────────────
 async function checkOrphans(files, slugs, dir, issues) {
   const docsDir = path.join(dir, 'docs');
   for (const file of files) {
@@ -463,7 +518,7 @@ export async function validate(args) {
   const allIssues = [];
 
   // 1. Config
-  const { issues: cfgIssues, slugs } = await checkConfig(dir);
+  const { issues: cfgIssues, config: loadedConfig, slugs } = await checkConfig(dir);
   allIssues.push(...cfgIssues);
 
   // 2. Slug file resolution
@@ -481,7 +536,10 @@ export async function validate(args) {
   ]);
   allIssues.push(...fmIssues, ...linkIssues, ...assetIssues, ...compIssues);
 
-  // 8. Orphans
+  // 8. OpenAPI refs
+  await checkOpenAPIRefs(files, dir, loadedConfig, allIssues);
+
+  // 9. Orphans
   await checkOrphans(files, slugs, dir, allIssues);
 
   const elapsed = Date.now() - t0;

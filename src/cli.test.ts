@@ -1206,3 +1206,190 @@ describe('getOpenAPIConfig', () => {
     expect(result).toEqual({ spec: 'api.yaml', overlay: null });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — CLI openapi scaffold
+// ─────────────────────────────────────────────────────────────────────────────
+describe('CLI — openapi command', () => {
+  it('exits 1 when no subcommand given', async () => {
+    const { code, stderr } = await run(['openapi']);
+    expect(code).toBe(1);
+    expect(stderr).toContain('Unknown openapi subcommand');
+  });
+
+  it('exits 1 when scaffold has no spec path', async () => {
+    const { code, stderr } = await run(['openapi', 'scaffold']);
+    expect(code).toBe(1);
+    expect(stderr).toContain('spec file path');
+  });
+
+  it('shows openapi scaffold in --help output', async () => {
+    const { code, stdout } = await run(['--help']);
+    expect(code).toBe(0);
+    expect(stdout).toContain('openapi scaffold');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — openapi scaffold integration (file creation)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('openapi scaffold — file generation', () => {
+  const tmpDir = path.join(__dirname, '../.test-scaffold');
+
+  beforeAll(() => {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+    mkdirSync(tmpDir, { recursive: true });
+    mkdirSync(path.join(tmpDir, 'docs'), { recursive: true });
+    writeFileSync(path.join(tmpDir, 'docslit.json'), JSON.stringify({
+      name: 'Test',
+      sidebar: [{ group: 'Guide', pages: ['intro'] }],
+    }));
+    writeFileSync(path.join(tmpDir, 'docs', 'intro.md'), '---\ntitle: Intro\n---\n# Intro\n');
+  });
+
+  afterAll(() => {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+  });
+
+  it('generates stub markdown files from spec', async () => {
+    const { code } = await run(['openapi', 'scaffold', FIXTURE_SPEC], 15000);
+    // scaffold runs in cwd — but we can't change cwd for the subprocess easily
+    // so test the module directly instead
+    const { openapiScaffold } = await import('./openapi-cmd.js');
+    const origCwd = process.cwd();
+    process.chdir(tmpDir);
+    try {
+      await openapiScaffold([FIXTURE_SPEC]);
+    } catch (e) {
+      // process.exit calls throw in test context
+    }
+    process.chdir(origCwd);
+
+    // Check files were created
+    expect(existsSync(path.join(tmpDir, 'docs', 'api', 'list-pets.md'))).toBe(true);
+    expect(existsSync(path.join(tmpDir, 'docs', 'api', 'create-pet.md'))).toBe(true);
+    expect(existsSync(path.join(tmpDir, 'docs', 'api', 'get-pet.md'))).toBe(true);
+
+    // Check content
+    const content = readFileSync(path.join(tmpDir, 'docs', 'api', 'list-pets.md'), 'utf8');
+    expect(content).toContain('ref="listPets"');
+    expect(content).toContain('title: List Pets');
+    expect(content).toContain('layout: api');
+  });
+
+  it('updates docslit.json with API Reference group', () => {
+    const config = JSON.parse(readFileSync(path.join(tmpDir, 'docslit.json'), 'utf8'));
+    expect(config.openapi).toBeDefined();
+    const apiGroup = config.sidebar.find((g: any) => g.group === 'API Reference');
+    expect(apiGroup).toBeDefined();
+    expect(apiGroup.pages).toContain('api/list-pets');
+    expect(apiGroup.pages).toContain('api/create-pet');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — renderPage with API layout
+// ─────────────────────────────────────────────────────────────────────────────
+describe('renderPage — API layout', () => {
+  const config = { name: 'TestAPI', sidebar: [{ group: 'API Reference', pages: ['api/list-pets'] }] };
+  const meta = { title: 'List Pets', layout: 'api' as const };
+  const pageHtml = '<h1>List Pets</h1><wc-endpoint method="GET" url="/pets" ref="listPets"></wc-endpoint>';
+
+  it('adds api-layout class for pages with layout: api', () => {
+    const html = renderPage({ config, id: 'api/list-pets', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('api-layout');
+  });
+
+  it('includes docs-examples panel for API pages', () => {
+    const html = renderPage({ config, id: 'api/list-pets', meta, html: pageHtml, draftPageIds: [] });
+    expect(html).toContain('docs-examples');
+  });
+
+  it('does not add api-layout for non-API pages', () => {
+    const normalMeta = { title: 'Intro' };
+    const html = renderPage({ config, id: 'intro', meta: normalMeta, html: '<h1>Intro</h1>', draftPageIds: [] });
+    expect(html).not.toContain('api-layout');
+  });
+
+  it('generates API sidebar with method badges when specData provided', async () => {
+    const spec = await loadSpec(FIXTURE_SPEC);
+    const specData = getEndpoints(spec);
+    const html = renderPage({ config, id: 'api/list-pets', meta, html: pageHtml, draftPageIds: [], specData });
+    expect(html).toContain('method-badge');
+    expect(html).toContain('api-nav-item');
+    expect(html).toContain('/pets');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — API layout CSS
+// ─────────────────────────────────────────────────────────────────────────────
+describe('buildStylesFile — API layout', () => {
+  it('includes API layout styles', () => {
+    const css = buildStylesFile();
+    expect(css).toContain('.api-layout');
+    expect(css).toContain('.docs-examples');
+    expect(css).toContain('.method-badge');
+    expect(css).toContain('.api-nav-item');
+  });
+
+  it('includes responsive rules for API layout', () => {
+    const css = buildStylesFile();
+    expect(css).toContain('.api-layout .docs-examples');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — wc-field upgrades
+// ─────────────────────────────────────────────────────────────────────────────
+describe('components — wc-field upgrades', () => {
+  const components = buildComponents();
+
+  it('wc-field has in property', () => {
+    expect(components).toContain("in:{type:String}");
+  });
+
+  it('wc-field has enum property', () => {
+    expect(components).toContain("enum:{type:String}");
+  });
+
+  it('wc-field has format property', () => {
+    expect(components).toContain("format:{type:String}");
+  });
+
+  it('wc-field has pattern property', () => {
+    expect(components).toContain("pattern:{type:String}");
+  });
+
+  it('wc-field has minimum/maximum properties', () => {
+    expect(components).toContain("minimum:{type:String}");
+    expect(components).toContain("maximum:{type:String}");
+  });
+
+  it('wc-field has collapsible property', () => {
+    expect(components).toContain("collapsible:{type:Boolean}");
+  });
+
+  it('wc-field renders in-badge for location', () => {
+    expect(components).toContain('in-badge');
+  });
+
+  it('wc-field renders constraint info', () => {
+    expect(components).toContain('constraint');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — wc-endpoint upgrades
+// ─────────────────────────────────────────────────────────────────────────────
+describe('components — wc-endpoint upgrades', () => {
+  const components = buildComponents();
+
+  it('wc-endpoint has ref property', () => {
+    expect(components).toContain("ref:{type:String}");
+  });
+
+  it('wc-endpoint has summary property', () => {
+    expect(components).toContain("summary:{type:String}");
+  });
+});

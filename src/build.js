@@ -1,9 +1,10 @@
 import path from 'path';
 import fs from 'fs-extra';
 import pc from 'picocolors';
-import { loadConfig, getAllPageIds, getVersionConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
+import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
+import { loadSpec, getEndpoints, resolveSpecRefs } from './openapi.js';
 
 // Soft thresholds at which a single-file offline bundle starts to feel slow:
 // browsers can parse much larger HTML, but ~5MB / 200 pages is the point where
@@ -80,6 +81,22 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
   const draftPageIds = [];
   let built = 0, drafts = 0, failed = 0;
 
+  // Load OpenAPI spec if configured
+  let specData = null;
+  const openapiConfig = getOpenAPIConfig(config);
+  if (openapiConfig?.spec) {
+    try {
+      const spec = await loadSpec(
+        path.resolve(cwd, openapiConfig.spec),
+        openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
+      );
+      specData = getEndpoints(spec);
+      console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
+    } catch (e) {
+      console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
+    }
+  }
+
   for (const id of pageIds) {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
     if (!await fs.pathExists(mdPath)) {
@@ -88,7 +105,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
       continue;
     }
     const raw = await fs.readFile(mdPath, 'utf8');
-    const { meta, html } = parseDoc(raw);
+    let { meta, html } = parseDoc(raw);
 
     if (meta.draft === true) {
       draftPageIds.push(id);
@@ -97,7 +114,12 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
       continue;
     }
 
-    pagesData[id] = { meta, html };
+    if (specData) {
+      html = resolveSpecRefs(html, specData);
+    }
+
+    const isApiPage = id.startsWith('api/') || meta.layout === 'api';
+    pagesData[id] = { meta, html, isApiPage };
     const destMd = path.join(outDir, `${id}.md`);
     await fs.ensureDir(path.dirname(destMd));
     await fs.copyFile(mdPath, destMd);
@@ -120,8 +142,8 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
     await fs.writeFile(path.join(outDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
     const publishedIds = Object.keys(pagesData);
-    for (const [id, { meta, html }] of Object.entries(pagesData)) {
-      const pageHtml = renderPage({ config, id, meta, html, draftPageIds });
+    for (const [id, { meta, html, isApiPage }] of Object.entries(pagesData)) {
+      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, specData: isApiPage ? specData : null });
       const destHtml = path.join(outDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -152,6 +174,22 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
 
   console.log(`  ${pc.bold('Versions:')} ${versionConfig.list.map(v => v.version === defaultVersion ? pc.cyan(v.version + ' (default)') : v.version).join(', ')}\n`);
 
+  // Load OpenAPI spec if configured
+  let specData = null;
+  const openapiConfig = getOpenAPIConfig(config);
+  if (openapiConfig?.spec) {
+    try {
+      const spec = await loadSpec(
+        path.resolve(cwd, openapiConfig.spec),
+        openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
+      );
+      specData = getEndpoints(spec);
+      console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
+    } catch (e) {
+      console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
+    }
+  }
+
   // Build default version fully from the working directory
   const defaultDir = path.join(outDir, defaultVersion);
   const defaultPageIds = getAllPageIds(config);
@@ -163,9 +201,11 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
     if (!await fs.pathExists(mdPath)) continue;
     const raw = await fs.readFile(mdPath, 'utf8');
-    const { meta, html } = parseDoc(raw);
+    let { meta, html } = parseDoc(raw);
     if (meta.draft === true) { draftPageIds.push(id); continue; }
-    defaultPagesData[id] = { meta, html };
+    if (specData) html = resolveSpecRefs(html, specData);
+    const isApiPage = id.startsWith('api/') || meta.layout === 'api';
+    defaultPagesData[id] = { meta, html, isApiPage };
     const destMd = path.join(defaultDir, `${id}.md`);
     await fs.ensureDir(path.dirname(destMd));
     await fs.copyFile(mdPath, destMd);
@@ -187,8 +227,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
     const publishedIds = Object.keys(defaultPagesData);
-    for (const [id, { meta, html }] of Object.entries(defaultPagesData)) {
-      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion });
+    for (const [id, { meta, html, isApiPage }] of Object.entries(defaultPagesData)) {
+      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: isApiPage ? specData : null });
       const destHtml = path.join(defaultDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -220,8 +260,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       if (changedSlugs.has(id)) {
         const raw = await gitReadFile(versionBranch, `docs/${id}.md`, cwd);
         if (!raw) continue;
-        const { meta, html } = parseDoc(raw);
+        let { meta, html } = parseDoc(raw);
         if (meta.draft === true) continue;
+        if (specData) html = resolveSpecRefs(html, specData);
         versionPagesData[id] = { meta, html };
         const destMd = path.join(versionDir, 'docs', `${id}.md`);
         await fs.ensureDir(path.dirname(destMd));

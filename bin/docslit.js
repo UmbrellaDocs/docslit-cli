@@ -23,6 +23,9 @@ const help = `
     docslit validate [dir]    Check a project for broken links, missing assets,
                               frontmatter errors, and unknown components.
                               Exits 1 if any errors are found.
+    docslit openapi scaffold  Generate docs pages from an OpenAPI spec.
+                              Usage: docslit openapi scaffold <spec.yaml>
+                              [--overlay <overlay.yaml>] [--new-only]
 
   DocsLit Cloud:
     docslit login             Authenticate with DocsLit Cloud
@@ -99,6 +102,16 @@ if (command === 'init') {
 } else if (command === 'delete') {
   const { deleteProject } = await import('../src/delete.js');
   await deleteProject(args.slice(1));
+} else if (command === 'openapi') {
+  const subCmd = args[1];
+  if (subCmd === 'scaffold') {
+    const { openapiScaffold } = await import('../src/openapi-cmd.js');
+    await openapiScaffold(args.slice(2));
+  } else {
+    console.error(`  Unknown openapi subcommand: ${subCmd || '(none)'}\n`);
+    console.error(`  Usage: docslit openapi scaffold <spec.yaml> [--overlay overlay.yaml] [--new-only]\n`);
+    process.exit(1);
+  }
 } else {
   console.error(`  Unknown command: ${command}\n`);
   console.log(help);

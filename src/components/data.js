@@ -3,7 +3,7 @@
 export default `
 // ── WC-FIELD / WC-FIELDS ───────────────────────────────────────────────────
 class WcField extends LitElement {
-  static properties={name:{type:String},type:{type:String},required:{type:Boolean},description:{type:String},default:{type:String},deprecated:{type:Boolean}};
+  static properties={name:{type:String},type:{type:String},required:{type:Boolean},description:{type:String},default:{type:String},deprecated:{type:Boolean},in:{type:String},enum:{type:String},format:{type:String},pattern:{type:String},minimum:{type:String},maximum:{type:String},collapsible:{type:Boolean},_expanded:{type:Boolean,state:true}};
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666}
@@ -14,13 +14,29 @@ class WcField extends LitElement {
     .name{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--text,#f0f0f0);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     :host([deprecated]) .name{text-decoration:line-through;opacity:.6}
     .type-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:1px 8px;border-radius:4px;background:rgba(1,105,111,.15);color:#4f98a3;border:1px solid rgba(1,105,111,.3);white-space:nowrap}
+    .in-badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface2,#1a1a1a);color:var(--text3,#666);border:1px solid var(--border,#2a2a2a);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
     .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
     .desc{color:var(--text2,#a0a0a0);line-height:1.6;font-size:13px}
+    .constraint{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .default-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .nested{padding-left:20px;border-left:2px solid var(--border,#2a2a2a);margin-top:8px}
+    .toggle{cursor:pointer;user-select:none}
+    .toggle::before{content:'▶';font-size:9px;margin-right:6px;display:inline-block;transition:transform .15s}
+    .toggle.open::before{transform:rotate(90deg)}
+    .collapsed{display:none}
     @media(max-width:768px){.row{grid-template-columns:1fr;gap:6px}}
   \`;
-  render(){return html\`<div class="row"><div class="left"><div class="name"><span>\${this.name}</span>\${this.type?html\`<span class="type-badge">\${this.type}</span>\`:nothing}\${this.required?html\`<span class="req">required</span>\`:nothing}</div>\${this.default!==undefined&&this.default!==null?html\`<div class="default-val">Default: \${this.default}</div>\`:nothing}</div><div>\${this.description?html\`<div class="desc">\${this.description}</div>\`:nothing}<slot></slot></div></div>\`;}
+  constructor(){super();this._expanded=false;}
+  _toggle(){this._expanded=!this._expanded;}
+  render(){
+    const typeLabel=this.format?this.type+' ('+this.format+')':this.type;
+    const constraints=[];
+    if(this.enum)constraints.push('one of: '+this.enum.split(',').map(s=>s.trim()).join(' | '));
+    if(this.pattern)constraints.push('/'+this.pattern+'/');
+    if(this.minimum!==null&&this.minimum!==undefined&&this.maximum!==null&&this.maximum!==undefined)constraints.push(this.minimum+' – '+this.maximum);
+    else if(this.minimum!==null&&this.minimum!==undefined)constraints.push('≥ '+this.minimum);
+    else if(this.maximum!==null&&this.maximum!==undefined)constraints.push('≤ '+this.maximum);
+    return html\`<div class="row"><div class="left"><div class="name \${this.collapsible?'toggle':''}  \${this._expanded?'open':''}" @click=\${this.collapsible?this._toggle.bind(this):null}><span>\${this.name}</span>\${this.in?html\`<span class="in-badge">\${this.in}</span>\`:nothing}\${typeLabel?html\`<span class="type-badge">\${typeLabel}</span>\`:nothing}\${this.required?html\`<span class="req">required</span>\`:nothing}</div>\${constraints.length?html\`<div class="constraint">\${constraints.join(' · ')}</div>\`:nothing}\${this.default!==undefined&&this.default!==null?html\`<div class="default-val">Default: \${this.default}</div>\`:nothing}</div><div>\${this.description?html\`<div class="desc">\${this.description}</div>\`:nothing}<div class="\${this.collapsible&&!this._expanded?'collapsed':''}"><slot></slot></div></div></div>\`;}
 }
 customElements.define('wc-field',WcField);
 
@@ -174,7 +190,7 @@ customElements.define('wc-mermaid',WcMermaid);
 
 // ── WC-ENDPOINT ────────────────────────────────────────────────────────────
 class WcEndpoint extends LitElement {
-  static properties={method:{type:String},url:{type:String},description:{type:String},_active:{type:Number,state:true}};
+  static properties={method:{type:String},url:{type:String},description:{type:String},ref:{type:String},summary:{type:String},_active:{type:Number,state:true}};
   static styles=css\`
     :host{display:block;margin:0 0 16px;min-width:0}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666;--code-text:#e2e8f0}
@@ -199,11 +215,20 @@ class WcEndpoint extends LitElement {
   constructor(){super();this._active=0;}
   render(){
     const tabs=Array.from(this.querySelectorAll('wc-code-tab'));
+    const fields=Array.from(this.querySelectorAll('wc-fields'));
+    const responseFields=Array.from(this.querySelectorAll('wc-response-fields'));
     const m=(this.method||'GET').toUpperCase();
+    const sections=[];
+    if(fields.length)sections.push({label:'Parameters',type:'fields'});
+    if(responseFields.length)sections.push({label:'Response',type:'response'});
+    if(tabs.length)tabs.forEach((t,i)=>sections.push({label:t.label||t.getAttribute('label')||'Snippet '+(i+1),type:'tab',idx:i}));
     return html\`<div class="wrap">
       <div class="url-bar"><span class="method \${m}">\${m}</span><code class="url">\${this.url||''}</code></div>
-      \${this.description?html\`<div class="desc">\${this.description}</div>\`:nothing}
-      \${tabs.length?html\`<div class="tabbar">\${tabs.map((t,i)=>html\`<button class="\${i===this._active?'active':''}" @click=\${()=>this._active=i}>\${t.label||t.getAttribute('label')||'Snippet '+(i+1)}</button>\`)}</div>\${tabs.map((t,i)=>html\`<div class="panel \${i===this._active?'active':''}"><pre>\${t.textContent}</pre></div>\`)}\`:nothing}
+      \${this.description||this.summary?html\`<div class="desc">\${this.description||this.summary}</div>\`:nothing}
+      \${sections.length>1?html\`<div class="tabbar">\${sections.map((s,i)=>html\`<button class="\${i===this._active?'active':''}" @click=\${()=>this._active=i}>\${s.label}</button>\`)}</div>\`:nothing}
+      <slot></slot>
+      \${tabs.length&&sections.length>1?html\`\${tabs.map((t,i)=>{const si=sections.findIndex(s=>s.type==='tab'&&s.idx===i);return html\`<div class="panel \${si===this._active?'active':''}"><pre>\${t.textContent}</pre></div>\`})}\`:nothing}
+      \${tabs.length&&sections.length<=1?html\`<div class="tabbar">\${tabs.map((t,i)=>html\`<button class="\${i===this._active?'active':''}" @click=\${()=>this._active=i}>\${t.label||t.getAttribute('label')||'Snippet '+(i+1)}</button>\`)}</div>\${tabs.map((t,i)=>html\`<div class="panel \${i===this._active?'active':''}"><pre>\${t.textContent}</pre></div>\`)}\`:nothing}
     </div>\`;
   }
 }
