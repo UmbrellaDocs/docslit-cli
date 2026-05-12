@@ -4,6 +4,80 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
+## 0.1.7
+
+### What's new
+
+#### OpenAPI integration
+
+**Spec-driven API reference documentation** — docslit can now generate complete API reference docs from an OpenAPI 3.x specification file. A new `docslit openapi scaffold` command reads your spec, creates one Markdown page per endpoint in `docs/api/`, generates an introduction page from the spec's `info` block, and wires up `docslit.json` with the OpenAPI config and a fully structured sidebar.
+
+Each generated page contains a `<wc-endpoint ref="operationId">` tag that is resolved against the loaded spec at build time and in the dev server. Resolution injects all endpoint data automatically:
+
+- **Path-level parameters** merged into every operation (e.g. shared headers like `X-Request-ID`), following the OpenAPI spec's override rules
+- **All request body content types** — not just `application/json` but also `application/x-www-form-urlencoded`, `multipart/form-data`, etc.
+- **Recursive schema walking** — nested objects and array items are walked up to 4 levels deep, rendered as collapsible sections
+- **Schema composition** — `allOf`, `anyOf`, and `oneOf` schemas are resolved and merged
+- **Field constraints** — `maxLength`, `minLength`, `minimum`, `maximum`, `pattern`, `enum`, `format`, `default`, `example`, `deprecated`
+- **Response schemas** — success response body fields are extracted and rendered with the same nested/collapsible treatment
+- **Request and response examples** from the spec are rendered in the examples panel
+- **Security requirements** — operation-level and global security are passed through
+
+Parameters are grouped by location into separate sections: Headers, Path Parameters, Query Parameters, Cookie Parameters, and Body (with the content type shown in the title).
+
+**Sidebar hierarchy from spec metadata** — the scaffold command builds sidebar structure from `x-tagGroups` (top-level groups), tags (sub-sections), and operations (individual pages). Each sidebar entry shows the operation summary as the display title with an HTTP method badge (GET, POST, PUT, DELETE, PATCH) aligned to the right.
+
+**OpenAPI overlays** — configure an overlay file to customize descriptions, add examples, or inject `x-docslit-examples` without modifying the original spec:
+
+```json
+{
+  "openapi": {
+    "spec": "api-spec.yaml",
+    "overlay": "overlay.yaml"
+  }
+}
+```
+
+**Custom code examples** — add tabbed code examples to any endpoint using the `x-docslit-examples` vendor extension in your spec or overlay.
+
+**`layout: api` frontmatter** — pages with `layout: api` get a three-column layout with a wider content area and an examples panel on the right. Set automatically by the scaffold command.
+
+**`--new-only` flag** — run `docslit openapi scaffold --new-only` to only create pages for operations that aren't already documented. Scans existing `docs/` files for `<wc-endpoint ref>` tags to detect coverage.
+
+#### Enriched Markdown for AI agents
+
+**API pages serve enriched Markdown** — when an AI agent requests an API page via `Accept: text/markdown` or fetches the `.md` URL directly, it receives fully rendered documentation with parameter tables, request body field trees, response schemas, and JSON examples — instead of the raw `<wc-endpoint ref="...">` tag. This works in both the dev server and static builds. Non-API pages serve their original Markdown source as before.
+
+#### AI agent discovery
+
+**MCP server** — static builds now generate a standalone `mcp-server.js` that implements the Model Context Protocol over stdio. Provides three tools (`list_pages`, `get_page`, `search_docs`) with zero additional dependencies — just Node.js. Compatible with Claude Code, Claude Desktop, Cursor, and any MCP client.
+
+**.well-known/agent.json** — static builds generate a machine-readable agent discovery file listing all available endpoints: `llms.txt`, search index, Markdown URLs, content negotiation, and page slugs. Agents can fetch this single file to learn how to interact with your docs.
+
+**Content negotiation** — AI agents can request any page URL with `Accept: text/markdown` to receive raw Markdown instead of HTML. The dev server handles this natively. For static builds, docslit generates platform-specific middleware: `_middleware.js` for Cloudflare Pages and Netlify edge functions, and `vercel.json` with header-based rewrites for Vercel.
+
+#### AI skills
+
+**Two skill files for AI coding agents** — `docslit-author` teaches agents how to write valid DocsLit pages (all 51 components with syntax, attributes, nesting rules, frontmatter schema, config format). `docslit-migrate` teaches agents how to convert MDX and Mintlify docs (component mapping, attribute renames, icon conversions, common pitfalls). Both are plain Markdown files that work with Claude Code, Cursor, Windsurf, or any agent that reads instruction files.
+
+#### Component upgrades
+
+**`wc-field` enhancements** — new attributes: `in` (parameter location badge), `format`, `enum`, `pattern`, `minimum`, `maximum`, `minlength`, `maxlength`, `example`, `collapsible` (expandable nested fields), and `description` (supports inline Markdown: bold, italic, code, links). Constraint values display beneath the field name.
+
+**`wc-fields` title** — the section header now uses the `title` attribute instead of hardcoding "Parameter". Spec-driven pages show contextual titles like "Headers", "Query Parameters", or "Body application/json".
+
+**`wc-endpoint` enhancements** — new attributes: `ref` (OpenAPI operationId for spec resolution), `summary`, `description` (supports inline Markdown), `security`. Shows both summary and description when both are present.
+
+**`wc-response-fields` title** — response field sections now support a `title` attribute for contextual headers like "Response body application/json".
+
+### Bug fixes
+
+**Sidebar filter preserves method badges** — the filter was using `textContent` which included badge text (e.g. "Create a userPOST"), then destroying the badge HTML on restore. Now targets the `.api-nav-label` span for label capture and highlight, leaving method badges intact.
+
+**YAML frontmatter escaping** — the scaffold command now properly escapes frontmatter values containing special YAML characters (colons, quotes, brackets, etc.) to prevent parse errors.
+
+---
+
 ## 0.1.6
 
 ### What's new
