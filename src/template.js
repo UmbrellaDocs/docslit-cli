@@ -405,6 +405,28 @@ function _buildPrevNext(id) {
   return h;
 }
 
+// ── API EXAMPLES PLACEMENT ────────────────────────────────────────────────
+function _placeApiExamples(content, isApi) {
+  var exPanel = document.getElementById('docs-examples');
+  var inlineWrap = content.querySelector('.api-examples-inline');
+  if (!isApi) { if (exPanel) exPanel.innerHTML = ''; if (inlineWrap) inlineWrap.remove(); return; }
+  var examples = Array.from(content.querySelectorAll('wc-api-examples'));
+  if (!examples.length) { if (exPanel) exPanel.innerHTML = ''; return; }
+  if (!inlineWrap) {
+    inlineWrap = document.createElement('div');
+    inlineWrap.className = 'api-examples-inline';
+  }
+  var pageNav = content.querySelector('.page-nav');
+  if (pageNav) content.insertBefore(inlineWrap, pageNav);
+  else content.appendChild(inlineWrap);
+  examples.forEach(function(el) {
+    var clone = el.cloneNode(true);
+    inlineWrap.appendChild(clone);
+    if (exPanel) exPanel.appendChild(el);
+  });
+  if (exPanel && !exPanel.children.length) exPanel.innerHTML = '';
+}
+
 // ── MOBILE SIDEBAR TOGGLE ─────────────────────────────────────────────────
 function openSidebar() {
   document.getElementById('docs-sidebar').classList.add('open');
@@ -859,9 +881,7 @@ async function loadPage(id, el) {
     _wrapTables(content);
     buildToc(content);
     content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
-    var exPanel = document.getElementById('docs-examples');
-    if (isApi && exPanel) { exPanel.innerHTML = ''; content.querySelectorAll('wc-api-examples').forEach(function(el) { exPanel.appendChild(el); }); }
-    else if (exPanel) { exPanel.innerHTML = ''; }
+    _placeApiExamples(content, isApi);
   } catch(e) {
     _show404(id);
   }
@@ -964,9 +984,7 @@ async function loadPage(id, el) {
   _wrapTables(content);
   buildToc(content);
   content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
-  var exPanel = document.getElementById('docs-examples');
-  if (isApi && exPanel) { exPanel.innerHTML = ''; content.querySelectorAll('wc-api-examples').forEach(function(el) { exPanel.appendChild(el); }); }
-  else if (exPanel) { exPanel.innerHTML = ''; }
+  _placeApiExamples(content, isApi);
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -979,8 +997,8 @@ window.addEventListener('DOMContentLoaded', () => {
     _wrapTables(content);
     buildToc(content);
     content.insertAdjacentHTML('beforeend', _buildPrevNext(preRenderedId));
-    var exPanel = document.getElementById('docs-examples');
-    if (exPanel) { exPanel.innerHTML = ''; content.querySelectorAll('wc-api-examples').forEach(function(el) { exPanel.appendChild(el); }); }
+    var isApi = preRenderedId.startsWith('api/') || document.body.classList.contains('api-layout');
+    _placeApiExamples(content, isApi);
     history.replaceState({page: preRenderedId}, '', location.pathname);
   } else {
     const fromPath = _pageFromUrl();
@@ -1030,9 +1048,7 @@ async function loadPage(id, el) {
   _wrapTables(content);
   buildToc(content);
   content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
-  var exPanel = document.getElementById('docs-examples');
-  if (isApi && exPanel) { exPanel.innerHTML = ''; content.querySelectorAll('wc-api-examples').forEach(function(el) { exPanel.appendChild(el); }); }
-  else if (exPanel) { exPanel.innerHTML = ''; }
+  _placeApiExamples(content, isApi);
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -1756,6 +1772,7 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 }
 .docs-examples { display: none; }
 .api-layout .docs-examples { display: block; }
+.api-examples-inline { display: none; }
 .method-badge { font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; margin-right: 6px; }
 .method-badge.get { background: rgba(16,185,129,.15); color: #34d399; }
 .method-badge.post { background: rgba(59,130,246,.15); color: #60a5fa; }
@@ -1771,6 +1788,7 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
   .docs-toc { display: none; }
   .api-layout .docs-examples { display: none; }
   .api-layout .docs-content { max-width: 100%; }
+  .api-layout .docs-content .api-examples-inline { display: block; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); }
   /* No TOC means content can grow naturally — restore flex grow + full width. */
   .docs-content { flex: 1 1 auto; max-width: 100%; }
 }
