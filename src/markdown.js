@@ -1,14 +1,35 @@
 import { marked } from 'marked';
 import matter from 'gray-matter';
 import { rewriteMdxTags } from './mdx-bridge.js';
+import { highlight } from './highlighter.js';
 
 marked.setOptions({ gfm: true, breaks: false });
 
 const renderer = new marked.Renderer();
-renderer.code = function ({ text, lang }) {
+renderer.code = function ({ text, lang: rawLang }) {
   const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  let lang = rawLang || '';
+  let filename = '';
+  const spaceIdx = lang.indexOf(' ');
+  if (spaceIdx !== -1) {
+    const meta = lang.slice(spaceIdx + 1);
+    lang = lang.slice(0, spaceIdx);
+    const fm = meta.match(/filename="([^"]+)"/);
+    if (fm) filename = fm[1];
+  }
+
   const langAttr = lang ? ` language="${lang}"` : '';
-  return `<wc-code-block${langAttr}>${escaped}</wc-code-block>\n`;
+  const fileAttr = filename ? ` filename="${filename}"` : '';
+
+  const hasVars = /\{\{[A-Z_][A-Z0-9_]*\}\}/.test(text);
+  const effectiveLang = (lang === 'markdown' || lang === 'md' || !lang) && /<wc-/.test(text) ? 'mdx' : lang;
+  const highlighted = !hasVars ? highlight(text, effectiveLang) : null;
+
+  if (highlighted) {
+    return `<wc-code-block${langAttr}${fileAttr} highlighted>${highlighted}</wc-code-block>\n`;
+  }
+  return `<wc-code-block${langAttr}${fileAttr}>${escaped}</wc-code-block>\n`;
 };
 marked.use({ renderer });
 
@@ -72,8 +93,21 @@ function extractOuterWcBlocks(src) {
 //       then also run marked.parse on surrounding text
 //   Leaf (no nested wc-* children) → run marked.parse or parseInline on content
 function processWcBlock(raw, codeBlocks) {
-  // Leave code components untouched
-  if (/^<wc-code/.test(raw)) return raw;
+  // Leave code-block components untouched (they display raw source)
+  if (/^<wc-code-block[\s>]/.test(raw)) return raw;
+
+  // Code-group/code-tab: restore fenced blocks, highlight if language is specified
+  if (/^<wc-code-(group|tab)[\s>]/.test(raw)) {
+    return raw.replace(/CODEBLOCK_(\d+)_END/g, (_, j) => {
+      const block = codeBlocks[j];
+      const m = block.match(/^```(\w*)\n?([\s\S]*?)```$/);
+      if (!m) return block;
+      const lang = m[1];
+      const code = m[2].trimEnd();
+      const highlighted = lang ? highlight(code, lang) : null;
+      return highlighted || code;
+    });
+  }
 
   // Self-closing — convert to open+close pair (HTML custom elements ignore />)
   if (/\/>$/.test(raw.trimEnd())) {

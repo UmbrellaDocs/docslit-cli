@@ -67,7 +67,7 @@ customElements.define('wc-var',WcVar);
 
 // ── WC-CODE-BLOCK ──────────────────────────────────────────────────────────
 class WcCodeBlock extends LitElement {
-  static properties={language:{type:String},filename:{type:String},_code:{type:String,state:true},_copied:{type:Boolean,state:true}};
+  static properties={language:{type:String},filename:{type:String},highlighted:{type:Boolean,reflect:true},_code:{type:String,state:true},_highlighted:{type:String,state:true},_copied:{type:Boolean,state:true}};
   static styles=css\`
     :host{display:block;margin:0 0 16px;width:100%;box-sizing:border-box;max-width:100%}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666;--code-bg:#161616}
@@ -86,12 +86,21 @@ class WcCodeBlock extends LitElement {
     .copy-btn:hover{color:#4f98a3;border-color:#4f98a3}
     .copy-btn:focus-visible{outline:2px solid #01696f;outline-offset:2px}
     .copy-btn.copied{color:#34d399;border-color:rgba(16,185,129,.4)}
+    .line{display:block}
+    :host([theme="light"]) .line span{color:var(--shiki-light) !important}
     @media(max-width:640px){.header{padding:8px 12px;}.filename{font-size:11px;}.lang{font-size:10px;}.line-numbers,.line-numbers span{font-size:12px;line-height:1.6;}pre{padding:10px 8px;font-size:12px;line-height:1.6;}}
   \`;
   connectedCallback(){
     super.connectedCallback();
     if(this._code===undefined){
-      this._code=this.innerHTML.trim().replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+      if(this.highlighted){
+        this._highlighted=this.innerHTML.trim();
+        const tmp=document.createElement('div');
+        tmp.innerHTML=this._highlighted;
+        this._code=tmp.textContent;
+      }else{
+        this._code=this.innerHTML.trim().replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+      }
       this.innerHTML='';
     }
     this._copied=false;
@@ -138,7 +147,7 @@ class WcCodeBlock extends LitElement {
     const hasHeader=this.filename||this.language;
     return html\`<div class="wrap">
       \${hasHeader?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied to clipboard':'Copy code to clipboard'}>\${this._copied?'✓ Copied':'⧉ Copy'}</button></div>\`:nothing}
-      <div class="body"><div class="line-numbers">\${nums}</div><pre>\${this._renderCode()}</pre></div>
+      <div class="body"><div class="line-numbers">\${nums}</div><pre>\${this._highlighted?unsafeHTML(this._highlighted):this._renderCode()}</pre></div>
     </div>\`;
   }
 }
@@ -160,6 +169,8 @@ class WcCodeGroup extends LitElement {
     .panel{display:none}.panel.active{display:block}
     pre{margin:0;padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--code-text,#e2e8f0);max-width:100%;box-sizing:border-box;scrollbar-width:none}
     pre::-webkit-scrollbar{display:none}
+    .line{display:block}
+    :host([theme="light"]) .line span{color:var(--shiki-light) !important}
     @media(max-width:640px){button{padding:7px 12px;font-size:11px;}pre{padding:10px 8px;font-size:12px;}}
     @media(prefers-reduced-motion:reduce){button{transition:none}}
   \`;
@@ -176,7 +187,7 @@ class WcCodeGroup extends LitElement {
   }
   render(){
     const tabs=Array.from(this.querySelectorAll('wc-code-tab'));
-    return html\`<div class="tabbar" role="tablist">\${tabs.map((t,i)=>{const label=t.label||t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button role="tab" aria-selected=\${active} tabindex=\${active?0:-1} class="\${active?'active':''}" @click=\${()=>this._active=i} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div>\${tabs.map((t,i)=>html\`<div class="panel \${i===this._active?'active':''}" role="tabpanel"><pre>\${t.textContent}</pre></div>\`)}\`;
+    return html\`<div class="tabbar" role="tablist">\${tabs.map((t,i)=>{const label=t.label||t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button role="tab" aria-selected=\${active} tabindex=\${active?0:-1} class="\${active?'active':''}" @click=\${()=>this._active=i} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div>\${tabs.map((t,i)=>{const inner=t.innerHTML.trim();const hl=inner.includes('<span');return html\`<div class="panel \${i===this._active?'active':''}" role="tabpanel"><pre>\${hl?unsafeHTML(inner):t.textContent}</pre></div>\`;})}\`;
   }
 }
 customElements.define('wc-code-group',WcCodeGroup);

@@ -10,12 +10,13 @@ import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadF
 import { parseDoc } from './markdown.js';
 import { renderShell } from './template.js';
 import { loadSpec, getEndpoints, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
+import { initHighlighter } from './highlighter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function dev({ port = 3000 } = {}) {
   const cwd = process.cwd();
-  const config = await loadConfig(cwd);
+  const [config] = await Promise.all([loadConfig(cwd), initHighlighter()]);
 
   console.log(`\n  ${pc.bold('DocsLit')} dev server starting...\n`);
 

@@ -20,6 +20,7 @@ await fs.ensureDir(VENDOR_DIR);
 const ENTRIES = [
   { entry: 'lit',                          out: 'lit.js' },
   { entry: 'lit/decorators.js',            out: 'lit-decorators.js' },
+  { entry: 'lit/directives/unsafe-html.js', out: 'lit-unsafe-html.js' },
   { entry: '@lit/reactive-element',        out: 'reactive-element.js' },
   { entry: 'lit-html',                     out: 'lit-html.js' },
   { entry: 'lit-element/lit-element.js',   out: 'lit-element.js' },

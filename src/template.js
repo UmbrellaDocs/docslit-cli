@@ -160,8 +160,8 @@ export function buildAppFile(mode = 'static', { minify = false } = {}) {
 
 function buildImportMap(mode) {
   return mode === 'dev'
-    ? `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`
-    : `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js","marked":"https://esm.sh/marked@18","dompurify":"https://esm.sh/dompurify@3"}}`;
+    ? `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","lit/directives/unsafe-html.js":"/vendor/lit-unsafe-html.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`
+    : `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","lit/directives/unsafe-html.js":"https://esm.sh/lit@3/directives/unsafe-html.js","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js","marked":"https://esm.sh/marked@18","dompurify":"https://esm.sh/dompurify@3"}}`;
 }
 
 function buildThemeInit() {

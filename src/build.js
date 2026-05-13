@@ -5,6 +5,7 @@ import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersi
 import { parseDoc } from './markdown.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
+import { initHighlighter } from './highlighter.js';
 
 // Soft thresholds at which a single-file offline bundle starts to feel slow:
 // browsers can parse much larger HTML, but ~5MB / 200 pages is the point where
@@ -39,7 +40,7 @@ async function _warnIfLargeOffline(htmlPath, pageCount, label) {
 
 export async function build({ out = 'dist', offline = false, minify = true } = {}) {
   const cwd = process.cwd();
-  const config = await loadConfig(cwd);
+  const [config] = await Promise.all([loadConfig(cwd), initHighlighter()]);
   const outDir = path.resolve(cwd, out);
   const versionConfig = getVersionConfig(config);
 

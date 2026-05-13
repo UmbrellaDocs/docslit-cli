@@ -9,6 +9,7 @@ import utility from './utility.js';
 
 export function buildComponents() {
   return `import { LitElement, html, css, nothing } from 'lit';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 
 function _inlineMd(text) {
   if (!text) return '';
