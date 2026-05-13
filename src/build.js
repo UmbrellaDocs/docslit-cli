@@ -100,6 +100,15 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
     }
   }
 
+  if (specData) {
+    for (const ep of specData) {
+      if (!ep.operationId) continue;
+      const slug = ep.operationId.replace(/([a-z])([A-Z])/g, '$1-$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2').toLowerCase();
+      const apiId = `api/${slug}`;
+      if (!pageIds.includes(apiId)) pageIds.push(apiId);
+    }
+  }
+
   for (const id of pageIds) {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
     if (!await fs.pathExists(mdPath)) {
@@ -138,7 +147,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
 
   if (offline) {
     const searchIndex = buildSearchIndex(config, pagesData);
-    const indexHtml = renderShell({ config, mode: 'static', out, pagesData, offline: true, draftPageIds, searchIndex, minify });
+    const indexHtml = renderShell({ config, mode: 'static', out, pagesData, offline: true, draftPageIds, searchIndex, minify, specData, apiMeta });
     const indexPath = path.join(outDir, 'index.html');
     await fs.writeFile(indexPath, indexHtml);
     console.log(`  ${pc.green('✓')} Built index.html — ${built} page${built !== 1 ? 's' : ''} inlined${draftNote}${skippedNote}`);
@@ -149,8 +158,10 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
     await fs.writeFile(path.join(outDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
     const publishedIds = Object.keys(pagesData);
+    const hasRegularDocs = (config.sidebar || []).length > 0;
+    const isHybrid = specData && hasRegularDocs;
     for (const [id, { meta, html, isApiPage }] of Object.entries(pagesData)) {
-      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, specData: isApiPage ? specData : null, apiMeta: isApiPage ? apiMeta : null });
+      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null });
       const destHtml = path.join(outDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -202,6 +213,14 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   // Build default version fully from the working directory
   const defaultDir = path.join(outDir, defaultVersion);
   const defaultPageIds = getAllPageIds(config);
+  if (specData) {
+    for (const ep of specData) {
+      if (!ep.operationId) continue;
+      const slug = ep.operationId.replace(/([a-z])([A-Z])/g, '$1-$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2').toLowerCase();
+      const apiId = `api/${slug}`;
+      if (!defaultPageIds.includes(apiId)) defaultPageIds.push(apiId);
+    }
+  }
   const defaultPagesData = {};
   const draftPageIds = [];
   let built = 0;
@@ -230,6 +249,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       config, mode: 'static', out, draftPageIds,
       versionConfig, currentVersion: defaultVersion,
       pagesData: defaultPagesData, offline: true, searchIndex: buildSearchIndex(config, defaultPagesData), minify,
+      specData, apiMeta,
     });
     const defaultIndexPath = path.join(defaultDir, 'index.html');
     await fs.writeFile(defaultIndexPath, defaultShell);
@@ -240,8 +260,10 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
     const publishedIds = Object.keys(defaultPagesData);
+    const defaultHasRegularDocs = (config.sidebar || []).length > 0;
+    const defaultIsHybrid = specData && defaultHasRegularDocs;
     for (const [id, { meta, html, isApiPage }] of Object.entries(defaultPagesData)) {
-      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: isApiPage ? specData : null, apiMeta: isApiPage ? apiMeta : null });
+      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null });
       const destHtml = path.join(defaultDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -295,6 +317,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
         config: versionConf, mode: 'static', out, draftPageIds: [],
         versionConfig, currentVersion: entry.version,
         pagesData: versionPagesData, offline: true, searchIndex: buildSearchIndex(versionConf, versionPagesData), minify,
+        specData, apiMeta,
       });
       const versionIndexPath = path.join(versionDir, 'index.html');
       await fs.writeFile(versionIndexPath, versionShell);
@@ -305,8 +328,10 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       await fs.writeFile(path.join(versionDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
       const vPublishedIds = Object.keys(versionPagesData);
+      const vIsHybrid = specData && (versionConf.sidebar || []).length > 0;
       for (const [id, { meta, html }] of Object.entries(versionPagesData)) {
-        const pageHtml = renderPage({ config: versionConf, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version });
+        const isApiPage = id.startsWith('api/') || meta.layout === 'api';
+        const pageHtml = renderPage({ config: versionConf, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null });
         const destHtml = path.join(versionDir, `${id}.html`);
         await fs.ensureDir(path.dirname(destHtml));
         await fs.writeFile(destHtml, pageHtml);

@@ -143,32 +143,42 @@ export async function openapiScaffold(args) {
     pageIdsByTag.set(tag, tagPages);
   }
 
-  // Generate intro page from spec.info
-  const info = spec.info || {};
-  const introPath = path.join(docsDir, 'introduction.md');
-  if (info.title && !await fs.pathExists(introPath)) {
-    const lines = ['---', `title: ${yamlValue(info.title)}`, '---', ''];
-    lines.push(`# ${info.title}${info.version ? ` (${info.version})` : ''}`);
-    lines.push('');
-    const metaParts = [];
-    if (info.contact?.email) metaParts.push(`E-mail: [${info.contact.email}](mailto:${info.contact.email})`);
-    if (info.contact?.url) metaParts.push(`URL: [${info.contact.url}](${info.contact.url})`);
-    if (info.license?.name) {
-      const licenseText = info.license.url ? `[${info.license.name}](${info.license.url})` : info.license.name;
-      metaParts.push(`License: ${licenseText}`);
-    }
-    if (metaParts.length) { lines.push(metaParts.join(' | ')); lines.push(''); }
-    if (info.description) { lines.push(info.description); lines.push(''); }
-    await fs.writeFile(introPath, lines.join('\n'));
-    console.log(`  ${pc.green('✓')} Created introduction.md — API overview from spec info`);
-    created++;
-  }
-
   // Update docslit.json
   const configPath = path.join(cwd, 'docslit.json');
   let config = {};
   if (await fs.pathExists(configPath)) {
     config = await fs.readJson(configPath);
+  }
+
+  const info = spec.info || {};
+  const existingSidebar = config.sidebar || [];
+  const hasExistingDocs = existingSidebar.some(g =>
+    (g.pages || []).some(p => {
+      const pid = typeof p === 'string' ? p : p.id;
+      return pid && !pid.startsWith('api/');
+    })
+  );
+
+  // Generate intro page only for fresh projects (no existing docs)
+  if (!hasExistingDocs) {
+    const introPath = path.join(docsDir, 'introduction.md');
+    if (info.title && !await fs.pathExists(introPath)) {
+      const lines = ['---', `title: ${yamlValue(info.title)}`, '---', ''];
+      lines.push(`# ${info.title}${info.version ? ` (${info.version})` : ''}`);
+      lines.push('');
+      const metaParts = [];
+      if (info.contact?.email) metaParts.push(`E-mail: [${info.contact.email}](mailto:${info.contact.email})`);
+      if (info.contact?.url) metaParts.push(`URL: [${info.contact.url}](${info.contact.url})`);
+      if (info.license?.name) {
+        const licenseText = info.license.url ? `[${info.license.name}](${info.license.url})` : info.license.name;
+        metaParts.push(`License: ${licenseText}`);
+      }
+      if (metaParts.length) { lines.push(metaParts.join(' | ')); lines.push(''); }
+      if (info.description) { lines.push(info.description); lines.push(''); }
+      await fs.writeFile(introPath, lines.join('\n'));
+      console.log(`  ${pc.green('✓')} Created introduction.md — API overview from spec info`);
+      created++;
+    }
   }
 
   // Set openapi config
@@ -182,22 +192,35 @@ export async function openapiScaffold(args) {
   const tagGroups = spec['x-tagGroups'];
   const allPageIds = Array.from(pageIdsByTag.values()).flat();
 
-  // Remove default init-only groups from existing sidebar
-  const initOnlyPages = new Set(['introduction', 'installation', 'quickstart']);
-  const sidebar = (config.sidebar || []).filter(g => {
-    if (g.group === 'API Reference') return false;
-    if (tagGroups && tagMeta.size) {
-      const matchesTag = Array.from(tagMeta.values()).some(t => t.displayName === g.group);
-      if (matchesTag) return false;
-    }
-    return g.pages?.some(p => !initOnlyPages.has(p));
-  });
+  let sidebar;
+  if (hasExistingDocs) {
+    // Preserve existing docs sidebar, just remove stale API groups
+    sidebar = existingSidebar.filter(g => {
+      if (g.group === 'API Reference') return false;
+      if (tagGroups && tagMeta.size) {
+        const matchesTag = Array.from(tagMeta.values()).some(t => t.displayName === g.group);
+        if (matchesTag) return false;
+      }
+      return true;
+    });
+  } else {
+    // Fresh project: remove init-only scaffolding groups
+    const initOnlyPages = new Set(['introduction', 'installation', 'quickstart']);
+    sidebar = existingSidebar.filter(g => {
+      if (g.group === 'API Reference') return false;
+      if (tagGroups && tagMeta.size) {
+        const matchesTag = Array.from(tagMeta.values()).some(t => t.displayName === g.group);
+        if (matchesTag) return false;
+      }
+      return g.pages?.some(p => !initOnlyPages.has(p));
+    });
 
-  // Add intro page if it exists
-  if (await fs.pathExists(path.join(docsDir, 'introduction.md'))) {
-    const hasIntro = sidebar.some(g => g.pages?.includes('introduction'));
-    if (!hasIntro) {
-      sidebar.unshift({ group: info.title || 'Overview', pages: ['introduction'] });
+    // Add intro page if it exists
+    if (await fs.pathExists(path.join(docsDir, 'introduction.md'))) {
+      const hasIntro = sidebar.some(g => g.pages?.includes('introduction'));
+      if (!hasIntro) {
+        sidebar.unshift({ group: info.title || 'Overview', pages: ['introduction'] });
+      }
     }
   }
 

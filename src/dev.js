@@ -9,7 +9,7 @@ import pc from 'picocolors';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell } from './template.js';
-import { loadSpec, getEndpoints, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
+import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 import { initHighlighter } from './highlighter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +22,7 @@ export async function dev({ port = 3000 } = {}) {
 
   // Load OpenAPI spec if configured
   let specData = null;
+  let apiMeta = null;
   async function reloadSpec() {
     const openapiConfig = getOpenAPIConfig(config);
     if (!openapiConfig?.spec) return;
@@ -31,6 +32,7 @@ export async function dev({ port = 3000 } = {}) {
         openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
       );
       specData = getEndpoints(spec);
+      apiMeta = getApiMeta(spec);
       console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
     } catch (e) {
       console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
@@ -256,7 +258,7 @@ export async function dev({ port = 3000 } = {}) {
     }
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(renderShell({ config: shellConfig, mode: 'dev', port, versionConfig: vc, currentVersion }));
+    res.send(renderShell({ config: shellConfig, mode: 'dev', port, versionConfig: vc, currentVersion, specData, apiMeta }));
   });
 
   server.listen(port, () => {

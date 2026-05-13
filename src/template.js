@@ -14,9 +14,26 @@ function _minifyCSS(code) {
   catch { return code; }
 }
 
-export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false }) {
-  const sidebarHtml = buildSidebarHtml(config, draftPageIds);
+export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null }) {
   const siteTitle = config.name || 'DocsLit';
+  const isHybrid = specData && (config.sidebar || []).length > 0;
+
+  let apiSidebarHtml = null;
+  let hybridLinks = null;
+  let sidebarHtml;
+
+  if (isHybrid) {
+    const firstApiPage = getFirstApiPageId(specData);
+    const firstDocPage = getFirstDocPageId(config);
+    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, 'api/')
+      + (firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon) : '');
+    apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta)
+      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon) : '');
+    hybridLinks = firstApiPage && firstDocPage ? { apiPage: firstApiPage, docsPage: firstDocPage, initialMode: 'docs' } : null;
+  } else {
+    sidebarHtml = buildSidebarHtml(config, draftPageIds);
+  }
+
   const wsScript = mode === 'dev' ? buildWsScript(port) : '';
   const loaderScript = mode === 'dev' ? buildDevLoader() : (offline ? buildOfflineLoader() : buildStaticLoader());
   const inlinePages = offline && pagesData
@@ -50,11 +67,11 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   ${stylesBlock}
 </head>
 <body>
-${buildNavHtml(siteTitle, versionSelectorHtml)}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…')}
+${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml)}
 
 ${inlinePages}
 ${inlineSearch}
@@ -71,7 +88,8 @@ ${appBlock}
 }
 
 export function renderPage({ config, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null }) {
-  const sidebarHtml = buildSidebarHtml(config, draftPageIds, id);
+  const isHybridEarly = specData && (config.sidebar || []).length > 0;
+  const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null);
   const siteTitle = config.name || 'DocsLit';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
   const importMap = buildImportMap('static');
@@ -111,8 +129,23 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   const breadcrumbText = groupName ? `${escHtml(groupName)} › ${escHtml(pageTitle)}` : escHtml(pageTitle);
   const isApiPage = id.startsWith('api/') || meta.layout === 'api';
   const apiClass = isApiPage ? ' api-layout' : '';
-  const apiSidebar = isApiPage && specData ? buildApiSidebarHtml(specData, id, apiMeta) : null;
-  const effectiveSidebarHtml = apiSidebar || sidebarHtml;
+  const isHybrid = specData && (config.sidebar || []).length > 0;
+
+  let docsSidebarHtml = sidebarHtml;
+  let apiSidebarHtml = null;
+  let hybridLinks = null;
+
+  if (isHybrid) {
+    const firstApiPage = getFirstApiPageId(specData);
+    const firstDocPage = getFirstDocPageId(config);
+    apiSidebarHtml = buildApiSidebarHtml(specData, isApiPage ? id : null, apiMeta)
+      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon) : '');
+    docsSidebarHtml += firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon) : '';
+    hybridLinks = firstApiPage && firstDocPage ? { apiPage: firstApiPage, docsPage: firstDocPage, initialMode: isApiPage ? 'api' : 'docs' } : null;
+  } else if (isApiPage && specData) {
+    docsSidebarHtml = buildApiSidebarHtml(specData, id, apiMeta);
+    apiSidebarHtml = null;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -126,11 +159,11 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   <link rel="stylesheet" href="${assetPrefix}docslit.css">
 </head>
 <body class="${apiClass.trim()}">
-${buildNavHtml(siteTitle, versionSelectorHtml)}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-${buildMainLayoutHtml(effectiveSidebarHtml, siteTitle, html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id)), breadcrumbText, isApiPage)}
+${buildMainLayoutHtml(docsSidebarHtml, siteTitle, html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id)), breadcrumbText, isApiPage, apiSidebarHtml)}
 
 ${versionScript}
 <script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
@@ -181,7 +214,14 @@ function buildFontLinks() {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">`;
 }
 
-function buildNavHtml(siteTitle, versionSelectorHtml) {
+function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null) {
+  let modeLinksHtml = '';
+  if (hybridLinks) {
+    const showApi = hybridLinks.initialMode !== 'api' ? '' : ' style="display:none"';
+    const showDocs = hybridLinks.initialMode === 'api' ? '' : ' style="display:none"';
+    modeLinksHtml = `<a id="nav-api-link" class="nav-mode-link" href="${escHtml(hybridLinks.apiPage)}" onclick="loadPage('${escHtml(hybridLinks.apiPage)}');return false;"${showApi}>API Reference</a>` +
+      `<a id="nav-docs-link" class="nav-mode-link" href="${escHtml(hybridLinks.docsPage)}" onclick="loadPage('${escHtml(hybridLinks.docsPage)}');return false;"${showDocs}>Documentation</a>`;
+  }
   return `<a class="skip-link" href="#docs-content">Skip to content</a>
 <nav class="nav">
   <div class="nav-left">
@@ -194,6 +234,7 @@ function buildNavHtml(siteTitle, versionSelectorHtml) {
     </a>
   </div>
   <div class="nav-links">
+    ${modeLinksHtml}
     <button class="search-trigger" onclick="openSearch()" id="search-trigger" title="Search (⌘K)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
       <span class="search-trigger-text">Search…</span>
@@ -223,8 +264,16 @@ function buildSearchOverlayHtml() {
 </div>`;
 }
 
-function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText, isApiPage = false) {
+function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText, isApiPage = false, apiSidebarHtml = null) {
   const examplesPanel = '\n        <div class="docs-examples" id="docs-examples"></div>';
+  let sidebarContent;
+  if (apiSidebarHtml) {
+    const docsDisplay = isApiPage ? ' style="display:none"' : '';
+    const apiDisplay = isApiPage ? '' : ' style="display:none"';
+    sidebarContent = `<div id="sidebar-docs"${docsDisplay}>${sidebarHtml}</div><div id="sidebar-api"${apiDisplay}>${apiSidebarHtml}</div>`;
+  } else {
+    sidebarContent = sidebarHtml;
+  }
   return `<div class="docs-page">
   <div class="docs-layout">
     <aside class="docs-sidebar" id="docs-sidebar">
@@ -236,7 +285,7 @@ function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText
         </button>
       </div>
       <nav class="sidebar-scroll" id="sidebar-scroll" aria-label="Documentation pages">
-      ${sidebarHtml}
+      ${sidebarContent}
       </nav>
     </aside>
     <div class="docs-main-col">
@@ -268,6 +317,20 @@ function activateSidebar(id) {
     el.classList.add('active');
     el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
+}
+
+// ── SIDEBAR MODE SWITCHING ───────────────────────────────────────────────
+function _switchSidebarMode(mode) {
+  var docsEl = document.getElementById('sidebar-docs');
+  var apiEl = document.getElementById('sidebar-api');
+  if (!docsEl || !apiEl) return;
+  docsEl.style.display = mode === 'docs' ? '' : 'none';
+  apiEl.style.display = mode === 'api' ? '' : 'none';
+  var apiLink = document.getElementById('nav-api-link');
+  var docsLink = document.getElementById('nav-docs-link');
+  if (apiLink) apiLink.style.display = mode === 'docs' ? '' : 'none';
+  if (docsLink) docsLink.style.display = mode === 'api' ? '' : 'none';
+  if (typeof _clearSidebarFilter === 'function') _clearSidebarFilter();
 }
 
 // ── TOC ───────────────────────────────────────────────────────────────────
@@ -385,7 +448,10 @@ function _wrapTables(container) {
 
 // ── PREV / NEXT NAVIGATION ────────────────────────────────────────────────
 function _buildPrevNext(id) {
-  const all = Array.from(document.querySelectorAll('.sidebar-item'));
+  var container = document.getElementById('sidebar-api');
+  if (!container || container.style.display === 'none') container = document.getElementById('sidebar-docs');
+  if (!container) container = document.getElementById('sidebar-scroll');
+  const all = Array.from(container.querySelectorAll('.sidebar-item:not(.sidebar-mode-item)'));
   const idx = all.findIndex(function(el){ return el.dataset.page === id; });
   const prev = idx > 0 ? all[idx-1] : null;
   const next = idx < all.length-1 ? all[idx+1] : null;
@@ -691,15 +757,18 @@ function injectPageMeta(meta, id) {
   return `<div class="page-meta">${parts.join('')}</div>`;
 }
 
-function buildSidebarHtml(config, draftIds = [], activePageId = null) {
+function buildSidebarHtml(config, draftIds = [], activePageId = null, excludePrefix = null) {
   const draftSet = new Set(draftIds);
+  function _excluded(id) {
+    return draftSet.has(id) || (excludePrefix && id.startsWith(excludePrefix));
+  }
   function renderPages(pages) {
     let out = '';
     for (const item of pages) {
       if (typeof item === 'object' && item.group) {
         const subPages = (item.pages || []).filter(p => {
-          if (typeof p === 'string') return !draftSet.has(p);
-          if (p.id) return !draftSet.has(p.id);
+          if (typeof p === 'string') return !_excluded(p);
+          if (p.id) return !_excluded(p.id);
           return true;
         });
         if (!subPages.length) continue;
@@ -707,11 +776,11 @@ function buildSidebarHtml(config, draftIds = [], activePageId = null) {
         out += `<div class="sidebar-subgroup-title">${escHtml(item.group)}</div>`;
         out += renderPages(subPages);
         out += `</div>`;
-      } else if (typeof item === 'string' && !draftSet.has(item)) {
+      } else if (typeof item === 'string' && !_excluded(item)) {
         const label = toLabel(item);
         const activeClass = item === activePageId ? ' active' : '';
         out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item)}" href="${escHtml(item)}" onclick="loadPage('${escHtml(item)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
-      } else if (typeof item === 'object' && item.id && !draftSet.has(item.id)) {
+      } else if (typeof item === 'object' && item.id && !_excluded(item.id)) {
         const label = item.title || toLabel(item.id);
         const activeClass = item.id === activePageId ? ' active' : '';
         if (item.method) {
@@ -727,8 +796,8 @@ function buildSidebarHtml(config, draftIds = [], activePageId = null) {
   let html = '';
   for (const group of (config.sidebar || [])) {
     const visiblePages = (group.pages || []).filter(p => {
-      if (typeof p === 'string') return !draftSet.has(p);
-      if (p.id) return !draftSet.has(p.id);
+      if (typeof p === 'string') return !_excluded(p);
+      if (p.id) return !_excluded(p.id);
       return true;
     });
     if (!visiblePages.length) continue;
@@ -836,6 +905,31 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function getFirstDocPageId(config) {
+  for (const group of (config.sidebar || [])) {
+    for (const item of (group.pages || [])) {
+      if (typeof item === 'string' && !item.startsWith('api/')) return item;
+      if (item.id && !item.id.startsWith('api/')) return item.id;
+    }
+  }
+  return null;
+}
+
+function getFirstApiPageId(specData) {
+  if (!specData?.length) return null;
+  const ep = specData[0];
+  if (!ep.operationId) return null;
+  const slug = ep.operationId.replace(/([a-z])([A-Z])/g, '$1-$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2').toLowerCase();
+  return `api/${slug}`;
+}
+
+const _apiIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>';
+const _docsIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>';
+
+function buildSidebarModeLink(targetPageId, label, icon) {
+  return `<div class="sidebar-mode-link"><a class="sidebar-item sidebar-mode-item" data-page="${escHtml(targetPageId)}" href="${escHtml(targetPageId)}" onclick="loadPage('${escHtml(targetPageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${icon} ${escHtml(label)}</a></div>`;
+}
+
 function buildWsScript(port) {
   return `
 (function(){
@@ -866,6 +960,7 @@ async function loadPage(id, el) {
     const { meta, html } = await res.json();
     var isApi = id.startsWith('api/') || meta.layout === 'api';
     if (isApi) document.body.classList.add('api-layout'); else document.body.classList.remove('api-layout');
+    _switchSidebarMode(isApi ? 'api' : 'docs');
     const logoText = document.querySelector('.nav-logo-text');
     if (meta.title) {
       document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
@@ -968,6 +1063,7 @@ async function loadPage(id, el) {
   const { meta, content: mdText } = data;
   var isApi = id.startsWith('api/') || meta.layout === 'api';
   if (isApi) document.body.classList.add('api-layout'); else document.body.classList.remove('api-layout');
+  _switchSidebarMode(isApi ? 'api' : 'docs');
   const { marked, purify } = await _getMd();
   const safeHtml = purify.sanitize(marked.parse(mdText));
   const logoText = document.querySelector('.nav-logo-text');
@@ -1033,6 +1129,7 @@ async function loadPage(id, el) {
   const { meta, html } = data;
   var isApi = id.startsWith('api/') || meta.layout === 'api';
   if (isApi) document.body.classList.add('api-layout'); else document.body.classList.remove('api-layout');
+  _switchSidebarMode(isApi ? 'api' : 'docs');
   const logoText = document.querySelector('.nav-logo-text');
   if (meta.title) {
     document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
@@ -1554,6 +1651,15 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
   color: var(--accent-light); border-left-color: var(--accent);
   background: var(--accent-dim); font-weight: 500;
 }
+.sidebar-mode-link { padding: 12px 18px; border-top: 1px solid var(--border); margin-top: 8px; }
+.sidebar-mode-item { display: flex !important; align-items: center; gap: 8px; font-weight: 500 !important; color: var(--accent-light) !important; border-left: none !important; }
+.sidebar-mode-item:hover { color: var(--accent-light) !important; background: var(--accent-dim) !important; }
+.nav-mode-link {
+  font-family: var(--font-sans); font-size: 13px; font-weight: 500;
+  color: var(--text2); text-decoration: none; padding: 6px 12px;
+  border-radius: var(--radius); transition: color .15s, background .15s; cursor: pointer;
+}
+.nav-mode-link:hover { color: var(--accent-light); background: var(--surface2); }
 
 /* MAIN COLUMN */
 .docs-main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
