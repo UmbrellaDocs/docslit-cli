@@ -6,17 +6,17 @@ class WcField extends LitElement {
   static properties={name:{type:String},type:{type:String},required:{type:Boolean},description:{type:String},default:{type:String},deprecated:{type:Boolean},in:{type:String},enum:{type:String},format:{type:String},pattern:{type:String},minimum:{type:String},maximum:{type:String},maxlength:{type:String},minlength:{type:String},example:{type:String},collapsible:{type:Boolean},_expanded:{type:Boolean,state:true}};
   static styles=css\`
     :host{display:block}
-    :host([theme="dark"]){--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666}
-    :host([theme="light"]){--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#999}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:12px 0;border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:14px}
+    :host([theme="dark"]){--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666;--surface2:#1a1a1a}
+    :host([theme="light"]){--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#999;--surface2:#f5f5f5}
+    .row{padding:14px 0;border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:14px}
     .row:last-child{border-bottom:none}
-    .left{display:flex;flex-direction:column;gap:6px;padding-right:16px}
-    .name{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--text,#f0f0f0);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .name-line{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+    .name{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--text,#f0f0f0)}
     :host([deprecated]) .name{text-decoration:line-through;opacity:.6}
-    .type-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:1px 8px;border-radius:4px;background:rgba(1,105,111,.15);color:#4f98a3;border:1px solid rgba(1,105,111,.3);white-space:nowrap}
+    .type-label{font-family:'Inter',sans-serif;font-size:12px;color:var(--text3,#666)}
     .in-badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface2,#1a1a1a);color:var(--text3,#666);border:1px solid var(--border,#2a2a2a);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
     .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
-    .desc{color:var(--text2,#a0a0a0);line-height:1.6;font-size:13px}
+    .desc{color:var(--text2,#a0a0a0);line-height:1.6;font-size:13px;margin-top:6px}
     .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:3px;color:#4f98a3}
     .desc a{color:#4f98a3;text-decoration:none}
     .desc a:hover{text-decoration:underline}
@@ -24,26 +24,53 @@ class WcField extends LitElement {
     .default-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .example-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .example-val code{font-size:11px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:3px;color:#4f98a3}
-    .nested{padding-left:20px;border-left:2px solid var(--border,#2a2a2a);margin-top:8px}
-    .toggle{cursor:pointer;user-select:none}
-    .toggle::before{content:'▶';font-size:9px;margin-right:6px;display:inline-block;transition:transform .15s}
-    .toggle.open::before{transform:rotate(90deg)}
+    .enum-box{margin-top:10px;border:1px solid var(--border,#2a2a2a);border-radius:8px;overflow:hidden}
+    .enum-title{font-size:12px;font-weight:600;color:var(--text,#f0f0f0);padding:10px 14px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a)}
+    .enum-item{padding:10px 14px;border-bottom:1px solid var(--border,#2a2a2a)}
+    .enum-item:last-child{border-bottom:none}
+    .enum-val{font-family:'JetBrains Mono',monospace;font-size:12px;padding:2px 8px;border-radius:4px;background:rgba(1,105,111,.1);color:#4f98a3;display:inline-block}
+    .toggle-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 14px;border:1px solid var(--border,#2a2a2a);border-radius:20px;background:transparent;font-family:'Inter',sans-serif;font-size:12px;color:var(--text2,#a0a0a0);cursor:pointer;transition:all .15s;user-select:none}
+    .toggle-btn:hover{border-color:var(--text3,#666);color:var(--text,#f0f0f0)}
+    .toggle-icon{font-size:10px;line-height:1}
+    .children{margin-top:10px;border:1px solid var(--border,#2a2a2a);border-radius:8px;overflow:hidden}
+    .children-header{display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;color:var(--text2,#a0a0a0);cursor:pointer;user-select:none;transition:color .15s}
+    .children-header:hover{color:var(--text,#f0f0f0)}
+    .children-header .icon{font-size:11px}
+    .children-body{padding:0 14px}
     .collapsed{display:none}
-    @media(max-width:768px){.row{grid-template-columns:1fr;gap:6px}}
   \`;
   constructor(){super();this._expanded=false;}
   _toggle(){this._expanded=!this._expanded;}
   render(){
     const typeLabel=this.format?this.type+' ('+this.format+')':this.type;
     const constraints=[];
-    if(this.enum)constraints.push('one of: '+this.enum.split(',').map(s=>s.trim()).join(' | '));
+    const enumValues=this.enum?this.enum.split(',').map(s=>s.trim()):[];
     if(this.pattern)constraints.push('/'+this.pattern+'/');
     if(this.minimum!==null&&this.minimum!==undefined&&this.maximum!==null&&this.maximum!==undefined)constraints.push(this.minimum+' – '+this.maximum);
     else if(this.minimum!==null&&this.minimum!==undefined)constraints.push('≥ '+this.minimum);
     else if(this.maximum!==null&&this.maximum!==undefined)constraints.push('≤ '+this.maximum);
     if(this.maxlength)constraints.push('≤ '+this.maxlength+' characters');
     if(this.minlength)constraints.push('≥ '+this.minlength+' characters');
-    return html\`<div class="row"><div class="left"><div class="name \${this.collapsible?'toggle':''}  \${this._expanded?'open':''}" @click=\${this.collapsible?this._toggle.bind(this):null}><span>\${this.name}</span>\${this.in?html\`<span class="in-badge">\${this.in}</span>\`:nothing}\${typeLabel?html\`<span class="type-badge">\${typeLabel}</span>\`:nothing}\${this.required?html\`<span class="req">required</span>\`:nothing}</div>\${constraints.length?html\`<div class="constraint">\${constraints.join(' · ')}</div>\`:nothing}\${this.default!==undefined&&this.default!==null?html\`<div class="default-val">Default: \${this.default}</div>\`:nothing}\${this.example!==undefined&&this.example!==null?html\`<div class="example-val">Example: <code>\${this.example}</code></div>\`:nothing}</div><div>\${this.description?html\`<div class="desc"><span .innerHTML=\${_inlineMd(this.description)}></span></div>\`:nothing}<div class="\${this.collapsible&&!this._expanded?'collapsed':''}"><slot></slot></div></div></div>\`;}
+    return html\`<div class="row">
+      <div class="name-line">
+        <span class="name">\${this.name}</span>
+        \${this.in?html\`<span class="in-badge">\${this.in}</span>\`:nothing}
+        \${typeLabel?html\`<span class="type-label">\${typeLabel}</span>\`:nothing}
+        \${this.required?html\`<span class="req">required</span>\`:nothing}
+      </div>
+      \${this.description?html\`<div class="desc"><span .innerHTML=\${_inlineMd(this.description)}></span></div>\`:nothing}
+      \${constraints.length?html\`<div class="constraint">\${constraints.join(' · ')}</div>\`:nothing}
+      \${this.default!==undefined&&this.default!==null?html\`<div class="default-val">Default: \${this.default}</div>\`:nothing}
+      \${this.example!==undefined&&this.example!==null?html\`<div class="example-val">Example: <code>\${this.example}</code></div>\`:nothing}
+      \${enumValues.length?html\`<div class="enum-box"><div class="enum-title">Possible enum values</div>\${enumValues.map(v=>html\`<div class="enum-item"><span class="enum-val">\${v}</span></div>\`)}</div>\`:nothing}
+      \${this.collapsible?html\`
+        \${!this._expanded?html\`<button class="toggle-btn" @click=\${this._toggle.bind(this)}><span class="toggle-icon">+</span> Show child attributes</button>\`:nothing}
+        \${this._expanded?html\`<div class="children">
+          <div class="children-header" @click=\${this._toggle.bind(this)}><span class="icon">✕</span> Hide child attributes</div>
+          <div class="children-body"><slot></slot></div>
+        </div>\`:nothing}
+      \`:html\`<slot></slot>\`}
+    </div>\`;}
 }
 customElements.define('wc-field',WcField);
 
@@ -54,11 +81,10 @@ class WcFields extends LitElement {
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text3:#999}
     .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden}
-    .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666);display:grid;grid-template-columns:1fr 1fr;gap:0}
+    .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666)}
     .body{padding:0 16px}
-    @media(max-width:768px){.header{grid-template-columns:1fr}}
   \`;
-  render(){return html\`<div class="wrap"><div class="header"><span>\${this.title||'Parameter'}</span><span>Description</span></div><div class="body"><slot></slot></div></div>\`;}
+  render(){return html\`<div class="wrap"><div class="header">\${this.title||'Parameters'}</div><div class="body"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-fields',WcFields);
 
@@ -70,11 +96,10 @@ class WcResponseFields extends LitElement {
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text3:#999}
     .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden}
-    .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666);display:grid;grid-template-columns:1fr 1fr}
+    .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666)}
     .body{padding:0 16px}
-    @media(max-width:768px){.header{grid-template-columns:1fr}}
   \`;
-  render(){return html\`<div class="wrap"><div class="header"><span>\${this.title||'Field'}</span><span>Description</span></div><div class="body"><slot></slot></div></div>\`;}
+  render(){return html\`<div class="wrap"><div class="header">\${this.title||'Response'}</div><div class="body"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-response-fields',WcResponseFields);
 
@@ -112,7 +137,7 @@ class WcResponses extends LitElement {
     .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666)}
     .body{padding:0 16px}
   \`;
-  render(){return html\`<div class="wrap"><div class="header">Responses</div><div class="body"><slot></slot></div></div>\`;}
+  render(){return html\`<div class="wrap"><div class="header">Status codes</div><div class="body"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-responses',WcResponses);
 
@@ -298,7 +323,7 @@ class WcEndpoint extends LitElement {
     const m=(this.method||'GET').toUpperCase();
     const sections=[];
     if(fields.length)sections.push({label:'Parameters',type:'fields'});
-    if(responses.length)sections.push({label:'Responses',type:'responses'});
+    if(responses.length)sections.push({label:'Status codes',type:'responses'});
     if(responseFields.length)sections.push({label:'Response',type:'response'});
     if(tabs.length)tabs.forEach((t,i)=>sections.push({label:t.label||t.getAttribute('label')||'Snippet '+(i+1),type:'tab',idx:i}));
     this._sections=sections;

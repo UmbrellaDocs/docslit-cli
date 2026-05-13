@@ -29,7 +29,7 @@ export function schemaToFields(schema, { location = 'body', requiredNames = null
         in: location,
         required: requiredSet.has(name),
         type: resolveType(resolved),
-        description: resolved.description || '',
+        description: stripHtml(resolved.description),
         format: resolved.format || null,
         enum: resolved.enum || null,
         pattern: resolved.pattern || null,
@@ -148,7 +148,7 @@ export function getEndpoints(spec) {
         in: p.in,
         required: !!p.required,
         type: p.schema?.type || 'string',
-        description: p.description || '',
+        description: stripHtml(p.description),
         format: p.schema?.format || null,
         enum: p.schema?.enum || null,
         pattern: p.schema?.pattern || null,
@@ -171,7 +171,7 @@ export function getEndpoints(spec) {
         method: method.toUpperCase(),
         path: urlPath,
         summary: operation.summary || '',
-        description: operation.description || '',
+        description: stripHtml(operation.description),
         tags: operation.tags || [],
         parameters: params,
         bodyFields,
@@ -191,7 +191,7 @@ export function getEndpoints(spec) {
           const primarySchema = content[0]?.schema || null;
           return {
             code,
-            description: resp.description || '',
+            description: stripHtml(resp.description),
             content,
             fields: primarySchema ? schemaToFields(primarySchema, { location: 'response' }) : [],
           };
@@ -233,7 +233,7 @@ export function getWebhooks(spec) {
         name,
         method: method.toUpperCase(),
         summary: operation.summary || '',
-        description: operation.description || '',
+        description: stripHtml(operation.description),
         payloadFields,
       });
     }
@@ -246,7 +246,7 @@ export function getApiMeta(spec) {
   const tags = (spec.tags || []).map(t => ({
     name: t.name,
     displayName: t['x-displayName'] || t.name,
-    description: t.description || '',
+    description: stripHtml(t.description),
   }));
   const tagGroups = (spec['x-tagGroups'] || []).map(g => ({
     name: g.name,
@@ -506,4 +506,8 @@ export function buildApiPageMarkdown(raw, specData) {
 
 function escapeAttr(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function stripHtml(s) {
+  return String(s ?? '').replace(/<[^>]+>/g, '').trim();
 }
