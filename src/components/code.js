@@ -86,7 +86,7 @@ function _resolveCodeTheme(el){
 
 // ── WC-CODE-BLOCK ──────────────────────────────────────────────────────────
 class WcCodeBlock extends LitElement {
-  static properties={language:{type:String},filename:{type:String},highlighted:{type:Boolean,reflect:true},_code:{type:String,state:true},_highlighted:{type:String,state:true},_copied:{type:Boolean,state:true},_menuOpen:{type:Boolean,state:true},_resolvedTheme:{type:String,state:true}};
+  static properties={language:{type:String},filename:{type:String},highlighted:{type:Boolean,reflect:true},linenumbers:{type:String},_code:{type:String,state:true},_highlighted:{type:String,state:true},_copied:{type:Boolean,state:true},_menuOpen:{type:Boolean,state:true},_resolvedTheme:{type:String,state:true}};
   static styles=css\`
     :host{display:block;margin:0 0 16px;width:100%;box-sizing:border-box;max-width:100%}
     :host([theme="dark"]),.dark-theme{--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666;--code-bg:#161616;--code-text:#e2e8f0}
@@ -97,7 +97,9 @@ class WcCodeBlock extends LitElement {
     .lang{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0}
     .actions{display:flex;align-items:center;gap:2px;flex-shrink:0}
     .body{overflow:hidden;width:100%;box-sizing:border-box}
-    pre{margin:0;padding:20px;overflow:hidden;white-space:pre-wrap;word-break:break-all;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--code-text);width:100%;box-sizing:border-box}
+    .code-area{display:flex;width:100%;box-sizing:border-box}
+    .line-nums{padding:20px 0 20px 16px;margin:0;text-align:right;user-select:none;-webkit-user-select:none;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--text3);opacity:.5;flex-shrink:0;white-space:pre}
+    pre{margin:0;padding:20px;overflow:hidden;white-space:pre-wrap;word-break:break-all;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--code-text);width:100%;box-sizing:border-box;flex:1;min-width:0}
     .var-span{color:#4f98a3;font-weight:600;font-style:italic;cursor:pointer;border-bottom:1px dashed rgba(1,105,111,.4);transition:background .15s}
     .var-span:hover{background:rgba(1,105,111,.12)}
     .copy-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:4px 8px;cursor:pointer;color:var(--text3);font-size:12px;font-family:'Inter',sans-serif;transition:color .15s,border-color .15s;flex-shrink:0;display:flex;align-items:center;gap:4px}
@@ -182,6 +184,12 @@ class WcCodeBlock extends LitElement {
   }
   _toggleMenu(){this._menuOpen=!this._menuOpen;}
   _switchTheme(){this._menuOpen=false;_toggleCodeTheme();}
+  _showLineNums(){
+    if(this.linenumbers!=='true')return nothing;
+    const code=this._code||'';
+    const count=code.split('\\n').length;
+    return html\`<div class="line-nums">\${Array.from({length:count},(_,i)=>i+1).join('\\n')}</div>\`;
+  }
   render(){
     const hasHeader=this.filename||this.language;
     const isLight=this._resolvedTheme==='light';
@@ -191,7 +199,7 @@ class WcCodeBlock extends LitElement {
       :html\`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>\`;
     return html\`<div class="wrap \${isLight?'light-theme':'dark-theme'}">
       \${hasHeader?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span><div class="actions"><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied to clipboard':'Copy code to clipboard'}>\${this._copied?'\\u2713 Copied':'\\u29C9 Copy'}</button><div class="menu-wrap"><button class="menu-btn" @click=\${this._toggleMenu} title="More options" aria-label="More options">\\u22EE</button>\${this._menuOpen?html\`<div class="menu"><button class="menu-item" @click=\${this._switchTheme}>\${themeSvg} \${themeLabel}</button></div>\`:nothing}</div></div></div>\`:nothing}
-      <div class="body"><pre>\${this._highlighted?unsafeHTML(this._highlighted):this._renderCode()}</pre></div>
+      <div class="body"><div class="code-area">\${this._showLineNums()}<pre>\${this._highlighted?unsafeHTML(this._highlighted):this._renderCode()}</pre></div></div>
     </div>\`;
   }
 }

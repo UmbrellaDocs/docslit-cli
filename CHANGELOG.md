@@ -8,6 +8,28 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ### What's new
 
+#### Syntax highlighting
+
+**Shiki syntax highlighting** — code blocks now use Shiki for build-time syntax highlighting with dual-theme support (`github-dark` and `github-light`). Blocks with recognised languages get highlighted spans injected at parse time, so there's no client-side highlighting cost. Blocks containing `{{VAR}}` patterns fall back to plain text so interactive variable substitution still works. Fenced code block info strings now support `filename="..."` metadata, which is passed through to `wc-code-block`.
+
+**Code components follow the page theme** — `wc-code-block` and `wc-code-group` now inherit the page's light/dark theme via CSS custom properties. A `MutationObserver` watches the root `<html>` class and syncs Shiki's dual-theme colour tokens automatically. Users can still force a specific theme on any individual component with `theme="light"` or `theme="dark"`.
+
+**Code theme toggle** — a kebab menu (⋮) on every code block and code group lets users switch all code components between light and dark mode. The preference is saved to `localStorage` and applied on future visits. The page theme remains independent — this only affects code components.
+
+**Copy button on code groups** — `wc-code-group` now has a copy button matching `wc-code-block`, so users can copy the active tab's code without selecting text.
+
+**Opt-in line numbers** — add `linenumbers="true"` to any `<wc-code-block>` or fenced code block (` ```js linenumbers="true" `) to display a non-selectable line number gutter. Line numbers are off by default and only appear when explicitly requested.
+
+#### Save as PDF
+
+**Client-side PDF export** — a "Save as PDF" button appears in the page meta bar (alongside "Copy as Markdown" and "View as Markdown"). It calls `window.print()` with `@media print` styles that produce clean output:
+- Navbar, sidebar, table of contents, and page chrome are hidden
+- Accordions and expandables are forced open so no content is lost
+- All tab panels are shown sequentially with labelled headers
+- Page breaks are prevented inside code blocks, tables, images, and components
+
+Works in both static builds and the dev server.
+
 #### OpenAPI integration
 
 **Spec-driven API reference documentation** — docslit can now generate complete API reference docs from an OpenAPI 3.x specification file. A new `docslit openapi scaffold` command reads your spec, creates one Markdown page per endpoint in `docs/api/`, generates an introduction page from the spec's `info` block, and wires up `docslit.json` with the OpenAPI config and a fully structured sidebar.
@@ -60,7 +82,15 @@ Parameters are grouped by location into separate sections: Headers, Path Paramet
 
 **Two skill files for AI coding agents** — `docslit-author` teaches agents how to write valid DocsLit pages (all 51 components with syntax, attributes, nesting rules, frontmatter schema, config format). `docslit-migrate` teaches agents how to convert MDX and Mintlify docs (component mapping, attribute renames, icon conversions, common pitfalls). Both are plain Markdown files that work with Claude Code, Cursor, Windsurf, or any agent that reads instruction files.
 
+#### Navigation and layout
+
+**Hybrid sidebar** — sites with both regular documentation pages and an OpenAPI spec now get a dual-sidebar mode. "API Reference" and "Documentation" links in the nav toggle between separate sidebars. The scaffold command no longer creates phantom introduction pages when docs already exist.
+
+**Mobile API examples** — on screens ≤1280px, API examples now appear below the main content instead of being hidden entirely.
+
 #### Component upgrades
+
+**`wc-field` redesign** — single-column Stripe-style layout with inline "Show/Hide child attributes" toggle and bordered nested containers. Enum values render in a dedicated "Possible enum values" box. The Responses tab in API pages is now labelled "Status codes", and HTML tags are stripped from OpenAPI spec descriptions.
 
 **`wc-field` enhancements** — new attributes: `in` (parameter location badge), `format`, `enum`, `pattern`, `minimum`, `maximum`, `minlength`, `maxlength`, `example`, `collapsible` (expandable nested fields), and `description` (supports inline Markdown: bold, italic, code, links). Constraint values display beneath the field name.
 
@@ -75,6 +105,12 @@ Parameters are grouped by location into separate sections: Headers, Path Paramet
 **Sidebar filter preserves method badges** — the filter was using `textContent` which included badge text (e.g. "Create a userPOST"), then destroying the badge HTML on restore. Now targets the `.api-nav-label` span for label capture and highlight, leaving method badges intact.
 
 **YAML frontmatter escaping** — the scaffold command now properly escapes frontmatter values containing special YAML characters (colons, quotes, brackets, etc.) to prevent parse errors.
+
+**Line numbers removed from code blocks** — automatic line numbers on `wc-code-block` have been removed. The count could drift out of sync with the actual content in certain rendering scenarios, and the feature added visual noise without clear benefit.
+
+**Stale API examples cleared on navigation** — switching between API pages in the SPA no longer shows leftover request/response examples from the previous page.
+
+**Code group dropdown clipping fixed** — the theme toggle dropdown in `wc-code-group` was being clipped by the tab bar's `overflow-x` scrolling context. The scrolling is now scoped to the inner tab container so the dropdown renders above it correctly.
 
 ---
 

@@ -11,25 +11,28 @@ renderer.code = function ({ text, lang: rawLang }) {
 
   let lang = rawLang || '';
   let filename = '';
+  let linenumbers = false;
   const spaceIdx = lang.indexOf(' ');
   if (spaceIdx !== -1) {
     const meta = lang.slice(spaceIdx + 1);
     lang = lang.slice(0, spaceIdx);
     const fm = meta.match(/filename="([^"]+)"/);
     if (fm) filename = fm[1];
+    if (/linenumbers="true"/.test(meta)) linenumbers = true;
   }
 
   const langAttr = lang ? ` language="${lang}"` : '';
   const fileAttr = filename ? ` filename="${filename}"` : '';
+  const lineAttr = linenumbers ? ' linenumbers="true"' : '';
 
   const hasVars = /\{\{[A-Z_][A-Z0-9_]*\}\}/.test(text);
   const effectiveLang = (lang === 'markdown' || lang === 'md' || !lang) && /<wc-/.test(text) ? 'mdx' : lang;
   const highlighted = !hasVars ? highlight(text, effectiveLang) : null;
 
   if (highlighted) {
-    return `<wc-code-block${langAttr}${fileAttr} highlighted>${highlighted}</wc-code-block>\n`;
+    return `<wc-code-block${langAttr}${fileAttr}${lineAttr} highlighted>${highlighted}</wc-code-block>\n`;
   }
-  return `<wc-code-block${langAttr}${fileAttr}>${escaped}</wc-code-block>\n`;
+  return `<wc-code-block${langAttr}${fileAttr}${lineAttr}>${escaped}</wc-code-block>\n`;
 };
 marked.use({ renderer });
 
