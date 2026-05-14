@@ -67,12 +67,15 @@ class WcExpandable extends LitElement {
     .chevron{transition:transform .2s;color:var(--text3,#666);font-size:11px;flex-shrink:0}
     .chevron.open{transform:rotate(180deg)}
     ::slotted(*){max-width:100%;overflow-x:auto}
+    .body{display:none}
+    :host([open]) .body{display:block}
     @media(max-width:640px){.hdr{padding:10px 14px;}.body{padding:10px 14px;font-size:13px;}}
     @media(prefers-reduced-motion:reduce){.chevron{transition:none}}
+    @media print{.hdr{background:transparent !important;border-bottom:1px solid #ddd}.chevron{display:none}.body{display:block !important}}
   \`;
   _toggle(){this.open=!this.open;}
   _onKey(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this._toggle();}}
-  render(){return html\`<div class="wrap"><div class="hdr" @click=\${this._toggle} @keydown=\${this._onKey} role="button" tabindex="0" aria-expanded=\${this.open}><span>\${this.title}</span><span class="chevron \${this.open?'open':''}" aria-hidden="true">▼</span></div>\${this.open?html\`<div class="body" role="region"><slot></slot></div>\`:nothing}</div>\`;}
+  render(){return html\`<div class="wrap"><div class="hdr" @click=\${this._toggle} @keydown=\${this._onKey} role="button" tabindex="0" aria-expanded=\${this.open}><span>\${this.title}</span><span class="chevron \${this.open?'open':''}" aria-hidden="true">▼</span></div><div class="body" role="region"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-expandable',WcExpandable);
 
@@ -91,12 +94,15 @@ class WcAccordion extends LitElement {
     .chevron{transition:transform .2s;color:var(--text3,#666);font-size:12px;flex-shrink:0}
     .chevron.open{transform:rotate(180deg)}
     ::slotted(*){max-width:100%;overflow-x:auto}
+    .body{display:none}
+    .body.open{display:block}
     @media(max-width:640px){.hdr{padding:12px 14px;font-size:14px;}.body{padding:12px 14px;font-size:13px;}}
     @media(prefers-reduced-motion:reduce){.chevron{transition:none}}
+    @media print{.hdr{background:transparent !important;border-bottom:1px solid #ddd}.chevron{display:none}.body{display:block !important}}
   \`;
   _toggle(){this._open=!this._open;}
   _onKey(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this._toggle();}}
-  render(){return html\`<div class="wrap"><div class="hdr" @click=\${this._toggle} @keydown=\${this._onKey} role="button" tabindex="0" aria-expanded=\${this._open}><span>\${this.title}</span><span class="chevron \${this._open?'open':''}" aria-hidden="true">▼</span></div>\${this._open?html\`<div class="body" role="region"><slot></slot></div>\`:nothing}</div>\`;}
+  render(){return html\`<div class="wrap"><div class="hdr" @click=\${this._toggle} @keydown=\${this._onKey} role="button" tabindex="0" aria-expanded=\${this._open}><span>\${this.title}</span><span class="chevron \${this._open?'open':''}" aria-hidden="true">▼</span></div><div class="body \${this._open?'open':''}" role="region"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-accordion',WcAccordion);
 

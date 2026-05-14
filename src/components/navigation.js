@@ -43,6 +43,7 @@ class WcTabs extends LitElement {
     button:focus-visible{outline:2px solid #01696f;outline-offset:-2px;border-radius:4px 4px 0 0}
     @media(max-width:640px){button{padding:8px 12px;font-size:12px;margin-bottom:0;border-bottom-width:3px;}}
     @media(prefers-reduced-motion:reduce){button{transition:none}}
+    @media print{.tabbar{display:none}}
   \`;
   constructor(){super();this._active=0;}
   _onKey(e,i,total){
@@ -65,8 +66,8 @@ customElements.define('wc-tabs',WcTabs);
 
 class WcTab extends LitElement {
   static properties={label:{type:String}};
-  static styles=css\`:host{display:none}:host([active]){display:block;padding-top:4px}\`;
-  render(){return html\`<slot></slot>\`;}
+  static styles=css\`:host{display:none}:host([active]){display:block;padding-top:4px}.print-label{display:none;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:#555;margin:0 0 8px;padding:4px 0;border-bottom:1px solid #ddd}@media print{:host{display:block !important;padding-top:4px;margin-bottom:12px}.print-label{display:block}}\`;
+  render(){return html\`<div class="print-label">\${this.label||''}</div><slot></slot>\`;}
 }
 customElements.define('wc-tab',WcTab);
 

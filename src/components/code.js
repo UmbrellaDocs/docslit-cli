@@ -76,10 +76,8 @@ class WcCodeBlock extends LitElement {
     .header{display:flex;align-items:center;justify-content:space-between;padding:3px 3px;background:var(--surface,#111);border-bottom:1px solid var(--border,#2a2a2a);gap:8px;flex-wrap:wrap;width:100%;box-sizing:border-box}
     .filename{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3,#666);word-break:break-all;flex:1;min-width:0}
     .lang{font-size:11px;color:var(--text3,#666);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0}
-    .body{display:flex;overflow:hidden;width:100%;box-sizing:border-box}
-    .line-numbers{flex-shrink:0;padding:20px 0 20px 16px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--code-ln,#3a3a3a);text-align:right;user-select:none;background:var(--code-bg,#161616)}
-    .line-numbers span{display:block}
-    pre{margin:0;padding:20px;flex:1;overflow:hidden;white-space:pre-wrap;word-break:break-all;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--code-text,#e2e8f0);width:100%;box-sizing:border-box}
+    .body{overflow:hidden;width:100%;box-sizing:border-box}
+    pre{margin:0;padding:20px;overflow:hidden;white-space:pre-wrap;word-break:break-all;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--code-text,#e2e8f0);width:100%;box-sizing:border-box}
     .var-span{color:#4f98a3;font-weight:600;font-style:italic;cursor:pointer;border-bottom:1px dashed rgba(1,105,111,.4);transition:background .15s}
     .var-span:hover{background:rgba(1,105,111,.12)}
     .copy-btn{background:none;border:1px solid var(--border,#2a2a2a);border-radius:5px;padding:4px 8px;cursor:pointer;color:var(--text3,#666);font-size:12px;font-family:'Inter',sans-serif;transition:color .15s,border-color .15s;flex-shrink:0;display:flex;align-items:center;gap:4px}
@@ -88,7 +86,7 @@ class WcCodeBlock extends LitElement {
     .copy-btn.copied{color:#34d399;border-color:rgba(16,185,129,.4)}
     .line{display:block}
     :host([theme="light"]) .line span{color:var(--shiki-light) !important}
-    @media(max-width:640px){.header{padding:8px 12px;}.filename{font-size:11px;}.lang{font-size:10px;}.line-numbers,.line-numbers span{font-size:12px;line-height:1.6;}pre{padding:10px 8px;font-size:12px;line-height:1.6;}}
+    @media(max-width:640px){.header{padding:8px 12px;}.filename{font-size:11px;}.lang{font-size:10px;}pre{padding:10px 8px;font-size:12px;line-height:1.6;}}
   \`;
   connectedCallback(){
     super.connectedCallback();
@@ -140,14 +138,10 @@ class WcCodeBlock extends LitElement {
     document.dispatchEvent(new CustomEvent('docslit-var-edit',{detail:{name}}));
   }
   render(){
-    const code=this._code!==undefined?this._code:'';
-    const plainText=this._getSubstitutedText();
-    const count=(plainText.match(/\\n/g)||[]).length+1;
-    const nums=Array.from({length:count},(_,i)=>html\`<span>\${i+1}</span>\`);
     const hasHeader=this.filename||this.language;
     return html\`<div class="wrap">
       \${hasHeader?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied to clipboard':'Copy code to clipboard'}>\${this._copied?'✓ Copied':'⧉ Copy'}</button></div>\`:nothing}
-      <div class="body"><div class="line-numbers">\${nums}</div><pre>\${this._highlighted?unsafeHTML(this._highlighted):this._renderCode()}</pre></div>
+      <div class="body"><pre>\${this._highlighted?unsafeHTML(this._highlighted):this._renderCode()}</pre></div>
     </div>\`;
   }
 }

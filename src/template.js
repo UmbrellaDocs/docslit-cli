@@ -701,7 +701,9 @@ function _mdButtons(id) {
   return '<span class="meta-sep">|</span>' +
     '<button class="meta-btn" onclick="copyMd()" title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button>' +
     '<span class="meta-sep">|</span>' +
-    '<button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>';
+    '<button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>' +
+    '<span class="meta-sep">|</span>' +
+    '<button class="meta-btn" onclick="printPage()" title="Save page as PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Save as PDF</button>';
 }
 function _buildMetaBar(meta, id) {
   const parts = [];
@@ -735,8 +737,12 @@ function viewMd() {
   var id = window.__DOCSLIT_CURRENT_PAGE__ || window.__DOCSLIT_PAGE_ID__ || '';
   if (id) window.open(_docsBase() + id + '.md', '_blank');
 }
+function printPage() {
+  window.print();
+}
 window.copyMd = copyMd;
 window.viewMd = viewMd;
+window.printPage = printPage;
 window._filterSidebar = _filterSidebar;
 window._filterKey = _filterKey;
 window._clearSidebarFilter = _clearSidebarFilter;`;
@@ -744,7 +750,7 @@ window._clearSidebarFilter = _clearSidebarFilter;`;
 
 
 function mdButtons(id) {
-  return `<span class="meta-sep">|</span><button class="meta-btn" onclick="copyMd()" title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button><span class="meta-sep">|</span><button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>`;
+  return `<span class="meta-sep">|</span><button class="meta-btn" onclick="copyMd()" title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button><span class="meta-sep">|</span><button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button><span class="meta-sep">|</span><button class="meta-btn" onclick="printPage()" title="Save page as PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Save as PDF</button>`;
 }
 
 function injectPageMeta(meta, id) {
@@ -1995,5 +2001,32 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 .not-found-btn-alt { background: var(--surface2, #1a1a1a); color: var(--text, #f0f0f0); border: 1px solid var(--border, #2a2a2a); }
 .not-found-btn-alt:hover { background: var(--surface3, #222); }
 @media(max-width: 640px) { .not-found-code { font-size: 64px; } .not-found-title { font-size: 20px; } .not-found-actions { flex-direction: column; } }
+
+/* PRINT / SAVE AS PDF */
+@media print {
+  @page { margin: 1.5cm 2cm; size: A4; }
+  body { background: #fff !important; color: #000 !important; font-size: 12pt; }
+  .docs-sidebar, .docs-toc, .docs-examples, .docs-nav-top, .docs-topbar,
+  .nav, .page-meta, .page-nav, .search-overlay, .skip-link, .sidebar-toggle,
+  .nav-menu-btn, .feedback-widget { display: none !important; }
+  .docs-layout { display: block !important; }
+  .docs-main { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
+  .docs-content { padding: 0 !important; max-width: 100% !important; }
+  .docs-content h1 { font-size: 22pt; margin-top: 0; }
+  .docs-content h2 { font-size: 16pt; }
+  .docs-content h3 { font-size: 13pt; }
+  .docs-content a { color: #000 !important; text-decoration: underline; }
+  .docs-content a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 9pt; color: #555; word-break: break-all; }
+  .docs-content pre { border: 1px solid #ddd; padding: 12px; page-break-inside: avoid; break-inside: avoid; white-space: pre-wrap; word-wrap: break-word; font-size: 9pt; background: #f8f8f8 !important; color: #000 !important; }
+  .docs-content code { background: #f0f0f0 !important; color: #000 !important; }
+  .docs-content img { max-width: 100% !important; page-break-inside: avoid; break-inside: avoid; }
+  .docs-content table { page-break-inside: avoid; break-inside: avoid; }
+  .docs-content wc-code-block, .docs-content wc-code-group,
+  .docs-content wc-callout, .docs-content wc-warning, .docs-content wc-info, .docs-content wc-tip, .docs-content wc-check, .docs-content wc-note,
+  .docs-content wc-panel, .docs-content wc-steps, .docs-content wc-tabs,
+  .docs-content wc-accordion, .docs-content wc-expandable,
+  .docs-content blockquote { page-break-inside: avoid; break-inside: avoid; }
+  h2, h3, h4 { page-break-after: avoid; break-after: avoid; }
+}
 </style>`;
 }
