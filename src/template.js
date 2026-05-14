@@ -1454,7 +1454,7 @@ function buildStyles() {
   --text: #f0f0f0; --text2: #a0a0a0; --text3: #666;
   --accent: #01696f; --accent-light: #4f98a3;
   --accent-dim: rgba(1,105,111,.15); --accent-dim2: rgba(1,105,111,.25);
-  --sidebar-bg: #0f0f0f; --code-bg: #161616;
+  --sidebar-bg: #0f0f0f; --code-bg: #161616; --code-text: #e2e8f0;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   --radius: 8px; --radius-lg: 12px;
@@ -1466,7 +1466,7 @@ html.light {
   --text: #0f0f0f; --text2: #555; --text3: #999;
   --accent-light: #015e63;
   --accent-dim: rgba(1,105,111,.08); --accent-dim2: rgba(1,105,111,.15);
-  --sidebar-bg: #f5f5f5; --code-bg: #1e1e1e;
+  --sidebar-bg: #f5f5f5; --code-bg: #f6f8fa; --code-text: #24292f;
 }
 html {
   /* Reserve the scrollbar gutter at all times so SPA page swaps don't flash:
@@ -1730,7 +1730,7 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 .docs-content strong { color: var(--text); }
 .docs-content code { font-family: var(--font-mono); font-size: .875em; background: var(--surface2); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent-light); word-break: break-word; }
 .docs-content pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; overflow-x: auto; margin: 20px 0; -webkit-overflow-scrolling: touch; }
-.docs-content pre code { background: none; border: none; padding: 0; color: #e2e8f0; font-size: 14px; line-height: 1.7; word-break: normal; }
+.docs-content pre code { background: none; border: none; padding: 0; color: var(--code-text); font-size: 14px; line-height: 1.7; word-break: normal; }
 .docs-content a { color: var(--accent-light); text-decoration: none; }
 .docs-content a:hover { text-decoration: underline; }
 .docs-content .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: var(--radius-lg); margin: 20px 0; }
