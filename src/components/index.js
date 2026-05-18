@@ -38,6 +38,6 @@ ${content}
 
 ${utility}
 
-console.log('✅ DocsLit: 44 built-in web components registered');
+console.log('✅ DocsLit: registered all built-in web components.');
 `;
 }

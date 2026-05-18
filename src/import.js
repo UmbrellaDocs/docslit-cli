@@ -5,17 +5,13 @@ import matter from 'gray-matter';
 import readline from 'node:readline';
 import git from 'isomorphic-git';
 import nodeFs from 'node:fs';
-import { COMPONENT_MAP, buildAttrs } from './mdx-bridge.js';
-
-// MDX → DocsLit component map and JSX-prop parser live in src/mdx-bridge.js,
-// shared with src/markdown.js so users can write the same Mintlify-style tags
-// directly in .md files (drop-in MDX support).
+import { COMPONENT_MAP, rewriteMdxTags } from './mdx-bridge.js';
 
 // ─── Content converter ────────────────────────────────────────────────────────
 // Converts a single file's Markdown body from Mintlify MDX → DocsLit Markdown.
 // Returns { converted: string, stats: Map<name, count>, issues: string[] }
 function convertContent(body, filePath) {
-  const stats  = new Map();   // component name → count
+  const stats  = new Map();
   const issues = [];
 
   const track = (name) => stats.set(name, (stats.get(name) ?? 0) + 1);
@@ -33,71 +29,25 @@ function convertContent(body, filePath) {
   // 2. Strip {/* comment */} JSX comments
   out = out.replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 
-  // 3. Process each known component
-  for (const [name, cfg] of Object.entries(COMPONENT_MAP)) {
-    // Self-closing form: <Name ... /> or <Name/>
-    const selfRe = new RegExp(
-      `<${name}(\\s[^>]*)?\\/\\s*>`, 'g'
-    );
-
-    // Open/close form: <Name ...>...</Name>  (lazy, handles multi-line)
-    const pairRe = new RegExp(
-      `<${name}(\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, 'gs'
-    );
-
-    if (cfg.remove) {
-      const before = out;
-      out = out.replace(selfRe, () => { track(name); return ''; });
-      out = out.replace(pairRe, () => { track(name); return ''; });
-      if (out !== before) { /* counted above */ }
-      continue;
-    }
-
-    if (cfg.flatten) {
-      out = out.replace(selfRe, (_, rawAttrs) => { track(name); return ''; });
-      out = out.replace(pairRe, (_, rawAttrs, inner) => { track(name); return inner.trim(); });
-      continue;
-    }
-
-    if (cfg.unwrap) {
-      out = out.replace(selfRe, (_, rawAttrs) => { track(name); return ''; });
-      out = out.replace(pairRe, (_, rawAttrs, inner) => { track(name); return inner.trim(); });
-      continue;
-    }
-
-    // Normal component conversion
-    const { tag } = cfg;
-    out = out.replace(selfRe, (_, rawAttrs) => {
-      track(name);
-      const attrs = buildAttrs(rawAttrs || '', cfg);
-      return attrs ? `<${tag} ${attrs}></${tag}>` : `<${tag}></${tag}>`;
-    });
-
-    out = out.replace(pairRe, (_, rawAttrs, inner) => {
-      track(name);
-      const attrs = buildAttrs(rawAttrs || '', cfg);
-      const trimmed = inner.trim();
-      return attrs
-        ? `<${tag} ${attrs}>\n${trimmed}\n</${tag}>`
-        : `<${tag}>\n${trimmed}\n</${tag}>`;
-    });
+  // 3. Count component occurrences for stats, then convert via shared rewriteMdxTags
+  for (const [name] of Object.entries(COMPONENT_MAP)) {
+    const selfRe = new RegExp(`<${name}(\\s[^>]*)?\\/\\s*>`, 'g');
+    const pairRe = new RegExp(`<${name}(\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, 'gs');
+    const selfMatches = (out.match(selfRe) || []).length;
+    const pairMatches = (out.match(pairRe) || []).length;
+    const count = selfMatches + pairMatches;
+    if (count) track(name);
+    if (count > 1) stats.set(name, count);
   }
 
-  // 4. Auto-number <wc-step> within each <wc-steps> block
-  out = out.replace(/<wc-steps>([\s\S]*?)<\/wc-steps>/g, (_, inner) => {
-    let n = 0;
-    const numbered = inner.replace(/<wc-step\b/g, () => `<wc-step n="${++n}"`);
-    return `<wc-steps>${numbered}</wc-steps>`;
-  });
+  out = rewriteMdxTags(out);
 
-  // 5. Strip remaining JSX expressions {…} that aren't inside code spans/blocks.
-  // These are MDX interpolations (e.g. {props.name}, {<Foo />}) that have no markdown equivalent.
+  // 4. Strip remaining JSX expressions {…} that aren't inside code spans/blocks.
   out = out.replace(/```[\s\S]*?```|`[^`]+`|(\{[^{}]*\})/g, (match, jsxExpr) => {
-    // If it matched a code block/span, leave it alone; otherwise drop the JSX expression
     return jsxExpr !== undefined ? '' : match;
   });
 
-  // 7. Detect any remaining PascalCase JSX-style tags (unknown Mintlify or custom components)
+  // 5. Detect any remaining PascalCase JSX-style tags (unknown Mintlify or custom components)
   const unknownTags = [];
   const unknownRe = /<([A-Z][a-zA-Z]+)[\s/>]/g;
   let m;
@@ -108,7 +58,7 @@ function convertContent(body, filePath) {
     issues.push(`Unknown components not converted: ${unknownTags.map(t => `<${t}>`).join(', ')}`);
   }
 
-  // 8. Trim leading/trailing blank lines left by removed imports
+  // 6. Trim leading/trailing blank lines left by removed imports
   out = out.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n');
 
   return { converted: out, stats, issues };

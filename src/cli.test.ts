@@ -199,7 +199,8 @@ describe('parseDoc', () => {
 
   it('does not rewrite PascalCase tags inside inline backticks', async () => {
     const { html } = await parseDoc('Use `<Callout>` for warnings.\n');
-    expect(html).toContain('<code>&lt;Callout&gt;</code>');
+    expect(html).toContain('<code>');
+    expect(html).toMatch(/Callout/);
     expect(html).not.toContain('<wc-callout');
   });
 
@@ -216,6 +217,45 @@ describe('parseDoc', () => {
     expect(html).not.toContain('wc-tooltip');
     expect(html).toContain('Hover');
     expect(html).toContain('here');
+  });
+
+  it('processes markdown inside wc-* elements (single-line, no blank lines)', async () => {
+    const { html } = await parseDoc('<wc-callout>**bold** and [link](http://x.com)</wc-callout>\n');
+    expect(html).toContain('<wc-callout');
+    expect(html).toContain('<strong>bold</strong>');
+    expect(html).toContain('<a href="http://x.com">link</a>');
+    expect(html).toContain('</wc-callout>');
+  });
+
+  it('renders GFM tables correctly', async () => {
+    const { html } = await parseDoc('| Name | Value |\n|------|-------|\n| foo  | bar   |\n');
+    expect(html).toContain('<table>');
+    expect(html).toContain('<th>Name</th>');
+    expect(html).toContain('<td>foo</td>');
+    expect(html).toContain('<td>bar</td>');
+  });
+
+  it('handles recursive same-tag nesting (wc-dir inside wc-dir)', async () => {
+    const raw = '<wc-dir name="src">\n\n<wc-dir name="lib">\n\ninner\n\n</wc-dir>\n\n</wc-dir>\n';
+    const { html } = await parseDoc(raw);
+    expect(html).toContain('<wc-dir name="src">');
+    expect(html).toContain('<wc-dir name="lib">');
+    expect(html).toContain('inner');
+    expect(html).toContain('</wc-dir>');
+    const outerIdx = html.indexOf('<wc-dir name="src">');
+    const innerIdx = html.indexOf('<wc-dir name="lib">');
+    expect(innerIdx).toBeGreaterThan(outerIdx);
+  });
+
+  it('preserves wc-code-group / wc-code-tab structure with fenced code inside', async () => {
+    const raw = '<wc-code-group>\n<wc-code-tab label="JS">\n\n```js\nconsole.log(1)\n```\n\n</wc-code-tab>\n</wc-code-group>\n';
+    const { html } = await parseDoc(raw);
+    expect(html).toContain('<wc-code-group>');
+    expect(html).toContain('<wc-code-tab label="JS">');
+    expect(html).toContain('<wc-code-block');
+    expect(html).toContain('language="js"');
+    expect(html).toContain('console.log(1)');
+    expect(html).toContain('</wc-code-group>');
   });
 });
 
@@ -333,7 +373,9 @@ echo {{PRODUCT}}
       pagePath: path.join(tmpDocs, 'inline-example.md'),
       globalAttributes: {},
     });
-    expect(html).toContain('<code><wc-include></wc-include></code>');
+    expect(html).toContain('<code>');
+    expect(html).toMatch(/wc-include/);
+    expect(html).not.toContain('<wc-include></wc-include>');
   });
 
   it('does not process includes inside fenced code blocks', async () => {

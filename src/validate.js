@@ -2,7 +2,13 @@ import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
 import matter from 'gray-matter';
-import { COMPONENT_MAP, pascalToWcKebab } from './mdx-bridge.js';
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkGfm from 'remark-gfm';
+import remarkRehype from 'remark-rehype';
+import rehypeRaw from 'rehype-raw';
+import { visit } from 'unist-util-visit';
+import { COMPONENT_MAP, pascalToWcKebab, rewriteMdxTags } from './mdx-bridge.js';
 import { VAR_NAME_RE } from './preprocess.js';
 
 // ─── Built-in component registry ──────────────────────────────────────────────
@@ -381,39 +387,74 @@ async function checkFrontmatter(files, dir, issues) {
   }
 }
 
+// ─── AST parsing helpers ──────────────────────────────────────────────────────
+let mdastProcessor;
+let hastProcessor;
+
+function getMdastProcessor() {
+  if (!mdastProcessor) {
+    mdastProcessor = unified().use(remarkParse).use(remarkGfm);
+  }
+  return mdastProcessor;
+}
+
+function getHastProcessor() {
+  if (!hastProcessor) {
+    hastProcessor = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .use(remarkRehype, { allowDangerousHtml: true })
+      .use(rehypeRaw);
+  }
+  return hastProcessor;
+}
+
+function parseMdast(src) {
+  return getMdastProcessor().parse(src);
+}
+
+function parseHast(src) {
+  return getHastProcessor().runSync(getHastProcessor().parse(src));
+}
+
+function posLine(node) {
+  return node?.position?.start?.line ?? null;
+}
+
 // ─── 5. Internal link check ────────────────────────────────────────────────────
 async function checkLinks(files, slugs, dir, issues) {
   for (const file of files) {
     const rel = path.relative(dir, file);
     const raw = await fs.readFile(file, 'utf8');
-    const src = stripProtectedContent(raw);
+    const body = matter(raw).content;
+    const tree = parseMdast(body);
 
-    // Markdown links: [text](target)
-    const mdLink = /\[([^\]]*)\]\(([^)]+)\)/g;
-    let m;
-    while ((m = mdLink.exec(src)) !== null) {
-      const target = m[2].trim().split('#')[0];
-      if (!target || /^https?:\/\//.test(target) || /^mailto:/.test(target)) continue;
-      // Relative or absolute path link — resolve to a slug
+    visit(tree, 'link', (node) => {
+      const target = (node.url || '').trim().split('#')[0];
+      if (!target || /^https?:\/\//.test(target) || /^mailto:/.test(target)) return;
       const slug = target.replace(/^\//, '').replace(/\.(md|mdx)$/, '');
       if (slug && !slugs.has(slug) && !isExternalish(target)) {
-        issues.push(issue('error', rel, lineOf(raw, m.index),
+        issues.push(issue('error', rel, posLine(node),
           `Broken internal link → "${target}" (no page with slug "${slug}")`));
       }
-    }
+    });
 
-    // HTML href links (non-http)
-    const htmlHref = /href="([^"]+)"/g;
-    while ((m = htmlHref.exec(src)) !== null) {
-      const target = m[1].trim().split('#')[0];
-      if (!target || /^https?:\/\//.test(target) || target.startsWith('#') ||
-          target.startsWith('javascript') || target.startsWith('mailto')) continue;
-      const slug = target.replace(/^\//, '').replace(/\.(md|mdx)$/, '');
-      if (slug && !slugs.has(slug)) {
-        issues.push(issue('warning', rel, lineOf(raw, m.index),
-          `Possible broken href → "${target}"`));
+    const rewritten = rewriteMdxTags(body);
+    const hast = parseHast(rewritten);
+    visit(hast, 'element', (node) => {
+      const href = node.properties?.href;
+      if (!href || typeof href !== 'string') return;
+      if (node.tagName === 'a') {
+        const target = href.trim().split('#')[0];
+        if (!target || /^https?:\/\//.test(target) || target.startsWith('#') ||
+            target.startsWith('javascript') || target.startsWith('mailto')) return;
+        const slug = target.replace(/^\//, '').replace(/\.(md|mdx)$/, '');
+        if (slug && !slugs.has(slug)) {
+          issues.push(issue('warning', rel, posLine(node),
+            `Possible broken href → "${target}"`));
+        }
       }
-    }
+    });
   }
 }
 
@@ -426,37 +467,39 @@ async function checkAssets(files, dir, issues) {
   for (const file of files) {
     const rel = path.relative(dir, file);
     const raw = await fs.readFile(file, 'utf8');
-    const src = stripProtectedContent(raw);
+    const body = matter(raw).content;
     const fileDir = path.dirname(file);
 
-    const patterns = [
-      // Markdown image: ![alt](path)
-      { re: /!\[([^\]]*)\]\(([^)]+)\)/g, idx: 2 },
-      // HTML img src
-      { re: /src="([^"]+)"/g, idx: 1 },
-      // HTML href to local file
-      { re: /href="(\.\.?\/[^"]+)"/g, idx: 1 },
-    ];
+    const tree = parseMdast(body);
 
-    for (const { re, idx } of patterns) {
-      let m;
-      while ((m = re.exec(src)) !== null) {
-        const target = m[idx].trim().split('#')[0].split('?')[0];
-        if (!target || /^https?:\/\//.test(target) || target.startsWith('data:')) continue;
-
-        // Only check relative paths
-        if (!target.startsWith('.') && !target.startsWith('/')) continue;
-
-        const absTarget = target.startsWith('/')
-          ? path.join(dir, target)
-          : path.resolve(fileDir, target);
-
-        if (!await fs.pathExists(absTarget)) {
-          issues.push(issue('error', rel, lineOf(raw, m.index),
-            `Missing asset: "${target}" (resolved to ${path.relative(dir, absTarget)})`));
-        }
+    visit(tree, 'image', (node) => {
+      const target = (node.url || '').trim().split('#')[0].split('?')[0];
+      if (!target || /^https?:\/\//.test(target) || target.startsWith('data:')) return;
+      if (!target.startsWith('.') && !target.startsWith('/')) return;
+      const absTarget = target.startsWith('/')
+        ? path.join(dir, target)
+        : path.resolve(fileDir, target);
+      if (!fs.pathExistsSync(absTarget)) {
+        issues.push(issue('error', rel, posLine(node),
+          `Missing asset: "${target}" (resolved to ${path.relative(dir, absTarget)})`));
       }
-    }
+    });
+
+    const rewritten = rewriteMdxTags(body);
+    const hast = parseHast(rewritten);
+    visit(hast, 'element', (node) => {
+      if (node.tagName !== 'img') return;
+      const target = (node.properties?.src || '').trim().split('#')[0].split('?')[0];
+      if (!target || /^https?:\/\//.test(target) || target.startsWith('data:')) return;
+      if (!target.startsWith('.') && !target.startsWith('/')) return;
+      const absTarget = target.startsWith('/')
+        ? path.join(dir, target)
+        : path.resolve(fileDir, target);
+      if (!fs.pathExistsSync(absTarget)) {
+        issues.push(issue('error', rel, posLine(node),
+          `Missing asset: "${target}" (resolved to ${path.relative(dir, absTarget)})`));
+      }
+    });
   }
 }
 
@@ -468,7 +511,6 @@ async function checkComponents(files, dir, issues) {
   if (await fs.pathExists(customDir)) {
     const entries = await fs.readdir(customDir);
     for (const e of entries) {
-      // Custom components: my-widget.js → my-widget
       const base = e.replace(/\.(js|ts|mjs)$/, '');
       customComponents.add(base);
     }
@@ -477,34 +519,38 @@ async function checkComponents(files, dir, issues) {
   for (const file of files) {
     const rel = path.relative(dir, file);
     const raw = await fs.readFile(file, 'utf8');
-    // Strip both fenced blocks and inline backtick spans — text inside
-    // backticks renders as <code>, not as an HTML tag, so docs that talk
-    // *about* a component shouldn't trigger the unknown-component check.
-    const src = stripProtectedContent(raw);
+    const body = matter(raw).content;
 
-    const wcRe = /<(wc-[\w-]+)[\s>]/g;
-    for (const m of src.matchAll(wcRe)) {
-      const tag = m[1];
-      if (!BUILTIN_COMPONENTS.has(tag) && !customComponents.has(tag)) {
-        issues.push(issue('warning', rel, lineOf(raw, m.index),
-          `Unknown component <${tag}> — not a built-in and not found in components/`));
+    const rewritten = rewriteMdxTags(body);
+    const hast = parseHast(rewritten);
+
+    const seenWc = new Set();
+    const seenPascal = new Map();
+
+    visit(hast, 'element', (node) => {
+      const tag = node.tagName;
+      if (!tag) return;
+
+      if (tag.startsWith('wc-') && !seenWc.has(tag)) {
+        seenWc.add(tag);
+        if (!BUILTIN_COMPONENTS.has(tag) && !customComponents.has(tag)) {
+          issues.push(issue('warning', rel, posLine(node),
+            `Unknown component <${tag}> — not a built-in and not found in components/`));
+        }
       }
-    }
+    });
 
-    // PascalCase tags get rewritten by mdx-bridge at parse time. Surface any
-    // that won't resolve to a real component so the user finds out at validate
-    // time instead of as a blank element in the browser.
+    // PascalCase check on the original body (before rewrite), using mdast html nodes
+    const src = stripProtectedContent(body);
     const pascalRe = /<([A-Z][A-Za-z0-9]+)[\s/>]/g;
-    const seenAt = new Map(); // name → first index, to dedupe per file
     for (const m of src.matchAll(pascalRe)) {
       const name = m[1];
-      if (seenAt.has(name)) continue;
-      seenAt.set(name, m.index);
+      if (seenPascal.has(name)) continue;
+      seenPascal.set(name, m.index);
 
-      // Mapped explicit alias → resolves to cfg.tag (or is dropped via remove/flatten/unwrap)
       const cfg = COMPONENT_MAP[name];
       if (cfg) {
-        if (!cfg.tag) continue; // intentionally dropped — fine
+        if (!cfg.tag) continue;
         if (!BUILTIN_COMPONENTS.has(cfg.tag) && !customComponents.has(cfg.tag)) {
           issues.push(issue('warning', rel, lineOf(raw, m.index),
             `<${name}> maps to <${cfg.tag}>, which isn't registered — components/${cfg.tag}.js missing?`));
@@ -512,7 +558,6 @@ async function checkComponents(files, dir, issues) {
         continue;
       }
 
-      // Convention fallback → wc-pascal-case
       const fallback = pascalToWcKebab(name);
       if (!BUILTIN_COMPONENTS.has(fallback) && !customComponents.has(fallback)) {
         issues.push(issue('warning', rel, lineOf(raw, m.index),
