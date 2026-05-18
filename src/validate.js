@@ -33,6 +33,9 @@ const BUILTIN_COMPONENTS = new Set([
   // Utility
   'wc-anchor', 'wc-indent', 'wc-visibility', 'wc-version', 'wc-versions', 'wc-page-meta',
 ]);
+const AUTHORING_COMPONENTS = new Set([
+  'wc-include',
+]);
 
 // Known valid frontmatter keys
 const VALID_FM_KEYS = new Set([
@@ -95,6 +98,50 @@ function getBuiltInRuntimeVars(config) {
     DOCSLIT_VERSION: version,
     DOCSLIT_BRANCH: branch,
   };
+}
+
+function isReusableDocFile(file, dir) {
+  const docsRoot = path.join(dir, 'docs');
+  const reusablesRoot = path.join(docsRoot, '_reusables');
+  return file.startsWith(reusablesRoot + path.sep);
+}
+
+function toPosixFileSlug(file, docsRoot) {
+  return path.relative(docsRoot, file).replace(/\.(md|mdx)$/, '').replace(/\\/g, '/');
+}
+
+function normalizeSlugCandidate(input) {
+  let slug = String(input || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\.(md|mdx)$/, '');
+  slug = slug.replace(/\/+$/, '');
+  slug = path.posix.normalize(slug);
+  if (slug === '.' || !slug) return '';
+  if (slug.endsWith('/index')) slug = slug.slice(0, -('/index'.length));
+  return slug;
+}
+
+function resolveLinkSlug(target, currentSlug, slugs) {
+  const baseDir = path.posix.dirname(currentSlug);
+  const candidates = [];
+  const addCandidate = (value) => {
+    const normalized = normalizeSlugCandidate(value);
+    if (!normalized) return;
+    if (!candidates.includes(normalized)) candidates.push(normalized);
+  };
+
+  if (target.startsWith('/')) {
+    addCandidate(target);
+  } else if (target.startsWith('./') || target.startsWith('../')) {
+    addCandidate(path.posix.join(baseDir, target));
+  } else {
+    // Keep legacy root-style links working, but also support same-folder shorthand.
+    addCandidate(target);
+    addCandidate(path.posix.join(baseDir, target));
+  }
+
+  for (const slug of candidates) {
+    if (slugs.has(slug)) return { ok: true, slug, candidates };
+  }
+  return { ok: false, slug: candidates[0] || normalizeSlugCandidate(target), candidates };
 }
 
 async function checkAuthoringPreprocessor(files, dir, config, issues) {
@@ -342,6 +389,7 @@ async function checkSlugs(dir, slugs, issues) {
 // ─── 4. Frontmatter check ──────────────────────────────────────────────────────
 async function checkFrontmatter(files, dir, issues) {
   for (const file of files) {
+    if (isReusableDocFile(file, dir)) continue;
     const rel = path.relative(dir, file);
     const src = await fs.readFile(file, 'utf8');
     let fm;
@@ -423,19 +471,23 @@ function posLine(node) {
 
 // ─── 5. Internal link check ────────────────────────────────────────────────────
 async function checkLinks(files, slugs, dir, issues) {
+  const docsDir = path.join(dir, 'docs');
   for (const file of files) {
+    if (isReusableDocFile(file, dir)) continue;
     const rel = path.relative(dir, file);
     const raw = await fs.readFile(file, 'utf8');
     const body = matter(raw).content;
+    const currentSlug = toPosixFileSlug(file, docsDir);
     const tree = parseMdast(body);
 
     visit(tree, 'link', (node) => {
       const target = (node.url || '').trim().split('#')[0];
       if (!target || /^https?:\/\//.test(target) || /^mailto:/.test(target)) return;
-      const slug = target.replace(/^\//, '').replace(/\.(md|mdx)$/, '');
-      if (slug && !slugs.has(slug) && !isExternalish(target)) {
+      if (isExternalish(target)) return;
+      const resolved = resolveLinkSlug(target, currentSlug, slugs);
+      if (!resolved.ok) {
         issues.push(issue('error', rel, posLine(node),
-          `Broken internal link → "${target}" (no page with slug "${slug}")`));
+          `Broken internal link → "${target}" (no page with slug "${resolved.slug}")`));
       }
     });
 
@@ -448,8 +500,8 @@ async function checkLinks(files, slugs, dir, issues) {
         const target = href.trim().split('#')[0];
         if (!target || /^https?:\/\//.test(target) || target.startsWith('#') ||
             target.startsWith('javascript') || target.startsWith('mailto')) return;
-        const slug = target.replace(/^\//, '').replace(/\.(md|mdx)$/, '');
-        if (slug && !slugs.has(slug)) {
+        const resolved = resolveLinkSlug(target, currentSlug, slugs);
+        if (!resolved.ok) {
           issues.push(issue('warning', rel, posLine(node),
             `Possible broken href → "${target}"`));
         }
@@ -459,7 +511,7 @@ async function checkLinks(files, slugs, dir, issues) {
 }
 
 function isExternalish(t) {
-  return t.startsWith('http') || t.startsWith('mailto') || t.startsWith('#');
+  return /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(t);
 }
 
 // ─── 6. Asset check ────────────────────────────────────────────────────────────
@@ -533,7 +585,7 @@ async function checkComponents(files, dir, issues) {
 
       if (tag.startsWith('wc-') && !seenWc.has(tag)) {
         seenWc.add(tag);
-        if (!BUILTIN_COMPONENTS.has(tag) && !customComponents.has(tag)) {
+        if (!BUILTIN_COMPONENTS.has(tag) && !AUTHORING_COMPONENTS.has(tag) && !customComponents.has(tag)) {
           issues.push(issue('warning', rel, posLine(node),
             `Unknown component <${tag}> — not a built-in and not found in components/`));
         }
@@ -626,6 +678,7 @@ async function checkOpenAPIRefs(files, dir, config, issues) {
 async function checkOrphans(files, slugs, dir, issues) {
   const docsDir = path.join(dir, 'docs');
   for (const file of files) {
+    if (isReusableDocFile(file, dir)) continue;
     const rel = path.relative(docsDir, file);
     const slug = rel.replace(/\.(md|mdx)$/, '').replace(/\\/g, '/');
     if (!slugs.has(slug)) {

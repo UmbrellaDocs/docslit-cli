@@ -1954,3 +1954,103 @@ title: Missing
     expect(md).not.toContain('##');
   });
 });
+
+describe('CLI — validate link resolution and reusables', () => {
+  const tmpDir = path.join(__dirname, '../.test-validate-links');
+
+  beforeAll(() => {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+    mkdirSync(path.join(tmpDir, 'docs', 'getting-started'), { recursive: true });
+    mkdirSync(path.join(tmpDir, 'docs', 'cli-reference'), { recursive: true });
+    mkdirSync(path.join(tmpDir, 'docs', 'components'), { recursive: true });
+    mkdirSync(path.join(tmpDir, 'docs', 'deployment'), { recursive: true });
+    mkdirSync(path.join(tmpDir, 'docs', 'integrations'), { recursive: true });
+    mkdirSync(path.join(tmpDir, 'docs', 'writing-content'), { recursive: true });
+    mkdirSync(path.join(tmpDir, 'docs', '_reusables', 'page'), { recursive: true });
+
+    writeFileSync(path.join(tmpDir, 'docslit.json'), JSON.stringify({
+      name: 'Validate Fixtures',
+      sidebar: [
+        { group: 'Getting Started', pages: ['getting-started/introduction', 'getting-started/installation'] },
+        { group: 'CLI', pages: ['cli-reference/commands', 'cli-reference/validation'] },
+        { group: 'Components', pages: ['components/callouts-and-alerts'] },
+        { group: 'Deployment', pages: ['deployment/docslit-cloud'] },
+        { group: 'Integrations', pages: ['integrations/openapi'] },
+        { group: 'Writing', pages: ['writing-content/reusable-content', 'writing-content/variables-and-precedence'] },
+      ],
+    }, null, 2));
+
+    writeFileSync(path.join(tmpDir, 'docs', 'getting-started', 'introduction.md'), `---
+title: Intro
+---
+
+[Install](installation)
+[Quick ref](../cli-reference/commands)
+[Callouts](../components/callouts-and-alerts)
+`);
+    writeFileSync(path.join(tmpDir, 'docs', 'getting-started', 'installation.md'), `---
+title: Install
+---
+`);
+    writeFileSync(path.join(tmpDir, 'docs', 'cli-reference', 'commands.md'), `---
+title: Commands
+---
+
+[Validation](validation)
+[OpenAPI](../integrations/openapi)
+[Cloud](../deployment/docslit-cloud)
+<a href="../integrations/openapi">Inline link</a>
+`);
+    writeFileSync(path.join(tmpDir, 'docs', 'cli-reference', 'validation.md'), `---
+title: Validation
+---
+`);
+    writeFileSync(path.join(tmpDir, 'docs', 'components', 'callouts-and-alerts.md'), `---
+title: Callouts
+---
+`);
+    writeFileSync(path.join(tmpDir, 'docs', 'deployment', 'docslit-cloud.md'), `---
+title: Cloud
+---
+`);
+    writeFileSync(path.join(tmpDir, 'docs', 'integrations', 'openapi.md'), `---
+title: OpenAPI
+---
+`);
+    writeFileSync(path.join(tmpDir, 'docs', 'writing-content', 'variables-and-precedence.md'), `---
+title: Vars
+---
+`);
+    writeFileSync(path.join(tmpDir, 'docs', 'writing-content', 'reusable-content.md'), `---
+title: Reusable Content
+---
+
+<wc-include src="page/reusable-content.md" />
+`);
+    writeFileSync(path.join(tmpDir, 'docs', '_reusables', 'page', 'reusable-content.md'), `
+This reusable snippet links to [vars](variables-and-precedence).
+`);
+  });
+
+  afterAll(() => {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+  });
+
+  it('resolves same-folder and ../ relative links based on current page', async () => {
+    const { code, stdout, stderr } = await run(['validate', tmpDir], 15000);
+    expect(stderr).toBe('');
+    expect(code).toBe(0);
+    expect(stdout).not.toContain('Broken internal link');
+    expect(stdout).not.toContain('Possible broken href');
+    expect(stdout).not.toContain('validation" (no page with slug "validation"');
+    expect(stdout).not.toContain('../integrations/openapi');
+  });
+
+  it('does not treat wc-include and reusable snippets as normal pages', async () => {
+    const { stdout } = await run(['validate', tmpDir], 15000);
+    expect(stdout).not.toContain('Unknown component <wc-include>');
+    expect(stdout).not.toContain('docs/_reusables/page/reusable-content.md] Missing frontmatter field');
+    expect(stdout).not.toContain('docs/_reusables/page/reusable-content.md] Orphaned page');
+    expect(stdout).not.toContain('docs/_reusables/page/reusable-content.md');
+  });
+});
