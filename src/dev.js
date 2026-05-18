@@ -40,6 +40,13 @@ export async function dev({ port = 3000 } = {}) {
   }
   await reloadSpec();
 
+  function getRuntimeAttributes(cfg, version = null, branch = null) {
+    const attrs = { ...(cfg.attributes || {}) };
+    attrs.DOCSLIT_VERSION = version || 'unversioned';
+    attrs.DOCSLIT_BRANCH = branch || 'working-tree';
+    return attrs;
+  }
+
   const app = express();
   const server = createServer(app);
   const wss = new WebSocketServer({ server });
@@ -60,6 +67,7 @@ export async function dev({ port = 3000 } = {}) {
   // Watch for changes
   const watchPaths = [
     path.join(cwd, 'docs/**/*.md'),
+    path.join(cwd, 'docs/_reusables/**/*.md'),
     path.join(cwd, 'docslit.json'),
     path.join(cwd, 'components/**/*.js'),
   ];
@@ -90,66 +98,105 @@ export async function dev({ port = 3000 } = {}) {
   // API: serve a single markdown page (versioned and unversioned)
   // Uses {*path} wildcard to support nested page IDs like commands/check
   app.get('/api/page/{*path}', async (req, res) => {
-    const segments = Array.isArray(req.params.path) ? req.params.path.join('/') : req.params.path;
-    const vc = getVersionConfig(config);
+    try {
+      const segments = Array.isArray(req.params.path) ? req.params.path.join('/') : req.params.path;
+      const vc = getVersionConfig(config);
 
-    let id, version;
-    if (vc) {
-      const parts = segments.split('/');
-      const maybeVersion = parts[0];
-      const entry = vc.list.find(v => v.version === maybeVersion);
-      if (entry) {
-        version = maybeVersion;
-        id = parts.slice(1).join('/');
+      let id, version;
+      if (vc) {
+        const parts = segments.split('/');
+        const maybeVersion = parts[0];
+        const entry = vc.list.find(v => v.version === maybeVersion);
+        if (entry) {
+          version = maybeVersion;
+          id = parts.slice(1).join('/');
+        } else {
+          id = segments;
+        }
       } else {
         id = segments;
       }
-    } else {
-      id = segments;
-    }
 
-    if (!id) return res.status(400).json({ error: 'Missing page id' });
+      if (!id) return res.status(400).json({ error: 'Missing page id' });
 
-    if (version) {
-      const entry = vc.list.find(v => v.version === version);
+      if (version) {
+        const entry = vc.list.find(v => v.version === version);
+        const docsDir = path.join(cwd, 'docs');
+        const mdPath = path.resolve(docsDir, `${id}.md`);
+        if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
+          const raw = await fs.readFile(mdPath, 'utf8');
+          let { meta, html } = await parseDoc(raw, {
+            docsRoot: path.join(cwd, 'docs'),
+            pagePath: mdPath,
+            globalAttributes: getRuntimeAttributes(config, entry.version, entry.branch),
+          });
+          if (specData) html = resolveSpecRefs(html, specData);
+          return res.json({ id, meta, html });
+        }
+        const readFromVersion = async (absPath) => {
+          const relFromDocs = path.relative(path.join(cwd, 'docs'), absPath).replace(/\\/g, '/');
+          const gitPath = `docs/${relFromDocs}`;
+          const fromGit = await gitReadFile(entry.branch, gitPath, cwd);
+          if (fromGit == null) throw new Error(`Include target not found in ${entry.branch}: ${gitPath}`);
+          return fromGit;
+        };
+        const existsFromVersion = async (absPath) => {
+          const relFromDocs = path.relative(path.join(cwd, 'docs'), absPath).replace(/\\/g, '/');
+          const gitPath = `docs/${relFromDocs}`;
+          const fromGit = await gitReadFile(entry.branch, gitPath, cwd);
+          return fromGit != null;
+        };
+        const raw = await gitReadFile(entry.branch, `docs/${id}.md`, cwd);
+        if (raw) {
+          let { meta, html } = await parseDoc(raw, {
+            docsRoot: path.join(cwd, 'docs'),
+            pagePath: `docs/${id}.md@${entry.branch}`,
+            globalAttributes: getRuntimeAttributes(config, entry.version, entry.branch),
+            readFile: readFromVersion,
+            pathExists: existsFromVersion,
+            strictFsSafety: false,
+          });
+          if (specData) html = resolveSpecRefs(html, specData);
+          return res.json({ id, meta, html });
+        }
+        return res.status(404).json({ error: `Page "${id}" not found in version ${version}` });
+      }
+
       const docsDir = path.join(cwd, 'docs');
       const mdPath = path.resolve(docsDir, `${id}.md`);
-      if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
-        const raw = await fs.readFile(mdPath, 'utf8');
-        let { meta, html } = parseDoc(raw);
-        if (specData) html = resolveSpecRefs(html, specData);
-        return res.json({ id, meta, html });
+      if (!mdPath.startsWith(docsDir + path.sep)) {
+        return res.status(400).json({ error: 'Invalid page id' });
       }
-      const raw = await gitReadFile(entry.branch, `docs/${id}.md`, cwd);
-      if (raw) {
-        let { meta, html } = parseDoc(raw);
-        if (specData) html = resolveSpecRefs(html, specData);
-        return res.json({ id, meta, html });
+      if (!await fs.pathExists(mdPath)) {
+        return res.status(404).json({ error: `Page "${id}" not found` });
       }
-      return res.status(404).json({ error: `Page "${id}" not found in version ${version}` });
+      const raw = await fs.readFile(mdPath, 'utf8');
+      const defaultVersion = vc?.default || null;
+      const defaultEntry = vc?.list?.find(v => v.version === defaultVersion);
+      let { meta, html } = await parseDoc(raw, {
+        docsRoot: path.join(cwd, 'docs'),
+        pagePath: mdPath,
+        globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultEntry?.branch || null),
+      });
+      if (specData) html = resolveSpecRefs(html, specData);
+      res.json({ id, meta, html });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
     }
-
-    const docsDir = path.join(cwd, 'docs');
-    const mdPath = path.resolve(docsDir, `${id}.md`);
-    if (!mdPath.startsWith(docsDir + path.sep)) {
-      return res.status(400).json({ error: 'Invalid page id' });
-    }
-    if (!await fs.pathExists(mdPath)) {
-      return res.status(404).json({ error: `Page "${id}" not found` });
-    }
-    const raw = await fs.readFile(mdPath, 'utf8');
-    let { meta, html } = parseDoc(raw);
-    if (specData) html = resolveSpecRefs(html, specData);
-    res.json({ id, meta, html });
   });
 
   // Serve raw markdown source for AI agents: GET /page.md or GET /docs/page.md
   app.get(/\.md$/, async (req, res) => {
     let slug = req.path.replace(/\.md$/, '').replace(/^\//, '');
-    const vc = config.versions;
+    const vc = getVersionConfig(config);
+    let requestedVersion = null;
     if (vc) {
       for (const v of vc.list) {
-        if (slug.startsWith(v.version + '/')) { slug = slug.slice(v.version.length + 1); break; }
+        if (slug.startsWith(v.version + '/')) {
+          requestedVersion = v.version;
+          slug = slug.slice(v.version.length + 1);
+          break;
+        }
       }
     }
     slug = slug.replace(/^docs\//, '');
@@ -158,13 +205,50 @@ export async function dev({ port = 3000 } = {}) {
     if (!mdPath.startsWith(docsDir + path.sep)) {
       return res.status(400).send('Invalid path');
     }
-    if (!await fs.pathExists(mdPath)) {
-      return res.status(404).send('Not found');
+
+    const versionEntry = requestedVersion
+      ? vc?.list?.find(v => v.version === requestedVersion)
+      : vc?.list?.find(v => v.version === vc.default);
+    let mdRaw = null;
+    let parseOpts = {
+      docsRoot: path.join(cwd, 'docs'),
+      pagePath: mdPath,
+      globalAttributes: getRuntimeAttributes(config, requestedVersion || vc?.default || null, versionEntry?.branch || null),
+    };
+    if (requestedVersion && versionEntry && requestedVersion !== vc.default) {
+      mdRaw = await gitReadFile(versionEntry.branch, `docs/${slug}.md`, cwd);
+      if (mdRaw != null) {
+        const readFromVersion = async (absPath) => {
+          const relFromDocs = path.relative(path.join(cwd, 'docs'), absPath).replace(/\\/g, '/');
+          const gitPath = `docs/${relFromDocs}`;
+          const fromGit = await gitReadFile(versionEntry.branch, gitPath, cwd);
+          if (fromGit == null) throw new Error(`Include target not found in ${versionEntry.branch}: ${gitPath}`);
+          return fromGit;
+        };
+        const existsFromVersion = async (absPath) => {
+          const relFromDocs = path.relative(path.join(cwd, 'docs'), absPath).replace(/\\/g, '/');
+          const gitPath = `docs/${relFromDocs}`;
+          const fromGit = await gitReadFile(versionEntry.branch, gitPath, cwd);
+          return fromGit != null;
+        };
+        parseOpts = {
+          ...parseOpts,
+          pagePath: `docs/${slug}.md@${versionEntry.branch}`,
+          readFile: readFromVersion,
+          pathExists: existsFromVersion,
+          strictFsSafety: false,
+        };
+      }
     }
-    const mdRaw = await fs.readFile(mdPath, 'utf8');
+    if (mdRaw == null) {
+      if (!await fs.pathExists(mdPath)) return res.status(404).send('Not found');
+      mdRaw = await fs.readFile(mdPath, 'utf8');
+    }
+
+    const { preprocessedMarkdown } = await parseDoc(mdRaw, parseOpts);
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
     const isApiPage = slug.startsWith('api/') || /^---\n[\s\S]*?layout:\s*api[\s\S]*?\n---/.test(mdRaw);
-    res.send(isApiPage && specData ? buildApiPageMarkdown(mdRaw, specData) : mdRaw);
+    res.send(isApiPage && specData ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
   });
 
   // API: search index
@@ -191,7 +275,15 @@ export async function dev({ port = 3000 } = {}) {
       if (!mdPath.startsWith(docsDir + path.sep)) continue;
       if (!await fs.pathExists(mdPath)) continue;
       const raw = await fs.readFile(mdPath, 'utf8');
-      const { meta } = parseDoc(raw);
+      const { meta } = await parseDoc(raw, {
+        docsRoot: path.join(cwd, 'docs'),
+        pagePath: mdPath,
+        globalAttributes: getRuntimeAttributes(
+          freshConfig,
+          freshConfig.versions?.default || null,
+          freshConfig.versions?.list?.find(v => v.version === freshConfig.versions?.default)?.branch || null,
+        ),
+      });
       if (meta.draft === true) continue;
       const bodyMatch = raw.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
       const body = bodyMatch ? bodyMatch[1].trim() : raw.trim();
@@ -222,18 +314,61 @@ export async function dev({ port = 3000 } = {}) {
     // Content negotiation: serve raw Markdown when Accept: text/markdown
     if (req.accepts('text/markdown') && !req.accepts('text/html')) {
       let slug = req.path.replace(/^\//, '').replace(/\/$/, '') || 'index';
+      let requestedVersion = null;
       if (vc) {
         for (const v of vc.list) {
-          if (slug.startsWith(v.version + '/')) { slug = slug.slice(v.version.length + 1); break; }
+          if (slug.startsWith(v.version + '/')) {
+            requestedVersion = v.version;
+            slug = slug.slice(v.version.length + 1);
+            break;
+          }
         }
       }
       const docsDir = path.join(cwd, 'docs');
       const mdPath = path.resolve(docsDir, `${slug}.md`);
-      if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
-        const mdRaw = await fs.readFile(mdPath, 'utf8');
+      if (mdPath.startsWith(docsDir + path.sep)) {
+        const versionEntry = requestedVersion
+          ? vc?.list?.find(v => v.version === requestedVersion)
+          : vc?.list?.find(v => v.version === vc?.default);
+        let mdRaw = null;
+        let parseOpts = {
+          docsRoot: path.join(cwd, 'docs'),
+          pagePath: mdPath,
+          globalAttributes: getRuntimeAttributes(config, requestedVersion || vc?.default || null, versionEntry?.branch || null),
+        };
+        if (requestedVersion && versionEntry && requestedVersion !== vc.default) {
+          mdRaw = await gitReadFile(versionEntry.branch, `docs/${slug}.md`, cwd);
+          if (mdRaw != null) {
+            const readFromVersion = async (absPath) => {
+              const relFromDocs = path.relative(path.join(cwd, 'docs'), absPath).replace(/\\/g, '/');
+              const gitPath = `docs/${relFromDocs}`;
+              const fromGit = await gitReadFile(versionEntry.branch, gitPath, cwd);
+              if (fromGit == null) throw new Error(`Include target not found in ${versionEntry.branch}: ${gitPath}`);
+              return fromGit;
+            };
+            const existsFromVersion = async (absPath) => {
+              const relFromDocs = path.relative(path.join(cwd, 'docs'), absPath).replace(/\\/g, '/');
+              const gitPath = `docs/${relFromDocs}`;
+              const fromGit = await gitReadFile(versionEntry.branch, gitPath, cwd);
+              return fromGit != null;
+            };
+            parseOpts = {
+              ...parseOpts,
+              pagePath: `docs/${slug}.md@${versionEntry.branch}`,
+              readFile: readFromVersion,
+              pathExists: existsFromVersion,
+              strictFsSafety: false,
+            };
+          }
+        }
+        if (mdRaw == null) {
+          if (!await fs.pathExists(mdPath)) return res.status(404).send('Not found');
+          mdRaw = await fs.readFile(mdPath, 'utf8');
+        }
+        const { preprocessedMarkdown } = await parseDoc(mdRaw, parseOpts);
         const isApi = slug.startsWith('api/') || /^---\n[\s\S]*?layout:\s*api[\s\S]*?\n---/.test(mdRaw);
         res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-        return res.send(isApi && specData ? buildApiPageMarkdown(mdRaw, specData) : mdRaw);
+        return res.send(isApi && specData ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
       }
       return res.status(404).send('Not found');
     }

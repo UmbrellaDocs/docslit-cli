@@ -84,7 +84,11 @@ app.get('/api/page/:id', async (req, res) => {
     return res.status(404).json({ error: `Preview page "${id}" not found` });
   }
   const raw = await fs.readFile(mdPath, 'utf8');
-  const { meta, html } = parseDoc(raw);
+  const { meta, html } = await parseDoc(raw, {
+    docsRoot: PREVIEW_DIR,
+    pagePath: mdPath,
+    globalAttributes: {},
+  });
   res.json({ id, meta, html });
 });
 

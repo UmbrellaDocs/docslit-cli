@@ -12,7 +12,11 @@ export async function loadConfig(cwd) {
   }
   const raw = await fs.readFile(configPath, 'utf8');
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!parsed.attributes || typeof parsed.attributes !== 'object' || Array.isArray(parsed.attributes)) {
+      parsed.attributes = {};
+    }
+    return parsed;
   } catch (e) {
     console.error(`  Error: docslit.json is not valid JSON.`);
     process.exit(1);

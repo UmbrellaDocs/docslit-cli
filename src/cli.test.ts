@@ -17,9 +17,9 @@ const BIN = path.join(__dirname, '../bin/docslit.js');
 const pkg = JSON.parse(readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
 
 /** Run the CLI with the given args and return { code, stdout, stderr }. */
-function run(args: string[], timeoutMs = 5000): Promise<{ code: number; stdout: string; stderr: string }> {
+function run(args: string[], timeoutMs = 5000, cwd?: string): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const proc = spawn('node', [BIN, ...args]);
+    const proc = spawn('node', [BIN, ...args], { cwd });
     let stdout = '';
     let stderr = '';
     proc.stdout?.on('data', (d) => (stdout += d.toString()));
@@ -86,136 +86,286 @@ describe('CLI — import requires a source directory', () => {
 // markdown.js — parseDoc
 // ─────────────────────────────────────────────────────────────────────────────
 describe('parseDoc', () => {
-  it('parses frontmatter into meta', () => {
+  it('parses frontmatter into meta', async () => {
     const raw = `---\ntitle: Hello World\ndraft: true\n---\n# Hello\n`;
-    const { meta, html } = parseDoc(raw);
+    const { meta, html } = await parseDoc(raw);
     expect(meta.title).toBe('Hello World');
     expect(meta.draft).toBe(true);
   });
 
-  it('converts markdown headings to HTML', () => {
-    const { html } = parseDoc('# Heading One\n\n## Heading Two\n');
+  it('converts markdown headings to HTML', async () => {
+    const { html } = await parseDoc('# Heading One\n\n## Heading Two\n');
     expect(html).toContain('<h1');
     expect(html).toContain('<h2');
   });
 
-  it('converts markdown paragraphs to HTML', () => {
-    const { html } = parseDoc('Some **bold** text and _italic_ text.\n');
+  it('converts markdown paragraphs to HTML', async () => {
+    const { html } = await parseDoc('Some **bold** text and _italic_ text.\n');
     expect(html).toContain('<strong>bold</strong>');
     expect(html).toContain('<em>italic</em>');
   });
 
-  it('preserves wc-* web component tags unchanged', () => {
+  it('preserves wc-* web component tags unchanged', async () => {
     const raw = '<wc-callout type="warning">Watch out</wc-callout>\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('<wc-callout type="warning">');
     expect(html).toContain('Watch out');
   });
 
-  it('preserves self-closing wc-* tags', () => {
+  it('preserves self-closing wc-* tags', async () => {
     const raw = '<wc-badge label="v1.0" />\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('<wc-badge');
     expect(html).toContain('label="v1.0"');
   });
 
-  it('does not mangle code inside fenced blocks', () => {
+  it('does not mangle code inside fenced blocks', async () => {
     const raw = '```js\nconst x = <wc-button />\n```\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('const x =');
   });
 
-  it('returns empty meta when no frontmatter present', () => {
-    const { meta } = parseDoc('Just some text.\n');
+  it('returns empty meta when no frontmatter present', async () => {
+    const { meta } = await parseDoc('Just some text.\n');
     expect(meta).toEqual({});
   });
 
-  it('converts self-closing wc-* tags to open+close pairs for HTML compatibility', () => {
+  it('converts self-closing wc-* tags to open+close pairs for HTML compatibility', async () => {
     const raw = '<wc-var name="X" default="hello" />\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('<wc-var name="X" default="hello"></wc-var>');
     expect(html).not.toContain('/>');
   });
 
-  it('preserves content after self-closing wc-* tags', () => {
+  it('preserves content after self-closing wc-* tags', async () => {
     const raw = '<wc-var name="X" default="val" />\n\n<wc-callout>After var</wc-callout>\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('<wc-var');
     expect(html).toContain('<wc-callout>');
     expect(html).toContain('After var');
   });
 
-  it('preserves special characters like && inside wc-code-block', () => {
+  it('preserves special characters like && inside wc-code-block', async () => {
     const raw = '<wc-code-block>mkdir foo && cd foo</wc-code-block>\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('mkdir foo && cd foo');
     expect(html).not.toContain('&amp;');
   });
 
-  it('preserves {{VAR}} placeholders inside wc-code-block', () => {
+  it('preserves {{VAR}} placeholders inside wc-code-block', async () => {
     const raw = '<wc-code-block>curl {{API_URL}}/status</wc-code-block>\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('{{API_URL}}');
   });
 
-  it('rewrites Mintlify-style <Tip> as <wc-callout type="tip">', () => {
-    const { html } = parseDoc('<Tip>Use cache</Tip>\n');
+  it('rewrites Mintlify-style <Tip> as <wc-callout type="tip">', async () => {
+    const { html } = await parseDoc('<Tip>Use cache</Tip>\n');
     expect(html).toContain('<wc-callout');
     expect(html).toContain('type="tip"');
     expect(html).toContain('title="Tip"');
     expect(html).toContain('Use cache');
   });
 
-  it('rewrites <Card icon="rocket"> with attribute renaming', () => {
+  it('rewrites <Card icon="rocket"> with attribute renaming', async () => {
     const raw = '<Card title="Quickstart" icon="rocket" href="/start">Get going.</Card>\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('<wc-card');
     expect(html).toContain('title="Quickstart"');
     expect(html).toContain('icon-name="zap"'); // rocket → zap via FA_TO_LUCIDE
     expect(html).toContain('href="/start"');
   });
 
-  it('rewrites self-closing <Card /> to a paired wc-card', () => {
-    const { html } = parseDoc('<Card title="Solo" />\n');
+  it('rewrites self-closing <Card /> to a paired wc-card', async () => {
+    const { html } = await parseDoc('<Card title="Solo" />\n');
     expect(html).toContain('<wc-card');
     expect(html).toContain('title="Solo"');
     expect(html).toContain('</wc-card>');
     expect(html).not.toContain('/>');
   });
 
-  it('applies convention fallback for unmapped PascalCase tags', () => {
-    const { html } = parseDoc('<CustomThing prop="x">Body</CustomThing>\n');
+  it('applies convention fallback for unmapped PascalCase tags', async () => {
+    const { html } = await parseDoc('<CustomThing prop="x">Body</CustomThing>\n');
     expect(html).toContain('<wc-custom-thing');
     expect(html).toContain('prop="x"');
     expect(html).toContain('</wc-custom-thing>');
   });
 
-  it('does not rewrite PascalCase tags inside fenced code blocks', () => {
+  it('does not rewrite PascalCase tags inside fenced code blocks', async () => {
     const raw = '```jsx\n<Callout>literal source</Callout>\n```\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('&lt;Callout&gt;');
     expect(html).not.toContain('<wc-callout');
   });
 
-  it('does not rewrite PascalCase tags inside inline backticks', () => {
-    const { html } = parseDoc('Use `<Callout>` for warnings.\n');
+  it('does not rewrite PascalCase tags inside inline backticks', async () => {
+    const { html } = await parseDoc('Use `<Callout>` for warnings.\n');
     expect(html).toContain('<code>&lt;Callout&gt;</code>');
     expect(html).not.toContain('<wc-callout');
   });
 
-  it('auto-numbers <Step> inside <Steps>', () => {
+  it('auto-numbers <Step> inside <Steps>', async () => {
     const raw = '<Steps>\n<Step title="A">First</Step>\n<Step title="B">Second</Step>\n</Steps>\n';
-    const { html } = parseDoc(raw);
+    const { html } = await parseDoc(raw);
     expect(html).toContain('n="1"');
     expect(html).toContain('n="2"');
   });
 
-  it('drops <Tooltip> wrapper but keeps inner content (flatten)', () => {
-    const { html } = parseDoc('Hover <Tooltip tip="hi">here</Tooltip> for info.\n');
+  it('drops <Tooltip> wrapper but keeps inner content (flatten)', async () => {
+    const { html } = await parseDoc('Hover <Tooltip tip="hi">here</Tooltip> for info.\n');
     expect(html).not.toContain('Tooltip');
     expect(html).not.toContain('wc-tooltip');
     expect(html).toContain('Hover');
     expect(html).toContain('here');
+  });
+});
+
+describe('parseDoc preprocess MVP', () => {
+  const tmpDocs = path.join(__dirname, '../.test-preprocess-docs');
+
+  beforeAll(() => {
+    if (existsSync(tmpDocs)) rmSync(tmpDocs, { recursive: true });
+    mkdirSync(path.join(tmpDocs, '_reusables', 'shared'), { recursive: true });
+    writeFileSync(path.join(tmpDocs, '_reusables', 'shared', 'intro.md'), 'Reusable line with {{PRODUCT}}.\n');
+    writeFileSync(path.join(tmpDocs, '_reusables', 'has-include.md'), '<wc-include src="shared/intro.md" />\n');
+    writeFileSync(
+      path.join(tmpDocs, '_reusables', 'include-example-only.md'),
+      '```markdown\n<wc-include src="shared/intro.md" />\n```\n'
+    );
+  });
+
+  afterAll(() => {
+    if (existsSync(tmpDocs)) rmSync(tmpDocs, { recursive: true });
+  });
+
+  it('resolves wc-include from docs/_reusables and substitutes variables', async () => {
+    const raw = `---
+title: Test
+attributes:
+  PRODUCT: PageProduct
+---
+<wc-include src="shared/intro.md" />
+`;
+    const { html, preprocessedMarkdown } = await parseDoc(raw, {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'page.md'),
+      globalAttributes: { PRODUCT: 'GlobalProduct' },
+    });
+    expect(html).toContain('Reusable line with PageProduct.');
+    expect(preprocessedMarkdown).toContain('<!-- BEGIN: Content from file docs/_reusables/shared/intro.md -->');
+    expect(preprocessedMarkdown).toContain('<!-- END: Content from file docs/_reusables/shared/intro.md -->');
+  });
+
+  it('allows page-local wc-var declarations to override page and global attributes', async () => {
+    const raw = `---
+title: Vars
+attributes:
+  PRODUCT: PageProduct
+---
+<wc-var name="PRODUCT" value="LocalProduct" />
+Value: {{PRODUCT}}
+`;
+    const { html } = await parseDoc(raw, {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'vars.md'),
+      globalAttributes: { PRODUCT: 'GlobalProduct' },
+    });
+    expect(html).toContain('Value: LocalProduct');
+  });
+
+  it('does not replace placeholders inside fenced code blocks', async () => {
+    const raw = `---
+title: Code
+---
+\`\`\`bash
+echo {{PRODUCT}}
+\`\`\`
+`;
+    const { html } = await parseDoc(raw, {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'code.md'),
+      globalAttributes: { PRODUCT: 'GlobalProduct' },
+    });
+    expect(html).toContain('echo {{PRODUCT}}');
+  });
+
+  it('throws for include paths outside docs/_reusables', async () => {
+    const raw = '<wc-include src="../outside.md" />\n';
+    await expect(parseDoc(raw, {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'bad.md'),
+      globalAttributes: {},
+    })).rejects.toThrow('outside docs/_reusables');
+  });
+
+  it('throws when reusable files contain nested includes', async () => {
+    const raw = '<wc-include src="has-include.md" />\n';
+    await expect(parseDoc(raw, {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'nested.md'),
+      globalAttributes: {},
+    })).rejects.toThrow('Nested include is not allowed');
+  });
+
+  it('allows reusable files that only mention wc-include inside fenced code', async () => {
+    const raw = '<wc-include src="include-example-only.md" />\n';
+    const { html } = await parseDoc(raw, {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'code-only.md'),
+      globalAttributes: {},
+    });
+    expect(html).toContain('<wc-code-block language="markdown">');
+    expect(html).toContain('src="shared/intro.md"');
+  });
+
+  it('throws for invalid wc-var declaration names', async () => {
+    const raw = '<wc-var name="bad-name" value="x" />\n';
+    await expect(parseDoc(raw, {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'bad-var.md'),
+      globalAttributes: {},
+    })).rejects.toThrow('Invalid variable name');
+  });
+
+  it('ignores wc-include text inside inline code', async () => {
+    const raw = 'Use `<wc-include />` as an example in docs.\n';
+    const { html } = await parseDoc(raw, {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'inline-example.md'),
+      globalAttributes: {},
+    });
+    expect(html).toContain('<code><wc-include></wc-include></code>');
+  });
+
+  it('does not process includes inside fenced code blocks', async () => {
+    const raw = '```markdown\n<wc-include src="shared/intro.md" />\n```\n';
+    const { html } = await parseDoc(raw, {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'fence-example.md'),
+      globalAttributes: {},
+    });
+    expect(html).toContain('<wc-code-block language="markdown">');
+    expect(html).toContain('src="shared/intro.md"');
+    expect(html).not.toContain('Reusable line with');
+  });
+
+  it('supports pass:[...] to render literal variable placeholders', async () => {
+    const { html } = await parseDoc('Literal pass:[{{TOKEN}}] in prose.\n', {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'pass-var.md'),
+      globalAttributes: { TOKEN: 'secret' },
+    });
+    expect(html).toContain('Literal {{TOKEN}} in prose.');
+    expect(html).not.toContain('<wc-var name="TOKEN" readonly>');
+  });
+
+  it('supports pass:[...] to render literal wc tags', async () => {
+    const { html } = await parseDoc('Literal pass:[<wc-include src="shared/intro.md" />] example.\n', {
+      docsRoot: tmpDocs,
+      pagePath: path.join(tmpDocs, 'pass-include.md'),
+      globalAttributes: {},
+    });
+    expect(html).toContain('&lt;wc-include src="shared/intro.md" /&gt;');
+    expect(html).not.toContain('Reusable line with');
   });
 });
 
@@ -1497,18 +1647,9 @@ describe('openapi scaffold — file generation', () => {
   });
 
   it('generates stub markdown files from spec', async () => {
-    const { code } = await run(['openapi', 'scaffold', FIXTURE_SPEC], 15000);
-    // scaffold runs in cwd — but we can't change cwd for the subprocess easily
-    // so test the module directly instead
-    const { openapiScaffold } = await import('./openapi-cmd.js');
-    const origCwd = process.cwd();
-    process.chdir(tmpDir);
-    try {
-      await openapiScaffold([FIXTURE_SPEC]);
-    } catch (e) {
-      // process.exit calls throw in test context
-    }
-    process.chdir(origCwd);
+    const { code, stderr } = await run(['openapi', 'scaffold', FIXTURE_SPEC], 15000, tmpDir);
+    expect(code).toBe(0);
+    expect(stderr).toBe('');
 
     // Check files were created
     expect(existsSync(path.join(tmpDir, 'docs', 'api', 'list-pets.md'))).toBe(true);

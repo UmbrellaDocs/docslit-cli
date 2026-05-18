@@ -2,6 +2,7 @@ import { marked } from 'marked';
 import matter from 'gray-matter';
 import { rewriteMdxTags } from './mdx-bridge.js';
 import { highlight } from './highlighter.js';
+import { preprocessDoc, assertNoPreprocessErrors } from './preprocess.js';
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -36,10 +37,28 @@ renderer.code = function ({ text, lang: rawLang }) {
 };
 marked.use({ renderer });
 
-export function parseDoc(rawContent) {
+function escapeHtml(s = '') {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+export async function parseDoc(rawContent, opts = {}) {
   const { data: meta, content: body } = matter(rawContent);
-  const html = renderMarkdown(body);
-  return { meta, html };
+  const preprocess = await preprocessDoc({
+    rawBody: body,
+    docsRoot: opts.docsRoot || '',
+    pagePath: opts.pagePath || null,
+    globalAttributes: opts.globalAttributes || {},
+    pageAttributes: meta.attributes || {},
+    readFile: opts.readFile,
+    pathExists: opts.pathExists,
+    strictFsSafety: opts.strictFsSafety !== false,
+  });
+  assertNoPreprocessErrors(preprocess);
+  const html = renderMarkdown(preprocess.content, preprocess.passBlocks || []);
+  const preprocessedMarkdown = Object.keys(meta || {}).length
+    ? matter.stringify(preprocess.content, meta)
+    : preprocess.content;
+  return { meta, html, preprocess, preprocessedMarkdown };
 }
 
 // Detect block-level markdown — decides between marked.parse vs parseInline.
@@ -169,7 +188,7 @@ function processWcBlock(raw, codeBlocks) {
   return open + renderedContent + close;
 }
 
-function renderMarkdown(src) {
+function renderMarkdown(src, passBlocks = []) {
   const codeBlocks = [];
 
   // 1. Extract fenced code blocks so marked never mangles their content
@@ -211,6 +230,9 @@ function renderMarkdown(src) {
   html = html.replace(/<wc-code-block[\s\S]*?<\/wc-code-block>|(\{\{([A-Z_][A-Z0-9_]*)\}\})/g,
     (match, varMatch, name) => varMatch ? `<wc-var name="${name}" readonly></wc-var>` : match
   );
+
+  // 5. Restore pass:[...] blocks as literal output.
+  html = html.replace(/DOCSLIT_PASSBLOCK_(\d+)_END/g, (_, i) => escapeHtml(passBlocks[Number(i)] || ''));
 
   return html;
 }

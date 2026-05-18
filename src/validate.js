@@ -3,6 +3,7 @@ import path from 'path';
 import pc from 'picocolors';
 import matter from 'gray-matter';
 import { COMPONENT_MAP, pascalToWcKebab } from './mdx-bridge.js';
+import { VAR_NAME_RE } from './preprocess.js';
 
 // ─── Built-in component registry ──────────────────────────────────────────────
 // Mirrors the components actually registered by buildComponents() — keep this
@@ -54,8 +55,150 @@ function stripInlineCode(src) {
   return src.replace(/`[^`\n]+`/g, m => ' '.repeat(m.length));
 }
 
+function stripPassBlocks(src) {
+  return src.replace(/pass:\[[\s\S]*?\]/g, m => ' '.repeat(m.length));
+}
+
 function stripProtectedContent(src) {
-  return stripInlineCode(stripCodeFences(src));
+  return stripPassBlocks(stripInlineCode(stripCodeFences(src)));
+}
+
+function parseTagAttrs(attrText) {
+  const attrs = {};
+  const re = /([:@\w-]+)\s*=\s*"([^"]*)"/g;
+  let m;
+  while ((m = re.exec(attrText)) !== null) attrs[m[1]] = m[2];
+  return attrs;
+}
+
+function mapIncludeSource(src) {
+  const normalized = String(src || '').replace(/\\/g, '/').trim();
+  if (!normalized) return null;
+  if (normalized.startsWith('/')) {
+    if (!normalized.startsWith('/docs/_reusables/')) return null;
+    return normalized.slice('/docs/'.length);
+  }
+  if (normalized.startsWith('_reusables/')) return normalized;
+  return `_reusables/${normalized}`;
+}
+
+function getBuiltInRuntimeVars(config) {
+  const version = config?.versions?.default || 'unversioned';
+  const branch = config?.versions?.list?.find(v => v.version === version)?.branch || 'working-tree';
+  return {
+    DOCSLIT_VERSION: version,
+    DOCSLIT_BRANCH: branch,
+  };
+}
+
+async function checkAuthoringPreprocessor(files, dir, config, issues) {
+  const docsRoot = path.join(dir, 'docs');
+  const reusablesRoot = path.join(docsRoot, '_reusables');
+  const globalAttrs = {
+    ...((config?.attributes && typeof config.attributes === 'object') ? config.attributes : {}),
+    ...getBuiltInRuntimeVars(config),
+  };
+
+  for (const file of files) {
+    const rel = path.relative(dir, file);
+    const raw = await fs.readFile(file, 'utf8');
+    const parsed = matter(raw);
+    const pageAttrs = (parsed.data?.attributes && typeof parsed.data.attributes === 'object') ? parsed.data.attributes : {};
+    const body = parsed.content;
+    const bodySafe = stripProtectedContent(body);
+    const isReusable = file.startsWith(reusablesRoot + path.sep);
+
+    const invalidIncludeRe = /<wc-include\b[^>]*>(?:[\s\S]*?)<\/wc-include>/g;
+    let badInclude;
+    while ((badInclude = invalidIncludeRe.exec(bodySafe)) !== null) {
+      issues.push(issue('error', rel, lineOf(raw, badInclude.index),
+        'wc-include must use self-closing syntax (<wc-include ... />)'));
+    }
+
+    const includeRe = /<wc-include\b([^>]*?)\/>/g;
+    let includeMatch;
+    while ((includeMatch = includeRe.exec(bodySafe)) !== null) {
+      if (isReusable) {
+        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+          'Reusable files in docs/_reusables cannot contain wc-include'));
+        continue;
+      }
+      const attrs = parseTagAttrs(includeMatch[1]);
+      if (!attrs.src) {
+        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+          'wc-include requires a src attribute'));
+        continue;
+      }
+      const mapped = mapIncludeSource(attrs.src);
+      if (!mapped) {
+        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+          `Invalid include path "${attrs.src}" (must resolve under docs/_reusables)`));
+        continue;
+      }
+      const normalized = path.posix.normalize(mapped).replace(/^\/+/, '');
+      if (!normalized.startsWith('_reusables/') || normalized.split('/').includes('..')) {
+        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+          `Include "${attrs.src}" resolves outside docs/_reusables`));
+        continue;
+      }
+      if (!normalized.endsWith('.md')) {
+        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+          `Include "${attrs.src}" must target a .md file`));
+        continue;
+      }
+      const absTarget = path.resolve(docsRoot, normalized);
+      if (!absTarget.startsWith(reusablesRoot + path.sep)) {
+        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+          `Include "${attrs.src}" resolves outside docs/_reusables`));
+        continue;
+      }
+      if (!await fs.pathExists(absTarget)) {
+        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+          `Include target not found: docs/${normalized}`));
+        continue;
+      }
+      const includeRaw = await fs.readFile(absTarget, 'utf8');
+      if (/<wc-include\b/i.test(stripProtectedContent(includeRaw))) {
+        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+          `Nested include found in reusable target: docs/${normalized}`));
+      }
+      const includeFm = matter(includeRaw);
+      if (Object.keys(includeFm.data || {}).length > 0) {
+        issues.push(issue('warning', path.relative(dir, absTarget), 1,
+          'Frontmatter in reusable file is ignored by wc-include'));
+      }
+    }
+
+    const localDeclarations = {};
+    const declarationRe = /<wc-var\b([^>]*?)\/>/g;
+    let dec;
+    while ((dec = declarationRe.exec(bodySafe)) !== null) {
+      const attrs = parseTagAttrs(dec[1]);
+      if (!attrs.name || !Object.prototype.hasOwnProperty.call(attrs, 'value')) continue;
+      if (!VAR_NAME_RE.test(attrs.name)) {
+        issues.push(issue('error', rel, lineOf(raw, dec.index),
+          `Invalid wc-var declaration name "${attrs.name}"`));
+        continue;
+      }
+      localDeclarations[attrs.name] = attrs.value;
+    }
+
+    const mergedVars = { ...globalAttrs, ...pageAttrs, ...localDeclarations };
+    const placeholderRe = /\{\{([^}]+)\}\}/g;
+    let placeholder;
+    while ((placeholder = placeholderRe.exec(bodySafe)) !== null) {
+      const key = placeholder[1].trim();
+      if (!VAR_NAME_RE.test(key)) {
+        issues.push(issue('warning', rel, lineOf(raw, placeholder.index),
+          `Invalid variable placeholder "{{${key}}}"`));
+        continue;
+      }
+      if (!Object.prototype.hasOwnProperty.call(mergedVars, key)) {
+        issues.push(issue('warning', rel, lineOf(raw, placeholder.index),
+          `Undefined variable "{{${key}}}"`));
+      }
+    }
+  }
 }
 
 // ─── 1. Config check ───────────────────────────────────────────────────────────
@@ -539,7 +682,10 @@ export async function validate(args) {
   // 8. OpenAPI refs
   await checkOpenAPIRefs(files, dir, loadedConfig, allIssues);
 
-  // 9. Orphans
+  // 9. Preprocessor authoring checks
+  await checkAuthoringPreprocessor(files, dir, loadedConfig, allIssues);
+
+  // 10. Orphans
   await checkOrphans(files, slugs, dir, allIssues);
 
   const elapsed = Date.now() - t0;

@@ -4,6 +4,63 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
+## 0.1.8
+
+### What's new
+
+#### Authoring preprocessor (MVP)
+
+**Compile-time reusable content includes** — added `<wc-include src="..."/>` support with a strict, opinionated policy:
+- include targets must resolve under `docs/_reusables/**`
+- only `.md` files are allowed
+- include tags must be self-closing
+- path traversal and symlink escapes are blocked
+
+**Page and global variable precedence** — added compile-time variable expansion with deterministic precedence:
+1. global `attributes` from `docslit.json`
+2. page frontmatter `attributes`
+3. page-local declarations via `<wc-var name="X" value="Y" />`
+
+`{{VAR}}` placeholders in prose now resolve using this precedence chain.
+
+**AsciiDoc-style pass-through escape** — added `pass:[...]` for literal rendering of syntax that should not be processed. Useful for documentation examples like `pass:[{{TOKEN}}]` and `pass:[<wc-include src="..." />]`.
+
+#### LLM and markdown delivery
+
+**Expanded markdown output for AI consumers** — build output `.md` files are now written from preprocessed content (includes and compile-time variables resolved), instead of copying raw source files.
+
+**Expanded markdown in dev/content negotiation** — markdown responses from `.md` routes and `Accept: text/markdown` now return preprocessed markdown, including version-aware branch resolution in versioned docs mode.
+
+**LLM artifacts use expanded content** — `llms-full.txt` and `search-index.json` now source markdown from preprocessed output paths.
+
+#### Version-aware globals
+
+**Built-in version variables on all pages** — added global runtime attributes:
+- `DOCSLIT_VERSION`
+- `DOCSLIT_BRANCH`
+
+These are available to all pages (dev/build/versioned branch rendering), so docs can expose current version context in prose.
+
+#### Validation and docs authoring
+
+**Preprocessor policy checks in `docslit validate`** — validate now catches:
+- invalid include paths and missing include targets
+- disallowed nested includes in reusable files
+- invalid variable declaration names and unresolved placeholders
+- frontmatter in reusable files (warned and ignored)
+
+#### Performance
+
+**Preprocessor fast-path** — pages that contain none of `<wc-include`, `<wc-var ... value=`, `{{...}}`, or `pass:[...]` now skip preprocess work entirely.
+
+### Bug fixes
+
+**Include false positives in code examples** — nested include detection now ignores include literals inside fenced/inline code and code components in reusable files, preventing false errors when documenting include syntax.
+
+**Inline formatting regressions resolved with explicit escape** — reverted aggressive inline-code suppression and replaced it with opt-in `pass:[...]` behavior for literal output control.
+
+---
+
 ## 0.1.7
 
 ### What's new

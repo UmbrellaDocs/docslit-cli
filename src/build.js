@@ -13,6 +13,13 @@ import { initHighlighter } from './highlighter.js';
 const OFFLINE_SIZE_WARN_BYTES = 5 * 1024 * 1024;
 const OFFLINE_PAGES_WARN_COUNT = 200;
 
+function getRuntimeAttributes(config, version = null, branch = null) {
+  const attrs = { ...(config.attributes || {}) };
+  attrs.DOCSLIT_VERSION = version || 'unversioned';
+  attrs.DOCSLIT_BRANCH = branch || 'working-tree';
+  return attrs;
+}
+
 function _formatBytes(b) {
   if (b < 1024) return b + ' B';
   if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
@@ -117,7 +124,11 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
       continue;
     }
     const raw = await fs.readFile(mdPath, 'utf8');
-    let { meta, html } = parseDoc(raw);
+    let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+      docsRoot: path.join(cwd, 'docs'),
+      pagePath: mdPath,
+      globalAttributes: getRuntimeAttributes(config),
+    });
 
     if (meta.draft === true) {
       draftPageIds.push(id);
@@ -135,9 +146,9 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
     const destMd = path.join(outDir, `${id}.md`);
     await fs.ensureDir(path.dirname(destMd));
     if (isApiPage && specData) {
-      await fs.writeFile(destMd, buildApiPageMarkdown(raw, specData));
+      await fs.writeFile(destMd, buildApiPageMarkdown(preprocessedMarkdown, specData));
     } else {
-      await fs.copyFile(mdPath, destMd);
+      await fs.writeFile(destMd, preprocessedMarkdown);
     }
     built++;
   }
@@ -229,7 +240,11 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
     if (!await fs.pathExists(mdPath)) continue;
     const raw = await fs.readFile(mdPath, 'utf8');
-    let { meta, html } = parseDoc(raw);
+    let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+      docsRoot: path.join(cwd, 'docs'),
+      pagePath: mdPath,
+      globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultBranch),
+    });
     if (meta.draft === true) { draftPageIds.push(id); continue; }
     if (specData) html = resolveSpecRefs(html, specData);
     const isApiPage = id.startsWith('api/') || meta.layout === 'api';
@@ -237,9 +252,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const destMd = path.join(defaultDir, `${id}.md`);
     await fs.ensureDir(path.dirname(destMd));
     if (isApiPage && specData) {
-      await fs.writeFile(destMd, buildApiPageMarkdown(raw, specData));
+      await fs.writeFile(destMd, buildApiPageMarkdown(preprocessedMarkdown, specData));
     } else {
-      await fs.copyFile(mdPath, destMd);
+      await fs.writeFile(destMd, preprocessedMarkdown);
     }
     built++;
   }
@@ -295,13 +310,33 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       if (changedSlugs.has(id)) {
         const raw = await gitReadFile(versionBranch, `docs/${id}.md`, cwd);
         if (!raw) continue;
-        let { meta, html } = parseDoc(raw);
+        const readFromVersion = async (absPath) => {
+          const relFromDocs = path.relative(path.join(cwd, 'docs'), absPath).replace(/\\/g, '/');
+          const gitPath = `docs/${relFromDocs}`;
+          const fromGit = await gitReadFile(versionBranch, gitPath, cwd);
+          if (fromGit == null) throw new Error(`Include target not found in ${versionBranch}: ${gitPath}`);
+          return fromGit;
+        };
+        const existsFromVersion = async (absPath) => {
+          const relFromDocs = path.relative(path.join(cwd, 'docs'), absPath).replace(/\\/g, '/');
+          const gitPath = `docs/${relFromDocs}`;
+          const fromGit = await gitReadFile(versionBranch, gitPath, cwd);
+          return fromGit != null;
+        };
+        let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+          docsRoot: path.join(cwd, 'docs'),
+          pagePath: `docs/${id}.md@${versionBranch}`,
+          globalAttributes: getRuntimeAttributes(config, entry.version, versionBranch),
+          readFile: readFromVersion,
+          pathExists: existsFromVersion,
+          strictFsSafety: false,
+        });
         if (meta.draft === true) continue;
         if (specData) html = resolveSpecRefs(html, specData);
         versionPagesData[id] = { meta, html };
         const destMd = path.join(versionDir, 'docs', `${id}.md`);
         await fs.ensureDir(path.dirname(destMd));
-        await fs.writeFile(destMd, raw);
+        await fs.writeFile(destMd, preprocessedMarkdown);
         manifest[id] = entry.version;
         vBuilt++;
       } else {
@@ -473,9 +508,11 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
     const groupPages = collectLlmsPages(group.pages);
     if (!groupPages.length) continue;
     for (const id of groupPages) {
-      const mdPath = path.join(outDir, 'docs', `${id}.md`);
-      if (await fs.pathExists(mdPath)) {
-        const src = await fs.readFile(mdPath, 'utf8');
+      const mdPath = path.join(outDir, `${id}.md`);
+      const mdPathFallback = path.join(outDir, 'docs', `${id}.md`);
+      const resolvedMdPath = await fs.pathExists(mdPath) ? mdPath : mdPathFallback;
+      if (await fs.pathExists(resolvedMdPath)) {
+        const src = await fs.readFile(resolvedMdPath, 'utf8');
         fullParts.push('---');
         fullParts.push(`# Source: ${id}.md`);
         fullParts.push('');
