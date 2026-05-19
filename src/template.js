@@ -62,6 +62,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   <meta charset="UTF-8" />
   ${buildThemeInit()}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="${escHtml(config.description || siteTitle)}">
   <title>${siteTitle} — DocsLit</title>
   ${buildFontLinks()}
   ${stylesBlock}
@@ -98,7 +99,7 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
     : '';
 
   const pageTitle = meta.title || toLabel(id);
-  const desc = meta.description || meta.desc || '';
+  const desc = meta.description || meta.desc || config.description || '';
   const baseUrl = (config.url || '').replace(/\/$/, '');
   const versionPrefix = currentVersion ? `/${currentVersion}` : '';
   const canonicalUrl = baseUrl ? `${baseUrl}${versionPrefix}/${id}` : '';
@@ -243,7 +244,7 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null) {
       <span class="search-trigger-kbd"><kbd>⌘</kbd><kbd>K</kbd></span>
     </button>
     ${versionSelectorHtml}
-    <button class="theme-btn" id="theme-btn" onclick="toggleTheme()"></button>
+    <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle theme"></button>
   </div>
 </nav>`;
 }
@@ -997,6 +998,8 @@ async function loadPage(id, el) {
       document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
       _setBreadcrumb(id, meta.title);
     }
+    var metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) metaDesc.setAttribute('content', meta.description || meta.desc || '');
     content.innerHTML = '';
     if (meta.draft) content.insertAdjacentHTML('beforeend', '<div class="draft-banner" role="status"><span><strong>Draft page</strong> — not visible in production. Remove <code>draft: true</code> from frontmatter to publish.</span></div>');
     const metaBar = _buildMetaBar(meta, id);
@@ -1073,6 +1076,9 @@ async function loadPage(id, el) {
     document.title = pageTitle + ' — ' + (logoText ? logoText.textContent.trim() : '');
     _setBreadcrumb(id, pageTitle);
   }
+  var remoteDesc = doc.querySelector('meta[name="description"]');
+  var metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) metaDesc.setAttribute('content', remoteDesc ? remoteDesc.getAttribute('content') || '' : '');
   content.innerHTML = remoteContent ? remoteContent.innerHTML : '';
   _wrapTables(content);
   buildToc(content);
@@ -1130,6 +1136,8 @@ async function loadPage(id, el) {
     document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
     _setBreadcrumb(id, meta.title);
   }
+  var metaDescEl = document.querySelector('meta[name="description"]');
+  if (metaDescEl) metaDescEl.setAttribute('content', meta.description || meta.desc || '');
   const metaBar = _buildMetaBar(meta, id);
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
@@ -1455,7 +1463,7 @@ function buildStyles() {
 html.light {
   --bg: #ffffff; --surface: #f8f8f8; --surface2: #f0f0f0; --surface3: #e8e8e8;
   --border: #e2e2e2; --border2: #d0d0d0;
-  --text: #0f0f0f; --text2: #555; --text3: #999;
+  --text: #0f0f0f; --text2: #555; --text3: #737373;
   --accent-light: #015e63;
   --accent-dim: rgba(1,105,111,.08); --accent-dim2: rgba(1,105,111,.15);
   --sidebar-bg: #f5f5f5; --code-bg: #f6f8fa; --code-text: #24292f;

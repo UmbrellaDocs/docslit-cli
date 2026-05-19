@@ -20,7 +20,7 @@ class WcFrame extends LitElement {
   static styles=css\`
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--text3:#666}
-    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--text3:#999}
+    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--text3:#737373}
     .frame{border-radius:10px;overflow:hidden;background:var(--surface,#111)}
     .bordered{border:1px solid var(--border,#2a2a2a)}
     .inner{padding:24px;display:flex;align-items:center;justify-content:center}
@@ -58,7 +58,7 @@ class WcExpandable extends LitElement {
   static styles=css\`
     :host{display:block;margin:0 0 12px;min-width:0}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--surface3:#222;--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666}
-    :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--surface3:#e8e8e8;--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#999}
+    :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--surface3:#e8e8e8;--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#737373}
     .wrap{border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden;min-width:0}
     .hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--surface2,#1a1a1a);cursor:pointer;user-select:none;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:var(--text,#f0f0f0);gap:12px;min-width:0}
     .hdr:hover{background:var(--surface3,#222)}
@@ -85,7 +85,7 @@ class WcAccordion extends LitElement {
   static styles=css\`
     :host{display:block;margin:0 0 12px;min-width:0}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666}
-    :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#999}
+    :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#737373}
     .wrap{border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden;min-width:0}
     .hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--surface2,#1a1a1a);cursor:pointer;user-select:none;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;color:var(--text,#f0f0f0);gap:12px;min-width:0}
     .hdr:hover{background:var(--surface3,#222)}
@@ -126,7 +126,7 @@ class WcAside extends LitElement {
   static styles=css\`
     :host{display:block;float:right;clear:right;width:280px;margin:0 0 20px 28px}
     :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--text2:#a0a0a0;--text3:#666}
-    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--text2:#555;--text3:#999}
+    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--text2:#555;--text3:#737373}
     .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;padding:16px 18px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text2,#a0a0a0);line-height:1.7}
     .title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666);margin-bottom:8px}
     ::slotted(*){max-width:100%}

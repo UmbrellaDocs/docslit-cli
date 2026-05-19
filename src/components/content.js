@@ -26,7 +26,7 @@ class WcTile extends LitElement {
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--border2:#3a3a3a;--text:#f0f0f0;--text3:#666}
-    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--border2:#d0d0d0;--text:#0f0f0f;--text3:#999}
+    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--border2:#d0d0d0;--text:#0f0f0f;--text3:#737373}
     a{display:flex;align-items:flex-start;gap:14px;padding:16px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;text-decoration:none;color:inherit;transition:all .15s;box-sizing:border-box}
     a:hover{border-color:var(--border2,#3a3a3a);filter:brightness(1.03)}
     .icon{width:38px;height:38px;background:rgba(1,105,111,.12);border:1px solid rgba(1,105,111,.2);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}

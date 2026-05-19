@@ -83,7 +83,7 @@ class WcFile extends LitElement {
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--border:#2a2a2a;--text2:#a0a0a0;--text3:#666;--highlight-text:#e2e8f0}
-    :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text3:#999;--highlight-text:#0f5257}
+    :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text3:#737373;--highlight-text:#0f5257}
     .row{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2,#a0a0a0)}
     :host([highlight]) .row{background:rgba(1,105,111,.1);color:var(--text,#0f0f0f)}
     .icon{color:var(--text3,#666);flex-shrink:0;font-size:14px;line-height:1}
@@ -100,7 +100,7 @@ class WcDir extends LitElement {
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--border:#2a2a2a;--text:#f0f0f0;--text3:#666}
-    :host([theme="light"]){--border:#e2e2e2;--text:#0f0f0f;--text3:#999}
+    :host([theme="light"]){--border:#e2e2e2;--text:#0f0f0f;--text3:#737373}
     .row{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text,#f0f0f0);cursor:pointer;user-select:none}
     .row:hover{background:rgba(128,128,128,.08)}
     .row:focus-visible{outline:2px solid #01696f;outline-offset:-2px}
@@ -135,7 +135,7 @@ class WcTreeItem extends LitElement {
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--border:#2a2a2a;--text2:#a0a0a0;--text:#f0f0f0;--text3:#666}
-    :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text:#0f0f0f;--text3:#999}
+    :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text:#0f0f0f;--text3:#737373}
     .row{display:flex;align-items:center;gap:8px;padding:0 8px;line-height:1.15;border-radius:4px;font-family:'JetBrains Mono','Courier New',monospace;font-size:13px;color:var(--text2,#a0a0a0);cursor:pointer;user-select:none}
     .row:hover{color:var(--text,#f0f0f0);background:rgba(128,128,128,.08)}
     .row:focus-visible{outline:2px solid #01696f;outline-offset:-2px}

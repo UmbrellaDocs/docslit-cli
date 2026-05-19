@@ -11,13 +11,13 @@ class WcVar extends LitElement {
   static properties={name:{type:String},default:{type:String},readonly:{type:Boolean},_editing:{type:Boolean,state:true},_value:{type:String,state:true}};
   static styles=css\`
     :host{display:inline;vertical-align:baseline}
-    .badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:4px;background:rgba(1,105,111,.1);border:1px solid rgba(1,105,111,.3);font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;font-style:italic;color:#4f98a3;cursor:pointer;transition:background .15s,border-color .15s;vertical-align:baseline;line-height:inherit}
+    .badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:4px;background:rgba(1,105,111,.1);border:1px solid rgba(1,105,111,.3);font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;font-style:italic;color:#3d7a83;cursor:pointer;transition:background .15s,border-color .15s;vertical-align:baseline;line-height:inherit}
     .badge:hover{background:rgba(1,105,111,.18);border-color:rgba(1,105,111,.5)}
     .pencil{font-style:normal;font-size:.8em;opacity:.6}
     .edit-wrap{display:inline-flex;align-items:center;gap:4px;vertical-align:baseline}
-    input{font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;color:#4f98a3;background:rgba(1,105,111,.08);border:1px solid rgba(1,105,111,.4);border-radius:4px;padding:1px 7px;outline:none;min-width:60px;width:auto;line-height:inherit}
+    input{font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;color:#3d7a83;background:rgba(1,105,111,.08);border:1px solid rgba(1,105,111,.4);border-radius:4px;padding:1px 7px;outline:none;min-width:60px;width:auto;line-height:inherit}
     input:focus{border-color:#01696f;box-shadow:0 0 0 2px rgba(1,105,111,.15)}
-    .clear-btn{background:none;border:none;cursor:pointer;color:#4f98a3;font-size:14px;padding:0 2px;line-height:1;opacity:.6;transition:opacity .15s}
+    .clear-btn{background:none;border:none;cursor:pointer;color:#3d7a83;font-size:14px;padding:0 2px;line-height:1;opacity:.6;transition:opacity .15s}
     .clear-btn:hover{opacity:1}
   \`;
   constructor(){super();this._editing=false;this._value='';}
@@ -90,7 +90,7 @@ class WcCodeBlock extends LitElement {
   static styles=css\`
     :host{display:block;margin:0 0 16px;width:100%;box-sizing:border-box;max-width:100%}
     :host([theme="dark"]),.dark-theme{--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666;--code-bg:#161616;--code-text:#e2e8f0}
-    :host([theme="light"]),.light-theme{--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text3:#999;--code-bg:#f6f8fa;--code-text:#24292f}
+    :host([theme="light"]),.light-theme{--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text3:#737373;--code-bg:#f6f8fa;--code-text:#24292f}
     .wrap{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;width:100%;box-sizing:border-box}
     .header{display:flex;align-items:center;justify-content:space-between;padding:3px 3px;background:var(--surface);border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;width:100%;box-sizing:border-box}
     .filename{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3);word-break:break-all;flex:1;min-width:0}
@@ -100,15 +100,15 @@ class WcCodeBlock extends LitElement {
     .code-area{display:flex;width:100%;box-sizing:border-box}
     .line-nums{padding:20px 0 20px 16px;margin:0;text-align:right;user-select:none;-webkit-user-select:none;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--text3);opacity:.5;flex-shrink:0;white-space:pre}
     pre{margin:0;padding:20px;overflow:hidden;white-space:pre-wrap;word-break:break-all;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--code-text);width:100%;box-sizing:border-box;flex:1;min-width:0}
-    .var-span{color:#4f98a3;font-weight:600;font-style:italic;cursor:pointer;border-bottom:1px dashed rgba(1,105,111,.4);transition:background .15s}
+    .var-span{color:#3d7a83;font-weight:600;font-style:italic;cursor:pointer;border-bottom:1px dashed rgba(1,105,111,.4);transition:background .15s}
     .var-span:hover{background:rgba(1,105,111,.12)}
     .copy-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:4px 8px;cursor:pointer;color:var(--text3);font-size:12px;font-family:'Inter',sans-serif;transition:color .15s,border-color .15s;flex-shrink:0;display:flex;align-items:center;gap:4px}
-    .copy-btn:hover{color:#4f98a3;border-color:#4f98a3}
+    .copy-btn:hover{color:#3d7a83;border-color:#3d7a83}
     .copy-btn:focus-visible{outline:2px solid #01696f;outline-offset:2px}
     .copy-btn.copied{color:#34d399;border-color:rgba(16,185,129,.4)}
     .menu-wrap{position:relative}
-    .menu-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:4px 6px;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;transition:color .15s,border-color .15s;display:flex;align-items:center}
-    .menu-btn:hover{color:#4f98a3;border-color:#4f98a3}
+    .menu-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:4px 6px;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;transition:color .15s,border-color .15s;display:flex;align-items:center;justify-content:center;min-width:24px;min-height:24px}
+    .menu-btn:hover{color:#3d7a83;border-color:#3d7a83}
     .menu-btn:focus-visible{outline:2px solid #01696f;outline-offset:2px}
     .menu{position:absolute;top:calc(100% + 4px);right:0;background:var(--surface,#111);border:1px solid var(--border);border-radius:8px;padding:4px;min-width:160px;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:10;font-family:'Inter',sans-serif}
     .menu-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border:none;background:none;width:100%;cursor:pointer;font-size:13px;font-family:'Inter',sans-serif;color:var(--text3);border-radius:6px;transition:background .15s;white-space:nowrap}
@@ -198,7 +198,7 @@ class WcCodeBlock extends LitElement {
       ?html\`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>\`
       :html\`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>\`;
     return html\`<div class="wrap \${isLight?'light-theme':'dark-theme'}">
-      \${hasHeader?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span><div class="actions"><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied to clipboard':'Copy code to clipboard'}>\${this._copied?'\\u2713 Copied':'\\u29C9 Copy'}</button><div class="menu-wrap"><button class="menu-btn" @click=\${this._toggleMenu} title="More options" aria-label="More options">\\u22EE</button>\${this._menuOpen?html\`<div class="menu"><button class="menu-item" @click=\${this._switchTheme}>\${themeSvg} \${themeLabel}</button></div>\`:nothing}</div></div></div>\`:nothing}
+      \${hasHeader?html\`<div class="header"><span class="filename">\${this.filename||''}</span><span class="lang">\${this.language||''}</span><div class="actions"><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied':'Copy'}>\${this._copied?'\\u2713 Copied':'\\u29C9 Copy'}</button><div class="menu-wrap"><button class="menu-btn" @click=\${this._toggleMenu} title="More options" aria-label="More options">\\u22EE</button>\${this._menuOpen?html\`<div class="menu"><button class="menu-item" @click=\${this._switchTheme}>\${themeSvg} \${themeLabel}</button></div>\`:nothing}</div></div></div>\`:nothing}
       <div class="body"><div class="code-area">\${this._showLineNums()}<pre>\${this._highlighted?unsafeHTML(this._highlighted):this._renderCode()}</pre></div></div>
     </div>\`;
   }
@@ -217,17 +217,17 @@ class WcCodeGroup extends LitElement {
     .tabs{display:flex;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
     .tabs::-webkit-scrollbar{display:none}
     .tab-btn{background:none;border:none;border-bottom:2px solid transparent;padding:9px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:var(--text3);cursor:pointer;white-space:nowrap;flex-shrink:0;margin-bottom:-1px;transition:all .15s}
-    .tab-btn.active{color:#4f98a3;border-bottom-color:#01696f;background:var(--code-bg)}
+    .tab-btn.active{color:#3d7a83;border-bottom-color:#01696f;background:var(--code-bg)}
     .tab-btn:hover{color:#a0a0a0}
     .tab-btn:focus-visible{outline:2px solid #01696f;outline-offset:-2px;border-radius:4px 4px 0 0}
     .actions{display:flex;align-items:center;gap:2px;flex-shrink:0;padding:0 4px}
     .copy-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:4px 8px;cursor:pointer;color:var(--text3);font-size:12px;font-family:'Inter',sans-serif;transition:color .15s,border-color .15s;flex-shrink:0;display:flex;align-items:center;gap:4px}
-    .copy-btn:hover{color:#4f98a3;border-color:#4f98a3}
+    .copy-btn:hover{color:#3d7a83;border-color:#3d7a83}
     .copy-btn:focus-visible{outline:2px solid #01696f;outline-offset:2px}
     .copy-btn.copied{color:#34d399;border-color:rgba(16,185,129,.4)}
     .menu-wrap{position:relative}
-    .menu-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:4px 6px;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;transition:color .15s,border-color .15s;display:flex;align-items:center}
-    .menu-btn:hover{color:#4f98a3;border-color:#4f98a3}
+    .menu-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:4px 6px;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;transition:color .15s,border-color .15s;display:flex;align-items:center;justify-content:center;min-width:24px;min-height:24px}
+    .menu-btn:hover{color:#3d7a83;border-color:#3d7a83}
     .menu-btn:focus-visible{outline:2px solid #01696f;outline-offset:2px}
     .menu{position:absolute;top:calc(100% + 4px);right:0;background:var(--surface,#111);border:1px solid var(--border);border-radius:8px;padding:4px;min-width:160px;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:10;font-family:'Inter',sans-serif}
     .menu-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border:none;background:none;width:100%;cursor:pointer;font-size:13px;font-family:'Inter',sans-serif;color:var(--text3);border-radius:6px;transition:background .15s;white-space:nowrap}
@@ -287,7 +287,7 @@ class WcCodeGroup extends LitElement {
     const themeSvg=isLight
       ?html\`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>\`
       :html\`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>\`;
-    return html\`<div class="outer \${isLight?'light-theme':'dark-theme'}"><div class="tabbar"><div class="tabs" role="tablist">\${tabs.map((t,i)=>{const label=t.label||t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button class="tab-btn \${active?'active':''}" role="tab" aria-selected=\${active} tabindex=\${active?0:-1} @click=\${()=>this._active=i} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div><div class="actions"><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied to clipboard':'Copy code to clipboard'}>\${this._copied?'\\u2713 Copied':'\\u29C9 Copy'}</button><div class="menu-wrap"><button class="menu-btn" @click=\${this._toggleMenu} title="More options" aria-label="More options">\\u22EE</button>\${this._menuOpen?html\`<div class="menu"><button class="menu-item" @click=\${this._switchTheme}>\${themeSvg} \${themeLabel}</button></div>\`:nothing}</div></div></div>\${tabs.map((t,i)=>{const inner=t.innerHTML.trim();const hl=inner.includes('<span');return html\`<div class="panel \${i===this._active?'active':''}" role="tabpanel"><pre>\${hl?unsafeHTML(inner):t.textContent}</pre></div>\`;})}</div>\`;
+    return html\`<div class="outer \${isLight?'light-theme':'dark-theme'}"><div class="tabbar"><div class="tabs" role="tablist">\${tabs.map((t,i)=>{const label=t.label||t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button class="tab-btn \${active?'active':''}" role="tab" aria-selected=\${active} tabindex=\${active?0:-1} @click=\${()=>this._active=i} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div><div class="actions"><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied':'Copy'}>\${this._copied?'\\u2713 Copied':'\\u29C9 Copy'}</button><div class="menu-wrap"><button class="menu-btn" @click=\${this._toggleMenu} title="More options" aria-label="More options">\\u22EE</button>\${this._menuOpen?html\`<div class="menu"><button class="menu-item" @click=\${this._switchTheme}>\${themeSvg} \${themeLabel}</button></div>\`:nothing}</div></div></div>\${tabs.map((t,i)=>{const inner=t.innerHTML.trim();const hl=inner.includes('<span');return html\`<div class="panel \${i===this._active?'active':''}" role="tabpanel"><pre>\${hl?unsafeHTML(inner):t.textContent}</pre></div>\`;})}</div>\`;
   }
 }
 customElements.define('wc-code-group',WcCodeGroup);
