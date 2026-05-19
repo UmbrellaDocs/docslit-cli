@@ -8,7 +8,7 @@ import * as nodeFs from 'node:fs';
 import { parseDoc } from './markdown.js';
 import { rewriteMdxTags, pascalToWcKebab, COMPONENT_MAP } from './mdx-bridge.js';
 import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
-import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile } from './template.js';
+import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile, buildOfflineAppFile, buildOfflineThemeInitFile } from './template.js';
 import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs, schemaToFields, endpointToMarkdown, buildApiPageMarkdown } from './openapi.js';
 import { buildComponents } from './components/index.js';
 
@@ -815,8 +815,9 @@ describe('renderShell — search offline mode', () => {
   const searchIndex = [{ id: 'intro', title: 'Intro', group: 'Guide', desc: '', body: 'content' }];
 
   it('loads search index via script tag in offline mode', () => {
+    const appJs = buildOfflineAppFile({});
+    expect(appJs).toContain('search-index.js');
     const html = renderShell({ config, mode: 'static', offline: true, pagesData, searchIndex });
-    expect(html).toContain('search-index.js');
     expect(html).not.toContain('"id":"intro"');
   });
 
@@ -2052,5 +2053,84 @@ This reusable snippet links to [vars](variables-and-precedence).
     expect(stdout).not.toContain('docs/_reusables/page/reusable-content.md] Missing frontmatter field');
     expect(stdout).not.toContain('docs/_reusables/page/reusable-content.md] Orphaned page');
     expect(stdout).not.toContain('docs/_reusables/page/reusable-content.md');
+  });
+});
+
+// ── Offline security hardening ────────────────────────────────────────────
+
+describe('offline build — security hardening', () => {
+  const config = { name: 'Test', sidebar: [{ group: 'Guide', pages: ['intro', 'setup'] }] };
+
+  it('offline HTML has no inline event handlers in markup', () => {
+    const html = renderShell({ config, mode: 'static', offline: true });
+    const markup = html.replace(/<script[\s>][^]*?<\/script>/g, '');
+    expect(markup).not.toMatch(/\bonclick=/);
+    expect(markup).not.toMatch(/\boninput=/);
+    expect(markup).not.toMatch(/\bonkeydown=/);
+    expect(markup).not.toMatch(/\bonchange=/);
+    expect(markup).not.toMatch(/\bonmouseenter=/);
+  });
+
+  it('non-offline HTML retains inline event handlers', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toMatch(/\bonclick=/);
+    expect(html).toMatch(/\boninput=/);
+  });
+
+  it('offline HTML inlines styles for file:// compatibility', () => {
+    const html = renderShell({ config, mode: 'static', offline: true });
+    expect(html).toMatch(/<style>/);
+  });
+
+  it('offline HTML contains _OFFLINE flag set to true', () => {
+    const html = renderShell({ config, mode: 'static', offline: true });
+    expect(html).toContain('var _OFFLINE = true');
+  });
+
+  it('offline HTML contains event delegation', () => {
+    const html = renderShell({ config, mode: 'static', offline: true });
+    expect(html).toContain('EVENT DELEGATION');
+    expect(html).toContain('addEventListener');
+  });
+
+  it('offline HTML has no Google Fonts references', () => {
+    const html = renderShell({ config, mode: 'static', offline: true });
+    expect(html).not.toContain('fonts.googleapis.com');
+    expect(html).not.toContain('fonts.gstatic.com');
+  });
+
+  it('non-offline HTML still loads Google Fonts', () => {
+    const html = renderShell({ config, mode: 'static' });
+    expect(html).toContain('fonts.googleapis.com');
+  });
+
+  it('offline app file contains event delegation', () => {
+    const js = buildOfflineAppFile({});
+    expect(js).toContain('EVENT DELEGATION');
+    expect(js).toContain('addEventListener');
+    expect(js).toContain("var _OFFLINE = true");
+  });
+
+  it('non-offline app file does not contain event delegation', () => {
+    const js = buildAppFile('static', {});
+    expect(js).toContain("var _OFFLINE = false");
+    expect(js).not.toContain('EVENT DELEGATION');
+  });
+
+  it('offline theme init file is standalone JS', () => {
+    const js = buildOfflineThemeInitFile({});
+    expect(js).toContain('docslit-theme');
+    expect(js).not.toContain('<script');
+  });
+
+  it('_show404 escapes page id', () => {
+    const js = buildOfflineAppFile({});
+    expect(js).toContain('_escHtml(id)');
+  });
+
+  it('_buildPrevNext escapes text content', () => {
+    const js = buildOfflineAppFile({});
+    expect(js).toContain('_escHtml(prev.textContent.trim())');
+    expect(js).toContain('_escHtml(next.textContent.trim())');
   });
 });

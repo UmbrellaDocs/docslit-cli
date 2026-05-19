@@ -4,7 +4,7 @@ import pc from 'picocolors';
 import { fileURLToPath } from 'url';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
-import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
+import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile, buildOfflineThemeInitFile, buildOfflineAppFile } from './template.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 import { initHighlighter } from './highlighter.js';
 
@@ -183,11 +183,11 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
     const vendorData = await _loadVendorData();
     const searchIndex = buildSearchIndex(config, pagesData);
     const indexHtml = renderShell({ config, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData });
-    await fs.writeFile(path.join(outDir, 'index.html'), indexHtml);
-    await _writeSearchIndexJs(outDir, searchIndex);
-    await Promise.all(
-      Object.entries(pagesData).map(([id, { meta, html }]) => _writePageJs(outDir, id, { meta, html }))
-    );
+    await Promise.all([
+      fs.writeFile(path.join(outDir, 'index.html'), indexHtml),
+      _writeSearchIndexJs(outDir, searchIndex),
+      ...Object.entries(pagesData).map(([id, { meta, html }]) => _writePageJs(outDir, id, { meta, html })),
+    ]);
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} (offline)${draftNote}${skippedNote}`);
   } else {
     await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile({ minify }));
@@ -305,12 +305,12 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       offline: true, minify,
       specData, apiMeta, vendorData,
     });
-    await fs.writeFile(path.join(defaultDir, 'index.html'), defaultShell);
     const searchIndex = buildSearchIndex(config, defaultPagesData);
-    await _writeSearchIndexJs(defaultDir, searchIndex);
-    await Promise.all(
-      Object.entries(defaultPagesData).map(([id, { meta, html }]) => _writePageJs(defaultDir, id, { meta, html }))
-    );
+    await Promise.all([
+      fs.writeFile(path.join(defaultDir, 'index.html'), defaultShell),
+      _writeSearchIndexJs(defaultDir, searchIndex),
+      ...Object.entries(defaultPagesData).map(([id, { meta, html }]) => _writePageJs(defaultDir, id, { meta, html })),
+    ]);
   } else {
     await fs.writeFile(path.join(defaultDir, 'docslit.css'), sharedCss);
     await fs.writeFile(path.join(defaultDir, 'docslit.js'), sharedJs);
@@ -398,12 +398,12 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
         offline: true, minify,
         specData, apiMeta, vendorData,
       });
-      await fs.writeFile(path.join(versionDir, 'index.html'), versionShell);
       const vSearchIndex = buildSearchIndex(versionConf, versionPagesData);
-      await _writeSearchIndexJs(versionDir, vSearchIndex);
-      await Promise.all(
-        Object.entries(versionPagesData).map(([id, { meta, html }]) => _writePageJs(versionDir, id, { meta, html }))
-      );
+      await Promise.all([
+        fs.writeFile(path.join(versionDir, 'index.html'), versionShell),
+        _writeSearchIndexJs(versionDir, vSearchIndex),
+        ...Object.entries(versionPagesData).map(([id, { meta, html }]) => _writePageJs(versionDir, id, { meta, html })),
+      ]);
     } else {
       await fs.writeFile(path.join(versionDir, 'docslit.css'), sharedCss);
       await fs.writeFile(path.join(versionDir, 'docslit.js'), sharedJs);

@@ -25,32 +25,70 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   if (isHybrid) {
     const firstApiPage = getFirstApiPageId(specData);
     const firstDocPage = getFirstDocPageId(config);
-    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, 'api/')
-      + (firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon) : '');
-    apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta)
-      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon) : '');
+    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, 'api/', offline)
+      + (firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon, offline) : '');
+    apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta, offline)
+      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon, offline) : '');
     hybridLinks = firstApiPage && firstDocPage ? { apiPage: firstApiPage, docsPage: firstDocPage, initialMode: 'docs' } : null;
   } else {
-    sidebarHtml = buildSidebarHtml(config, draftPageIds);
+    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, null, offline);
   }
 
-  const wsScript = mode === 'dev' ? buildWsScript(port) : '';
-  const loaderScript = mode === 'dev' ? buildDevLoader() : (offline ? buildOfflineLoader() : buildStaticLoader());
-  const inlinePages = '';
-  const inlineSearch = '';
   const versionScript = versionConfig
     ? `<script>window.__DOCSLIT_VERSIONS__ = ${JSON.stringify({ current: currentVersion, default: versionConfig.default, list: versionConfig.list })};</script>`
     : '';
-  const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
+  const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion, offline) : '';
   const importMap = buildImportMap(mode, vendorData);
+
+  if (offline) {
+    const offlineStyles = minify
+      ? `<style>${_minifyCSS(buildStyles().replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
+      : buildStyles();
+    const offlineComponents = minify ? _minifyJS(buildComponents()) : buildComponents();
+    const offlineLoaderScript = buildOfflineLoader();
+    const offlineApp = minify
+      ? _minifyJS(buildAppScript('static', offlineLoaderScript, '', true))
+      : buildAppScript('static', offlineLoaderScript, '', true);
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  ${buildThemeInit()}
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="${escHtml(config.description || siteTitle)}">
+  <title>${siteTitle} — DocsLit</title>
+  ${offlineStyles}
+</head>
+<body>
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, offline)}
+${buildSearchOverlayHtml(offline)}
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml, offline)}
+
+${versionScript}
+<script type="importmap">${importMap}</script>
+<script type="module">
+${offlineComponents}
+</script>
+<script>
+${offlineApp}
+</script>
+</body>
+</html>`;
+  }
+
+  const wsScript = mode === 'dev' ? buildWsScript(port) : '';
+  const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
 
   const stylesBlock = minify
     ? `<style>${_minifyCSS(buildStyles().replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
     : buildStyles();
   const componentsBlock = minify ? _minifyJS(buildComponents()) : buildComponents();
   const appBlock = minify
-    ? _minifyJS(buildAppScript(mode, loaderScript, wsScript, offline))
-    : buildAppScript(mode, loaderScript, wsScript, offline);
+    ? _minifyJS(buildAppScript(mode, loaderScript, wsScript, false))
+    : buildAppScript(mode, loaderScript, wsScript, false);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -70,8 +108,6 @@ ${buildSearchOverlayHtml()}
 
 ${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml)}
 
-${inlinePages}
-${inlineSearch}
 ${versionScript}
 <script type="importmap">${importMap}</script>
 <script type="module">
@@ -188,6 +224,17 @@ export function buildAppFile(mode = 'static', { minify = false } = {}) {
   return minify ? _minifyJS(raw) : raw;
 }
 
+export function buildOfflineThemeInitFile({ minify = false } = {}) {
+  const raw = buildThemeInitCode();
+  return minify ? _minifyJS(raw) : raw;
+}
+
+export function buildOfflineAppFile({ minify = false } = {}) {
+  const loaderScript = buildOfflineLoader();
+  const raw = buildAppScript('static', loaderScript, '', true);
+  return minify ? _minifyJS(raw) : raw;
+}
+
 function buildImportMap(mode, vendorData = null) {
   if (mode === 'dev') return `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","lit/directives/unsafe-html.js":"/vendor/lit-unsafe-html.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`;
   if (vendorData) {
@@ -200,33 +247,40 @@ function buildImportMap(mode, vendorData = null) {
   return `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","lit/directives/unsafe-html.js":"https://esm.sh/lit@3/directives/unsafe-html.js","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js"}}`;
 }
 
-function buildThemeInit() {
-  return `<script>
-    (function(){
+function buildThemeInitCode() {
+  return `(function(){
       var s=localStorage.getItem('docslit-theme')||'system';
       var h=document.documentElement;
       function a(m){if(m==='light')h.className='light';else if(m==='dark')h.className='dark';else h.className=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
       a(s);window.__themeMode=s;
       window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',function(){if((localStorage.getItem('docslit-theme')||'system')==='system')a('system');});
-    })();
-  </script>`;
+    })();`;
 }
 
-function buildFontLinks() {
+function buildThemeInit() {
+  return `<script>${buildThemeInitCode()}</script>`;
+}
+
+function buildFontLinks(offline = false) {
+  if (offline) return '';
   return `<link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">`;
 }
 
-function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null) {
+function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false) {
   let modeLinksHtml = '';
   if (hybridLinks) {
     const showApi = hybridLinks.initialMode !== 'api' ? '' : ' style="display:none"';
     const showDocs = hybridLinks.initialMode === 'api' ? '' : ' style="display:none"';
-    modeLinksHtml = `<a id="nav-api-link" class="nav-mode-link" href="${escHtml(hybridLinks.apiPage)}" onclick="loadPage('${escHtml(hybridLinks.apiPage)}');return false;"${showApi}>API Reference</a>` +
-      `<a id="nav-docs-link" class="nav-mode-link" href="${escHtml(hybridLinks.docsPage)}" onclick="loadPage('${escHtml(hybridLinks.docsPage)}');return false;"${showDocs}>Documentation</a>`;
+    const modeClick = offline ? '' : ` onclick="loadPage('${escHtml(hybridLinks.apiPage)}');return false;"`;
+    const modeClick2 = offline ? '' : ` onclick="loadPage('${escHtml(hybridLinks.docsPage)}');return false;"`;
+    modeLinksHtml = `<a id="nav-api-link" class="nav-mode-link" href="${escHtml(hybridLinks.apiPage)}"${modeClick}${showApi}>API Reference</a>` +
+      `<a id="nav-docs-link" class="nav-mode-link" href="${escHtml(hybridLinks.docsPage)}"${modeClick2}${showDocs}>Documentation</a>`;
   }
+  const searchClick = offline ? '' : ' onclick="openSearch()"';
+  const themeClick = offline ? '' : ' onclick="toggleTheme()"';
   return `<a class="skip-link" href="#docs-content">Skip to content</a>
 <nav class="nav">
   <div class="nav-left">
@@ -240,23 +294,25 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null) {
   </div>
   <div class="nav-links">
     ${modeLinksHtml}
-    <button class="search-trigger" onclick="openSearch()" id="search-trigger" title="Search (⌘K)">
+    <button class="search-trigger"${searchClick} id="search-trigger" title="Search (⌘K)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
       <span class="search-trigger-text">Search…</span>
       <span class="search-trigger-kbd"><kbd>⌘</kbd><kbd>K</kbd></span>
     </button>
     ${versionSelectorHtml}
-    <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle theme"></button>
+    <button class="theme-btn" id="theme-btn"${themeClick} aria-label="Toggle theme"></button>
   </div>
 </nav>`;
 }
 
-function buildSearchOverlayHtml() {
-  return `<div class="search-overlay" id="search-overlay" onclick="handleOverlayClick(event)">
+function buildSearchOverlayHtml(offline = false) {
+  const overlayClick = offline ? '' : ' onclick="handleOverlayClick(event)"';
+  const inputHandlers = offline ? '' : ' oninput="handleSearchInput(this.value)" onkeydown="handleSearchKey(event)"';
+  return `<div class="search-overlay" id="search-overlay"${overlayClick}>
   <div class="search-modal" role="dialog" aria-modal="true" aria-label="Search documentation">
     <div class="search-input-wrap">
       <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-      <input class="search-input" id="search-input" type="text" placeholder="Search docs…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="search-results" aria-activedescendant="" oninput="handleSearchInput(this.value)" onkeydown="handleSearchKey(event)">
+      <input class="search-input" id="search-input" type="text" placeholder="Search docs…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="search-results" aria-activedescendant=""${inputHandlers}>
       <div class="search-kbd"><kbd>Esc</kbd></div>
     </div>
     <div class="search-results" id="search-results" role="listbox" aria-label="Search results"></div>
@@ -269,7 +325,7 @@ function buildSearchOverlayHtml() {
 </div>`;
 }
 
-function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText, isApiPage = false, apiSidebarHtml = null) {
+function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText, isApiPage = false, apiSidebarHtml = null, offline = false) {
   const examplesPanel = '\n        <div class="docs-examples" id="docs-examples"></div>';
   let sidebarContent;
   if (apiSidebarHtml) {
@@ -279,13 +335,15 @@ function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText
   } else {
     sidebarContent = sidebarHtml;
   }
+  const filterHandlers = offline ? '' : ' oninput="_filterSidebar(this.value)" onkeydown="_filterKey(event)"';
+  const clearClick = offline ? '' : ' onclick="_clearSidebarFilter()"';
   return `<div class="docs-page">
   <div class="docs-layout">
     <aside class="docs-sidebar" id="docs-sidebar">
       <div class="sidebar-filter-wrap">
         <svg class="sidebar-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input class="sidebar-filter" id="sidebar-filter" type="text" placeholder="Filter pages…" autocomplete="off" spellcheck="false" oninput="_filterSidebar(this.value)" onkeydown="_filterKey(event)">
-        <button class="sidebar-filter-clear" id="sidebar-filter-clear" onclick="_clearSidebarFilter()" aria-label="Clear filter">
+        <input class="sidebar-filter" id="sidebar-filter" type="text" placeholder="Filter pages…" autocomplete="off" spellcheck="false"${filterHandlers}>
+        <button class="sidebar-filter-clear" id="sidebar-filter-clear"${clearClick} aria-label="Clear filter">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
@@ -308,8 +366,100 @@ function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText
 </div>`;
 }
 
+function buildEventDelegation() {
+  return `
+// ── EVENT DELEGATION (offline CSP-safe) ──────────────────────────────────
+(function() {
+  var sidebar = document.getElementById('sidebar-scroll');
+  if (sidebar) sidebar.addEventListener('click', function(e) {
+    var el = e.target.closest('.sidebar-item');
+    if (!el) return;
+    e.preventDefault();
+    loadPage(el.dataset.page, el);
+    if (window.innerWidth <= 1024) closeSidebar();
+  });
+
+  var menuBtn = document.getElementById('nav-menu-btn');
+  if (menuBtn) menuBtn.addEventListener('click', function() { openSidebar(); });
+
+  var sidebarOverlay = document.getElementById('sidebar-overlay');
+  if (sidebarOverlay) sidebarOverlay.addEventListener('click', function() { closeSidebar(); });
+
+  var apiLink = document.getElementById('nav-api-link');
+  if (apiLink) apiLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.getAttribute('href')); });
+  var docsLink = document.getElementById('nav-docs-link');
+  if (docsLink) docsLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.getAttribute('href')); });
+
+  var searchTrigger = document.getElementById('search-trigger');
+  if (searchTrigger) searchTrigger.addEventListener('click', function() { openSearch(); });
+
+  var themeBtn = document.getElementById('theme-btn');
+  if (themeBtn) themeBtn.addEventListener('click', function() { toggleTheme(); });
+
+  var searchOverlay = document.getElementById('search-overlay');
+  if (searchOverlay) searchOverlay.addEventListener('click', function(e) { handleOverlayClick(e); });
+
+  var searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() { handleSearchInput(this.value); });
+    searchInput.addEventListener('keydown', function(e) { handleSearchKey(e); });
+  }
+
+  var filterInput = document.getElementById('sidebar-filter');
+  if (filterInput) {
+    filterInput.addEventListener('input', function() { _filterSidebar(this.value); });
+    filterInput.addEventListener('keydown', function(e) { _filterKey(e); });
+  }
+
+  var filterClear = document.getElementById('sidebar-filter-clear');
+  if (filterClear) filterClear.addEventListener('click', function() { _clearSidebarFilter(); });
+
+  var vsel = document.getElementById('version-select');
+  if (vsel) vsel.addEventListener('change', function() { switchVersion(this.value); });
+
+  var content = document.getElementById('docs-content');
+  if (content) content.addEventListener('click', function(e) {
+    var navBtn = e.target.closest('.page-nav-btn');
+    if (navBtn) {
+      e.preventDefault();
+      loadPage(navBtn.getAttribute('href'));
+      if (window.innerWidth <= 1024) closeSidebar();
+      return;
+    }
+    var metaBtn = e.target.closest('.meta-btn');
+    if (metaBtn) {
+      var title = metaBtn.getAttribute('title') || '';
+      if (title.indexOf('Copy') >= 0) copyMd();
+      else if (title.indexOf('View') >= 0) viewMd();
+      else if (title.indexOf('Save') >= 0) printPage();
+      return;
+    }
+    var notFoundBtn = e.target.closest('.not-found-btn');
+    if (notFoundBtn) {
+      e.preventDefault();
+      if (notFoundBtn.classList.contains('not-found-btn-alt')) { openSearch(); }
+      else { var f = document.querySelector('.sidebar-item'); if (f) loadPage(f.dataset.page, f); }
+      return;
+    }
+  });
+
+  var searchResults = document.getElementById('search-results');
+  if (searchResults) {
+    searchResults.addEventListener('click', function(e) {
+      var item = e.target.closest('.search-item');
+      if (item) selectSearchItem(item);
+    });
+    searchResults.addEventListener('mouseover', function(e) {
+      var item = e.target.closest('.search-item');
+      if (item && item.dataset.idx != null) { _searchActive = parseInt(item.dataset.idx, 10); _updateActive(); }
+    });
+  }
+})();`;
+}
+
 function buildAppScript(mode, loaderScript, wsScript, offline = false) {
-  return `${buildTheme()}
+  return `var _OFFLINE = ${offline ? 'true' : 'false'};
+${buildTheme()}
 ${loaderScript}
 ${buildSearchScript(mode, offline)}
 ${wsScript}
@@ -431,10 +581,10 @@ function _show404(id) {
     '<div class="not-found">' +
     '<div class="not-found-code">404</div>' +
     '<h1 class="not-found-title">Page not found</h1>' +
-    '<p class="not-found-desc">The page' + (id ? ' <code>' + id + '</code>' : '') + ' doesn\\u2019t exist or may have been moved.</p>' +
+    '<p class="not-found-desc">The page' + (id ? ' <code>' + _escHtml(id) + '</code>' : '') + ' doesn\\u2019t exist or may have been moved.</p>' +
     '<div class="not-found-actions">' +
-    '<a class="not-found-btn" href="#" onclick="var f=document.querySelector(\\'.sidebar-item\\');if(f)loadPage(f.dataset.page,f);return false;">Go to first page</a>' +
-    '<button class="not-found-btn not-found-btn-alt" onclick="openSearch()">Search docs</button>' +
+    '<a class="not-found-btn" href="#"' + (_OFFLINE ? '' : ' onclick="var f=document.querySelector(\\'.sidebar-item\\');if(f)loadPage(f.dataset.page,f);return false;"') + '>Go to first page</a>' +
+    '<button class="not-found-btn not-found-btn-alt"' + (_OFFLINE ? '' : ' onclick="openSearch()"') + '>Search docs</button>' +
     '</div></div>';
 }
 
@@ -460,14 +610,14 @@ function _buildPrevNext(id) {
   if (!prev && !next) return '';
   let h = '<nav class="page-nav">';
   if (prev) {
-    const pid = prev.dataset.page;
-    const ptxt = prev.textContent.trim();
-    h += '<a class="page-nav-btn" href="' + pid + '" onclick="loadPage(\\'' + pid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"><span class="page-nav-label">← Previous</span><span class="page-nav-title">' + ptxt + '</span></a>';
+    const pid = _escHtml(prev.dataset.page);
+    const ptxt = _escHtml(prev.textContent.trim());
+    h += '<a class="page-nav-btn" href="' + pid + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + pid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">← Previous</span><span class="page-nav-title">' + ptxt + '</span></a>';
   } else { h += '<span></span>'; }
   if (next) {
-    const nid = next.dataset.page;
-    const ntxt = next.textContent.trim();
-    h += '<a class="page-nav-btn next" href="' + nid + '" onclick="loadPage(\\'' + nid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"><span class="page-nav-label">Next →</span><span class="page-nav-title">' + ntxt + '</span></a>';
+    const nid = _escHtml(next.dataset.page);
+    const ntxt = _escHtml(next.textContent.trim());
+    h += '<a class="page-nav-btn next" href="' + nid + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + nid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">Next →</span><span class="page-nav-title">' + ntxt + '</span></a>';
   } else { h += '<span></span>'; }
   h += '</nav>';
   return h;
@@ -724,11 +874,11 @@ function _setBreadcrumb(id, title) {
 }
 function _mdButtons(id) {
   return '<span class="meta-sep">|</span>' +
-    '<button class="meta-btn" onclick="copyMd()" title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button>' +
+    '<button class="meta-btn"' + (_OFFLINE ? '' : ' onclick="copyMd()"') + ' title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button>' +
     '<span class="meta-sep">|</span>' +
-    '<button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>' +
+    '<button class="meta-btn"' + (_OFFLINE ? '' : ' onclick="viewMd()"') + ' title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>' +
     '<span class="meta-sep">|</span>' +
-    '<button class="meta-btn" onclick="printPage()" title="Save page as PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Save as PDF</button>';
+    '<button class="meta-btn"' + (_OFFLINE ? '' : ' onclick="printPage()"') + ' title="Save page as PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Save as PDF</button>';
 }
 function _buildMetaBar(meta, id) {
   const parts = [];
@@ -770,7 +920,8 @@ window.viewMd = viewMd;
 window.printPage = printPage;
 window._filterSidebar = _filterSidebar;
 window._filterKey = _filterKey;
-window._clearSidebarFilter = _clearSidebarFilter;`;
+window._clearSidebarFilter = _clearSidebarFilter;
+${offline ? buildEventDelegation() : ''}`;
 }
 
 
@@ -788,10 +939,14 @@ function injectPageMeta(meta, id) {
   return `<div class="page-meta">${parts.join('')}</div>`;
 }
 
-function buildSidebarHtml(config, draftIds = [], activePageId = null, excludePrefix = null) {
+function buildSidebarHtml(config, draftIds = [], activePageId = null, excludePrefix = null, offline = false) {
   const draftSet = new Set(draftIds);
   function _excluded(id) {
     return draftSet.has(id) || (excludePrefix && id.startsWith(excludePrefix));
+  }
+  function _sidebarClick(id) {
+    if (offline) return '';
+    return ` onclick="loadPage('${escHtml(id)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"`;
   }
   function renderPages(pages) {
     let out = '';
@@ -810,15 +965,15 @@ function buildSidebarHtml(config, draftIds = [], activePageId = null, excludePre
       } else if (typeof item === 'string' && !_excluded(item)) {
         const label = toLabel(item);
         const activeClass = item === activePageId ? ' active' : '';
-        out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item)}" href="${escHtml(item)}" onclick="loadPage('${escHtml(item)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
+        out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item)}" href="${escHtml(item)}"${_sidebarClick(item)}>${escHtml(label)}</a>`;
       } else if (typeof item === 'object' && item.id && !_excluded(item.id)) {
         const label = item.title || toLabel(item.id);
         const activeClass = item.id === activePageId ? ' active' : '';
         if (item.method) {
           const methodClass = item.method.toLowerCase();
-          out += `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(item.id)}" href="${escHtml(item.id)}" onclick="loadPage('${escHtml(item.id)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${item.method}</span></a>`;
+          out += `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(item.id)}" href="${escHtml(item.id)}"${_sidebarClick(item.id)}><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${item.method}</span></a>`;
         } else {
-          out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item.id)}" href="${escHtml(item.id)}" onclick="loadPage('${escHtml(item.id)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${escHtml(label)}</a>`;
+          out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item.id)}" href="${escHtml(item.id)}"${_sidebarClick(item.id)}>${escHtml(label)}</a>`;
         }
       }
     }
@@ -840,7 +995,7 @@ function buildSidebarHtml(config, draftIds = [], activePageId = null, excludePre
   return html;
 }
 
-function buildApiSidebarHtml(specData, activePageId, apiMeta) {
+function buildApiSidebarHtml(specData, activePageId, apiMeta, offline = false) {
   const byTag = new Map();
   for (const ep of specData) {
     const tag = ep.tags[0] || 'Default';
@@ -855,7 +1010,8 @@ function buildApiSidebarHtml(specData, activePageId, apiMeta) {
     const activeClass = pageId === activePageId ? ' active' : '';
     const methodClass = ep.method.toLowerCase();
     const label = ep.summary || ep.path;
-    return `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(pageId)}" href="${escHtml(pageId)}" onclick="loadPage('${escHtml(pageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${ep.method}</span></a>`;
+    const click = offline ? '' : ` onclick="loadPage('${escHtml(pageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"`;
+    return `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(pageId)}" href="${escHtml(pageId)}"${click}><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${ep.method}</span></a>`;
   }
 
   function renderTagSection(tagName) {
@@ -905,13 +1061,14 @@ function buildApiSidebarHtml(specData, activePageId, apiMeta) {
   return html;
 }
 
-function buildVersionSelector(versionConfig, currentVersion) {
+function buildVersionSelector(versionConfig, currentVersion, offline = false) {
   const options = versionConfig.list.map(v => {
     const label = v.tag ? `${escHtml(v.version)} (${escHtml(v.tag)})` : escHtml(v.version);
     const selected = v.version === currentVersion ? ' selected' : '';
     return `<option value="${escHtml(v.version)}"${selected}>${label}</option>`;
   }).join('');
-  return `<select class="version-select" id="version-select" onchange="switchVersion(this.value)" aria-label="Documentation version">${options}</select>`;
+  const changeHandler = offline ? '' : ' onchange="switchVersion(this.value)"';
+  return `<select class="version-select" id="version-select"${changeHandler} aria-label="Documentation version">${options}</select>`;
 }
 
 function findGroupForPage(sidebar, id) {
@@ -957,8 +1114,9 @@ function getFirstApiPageId(specData) {
 const _apiIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>';
 const _docsIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>';
 
-function buildSidebarModeLink(targetPageId, label, icon) {
-  return `<div class="sidebar-mode-link"><a class="sidebar-item sidebar-mode-item" data-page="${escHtml(targetPageId)}" href="${escHtml(targetPageId)}" onclick="loadPage('${escHtml(targetPageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;">${icon} ${escHtml(label)}</a></div>`;
+function buildSidebarModeLink(targetPageId, label, icon, offline = false) {
+  const click = offline ? '' : ` onclick="loadPage('${escHtml(targetPageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"`;
+  return `<div class="sidebar-mode-link"><a class="sidebar-item sidebar-mode-item" data-page="${escHtml(targetPageId)}" href="${escHtml(targetPageId)}"${click}>${icon} ${escHtml(label)}</a></div>`;
 }
 
 function buildWsScript(port) {
@@ -1348,7 +1506,7 @@ function _renderDefaultResults() {
 }
 
 function _renderItem(item, idx) {
-  return '<div class="search-item" id="search-opt-' + idx + '" role="option" data-idx="' + idx + '" data-id="' + _esc(item.id) + '" onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()">' +
+  return '<div class="search-item" id="search-opt-' + idx + '" role="option" data-idx="' + idx + '" data-id="' + _esc(item.id) + '"' + (_OFFLINE ? '' : ' onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()"') + '>' +
     '<div class="search-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>' +
     '<div class="search-item-text"><div class="search-item-title">' + _esc(item.title) + '</div>' +
     (item.desc ? '<div class="search-item-desc">' + _esc(item.desc) + '</div>' : '') +
@@ -1358,7 +1516,7 @@ function _renderItem(item, idx) {
 }
 
 function _renderItemHl(item, idx, query) {
-  return '<div class="search-item" id="search-opt-' + idx + '" role="option" data-idx="' + idx + '" data-id="' + _esc(item.id) + '" onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()">' +
+  return '<div class="search-item" id="search-opt-' + idx + '" role="option" data-idx="' + idx + '" data-id="' + _esc(item.id) + '"' + (_OFFLINE ? '' : ' onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()"') + '>' +
     '<div class="search-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>' +
     '<div class="search-item-text"><div class="search-item-title">' + _highlight(item.title, query) + '</div>' +
     (item.desc ? '<div class="search-item-desc">' + _highlight(item.desc, query) + '</div>' : '') +
