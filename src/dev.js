@@ -57,6 +57,16 @@ export async function dev({ port = 3000 } = {}) {
     ws.on('close', () => clients.delete(ws));
   });
 
+  const parseCache = new Map();
+  async function cachedParseDoc(mdPath, raw, opts) {
+    const stat = await fs.stat(mdPath);
+    const cached = parseCache.get(mdPath);
+    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.result;
+    const result = await parseDoc(raw, opts);
+    parseCache.set(mdPath, { mtimeMs: stat.mtimeMs, result });
+    return result;
+  }
+
   function broadcast(event) {
     const msg = JSON.stringify(event);
     for (const client of clients) {
@@ -80,6 +90,11 @@ export async function dev({ port = 3000 } = {}) {
   watcher.on('all', async (event, filePath) => {
     const rel = path.relative(cwd, filePath);
     console.log(`  ${pc.cyan('~')} ${rel} changed — reloading`);
+    if (filePath.includes('_reusables')) {
+      parseCache.clear();
+    } else {
+      parseCache.delete(filePath);
+    }
     if (filePath.endsWith('docslit.json')) {
       Object.assign(config, await loadConfig(cwd));
     }
@@ -125,7 +140,7 @@ export async function dev({ port = 3000 } = {}) {
         const mdPath = path.resolve(docsDir, `${id}.md`);
         if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
           const raw = await fs.readFile(mdPath, 'utf8');
-          let { meta, html } = await parseDoc(raw, {
+          let { meta, html } = await cachedParseDoc(mdPath, raw, {
             docsRoot: path.join(cwd, 'docs'),
             pagePath: mdPath,
             globalAttributes: getRuntimeAttributes(config, entry.version, entry.branch),
@@ -173,7 +188,7 @@ export async function dev({ port = 3000 } = {}) {
       const raw = await fs.readFile(mdPath, 'utf8');
       const defaultVersion = vc?.default || null;
       const defaultEntry = vc?.list?.find(v => v.version === defaultVersion);
-      let { meta, html } = await parseDoc(raw, {
+      let { meta, html } = await cachedParseDoc(mdPath, raw, {
         docsRoot: path.join(cwd, 'docs'),
         pagePath: mdPath,
         globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultEntry?.branch || null),
@@ -275,7 +290,7 @@ export async function dev({ port = 3000 } = {}) {
       if (!mdPath.startsWith(docsDir + path.sep)) continue;
       if (!await fs.pathExists(mdPath)) continue;
       const raw = await fs.readFile(mdPath, 'utf8');
-      const { meta } = await parseDoc(raw, {
+      const { meta } = await cachedParseDoc(mdPath, raw, {
         docsRoot: path.join(cwd, 'docs'),
         pagePath: mdPath,
         globalAttributes: getRuntimeAttributes(

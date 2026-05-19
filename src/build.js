@@ -46,6 +46,7 @@ async function _warnIfLargeOffline(htmlPath, pageCount, label) {
 }
 
 export async function build({ out = 'dist', offline = false, minify = true } = {}) {
+  const t0 = performance.now();
   const cwd = process.cwd();
   const [config] = await Promise.all([loadConfig(cwd), initHighlighter()]);
   const outDir = path.resolve(cwd, out);
@@ -74,7 +75,8 @@ export async function build({ out = 'dist', offline = false, minify = true } = {
   }
 
   const sizeKb = await getDirSize(outDir);
-  console.log(`\n  ${pc.bold('Done!')} Output: ${pc.cyan(path.relative(cwd, outDir))}/ (${sizeKb} KB)\n`);
+  const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+  console.log(`\n  ${pc.bold('Done!')} Output: ${pc.cyan(path.relative(cwd, outDir))}/ (${sizeKb} KB) in ${pc.green(elapsed + 's')}\n`);
   if (offline) {
     console.log(`  Open directly:  ${pc.cyan(`open ${out}/index.html`)}  ${pc.dim('(no server needed)')}`);
   } else {
@@ -116,19 +118,26 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
     }
   }
 
-  for (const id of pageIds) {
+  const parseResults = await Promise.all(pageIds.map(async (id) => {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
-    if (!await fs.pathExists(mdPath)) {
-      console.log(`  ${pc.yellow('!')} Skipped ${id}.md — file not found`);
-      failed++;
-      continue;
-    }
+    if (!await fs.pathExists(mdPath)) return { id, notFound: true };
     const raw = await fs.readFile(mdPath, 'utf8');
-    let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+    const parsed = await parseDoc(raw, {
       docsRoot: path.join(cwd, 'docs'),
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config),
     });
+    return { id, ...parsed };
+  }));
+
+  for (const result of parseResults) {
+    if (result.notFound) {
+      console.log(`  ${pc.yellow('!')} Skipped ${result.id}.md — file not found`);
+      failed++;
+      continue;
+    }
+
+    let { id, meta, html, preprocessedMarkdown } = result;
 
     if (meta.draft === true) {
       draftPageIds.push(id);
@@ -236,15 +245,21 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   const draftPageIds = [];
   let built = 0;
 
-  for (const id of defaultPageIds) {
+  const defaultParseResults = await Promise.all(defaultPageIds.map(async (id) => {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
-    if (!await fs.pathExists(mdPath)) continue;
+    if (!await fs.pathExists(mdPath)) return null;
     const raw = await fs.readFile(mdPath, 'utf8');
-    let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+    const parsed = await parseDoc(raw, {
       docsRoot: path.join(cwd, 'docs'),
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultBranch),
     });
+    return { id, ...parsed };
+  }));
+
+  for (const result of defaultParseResults) {
+    if (!result) continue;
+    let { id, meta, html, preprocessedMarkdown } = result;
     if (meta.draft === true) { draftPageIds.push(id); continue; }
     if (specData) html = resolveSpecRefs(html, specData);
     const isApiPage = id.startsWith('api/') || meta.layout === 'api';
@@ -259,6 +274,10 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     built++;
   }
 
+  const sharedCss = offline ? null : buildStylesFile({ minify });
+  const sharedJs = offline ? null : buildComponentsFile('static', { minify });
+  const sharedApp = offline ? null : buildAppFile('static', { minify });
+
   if (offline) {
     const defaultShell = renderShell({
       config, mode: 'static', out, draftPageIds,
@@ -270,9 +289,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     await fs.writeFile(defaultIndexPath, defaultShell);
     await _warnIfLargeOffline(defaultIndexPath, built, defaultVersion);
   } else {
-    await fs.writeFile(path.join(defaultDir, 'docslit.css'), buildStylesFile({ minify }));
-    await fs.writeFile(path.join(defaultDir, 'docslit.js'), buildComponentsFile('static', { minify }));
-    await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), buildAppFile('static', { minify }));
+    await fs.writeFile(path.join(defaultDir, 'docslit.css'), sharedCss);
+    await fs.writeFile(path.join(defaultDir, 'docslit.js'), sharedJs);
+    await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), sharedApp);
 
     const publishedIds = Object.keys(defaultPagesData);
     const defaultHasRegularDocs = (config.sidebar || []).length > 0;
@@ -358,9 +377,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       await fs.writeFile(versionIndexPath, versionShell);
       await _warnIfLargeOffline(versionIndexPath, Object.keys(versionPagesData).length, entry.version);
     } else {
-      await fs.writeFile(path.join(versionDir, 'docslit.css'), buildStylesFile({ minify }));
-      await fs.writeFile(path.join(versionDir, 'docslit.js'), buildComponentsFile('static', { minify }));
-      await fs.writeFile(path.join(versionDir, 'docslit-app.js'), buildAppFile('static', { minify }));
+      await fs.writeFile(path.join(versionDir, 'docslit.css'), sharedCss);
+      await fs.writeFile(path.join(versionDir, 'docslit.js'), sharedJs);
+      await fs.writeFile(path.join(versionDir, 'docslit-app.js'), sharedApp);
 
       const vPublishedIds = Object.keys(versionPagesData);
       const vIsHybrid = specData && (versionConf.sidebar || []).length > 0;
