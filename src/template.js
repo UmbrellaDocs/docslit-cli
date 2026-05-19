@@ -2161,7 +2161,7 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 @media(max-width:1024px) {
   .nav-menu-btn { display: flex; }
   .docs-sidebar {
-    position: fixed; top: var(--nav-h); left: 0; bottom: 0; height: auto;
+    position: fixed; top: var(--nav-h); left: 0; height: calc(100vh - var(--nav-h)); height: calc(100dvh - var(--nav-h));
     transform: translateX(-100%);
     transition: transform .25s cubic-bezier(.4,0,.2,1), box-shadow .25s;
     width: min(var(--sidebar-w), 85vw); box-shadow: none;

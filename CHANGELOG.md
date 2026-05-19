@@ -8,6 +8,12 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ### What's new
 
+#### Offline mode overhaul
+
+**Multi-file offline builds with lazy page loading** — offline mode now breaks the monolithic single-HTML output into per-page JS files that self-register on a global and load on demand via script injection. This works from `file://` URLs without a server. Vendor JS is inlined as data URIs to avoid CORS restrictions. Hash-based navigation is used on `file://` with History API fallback. Delegated click handlers support inline content links and web component hrefs (`wc-tile`, `wc-card`, `wc-button`). SEO-only artifacts (`llms.txt`, `.md` files, sitemap) are skipped in offline mode.
+
+**Offline security hardening** — removed DOM-based XSS vectors in `_show404` and `_buildPrevNext` by escaping interpolated values. All inline event handlers are stripped from offline HTML markup and replaced with centralized event delegation. Google Fonts requests are removed for air-gapped compatibility. Fixed versioned offline builds that were writing null shared files to disk.
+
 #### Authoring preprocessor (MVP)
 
 **Compile-time reusable content includes** — added `<wc-include src="..."/>` support with a strict, opinionated policy:
@@ -53,11 +59,23 @@ These are available to all pages (dev/build/versioned branch rendering), so docs
 
 **Preprocessor fast-path** — pages that contain none of `<wc-include`, `<wc-var ... value=`, `{{...}}`, or `pass:[...]` now skip preprocess work entirely.
 
+**Parallel builds and caching** — page builds now run in parallel, Shiki syntax highlighting results are cached, languages are loaded lazily on demand, and the dev server caches build artifacts. Build timing is reported for visibility into build performance.
+
+**Reduced CLS and render-blocking resources** — `docslit-app.js` is now deferred and Google Fonts CSS is loaded asynchronously. Metric-matched font fallbacks (Inter/JetBrains Mono) are added, and layout space is reserved for `wc-columns`, `wc-tiles`, `wc-tabs`, and `wc-accordion` before component upgrade to eliminate layout shifts.
+
+#### Accessibility and SEO
+
+**WCAG contrast improvements** — light-mode `--text3` darkened from `#999` to `#737373` across all components, teal accent darkened from `#4f98a3` to `#3d7a83` for WCAG AA compliance. Added `aria-label` to theme toggle button, fixed copy button `aria-label` to match visible text, and added `min-width`/`min-height` to menu button for touch target size compliance.
+
+**Dynamic meta descriptions** — the SPA shell now includes a `<meta name="description">` from `config.description`, and updates it dynamically during SPA navigation in all three modes. Falls back to `config.description` when pages lack a frontmatter description.
+
 ### Bug fixes
 
 **Include false positives in code examples** — nested include detection now ignores include literals inside fenced/inline code and code components in reusable files, preventing false errors when documenting include syntax.
 
 **Inline formatting regressions resolved with explicit escape** — reverted aggressive inline-code suppression and replaced it with opt-in `pass:[...]` behavior for literal output control.
+
+**Validator relative link resolution** — internal links using relative paths are now resolved correctly during validation. Reusable files under `docs/_reusables/` are excluded from validation to prevent false positives.
 
 ---
 
