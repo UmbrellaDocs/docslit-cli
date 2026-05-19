@@ -169,7 +169,7 @@ ${versionScript}
 <script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
 <script type="importmap">${importMap}</script>
 <script type="module" src="${assetPrefix}docslit.js"></script>
-<script src="${assetPrefix}docslit-app.js"></script>
+<script defer src="${assetPrefix}docslit-app.js"></script>
 </body>
 </html>`;
 }
@@ -211,7 +211,9 @@ function buildThemeInit() {
 
 function buildFontLinks() {
   return `<link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">`;
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">`;
 }
 
 function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null) {
@@ -1435,6 +1437,9 @@ function buildStyles() {
   return `<style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+@font-face { font-family: 'Inter-fallback'; src: local('Arial'); size-adjust: 107%; ascent-override: 90%; descent-override: 22%; line-gap-override: 0%; }
+@font-face { font-family: 'JetBrains-fallback'; src: local('Courier New'); size-adjust: 118%; ascent-override: 77%; descent-override: 20%; line-gap-override: 0%; }
+
 :root {
   --bg: #0a0a0a; --surface: #111; --surface2: #1a1a1a; --surface3: #222;
   --border: #2a2a2a; --border2: #3a3a3a;
@@ -1442,8 +1447,8 @@ function buildStyles() {
   --accent: #01696f; --accent-light: #4f98a3;
   --accent-dim: rgba(1,105,111,.15); --accent-dim2: rgba(1,105,111,.25);
   --sidebar-bg: #0f0f0f; --code-bg: #161616; --code-text: #e2e8f0;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-sans: 'Inter', 'Inter-fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'JetBrains-fallback', 'Fira Code', 'Cascadia Code', monospace;
   --radius: 8px; --radius-lg: 12px;
   --nav-h: 60px; --sidebar-w: 264px;
 }
@@ -1746,6 +1751,14 @@ wc-anchor, wc-indent, wc-visibility, wc-versions, wc-page-meta {
   display: block;
   margin-bottom: 20px;
 }
+wc-columns:not(:defined) { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+wc-columns:not(:defined)[cols="3"] { grid-template-columns: repeat(3, 1fr); }
+wc-columns:not(:defined)[cols="4"] { grid-template-columns: repeat(4, 1fr); }
+@media(max-width:768px) { wc-columns:not(:defined) { grid-template-columns: 1fr !important; } }
+wc-tiles:not(:defined) { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; min-height: 120px; }
+@media(max-width:768px) { wc-tiles:not(:defined) { grid-template-columns: 1fr; } }
+wc-tabs:not(:defined), wc-code-group:not(:defined) { min-height: 120px; }
+wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 
 /* PAGE META */
 .page-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 0 0 24px; font-size: 13px; color: var(--text3); border-bottom: 1px solid var(--border); margin-bottom: 28px; }
