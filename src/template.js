@@ -14,7 +14,7 @@ function _minifyCSS(code) {
   catch { return code; }
 }
 
-export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null }) {
+export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null }) {
   const siteTitle = config.name || 'DocsLit';
   const isHybrid = specData && (config.sidebar || []).length > 0;
 
@@ -36,25 +36,21 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
 
   const wsScript = mode === 'dev' ? buildWsScript(port) : '';
   const loaderScript = mode === 'dev' ? buildDevLoader() : (offline ? buildOfflineLoader() : buildStaticLoader());
-  const inlinePages = offline && pagesData
-    ? `<script>window.__DOCSLIT_PAGES__ = ${JSON.stringify(pagesData)};</script>`
-    : '';
-  const inlineSearch = offline && searchIndex
-    ? `<script>window.__DOCSLIT_SEARCH_INDEX__ = ${JSON.stringify(searchIndex)};</script>`
-    : '';
+  const inlinePages = '';
+  const inlineSearch = '';
   const versionScript = versionConfig
     ? `<script>window.__DOCSLIT_VERSIONS__ = ${JSON.stringify({ current: currentVersion, default: versionConfig.default, list: versionConfig.list })};</script>`
     : '';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
-  const importMap = buildImportMap(mode);
+  const importMap = buildImportMap(mode, vendorData);
 
   const stylesBlock = minify
     ? `<style>${_minifyCSS(buildStyles().replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
     : buildStyles();
   const componentsBlock = minify ? _minifyJS(buildComponents()) : buildComponents();
   const appBlock = minify
-    ? _minifyJS(buildAppScript(mode, loaderScript, wsScript))
-    : buildAppScript(mode, loaderScript, wsScript);
+    ? _minifyJS(buildAppScript(mode, loaderScript, wsScript, offline))
+    : buildAppScript(mode, loaderScript, wsScript, offline);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -192,10 +188,16 @@ export function buildAppFile(mode = 'static', { minify = false } = {}) {
   return minify ? _minifyJS(raw) : raw;
 }
 
-function buildImportMap(mode) {
-  return mode === 'dev'
-    ? `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","lit/directives/unsafe-html.js":"/vendor/lit-unsafe-html.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`
-    : `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","lit/directives/unsafe-html.js":"https://esm.sh/lit@3/directives/unsafe-html.js","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js"}}`;
+function buildImportMap(mode, vendorData = null) {
+  if (mode === 'dev') return `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","lit/directives/unsafe-html.js":"/vendor/lit-unsafe-html.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`;
+  if (vendorData) {
+    const imports = {};
+    for (const [key, content] of Object.entries(vendorData)) {
+      imports[key] = 'data:text/javascript;base64,' + Buffer.from(content).toString('base64');
+    }
+    return JSON.stringify({ imports });
+  }
+  return `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","lit/directives/unsafe-html.js":"https://esm.sh/lit@3/directives/unsafe-html.js","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js"}}`;
 }
 
 function buildThemeInit() {
@@ -306,10 +308,10 @@ function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText
 </div>`;
 }
 
-function buildAppScript(mode, loaderScript, wsScript) {
+function buildAppScript(mode, loaderScript, wsScript, offline = false) {
   return `${buildTheme()}
 ${loaderScript}
-${buildSearchScript(mode)}
+${buildSearchScript(mode, offline)}
 ${wsScript}
 
 // ── SIDEBAR ACTIVATION ────────────────────────────────────────────────────
@@ -353,10 +355,7 @@ function _tocScroll(id) {
   if (!el) return;
   const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 60;
   const top = el.getBoundingClientRect().top + window.scrollY - navH - 44 - 16;
-  history.pushState(null, '', location.pathname + '#' + id);
-  // Mark active immediately so the user sees their click land before the
-  // scroll arrives; ignore observer callbacks for a beat so smooth-scrolling
-  // doesn't briefly reassign through intermediate headings.
+  try { history.pushState(null, '', location.pathname + '#' + id); } catch(e) {}
   _setActiveToc(id);
   _tocClickGuardUntil = Date.now() + 700;
   window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
@@ -1117,15 +1116,40 @@ window.addEventListener('popstate', () => {
 
 function buildOfflineLoader() {
   return `
-const _pages = window.__DOCSLIT_PAGES__ || {};
+window.__DOCSLIT_PAGES__ = window.__DOCSLIT_PAGES__ || {};
+const _loadedScripts = {};
+const _isFile = location.protocol === 'file:';
+
+function _safePushState(state, title, url) {
+  if (_isFile) { location.hash = '#' + state.page; return; }
+  history.pushState(state, title, url);
+}
+function _safeReplaceState(state, title, url) {
+  if (_isFile) { location.hash = '#' + state.page; return; }
+  history.replaceState(state, title, url);
+}
+
+function _loadPageData(id) {
+  if (window.__DOCSLIT_PAGES__[id]) return Promise.resolve(window.__DOCSLIT_PAGES__[id]);
+  const file = 'pages/' + id.replace(/\\//g, '--') + '.js';
+  if (_loadedScripts[file]) return _loadedScripts[file];
+  _loadedScripts[file] = new Promise((resolve) => {
+    const s = document.createElement('script');
+    s.src = file;
+    s.onload = () => resolve(window.__DOCSLIT_PAGES__[id] || null);
+    s.onerror = () => resolve(null);
+    document.head.appendChild(s);
+  });
+  return _loadedScripts[file];
+}
 
 async function loadPage(id, el) {
   window.__DOCSLIT_CURRENT_PAGE__ = id;
   activateSidebar(id);
-  const target = _docsBase() + id;
-  if (location.pathname !== target) history.pushState({page: id}, '', target);
+  _safePushState({page: id}, '', _isFile ? '' : _docsBase() + id);
   const content = document.getElementById('docs-content');
-  const data = _pages[id];
+  content.textContent = 'Loading…';
+  const data = await _loadPageData(id);
   if (!data) { _show404(id); return; }
   const { meta, html } = data;
   var isApi = id.startsWith('api/') || meta.layout === 'api';
@@ -1155,23 +1179,48 @@ async function loadPage(id, el) {
 
 window.addEventListener('DOMContentLoaded', () => {
   _updateThemeBtn();
-  const fromPath = _pageFromUrl();
+  const _knownPages = new Set(Array.from(document.querySelectorAll('.sidebar-item[data-page]')).map(el => el.dataset.page));
+  function _resolvePageLink(href) {
+    var id = href.replace(/^\\.?\\//, '').replace(/\\.html$/, '').replace(/\\/$/, '');
+    if (_knownPages.has(id)) return id;
+    var cur = window.__DOCSLIT_CURRENT_PAGE__ || '';
+    var dir = cur.lastIndexOf('/') >= 0 ? cur.slice(0, cur.lastIndexOf('/') + 1) : '';
+    if (dir) { var resolved = dir + id; if (_knownPages.has(resolved)) return resolved; }
+    return null;
+  }
+  document.addEventListener('click', function(e) {
+    var href, el;
+    el = e.target.closest('#docs-content a[href]');
+    if (el) { href = el.getAttribute('href'); }
+    if (!href) {
+      el = e.target.closest('#docs-content [href]');
+      if (el) href = el.getAttribute('href');
+    }
+    if (!href || href.startsWith('#') || href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:')) return;
+    const id = _resolvePageLink(href);
+    if (id) {
+      e.preventDefault();
+      loadPage(id);
+    }
+  });
   const fromHash = location.hash.slice(1);
+  const fromPath = _isFile ? null : _pageFromUrl();
   const firstEl = document.querySelector('.sidebar-item');
-  const firstId = fromPath || fromHash || (firstEl && firstEl.dataset.page) || 'introduction';
-  history.replaceState({page: firstId}, '', _docsBase() + firstId);
+  const firstId = fromHash || fromPath || (firstEl && firstEl.dataset.page) || 'introduction';
+  _safeReplaceState({page: firstId}, '', _isFile ? '' : _docsBase() + firstId);
   loadPage(firstId, document.querySelector(\`.sidebar-item[data-page="\${firstId}"]\`));
 });
 
 window.addEventListener('popstate', () => {
-  const id = _pageFromUrl() || document.querySelector('.sidebar-item')?.dataset.page || 'introduction';
+  const id = location.hash.slice(1) || (_isFile ? null : _pageFromUrl()) || document.querySelector('.sidebar-item')?.dataset.page || 'introduction';
   loadPage(id, document.querySelector(\`.sidebar-item[data-page="\${id}"]\`));
 });
 
-// ── Scrollbar reveal ─────────────────────────────────────────────────────────────────────
-// Show the scrollbar thumb only while the user is actively scrolling or
-// hovering near the right edge. Keeps the page visually clean during SPA
-// page swaps where macOS would otherwise fade its overlay scrollbar in/out.
+if (_isFile) window.addEventListener('hashchange', () => {
+  const id = location.hash.slice(1);
+  if (id && id !== window.__DOCSLIT_CURRENT_PAGE__ && document.querySelector('.sidebar-item[data-page="' + id + '"]')) loadPage(id);
+});
+
 (function() {
   let _scrollbarHideTimer = null;
   function _showScrollbar() {
@@ -1188,10 +1237,44 @@ window.addEventListener('popstate', () => {
 })();`;
 }
 
-function buildSearchScript(mode) {
+function buildSearchScript(mode, offline = false) {
   const fetchUrl = mode === 'dev'
     ? `(() => { var vc = window.__DOCSLIT_VERSIONS__; return vc ? '/api/search-index/' + vc.current : '/api/search-index'; })()`
     : `_docsBase() + 'search-index.json'`;
+
+  const loadIndexBlock = offline
+    ? `
+    if (window.__DOCSLIT_SEARCH_INDEX__) {
+      _searchIndex = window.__DOCSLIT_SEARCH_INDEX__;
+    } else {
+      await new Promise(function(resolve) {
+        var s = document.createElement('script');
+        s.src = 'search-index.js';
+        s.onload = function() { resolve(); };
+        s.onerror = function() { resolve(); };
+        document.head.appendChild(s);
+      });
+      _searchIndex = window.__DOCSLIT_SEARCH_INDEX__ || [];
+    }`
+    : `
+    if (window.__DOCSLIT_SEARCH_INDEX__) {
+      _searchIndex = window.__DOCSLIT_SEARCH_INDEX__;
+    } else {
+      var url = ${fetchUrl};
+      var res = await fetch(url);
+      _searchIndex = await res.json();
+    }`;
+
+  const buildFlexBlock = offline
+    ? ''
+    : `
+    var { default: FlexSearch } = await import('https://esm.sh/flexsearch@0.7.43/dist/flexsearch.bundle.module.min.js');
+    _searchFlex = new FlexSearch.Document({
+      document: { id: 'id', index: ['title', 'desc', 'body'], store: ['id', 'title', 'group', 'desc'] },
+      tokenize: 'forward',
+      resolution: 9,
+    });
+    for (var doc of _searchIndex) _searchFlex.add(doc);`;
 
   return `
 var _searchIndex = null;
@@ -1203,20 +1286,8 @@ async function _loadSearchIndex() {
   if (_searchReady) return;
   _searchReady = true;
   try {
-    if (window.__DOCSLIT_SEARCH_INDEX__) {
-      _searchIndex = window.__DOCSLIT_SEARCH_INDEX__;
-    } else {
-      var url = ${fetchUrl};
-      var res = await fetch(url);
-      _searchIndex = await res.json();
-    }
-    var { default: FlexSearch } = await import('https://esm.sh/flexsearch@0.7.43/dist/flexsearch.bundle.module.min.js');
-    _searchFlex = new FlexSearch.Document({
-      document: { id: 'id', index: ['title', 'desc', 'body'], store: ['id', 'title', 'group', 'desc'] },
-      tokenize: 'forward',
-      resolution: 9,
-    });
-    for (var doc of _searchIndex) _searchFlex.add(doc);
+    ${loadIndexBlock}
+    ${buildFlexBlock}
   } catch(e) { console.error('Search index load failed:', e); }
 }
 
@@ -1311,18 +1382,30 @@ function handleSearchInput(value) {
   var container = document.getElementById('search-results');
   var q = value.trim();
   if (!q) { _renderDefaultResults(); return; }
-  if (!_searchFlex) { container.innerHTML = '<div class="search-empty">Loading…</div>'; return; }
-
-  var raw = _searchFlex.search(q, { limit: 20, enrich: true });
-  var seen = {};
   var results = [];
-  for (var field of raw) {
-    for (var entry of (field.result || [])) {
-      if (!seen[entry.id]) {
-        seen[entry.id] = true;
-        results.push(entry.doc);
+  if (_searchFlex) {
+    var raw = _searchFlex.search(q, { limit: 20, enrich: true });
+    var seen = {};
+    for (var field of raw) {
+      for (var entry of (field.result || [])) {
+        if (!seen[entry.id]) {
+          seen[entry.id] = true;
+          results.push(entry.doc);
+        }
       }
     }
+  } else if (_searchIndex) {
+    var ql = q.toLowerCase();
+    for (var doc of _searchIndex) {
+      if ((doc.title && doc.title.toLowerCase().includes(ql)) ||
+          (doc.desc && doc.desc.toLowerCase().includes(ql)) ||
+          (doc.body && doc.body.toLowerCase().includes(ql))) {
+        results.push(doc);
+        if (results.length >= 20) break;
+      }
+    }
+  } else {
+    container.innerHTML = '<div class="search-empty">Loading…</div>'; return;
   }
 
   if (!results.length) {

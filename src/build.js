@@ -1,17 +1,14 @@
 import path from 'path';
 import fs from 'fs-extra';
 import pc from 'picocolors';
+import { fileURLToPath } from 'url';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 import { initHighlighter } from './highlighter.js';
 
-// Soft thresholds at which a single-file offline bundle starts to feel slow:
-// browsers can parse much larger HTML, but ~5MB / 200 pages is the point where
-// initial JSON.parse cost and memory footprint become noticeable to users.
-const OFFLINE_SIZE_WARN_BYTES = 5 * 1024 * 1024;
-const OFFLINE_PAGES_WARN_COUNT = 200;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function getRuntimeAttributes(config, version = null, branch = null) {
   const attrs = { ...(config.attributes || {}) };
@@ -26,23 +23,37 @@ function _formatBytes(b) {
   return (b / 1024 / 1024).toFixed(1) + ' MB';
 }
 
-async function _warnIfLargeOffline(htmlPath, pageCount, label) {
-  const stat = await fs.stat(htmlPath);
-  const sizeOver = stat.size > OFFLINE_SIZE_WARN_BYTES;
-  const countOver = pageCount > OFFLINE_PAGES_WARN_COUNT;
-  if (!sizeOver && !countOver) return;
+function _pageFileName(id) {
+  return id.replace(/\//g, '--') + '.js';
+}
 
-  const reason = sizeOver && countOver
-    ? `${pageCount} pages, ${_formatBytes(stat.size)}`
-    : sizeOver ? _formatBytes(stat.size) : `${pageCount} pages`;
-  const tag = label ? ` (${label})` : '';
+function _writePageJs(outDir, id, data) {
+  const file = path.join(outDir, 'pages', _pageFileName(id));
+  const js = `(window.__DOCSLIT_PAGES__=window.__DOCSLIT_PAGES__||{})[${JSON.stringify(id)}]=${JSON.stringify(data)};`;
+  return fs.ensureDir(path.dirname(file)).then(() => fs.writeFile(file, js));
+}
 
-  console.log('');
-  console.log(`  ${pc.yellow('⚠')}  ${pc.yellow(pc.bold('Large offline bundle'))}${tag} — ${reason}`);
-  console.log(`     Offline mode inlines every page into one HTML file. At this size the`);
-  console.log(`     browser's initial parse and memory footprint get noticeable.`);
-  console.log(`     For sites this size, prefer the default build: ${pc.cyan('docslit build')}`);
-  console.log(`     — per-page HTML with shared assets and faster first load.`);
+function _writeSearchIndexJs(outDir, searchIndex) {
+  const js = `window.__DOCSLIT_SEARCH_INDEX__=${JSON.stringify(searchIndex)};`;
+  return fs.writeFile(path.join(outDir, 'search-index.js'), js);
+}
+
+const VENDOR_FILES = {
+  'lit': 'lit.js',
+  'lit/decorators.js': 'lit-decorators.js',
+  'lit/directives/unsafe-html.js': 'lit-unsafe-html.js',
+  '@lit/reactive-element': 'reactive-element.js',
+  'lit-html': 'lit-html.js',
+  'lit-element/lit-element.js': 'lit-element.js',
+};
+
+async function _loadVendorData() {
+  const vendorDir = path.join(__dirname, 'vendor');
+  const data = {};
+  await Promise.all(Object.entries(VENDOR_FILES).map(async ([key, file]) => {
+    data[key] = await fs.readFile(path.join(vendorDir, file), 'utf8');
+  }));
+  return data;
 }
 
 export async function build({ out = 'dist', offline = false, minify = true } = {}) {
@@ -78,11 +89,12 @@ export async function build({ out = 'dist', offline = false, minify = true } = {
   const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
   console.log(`\n  ${pc.bold('Done!')} Output: ${pc.cyan(path.relative(cwd, outDir))}/ (${sizeKb} KB) in ${pc.green(elapsed + 's')}\n`);
   if (offline) {
-    console.log(`  Open directly:  ${pc.cyan(`open ${out}/index.html`)}  ${pc.dim('(no server needed)')}`);
+    console.log(`  Serve locally:  ${pc.cyan(`npx serve ${out}`)}  ${pc.dim('or')}  ${pc.cyan(`open ${out}/index.html`)}`);
+    console.log(`  ${pc.dim('Self-contained — no internet connection required')}\n`);
   } else {
     console.log(`  Serve locally:  ${pc.cyan('npx serve dist')}`);
+    console.log(`  Deploy to:      GitHub Pages, Vercel, Netlify, S3, or any static host\n`);
   }
-  console.log(`  Deploy to:      GitHub Pages, Vercel, Netlify, S3, or any static host\n`);
 }
 
 async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
@@ -152,12 +164,14 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
 
     const isApiPage = id.startsWith('api/') || meta.layout === 'api';
     pagesData[id] = { meta, html, isApiPage };
-    const destMd = path.join(outDir, `${id}.md`);
-    await fs.ensureDir(path.dirname(destMd));
-    if (isApiPage && specData) {
-      await fs.writeFile(destMd, buildApiPageMarkdown(preprocessedMarkdown, specData));
-    } else {
-      await fs.writeFile(destMd, preprocessedMarkdown);
+    if (!offline) {
+      const destMd = path.join(outDir, `${id}.md`);
+      await fs.ensureDir(path.dirname(destMd));
+      if (isApiPage && specData) {
+        await fs.writeFile(destMd, buildApiPageMarkdown(preprocessedMarkdown, specData));
+      } else {
+        await fs.writeFile(destMd, preprocessedMarkdown);
+      }
     }
     built++;
   }
@@ -166,12 +180,15 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
   const draftNote = drafts ? pc.dim(` (${drafts} draft${drafts !== 1 ? 's' : ''} hidden)`) : '';
 
   if (offline) {
+    const vendorData = await _loadVendorData();
     const searchIndex = buildSearchIndex(config, pagesData);
-    const indexHtml = renderShell({ config, mode: 'static', out, pagesData, offline: true, draftPageIds, searchIndex, minify, specData, apiMeta });
-    const indexPath = path.join(outDir, 'index.html');
-    await fs.writeFile(indexPath, indexHtml);
-    console.log(`  ${pc.green('✓')} Built index.html — ${built} page${built !== 1 ? 's' : ''} inlined${draftNote}${skippedNote}`);
-    await _warnIfLargeOffline(indexPath, built);
+    const indexHtml = renderShell({ config, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData });
+    await fs.writeFile(path.join(outDir, 'index.html'), indexHtml);
+    await _writeSearchIndexJs(outDir, searchIndex);
+    await Promise.all(
+      Object.entries(pagesData).map(([id, { meta, html }]) => _writePageJs(outDir, id, { meta, html }))
+    );
+    console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} (offline)${draftNote}${skippedNote}`);
   } else {
     await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile({ minify }));
     await fs.writeFile(path.join(outDir, 'docslit.js'), buildComponentsFile('static', { minify }));
@@ -192,9 +209,8 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify }) {
     }
 
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} + shared assets${draftNote}${skippedNote}`);
+    await generateLlmsTxt({ config, pagesData, outDir });
   }
-
-  await generateLlmsTxt({ config, pagesData, outDir });
 
   if (!offline) {
     await generateRobotsTxt({ config, outDir });
@@ -264,12 +280,14 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     if (specData) html = resolveSpecRefs(html, specData);
     const isApiPage = id.startsWith('api/') || meta.layout === 'api';
     defaultPagesData[id] = { meta, html, isApiPage };
-    const destMd = path.join(defaultDir, `${id}.md`);
-    await fs.ensureDir(path.dirname(destMd));
-    if (isApiPage && specData) {
-      await fs.writeFile(destMd, buildApiPageMarkdown(preprocessedMarkdown, specData));
-    } else {
-      await fs.writeFile(destMd, preprocessedMarkdown);
+    if (!offline) {
+      const destMd = path.join(defaultDir, `${id}.md`);
+      await fs.ensureDir(path.dirname(destMd));
+      if (isApiPage && specData) {
+        await fs.writeFile(destMd, buildApiPageMarkdown(preprocessedMarkdown, specData));
+      } else {
+        await fs.writeFile(destMd, preprocessedMarkdown);
+      }
     }
     built++;
   }
@@ -277,17 +295,22 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   const sharedCss = offline ? null : buildStylesFile({ minify });
   const sharedJs = offline ? null : buildComponentsFile('static', { minify });
   const sharedApp = offline ? null : buildAppFile('static', { minify });
+  const vendorData = offline ? await _loadVendorData() : null;
 
   if (offline) {
+    await fs.ensureDir(defaultDir);
     const defaultShell = renderShell({
       config, mode: 'static', out, draftPageIds,
       versionConfig, currentVersion: defaultVersion,
-      pagesData: defaultPagesData, offline: true, searchIndex: buildSearchIndex(config, defaultPagesData), minify,
-      specData, apiMeta,
+      offline: true, minify,
+      specData, apiMeta, vendorData,
     });
-    const defaultIndexPath = path.join(defaultDir, 'index.html');
-    await fs.writeFile(defaultIndexPath, defaultShell);
-    await _warnIfLargeOffline(defaultIndexPath, built, defaultVersion);
+    await fs.writeFile(path.join(defaultDir, 'index.html'), defaultShell);
+    const searchIndex = buildSearchIndex(config, defaultPagesData);
+    await _writeSearchIndexJs(defaultDir, searchIndex);
+    await Promise.all(
+      Object.entries(defaultPagesData).map(([id, { meta, html }]) => _writePageJs(defaultDir, id, { meta, html }))
+    );
   } else {
     await fs.writeFile(path.join(defaultDir, 'docslit.css'), sharedCss);
     await fs.writeFile(path.join(defaultDir, 'docslit.js'), sharedJs);
@@ -306,9 +329,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     if (publishedIds.length) {
       await fs.copyFile(path.join(defaultDir, `${publishedIds[0]}.html`), path.join(defaultDir, 'index.html'));
     }
+    await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir });
   }
 
-  await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir });
   console.log(`  ${pc.green('✓')} ${defaultVersion}: ${built} pages (full build)`);
 
   // Build non-default versions — only changed pages
@@ -353,9 +376,11 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
         if (meta.draft === true) continue;
         if (specData) html = resolveSpecRefs(html, specData);
         versionPagesData[id] = { meta, html };
-        const destMd = path.join(versionDir, 'docs', `${id}.md`);
-        await fs.ensureDir(path.dirname(destMd));
-        await fs.writeFile(destMd, preprocessedMarkdown);
+        if (!offline) {
+          const destMd = path.join(versionDir, 'docs', `${id}.md`);
+          await fs.ensureDir(path.dirname(destMd));
+          await fs.writeFile(destMd, preprocessedMarkdown);
+        }
         manifest[id] = entry.version;
         vBuilt++;
       } else {
@@ -370,12 +395,15 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       const versionShell = renderShell({
         config: versionConf, mode: 'static', out, draftPageIds: [],
         versionConfig, currentVersion: entry.version,
-        pagesData: versionPagesData, offline: true, searchIndex: buildSearchIndex(versionConf, versionPagesData), minify,
-        specData, apiMeta,
+        offline: true, minify,
+        specData, apiMeta, vendorData,
       });
-      const versionIndexPath = path.join(versionDir, 'index.html');
-      await fs.writeFile(versionIndexPath, versionShell);
-      await _warnIfLargeOffline(versionIndexPath, Object.keys(versionPagesData).length, entry.version);
+      await fs.writeFile(path.join(versionDir, 'index.html'), versionShell);
+      const vSearchIndex = buildSearchIndex(versionConf, versionPagesData);
+      await _writeSearchIndexJs(versionDir, vSearchIndex);
+      await Promise.all(
+        Object.entries(versionPagesData).map(([id, { meta, html }]) => _writePageJs(versionDir, id, { meta, html }))
+      );
     } else {
       await fs.writeFile(path.join(versionDir, 'docslit.css'), sharedCss);
       await fs.writeFile(path.join(versionDir, 'docslit.js'), sharedJs);
@@ -397,14 +425,19 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     }
 
     await fs.writeFile(path.join(versionDir, '_manifest.json'), JSON.stringify(manifest, null, 2));
-    await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir });
+    if (!offline) {
+      await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir });
+    }
 
     console.log(`  ${pc.green('✓')} ${entry.version}: ${vBuilt} changed page${vBuilt !== 1 ? 's' : ''} built, ${Object.keys(manifest).length - vBuilt} shared from ${defaultVersion}`);
   }
 
-  // Root index.html redirects to default version's first page
+  // Root index.html redirects to default version
   const defaultFirstId = Object.keys(defaultPagesData)[0] || 'introduction';
-  const rootRedirect = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/${defaultVersion}/${defaultFirstId}"><script>location.replace('/${defaultVersion}/${defaultFirstId}');</script></head></html>`;
+  const redirectUrl = offline
+    ? `${defaultVersion}/index.html#${defaultFirstId}`
+    : `/${defaultVersion}/${defaultFirstId}`;
+  const rootRedirect = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${redirectUrl}"><script>location.replace('${redirectUrl}');</script></head></html>`;
   await fs.writeFile(path.join(outDir, 'index.html'), rootRedirect);
 
   if (!offline) {

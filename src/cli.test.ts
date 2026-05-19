@@ -814,10 +814,10 @@ describe('renderShell — search offline mode', () => {
   const pagesData = { intro: { meta: { title: 'Intro' }, html: '<h1>Intro</h1>' } };
   const searchIndex = [{ id: 'intro', title: 'Intro', group: 'Guide', desc: '', body: 'content' }];
 
-  it('inlines search index when offline with searchIndex', () => {
+  it('loads search index via script tag in offline mode', () => {
     const html = renderShell({ config, mode: 'static', offline: true, pagesData, searchIndex });
-    expect(html).toContain('window.__DOCSLIT_SEARCH_INDEX__');
-    expect(html).toContain('"id":"intro"');
+    expect(html).toContain('search-index.js');
+    expect(html).not.toContain('"id":"intro"');
   });
 
   it('does not inline search index when not offline', () => {
