@@ -79,6 +79,13 @@ export async function build({ out = 'dist', offline = false, minify = true } = {
     }
   }
 
+  // Copy favicon assets
+  const assetsDir = path.join(__dirname, 'assets');
+  for (const f of ['favicon-32x32.png', 'favicon-16x16.png', 'apple-touch-icon.png']) {
+    await fs.copyFile(path.join(assetsDir, f), path.join(outDir, f));
+  }
+  console.log(`  ${pc.green('✓')} Copied favicon assets`);
+
   if (versionConfig) {
     await buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify });
   } else {

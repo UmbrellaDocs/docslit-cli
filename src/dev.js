@@ -319,6 +319,9 @@ export async function dev({ port = 3000 } = {}) {
   // Serve local Lit vendor bundles (no CDN requests)
   app.use('/vendor', express.static(path.join(__dirname, 'vendor')));
 
+  // Serve favicon assets from src/assets/
+  app.use(express.static(path.join(__dirname, 'assets')));
+
   // Serve custom user components
   app.use('/components', express.static(path.join(cwd, 'components')));
 

@@ -16,11 +16,31 @@ export async function loadConfig(cwd) {
     if (!parsed.attributes || typeof parsed.attributes !== 'object' || Array.isArray(parsed.attributes)) {
       parsed.attributes = {};
     }
+    if (!parsed.editUrl) {
+      parsed.editUrl = await detectEditUrl(cwd);
+    }
     return parsed;
   } catch (e) {
     console.error(`  Error: docslit.json is not valid JSON.`);
     process.exit(1);
   }
+}
+
+export async function detectEditUrl(dir) {
+  try {
+    const remotes = await git.listRemotes({ fs: nodeFs, dir });
+    const remote = remotes.find(r => r.remote === 'upstream')
+                || remotes.find(r => r.remote === 'origin');
+    if (!remote || !remote.url) return null;
+    let url = remote.url;
+    url = url.replace(/^git@github\.com:/, 'https://github.com/');
+    url = url.replace(/\.git$/, '');
+    if (!url.includes('github.com')) return null;
+    let branch = 'main';
+    try { await git.resolveRef({ fs: nodeFs, dir, ref: 'refs/remotes/' + remote.remote + '/main' }); }
+    catch { branch = 'master'; }
+    return `https://www.draftview.app/edit?url=${url}/blob/${branch}/docs`;
+  } catch { return null; }
 }
 
 export function getAllPageIds(config) {

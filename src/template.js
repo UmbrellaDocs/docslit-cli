@@ -37,6 +37,9 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   const versionScript = versionConfig
     ? `<script>window.__DOCSLIT_VERSIONS__ = ${JSON.stringify({ current: currentVersion, default: versionConfig.default, list: versionConfig.list })};</script>`
     : '';
+  const editUrlScript = config.editUrl
+    ? `<script>window.__DOCSLIT_EDIT_URL__ = ${JSON.stringify(config.editUrl)};</script>`
+    : '';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion, offline) : '';
   const importMap = buildImportMap(mode, vendorData);
 
@@ -57,6 +60,9 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   ${buildThemeInit()}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="${escHtml(config.description || siteTitle)}">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <title>${siteTitle} — DocsLit</title>
   ${offlineStyles}
 </head>
@@ -68,6 +74,7 @@ ${buildSearchOverlayHtml(offline)}
 ${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml, offline)}
 
 ${versionScript}
+${editUrlScript}
 <script type="importmap">${importMap}</script>
 <script type="module">
 ${offlineComponents}
@@ -97,6 +104,9 @@ ${offlineApp}
   ${buildThemeInit()}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="${escHtml(config.description || siteTitle)}">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <title>${siteTitle} — DocsLit</title>
   ${buildFontLinks()}
   ${stylesBlock}
@@ -109,6 +119,7 @@ ${buildSearchOverlayHtml()}
 ${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml)}
 
 ${versionScript}
+${editUrlScript}
 <script type="importmap">${importMap}</script>
 <script type="module">
 ${componentsBlock}
@@ -128,6 +139,9 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   const importMap = buildImportMap('static');
   const versionScript = versionConfig
     ? `<script>window.__DOCSLIT_VERSIONS__ = ${JSON.stringify({ current: currentVersion, default: versionConfig.default, list: versionConfig.list })};</script>`
+    : '';
+  const editUrlScript = config.editUrl
+    ? `<script>window.__DOCSLIT_EDIT_URL__ = ${JSON.stringify(config.editUrl)};</script>`
     : '';
 
   const pageTitle = meta.title || toLabel(id);
@@ -186,6 +200,9 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   <meta charset="UTF-8" />
   ${buildThemeInit()}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="${assetPrefix}favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="${assetPrefix}favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="${assetPrefix}apple-touch-icon.png">
   <title>${escHtml(pageTitle)} — ${escHtml(siteTitle)}</title>${seoTags}
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   ${buildFontLinks()}
@@ -287,7 +304,7 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <a class="nav-logo" href="/">
-      <div class="nav-logo-icon">${siteTitle.slice(0,2).toUpperCase()}</div>
+      <img class="nav-logo-icon" src="/favicon-32x32.png" alt="${siteTitle}" width="30" height="30">
       <span class="nav-logo-text">${siteTitle}</span>
     </a>
   </div>
@@ -606,8 +623,14 @@ function _buildPrevNext(id) {
   const idx = all.findIndex(function(el){ return el.dataset.page === id; });
   const prev = idx > 0 ? all[idx-1] : null;
   const next = idx < all.length-1 ? all[idx+1] : null;
-  if (!prev && !next) return '';
-  let h = '<nav class="page-nav">';
+  let h = '';
+  var editBase = window.__DOCSLIT_EDIT_URL__;
+  if (editBase) {
+    var editHref = editBase.replace(/\\/+$/, '') + '/' + id + '.md';
+    h += '<div class="page-edit"><a href="' + _escHtml(editHref) + '" target="_blank" rel="noopener noreferrer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit this page</a></div>';
+  }
+  if (!prev && !next) return h;
+  h += '<nav class="page-nav">';
   if (prev) {
     const pid = _escHtml(prev.dataset.page);
     const ptxt = _escHtml(prev.textContent.trim());
@@ -1772,10 +1795,7 @@ html.light .nav { background: rgba(255,255,255,.93); }
 }
 .nav-logo-icon {
   width: 30px; height: 30px; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--accent), var(--accent-light));
   border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 800; color: #fff;
 }
 .nav-logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-links { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
@@ -2024,8 +2044,15 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .meta-btn:hover { color: var(--accent-light); }
 .meta-btn svg { flex-shrink: 0; }
 
+/* EDIT THIS PAGE */
+.page-edit { margin: 48px 0 0; }
+.page-edit a { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text3); text-decoration: none; transition: color .15s; }
+.page-edit a:hover { color: var(--accent); }
+.page-edit a svg { flex-shrink: 0; }
+
 /* PREV / NEXT */
 .page-nav { display: flex; justify-content: space-between; gap: 12px; margin: 56px 0 0; padding-top: 24px; border-top: 1px solid var(--border); }
+.page-edit + .page-nav { margin-top: 24px; }
 .page-nav-btn { display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); text-decoration: none; transition: all .15s; min-width: 0; flex: 1; max-width: 48%; background: transparent; }
 .page-nav-btn:hover { border-color: var(--border2); background: var(--surface); }
 .page-nav-btn.next { text-align: right; }
@@ -2264,7 +2291,7 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
   @page { margin: 1.5cm 2cm; size: A4; }
   body { background: #fff !important; color: #000 !important; font-size: 12pt; }
   .docs-sidebar, .docs-toc, .docs-examples, .docs-nav-top, .docs-topbar,
-  .nav, .page-meta, .page-nav, .search-overlay, .skip-link, .sidebar-toggle,
+  .nav, .page-meta, .page-nav, .page-edit, .search-overlay, .skip-link, .sidebar-toggle,
   .nav-menu-btn, .feedback-widget { display: none !important; }
   .docs-layout { display: block !important; }
   .docs-main { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }

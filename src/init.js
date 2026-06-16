@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
+import { detectEditUrl } from './config.js';
 
 export async function init(args) {
   const dirName = args[0] || 'my-docs';
@@ -16,7 +17,8 @@ export async function init(args) {
   await fs.ensureDir(path.join(target, 'docs'));
 
   // docslit.json
-  await fs.writeFile(path.join(target, 'docslit.json'), JSON.stringify({
+  const editUrl = await detectEditUrl(process.cwd());
+  const config = {
     name: dirName,
     sidebar: [
       {
@@ -24,7 +26,9 @@ export async function init(args) {
         pages: ["introduction", "installation", "quickstart"]
       }
     ]
-  }, null, 2));
+  };
+  if (editUrl) config.editUrl = editUrl;
+  await fs.writeFile(path.join(target, 'docslit.json'), JSON.stringify(config, null, 2));
 
   // docs/introduction.md
   await fs.writeFile(path.join(target, 'docs', 'introduction.md'), `---
