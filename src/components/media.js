@@ -131,7 +131,7 @@ customElements.define('wc-files',WcFiles);
 
 // ── WC-TREE-ITEM / WC-TREE ─────────────────────────────────────────────────
 class WcTreeItem extends LitElement {
-  static properties={label:{type:String},open:{type:Boolean},icon:{type:String}};
+  static properties={label:{type:String},title:{type:String},open:{type:Boolean},icon:{type:String}};
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--border:#2a2a2a;--text2:#a0a0a0;--text:#f0f0f0;--text3:#666}
@@ -152,7 +152,7 @@ class WcTreeItem extends LitElement {
   _onKey(e){if(this._hasChildren()&&(e.key==='Enter'||e.key===' ')){e.preventDefault();this._toggle();}}
   render(){
     const hasKids=this._hasChildren();
-    return html\`<div class="row" style="\${hasKids?'':'cursor:default'}" tabindex=\${hasKids?0:-1} role=\${hasKids?'button':'treeitem'} aria-expanded=\${hasKids?this.open:nothing} @click=\${this._toggle} @keydown=\${this._onKey}>\${hasKids?html\`<span class="chevron \${this.open?'open':''}" aria-hidden="true">▶</span>\`:html\`<span class="chevron"></span>\`}\${this.icon?html\`<span class="icon" aria-hidden="true">\${this.icon}</span>\`:nothing}<span>\${this.label}</span></div>\${this.open?html\`<div class="children" role="group"><slot></slot></div>\`:nothing}\`;
+    return html\`<div class="row" style="\${hasKids?'':'cursor:default'}" tabindex=\${hasKids?0:-1} role=\${hasKids?'button':'treeitem'} aria-expanded=\${hasKids?this.open:nothing} @click=\${this._toggle} @keydown=\${this._onKey}>\${hasKids?html\`<span class="chevron \${this.open?'open':''}" aria-hidden="true">▶</span>\`:html\`<span class="chevron"></span>\`}\${this.icon?html\`<span class="icon" aria-hidden="true">\${this.icon}</span>\`:nothing}<span>\${this.label||this.title}</span></div>\${this.open?html\`<div class="children" role="group"><slot></slot></div>\`:nothing}\`;
   }
 }
 customElements.define('wc-tree-item',WcTreeItem);
