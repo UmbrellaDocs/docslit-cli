@@ -242,7 +242,7 @@ export function buildAppFile(mode = 'static', { minify = false } = {}) {
 }
 
 export function buildOfflineThemeInitFile({ minify = false } = {}) {
-  const raw = buildThemeInitCode();
+  const raw = buildThemeInitCode() + buildA11yInitCode();
   return minify ? _minifyJS(raw) : raw;
 }
 
@@ -274,8 +274,19 @@ function buildThemeInitCode() {
     })();`;
 }
 
+function buildA11yInitCode() {
+  return `(function(){
+      var h=document.documentElement;
+      var ts=parseInt(localStorage.getItem('docslit-a11y-textsize'))||0;
+      if(ts){h.classList.add('a11y-text-'+(ts>0?'p':'m')+Math.abs(ts));}
+      if(localStorage.getItem('docslit-a11y-contrast')==='1')h.classList.add('a11y-contrast');
+      if(localStorage.getItem('docslit-a11y-grayscale')==='1')h.classList.add('a11y-grayscale');
+      if(localStorage.getItem('docslit-a11y-underline')==='1')h.classList.add('a11y-underline');
+    })();`;
+}
+
 function buildThemeInit() {
-  return `<script>${buildThemeInitCode()}</script>`;
+  return `<script>${buildThemeInitCode()}${buildA11yInitCode()}</script>`;
 }
 
 function buildFontLinks(offline = false) {
@@ -316,9 +327,47 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
       <span class="search-trigger-kbd"><kbd>⌘</kbd><kbd>K</kbd></span>
     </button>
     ${versionSelectorHtml}
+    <button class="a11y-btn" id="a11y-btn"${offline ? '' : ' onclick="toggleA11yPanel()"'} aria-label="Accessibility settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><path d="M4 8l4.5 1.5M19.5 8L15 9.5"/><path d="M8.5 9.5L12 12l3.5-2.5"/><path d="M12 12v4"/><path d="M9 20l3-4 3 4"/></svg>
+    </button>
     <button class="theme-btn" id="theme-btn"${themeClick} aria-label="Toggle theme"></button>
   </div>
-</nav>`;
+</nav>
+<div class="a11y-panel" id="a11y-panel" role="dialog" aria-label="Accessibility settings">
+  <div class="a11y-header">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><path d="M4 8l4.5 1.5M19.5 8L15 9.5"/><path d="M8.5 9.5L12 12l3.5-2.5"/><path d="M12 12v4"/><path d="M9 20l3-4 3 4"/></svg>
+    <span class="a11y-title">Accessibility</span>
+    <button class="a11y-close"${offline ? '' : ' onclick="closeA11yPanel()"'} aria-label="Close accessibility settings">&times;</button>
+  </div>
+  <div class="a11y-row">
+    <span class="a11y-row-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><text x="6" y="18" font-size="16" fill="currentColor" stroke="none" font-weight="600" font-family="serif">T</text></svg></span>
+    <span class="a11y-row-label">Text Size</span>
+    <div class="a11y-size-controls">
+      <button class="a11y-size-btn"${offline ? '' : ' onclick="a11yTextSize(-1)"'} aria-label="Decrease text size">&minus;</button>
+      <span class="a11y-size-value" id="a11y-size-value">0</span>
+      <button class="a11y-size-btn"${offline ? '' : ' onclick="a11yTextSize(1)"'} aria-label="Increase text size">+</button>
+    </div>
+  </div>
+  <div class="a11y-row a11y-toggle-row" data-a11y="contrast"${offline ? '' : ' onclick="a11yToggle(\'contrast\')"'}>
+    <span class="a11y-row-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20z" fill="currentColor"/></svg></span>
+    <span class="a11y-row-label">High Contrast</span>
+    <span class="a11y-toggle-label" id="a11y-contrast-label">Off</span>
+  </div>
+  <div class="a11y-row a11y-toggle-row" data-a11y="grayscale"${offline ? '' : ' onclick="a11yToggle(\'grayscale\')"'}>
+    <span class="a11y-row-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="10"/></svg></span>
+    <span class="a11y-row-label">Grayscale</span>
+    <span class="a11y-toggle-label" id="a11y-grayscale-label">Off</span>
+  </div>
+  <div class="a11y-row a11y-toggle-row" data-a11y="underline"${offline ? '' : ' onclick="a11yToggle(\'underline\')"'}>
+    <span class="a11y-row-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 12 0V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></span>
+    <span class="a11y-row-label">Underline Links</span>
+    <span class="a11y-toggle-label" id="a11y-underline-label">Off</span>
+  </div>
+  <button class="a11y-reset"${offline ? '' : ' onclick="a11yReset()"'}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+    Reset Settings
+  </button>
+</div>`;
 }
 
 function buildSearchOverlayHtml(offline = false) {
@@ -476,6 +525,7 @@ function buildEventDelegation() {
 function buildAppScript(mode, loaderScript, wsScript, offline = false) {
   return `var _OFFLINE = ${offline ? 'true' : 'false'};
 ${buildTheme()}
+${buildA11y()}
 ${loaderScript}
 ${buildSearchScript(mode, offline)}
 ${wsScript}
@@ -1199,6 +1249,7 @@ async function loadPage(id, el) {
 
 window.addEventListener('DOMContentLoaded', () => {
   _updateThemeBtn();
+  _a11yUpdateUI();
   const fromPath = _pageFromUrl();
   const fromHash = location.hash.slice(1);
   const firstEl = document.querySelector('.sidebar-item');
@@ -1267,6 +1318,7 @@ async function loadPage(id, el) {
 
 window.addEventListener('DOMContentLoaded', () => {
   _updateThemeBtn();
+  _a11yUpdateUI();
   var preRenderedId = window.__DOCSLIT_PAGE_ID__;
   if (preRenderedId) {
     window.__DOCSLIT_CURRENT_PAGE__ = preRenderedId;
@@ -1359,6 +1411,7 @@ async function loadPage(id, el) {
 
 window.addEventListener('DOMContentLoaded', () => {
   _updateThemeBtn();
+  _a11yUpdateUI();
   const _knownPages = new Set(Array.from(document.querySelectorAll('.sidebar-item[data-page]')).map(el => el.dataset.page));
   function _resolvePageLink(href) {
     var id = href.replace(/^\\.?\\//, '').replace(/\\.html$/, '').replace(/\\/$/, '');
@@ -1702,6 +1755,105 @@ function toggleTheme() {
   else h.className = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
   _updateThemeBtn();
 }`;
+}
+
+function buildA11y() {
+  return `
+const _A11Y_TEXT_MIN = -3, _A11Y_TEXT_MAX = 5;
+
+function _a11yRemoveTextClasses() {
+  var h = document.documentElement;
+  for (var i = _A11Y_TEXT_MIN; i <= _A11Y_TEXT_MAX; i++) {
+    if (i !== 0) h.classList.remove('a11y-text-' + (i > 0 ? 'p' : 'm') + Math.abs(i));
+  }
+}
+
+function _a11yUpdateUI() {
+  var ts = parseInt(localStorage.getItem('docslit-a11y-textsize')) || 0;
+  var el = document.getElementById('a11y-size-value');
+  if (el) el.textContent = ts;
+  ['contrast', 'grayscale', 'underline'].forEach(function(k) {
+    var lbl = document.getElementById('a11y-' + k + '-label');
+    if (lbl) {
+      var on = localStorage.getItem('docslit-a11y-' + k) === '1';
+      lbl.textContent = on ? 'On' : 'Off';
+      lbl.closest('.a11y-toggle-row')?.classList.toggle('active', on);
+    }
+  });
+}
+
+function toggleA11yPanel() {
+  var panel = document.getElementById('a11y-panel');
+  if (!panel) return;
+  var open = panel.classList.toggle('open');
+  if (open) _a11yUpdateUI();
+}
+
+function closeA11yPanel() {
+  var panel = document.getElementById('a11y-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+function a11yTextSize(delta) {
+  var cur = parseInt(localStorage.getItem('docslit-a11y-textsize')) || 0;
+  var next = Math.max(_A11Y_TEXT_MIN, Math.min(_A11Y_TEXT_MAX, cur + delta));
+  _a11yRemoveTextClasses();
+  if (next !== 0) document.documentElement.classList.add('a11y-text-' + (next > 0 ? 'p' : 'm') + Math.abs(next));
+  localStorage.setItem('docslit-a11y-textsize', String(next));
+  _a11yUpdateUI();
+}
+
+function a11yToggle(key) {
+  var storageKey = 'docslit-a11y-' + key;
+  var cls = 'a11y-' + key;
+  var on = localStorage.getItem(storageKey) !== '1';
+  if (on) {
+    localStorage.setItem(storageKey, '1');
+    document.documentElement.classList.add(cls);
+  } else {
+    localStorage.removeItem(storageKey);
+    document.documentElement.classList.remove(cls);
+  }
+  _a11yUpdateUI();
+}
+
+function a11yReset() {
+  _a11yRemoveTextClasses();
+  document.documentElement.classList.remove('a11y-contrast', 'a11y-grayscale', 'a11y-underline');
+  localStorage.removeItem('docslit-a11y-textsize');
+  localStorage.removeItem('docslit-a11y-contrast');
+  localStorage.removeItem('docslit-a11y-grayscale');
+  localStorage.removeItem('docslit-a11y-underline');
+  _a11yUpdateUI();
+}
+
+document.addEventListener('click', function(e) {
+  var panel = document.getElementById('a11y-panel');
+  var btn = document.getElementById('a11y-btn');
+  if (!panel) return;
+  if (panel.classList.contains('open') && !panel.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+    closeA11yPanel();
+    return;
+  }
+  if (btn && (e.target === btn || btn.contains(e.target)) && _OFFLINE) { toggleA11yPanel(); return; }
+  var t = e.target.closest ? e.target.closest('[data-a11y]') : null;
+  if (t && _OFFLINE) { a11yToggle(t.dataset.a11y); return; }
+  var sizeBtn = e.target.closest ? e.target.closest('.a11y-size-btn') : null;
+  if (sizeBtn && _OFFLINE) { a11yTextSize(sizeBtn.textContent.trim() === '+' ? 1 : -1); return; }
+  if (e.target.closest && e.target.closest('.a11y-close') && _OFFLINE) { closeA11yPanel(); return; }
+  if (e.target.closest && e.target.closest('.a11y-reset') && _OFFLINE) { a11yReset(); return; }
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeA11yPanel();
+});
+
+window.toggleA11yPanel = toggleA11yPanel;
+window.closeA11yPanel = closeA11yPanel;
+window.a11yTextSize = a11yTextSize;
+window.a11yToggle = a11yToggle;
+window.a11yReset = a11yReset;
+`;
 }
 
 function buildStyles() {
@@ -2236,6 +2388,90 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
   .docs-content h1 { font-size: 1.625rem; }
 }
 
+/* ACCESSIBILITY WIDGET */
+.a11y-btn {
+  width: 34px; height: 34px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--text2); transition: all .15s;
+}
+.a11y-btn:hover { background: var(--surface3); }
+.a11y-panel {
+  display: none; position: fixed; top: calc(var(--nav-h) + 4px); right: 54px;
+  width: 300px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  z-index: 1000; font-family: var(--font-sans); overflow: hidden;
+}
+.a11y-panel.open { display: block; }
+.a11y-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.a11y-title { font-size: 15px; font-weight: 600; flex: 1; }
+.a11y-close {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; border-radius: var(--radius);
+  color: var(--text3); font-size: 18px; line-height: 1; transition: all .15s;
+}
+.a11y-close:hover { background: var(--surface2); color: var(--text); }
+.a11y-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; font-size: 14px; color: var(--text);
+}
+.a11y-row-icon { flex-shrink: 0; display: flex; color: var(--text3); }
+.a11y-row-label { flex: 1; }
+.a11y-toggle-row { cursor: pointer; transition: background .15s; border-radius: 0; }
+.a11y-toggle-row:hover { background: var(--surface2); }
+.a11y-toggle-row.active .a11y-toggle-label { color: var(--accent-light); font-weight: 600; }
+.a11y-toggle-label { font-size: 13px; color: var(--text3); font-weight: 500; }
+.a11y-size-controls { display: flex; align-items: center; gap: 0; }
+.a11y-size-btn {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface2); border: 1px solid var(--border);
+  cursor: pointer; font-size: 15px; color: var(--text2); transition: all .15s;
+  font-family: var(--font-sans); line-height: 1;
+}
+.a11y-size-btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.a11y-size-btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.a11y-size-btn:hover { background: var(--surface3); color: var(--text); }
+.a11y-size-value {
+  width: 32px; height: 30px; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; color: var(--text);
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.a11y-reset {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: calc(100% - 32px); margin: 8px 16px 14px; padding: 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); cursor: pointer;
+  font-family: var(--font-sans); font-size: 13px; font-weight: 500;
+  color: var(--text2); transition: all .15s;
+}
+.a11y-reset:hover { background: var(--surface3); color: var(--text); }
+/* Accessibility effect classes */
+.a11y-text-p1 .docs-content { font-size: 17px; }
+.a11y-text-p2 .docs-content { font-size: 19px; }
+.a11y-text-p3 .docs-content { font-size: 21px; }
+.a11y-text-p4 .docs-content { font-size: 23px; }
+.a11y-text-p5 .docs-content { font-size: 25px; }
+.a11y-text-m1 .docs-content { font-size: 14px; }
+.a11y-text-m2 .docs-content { font-size: 13px; }
+.a11y-text-m3 .docs-content { font-size: 12px; }
+html.a11y-contrast { --text: #000; --text2: #111; --text3: #333; --border: #555; --border2: #777; }
+html.a11y-contrast.light, html.light.a11y-contrast { --text: #000; --text2: #111; --text3: #333; --border: #888; --border2: #666; --bg: #fff; --surface: #f0f0f0; --surface2: #e0e0e0; --surface3: #d0d0d0; }
+html.a11y-contrast:not(.light) { --text: #fff; --text2: #eee; --text3: #ccc; --bg: #000; --surface: #111; --surface2: #1a1a1a; --surface3: #222; }
+html.a11y-grayscale body { filter: grayscale(1); }
+html.a11y-underline .docs-content a { text-decoration: underline !important; text-decoration-thickness: 2px !important; text-underline-offset: 3px; }
+@media(max-width:640px) {
+  .a11y-panel { right: 8px; left: 8px; width: auto; }
+}
+@media print {
+  .a11y-btn, .a11y-panel { display: none !important; }
+}
+
 /* SKIP LINK */
 .skip-link {
   position: fixed; top: -100px; left: 16px; z-index: 9999;
@@ -2253,7 +2489,7 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 }
 .sidebar-item:focus-visible { outline-offset: -2px; }
 .search-input:focus-visible { outline: none; }
-.theme-btn:focus-visible, .nav-menu-btn:focus-visible,
+.a11y-btn:focus-visible, .theme-btn:focus-visible, .nav-menu-btn:focus-visible,
 .search-trigger:focus-visible, .version-select:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
