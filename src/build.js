@@ -4,7 +4,7 @@ import pc from 'picocolors';
 import { fileURLToPath } from 'url';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
-import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile, buildOfflineThemeInitFile, buildOfflineAppFile } from './template.js';
+import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile, buildOfflineThemeInitFile, buildOfflineAppFile, isEsbuildAvailable } from './template.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 import { initHighlighter } from './highlighter.js';
 
@@ -66,6 +66,10 @@ export async function build({ out = 'dist', offline = false, minify = true } = {
   const modeLabel = offline ? ' (offline mode)' : '';
   const minifyLabel = minify ? '' : ' (unminified)';
   console.log(`\n  ${pc.bold('DocsLit')} building static site${modeLabel}${minifyLabel}...\n`);
+
+  if (minify && !isEsbuildAvailable()) {
+    console.log(`  ${pc.yellow('⚠')} esbuild not found — output unminified; install esbuild or use --no-minify\n`);
+  }
 
   await fs.emptyDir(outDir);
 

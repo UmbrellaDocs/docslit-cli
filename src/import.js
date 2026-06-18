@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
-import matter from 'gray-matter';
+import matter from './frontmatter.js';
 import readline from 'node:readline';
 import git from 'isomorphic-git';
 import nodeFs from 'node:fs';
@@ -68,7 +68,7 @@ function convertContent(body, filePath) {
 async function convertFile(srcPath, outPath, relPath) {
   const raw = await fs.readFile(srcPath, 'utf8');
 
-  // gray-matter can throw on malformed YAML (e.g. multiline implicit keys, bare `<` values).
+  // Frontmatter parsing can throw on malformed YAML (e.g. multiline implicit keys, bare `<` values).
   // Fall back to a simple regex extraction so the file isn't lost entirely.
   let frontmatter = {};
   let body = raw;
@@ -107,7 +107,7 @@ async function convertFile(srcPath, outPath, relPath) {
   }
 
   // Rebuild the file: frontmatter + converted body.
-  // matter.stringify can also throw when values contain characters js-yaml dislikes;
+  // stringify can also throw when values contain characters js-yaml dislikes;
   // fall back to a simple hand-rolled serialiser.
   let out = '';
   const fm = frontmatter;

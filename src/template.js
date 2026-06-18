@@ -1,17 +1,37 @@
+import { createRequire } from 'node:module';
 import { buildComponents } from './components/index.js';
-import esbuild from 'esbuild';
+
+const require = createRequire(import.meta.url);
 
 // ── Minification helpers ──────────────────────────────────────────────────
 // Used by build.js (default on) but bypassed by tests and dev mode so the
-// served output stays readable for debugging. esbuild's transformSync keeps
-// these calls synchronous so renderShell/renderPage don't need to go async.
+// served output stays readable for debugging. esbuild is loaded lazily via
+// createRequire so dev/npx installs without esbuild still work; transformSync
+// keeps these calls synchronous so renderShell/renderPage don't need to go async.
+function _getEsbuild() {
+  return require('esbuild');
+}
+
+export function isEsbuildAvailable() {
+  try {
+    _getEsbuild();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function _minifyJS(code) {
-  try { return esbuild.transformSync(code, { loader: 'js', minify: true, legalComments: 'none' }).code; }
-  catch { return code; }
+  try {
+    const esbuild = _getEsbuild();
+    return esbuild.transformSync(code, { loader: 'js', minify: true, legalComments: 'none' }).code;
+  } catch { return code; }
 }
 function _minifyCSS(code) {
-  try { return esbuild.transformSync(code, { loader: 'css', minify: true }).code; }
-  catch { return code; }
+  try {
+    const esbuild = _getEsbuild();
+    return esbuild.transformSync(code, { loader: 'css', minify: true }).code;
+  } catch { return code; }
 }
 
 export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null }) {

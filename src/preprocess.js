@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs-extra';
-import matter from 'gray-matter';
+import matter from './frontmatter.js';
 
 export const VAR_NAME_RE = /^[A-Z_][A-Z0-9_]*$/;
 const PASS_TOKEN_RE = /DOCSLIT_PASSBLOCK_(\d+)_END/g;

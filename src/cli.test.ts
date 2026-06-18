@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -8,7 +8,7 @@ import * as nodeFs from 'node:fs';
 import { parseDoc } from './markdown.js';
 import { rewriteMdxTags, pascalToWcKebab, COMPONENT_MAP } from './mdx-bridge.js';
 import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
-import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile, buildOfflineAppFile, buildOfflineThemeInitFile } from './template.js';
+import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile, buildOfflineAppFile, buildOfflineThemeInitFile, isEsbuildAvailable } from './template.js';
 import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs, schemaToFields, endpointToMarkdown, buildApiPageMarkdown } from './openapi.js';
 import { buildComponents } from './components/index.js';
 
@@ -712,6 +712,41 @@ describe('renderShell — versioning', () => {
   it('includes version-select CSS styles', () => {
     const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
     expect(html).toContain('.version-select');
+  });
+});
+
+describe('template.js — esbuild lazy load', () => {
+  const baseConfig = { name: 'Test', sidebar: [{ group: 'G', pages: ['intro'] }] };
+
+  it('renderShell with minify=false does not require esbuild', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, minify: false });
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).toContain('function loadPage');
+  });
+
+  it('isEsbuildAvailable is true when esbuild is installed', () => {
+    expect(isEsbuildAvailable()).toBe(true);
+  });
+
+  it('minify helpers fall back to source when esbuild is unavailable', async () => {
+    vi.resetModules();
+    vi.doMock('node:module', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('node:module')>();
+      return {
+        createRequire: () => (id: string) => {
+          if (id === 'esbuild') throw new Error('Cannot find package esbuild');
+          return actual.createRequire(import.meta.url)(id);
+        },
+      };
+    });
+    const tpl = await import('./template.js');
+    expect(tpl.isEsbuildAvailable()).toBe(false);
+    const css = tpl.buildStylesFile({ minify: true });
+    expect(css).toContain(':root');
+    const js = tpl.buildAppFile('static', { minify: true });
+    expect(js).toContain('function loadPage');
+    vi.doUnmock('node:module');
+    vi.resetModules();
   });
 });
 

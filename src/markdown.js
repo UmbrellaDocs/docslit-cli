@@ -1,4 +1,4 @@
-import matter from 'gray-matter';
+import matter from './frontmatter.js';
 import { preprocessDoc, assertNoPreprocessErrors } from './preprocess.js';
 import { renderMarkdown } from './unified.js';
 import { ensureLangs } from './highlighter.js';
