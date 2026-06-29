@@ -7,7 +7,7 @@ import git from 'isomorphic-git';
 import * as nodeFs from 'node:fs';
 import { parseDoc } from './markdown.js';
 import { rewriteMdxTags, pascalToWcKebab, COMPONENT_MAP } from './mdx-bridge.js';
-import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
+import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar, getChangedDocs, getAnnouncement, hashAnnouncementMessage } from './config.js';
 import { resolvePdfOptions, getChapterManifest, buildPdfManifest, slugifyChapterId } from './pdf.js';
 import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile, buildOfflineAppFile, buildOfflineThemeInitFile, isEsbuildAvailable } from './template.js';
 import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs, schemaToFields, endpointToMarkdown, buildApiPageMarkdown } from './openapi.js';
@@ -691,6 +691,81 @@ describe('getVersionConfig', () => {
     expect(result!.default).toBe('v2');
     expect(result!.list).toHaveLength(2);
     expect(result!.list[1].tag).toBe('Latest');
+  });
+});
+
+describe('getAnnouncement', () => {
+  it('returns null when no announcement is configured', () => {
+    expect(getAnnouncement({ name: 'Test', sidebar: [] })).toBeNull();
+  });
+
+  it('returns config-level announcement', () => {
+    const ann = getAnnouncement({
+      name: 'Test',
+      sidebar: [],
+      announcement: { message: 'Hello **world**' },
+    });
+    expect(ann?.message).toBe('Hello **world**');
+    expect(ann?.type).toBe('neutral');
+    expect(ann?.dismissible).toBe(true);
+  });
+
+  it('version-level announcement overrides config-level', () => {
+    const versionConfig = {
+      default: 'v2',
+      list: [
+        { version: 'v1', branch: 'docs-v1', announcement: { message: 'v1 only' } },
+        { version: 'v2', branch: 'main' },
+      ],
+    };
+    const config = {
+      name: 'Test',
+      sidebar: [],
+      announcement: { message: 'site-wide' },
+      versions: versionConfig,
+    };
+    expect(getAnnouncement(config, 'v1', versionConfig)?.message).toBe('v1 only');
+    expect(getAnnouncement(config, 'v2', versionConfig)?.message).toBe('site-wide');
+  });
+
+  it('hashAnnouncementMessage is stable for the same message', () => {
+    expect(hashAnnouncementMessage('Hello')).toBe(hashAnnouncementMessage('Hello'));
+    expect(hashAnnouncementMessage('Hello')).not.toBe(hashAnnouncementMessage('Hello!'));
+  });
+});
+
+describe('renderShell — announcement banner', () => {
+  const baseConfig = {
+    name: 'Test',
+    sidebar: [{ group: 'G', pages: ['intro'] }],
+    announcement: { message: 'New feature: [Learn more](https://example.com)', type: 'info' },
+  };
+
+  it('renders announcement banner above nav', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+    const navIdx = html.indexOf('<nav class="nav">');
+    const bannerIdx = html.indexOf('announcement-banner');
+    expect(bannerIdx).toBeGreaterThan(-1);
+    expect(bannerIdx).toBeLessThan(navIdx);
+  });
+
+  it('renders markdown links in announcement message', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain('announcement-info');
+  });
+
+  it('includes dismiss persistence scripts', () => {
+    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+    expect(html).toContain('docslit-announcement');
+    expect(html).toContain('window.__DOCSLIT_ANNOUNCEMENT_HASH__');
+    expect(html).toContain('dismissAnnouncement');
+  });
+
+  it('omits announcement when not configured', () => {
+    const html = renderShell({ config: { name: 'Test', sidebar: [] }, mode: 'dev', port: 3000 });
+    expect(html).not.toContain('class="announcement-banner announcement-');
+    expect(html).not.toContain('window.__DOCSLIT_ANNOUNCEMENT_HASH__=');
   });
 });
 

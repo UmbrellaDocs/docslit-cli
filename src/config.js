@@ -116,3 +116,30 @@ export async function getChangedDocs(defaultBranch, versionBranch, dir) {
     return [];
   }
 }
+
+export function hashAnnouncementMessage(message) {
+  let h = 5381;
+  for (let i = 0; i < message.length; i++) {
+    h = ((h << 5) + h + message.charCodeAt(i)) >>> 0;
+  }
+  return h.toString(36);
+}
+
+function normalizeAnnouncement(announcement) {
+  return {
+    message: announcement.message,
+    type: announcement.type || 'neutral',
+    dismissible: announcement.dismissible !== false,
+  };
+}
+
+/** Resolve site-wide announcement (version list entry overrides config-level). */
+export function getAnnouncement(config, currentVersion = null, versionConfig = null) {
+  const vc = versionConfig || config?.versions;
+  if (currentVersion && vc?.list) {
+    const entry = vc.list.find(v => v.version === currentVersion);
+    if (entry?.announcement?.message) return normalizeAnnouncement(entry.announcement);
+  }
+  if (config?.announcement?.message) return normalizeAnnouncement(config.announcement);
+  return null;
+}

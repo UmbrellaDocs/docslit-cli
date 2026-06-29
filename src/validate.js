@@ -343,6 +343,25 @@ async function checkConfig(dir) {
     }
   }
 
+  if (config.announcement != null) {
+    if (typeof config.announcement !== 'object' || Array.isArray(config.announcement)) {
+      issues.push(issue('error', 'docslit.json', null,
+        '"announcement" must be an object with a "message" string'));
+    } else if (!config.announcement.message || typeof config.announcement.message !== 'string') {
+      issues.push(issue('error', 'docslit.json', null,
+        '"announcement.message" is required and must be a string'));
+    }
+  }
+
+  if (config.versions?.list) {
+    for (const entry of config.versions.list) {
+      if (entry.announcement != null && (!entry.announcement.message || typeof entry.announcement.message !== 'string')) {
+        issues.push(issue('error', 'docslit.json', null,
+          `Version "${entry.version}" announcement.message must be a string`));
+      }
+    }
+  }
+
   return { issues, config, slugs };
 }
 

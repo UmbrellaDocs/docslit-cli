@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
+import yaml from 'js-yaml';
 import matter from './frontmatter.js';
 import readline from 'node:readline';
 import git from 'isomorphic-git';
@@ -554,6 +555,15 @@ async function setupBranchVersioning({ outDir, versions, sidebarsByVersion }) {
   return mainConfig;
 }
 
+async function readFernAnnouncement(fernDocsPath) {
+  if (!fernDocsPath || !await fs.pathExists(fernDocsPath)) return null;
+  try {
+    const doc = yaml.load(await fs.readFile(fernDocsPath, 'utf8'));
+    if (doc?.announcement?.message) return { message: String(doc.announcement.message) };
+  } catch { /* ignore malformed docs.yml */ }
+  return null;
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export async function importDocs(args) {
   const sourceDir = path.resolve(process.cwd(), args[0] ?? '.');
@@ -750,6 +760,11 @@ export async function importDocs(args) {
       name: projectName,
       sidebar,
     };
+  }
+
+  if (detectedFormat === 'fern' && srcConfig?.fernDocs) {
+    const ann = await readFernAnnouncement(srcConfig.fernDocs);
+    if (ann) docslitConfig.announcement = ann;
   }
 
   // ── 5b. Reconcile sidebar with converted files ──────────────────────────────

@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module';
 import { buildComponents } from './components/index.js';
 import { findGroupForPage, toLabel } from './sidebar.js';
+import { getAnnouncement, hashAnnouncementMessage } from './config.js';
+import { renderMarkdown } from './unified.js';
 
 const require = createRequire(import.meta.url);
 
@@ -64,6 +66,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
     : '';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion, offline) : '';
   const importMap = buildImportMap(mode, vendorData);
+  const announcementChrome = buildAnnouncementChrome({ config, versionConfig, currentVersion, offline });
 
   if (offline) {
     const offlineStyles = minify
@@ -86,9 +89,11 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <title>${siteTitle} — DocsLit</title>
+  ${announcementChrome.head}
   ${offlineStyles}
 </head>
 <body>
+${announcementChrome.html}
 ${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, offline, logoSrc)}
 ${buildSearchOverlayHtml(offline)}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -97,6 +102,7 @@ ${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loadin
 
 ${versionScript}
 ${editUrlScript}
+${announcementChrome.hashScript}
 <script type="importmap">${importMap}</script>
 <script type="module">
 ${offlineComponents}
@@ -130,10 +136,12 @@ ${offlineApp}
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <title>${siteTitle} — DocsLit</title>
+  ${announcementChrome.head}
   ${buildFontLinks()}
   ${stylesBlock}
 </head>
 <body>
+${announcementChrome.html}
 ${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -142,6 +150,7 @@ ${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loadin
 
 ${versionScript}
 ${editUrlScript}
+${announcementChrome.hashScript}
 ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script type="importmap">${importMap}</script>
 <script type="module">
@@ -218,6 +227,8 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
     apiSidebarHtml = null;
   }
 
+  const announcementChrome = buildAnnouncementChrome({ config, versionConfig, currentVersion });
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -228,11 +239,13 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   <link rel="icon" type="image/png" sizes="16x16" href="${assetPrefix}favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="${assetPrefix}apple-touch-icon.png">
   <title>${escHtml(pageTitle)} — ${escHtml(siteTitle)}</title>${seoTags}
+  ${announcementChrome.head}
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   ${buildFontLinks()}
   <link rel="stylesheet" href="${assetPrefix}docslit.css">
 </head>
 <body class="${apiClass.trim()}">
+${announcementChrome.html}
 ${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -240,6 +253,8 @@ ${buildSearchOverlayHtml()}
 ${buildMainLayoutHtml(docsSidebarHtml, siteTitle, html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id, pdfManifest, assetPrefix)), breadcrumbText, isApiPage, apiSidebarHtml)}
 
 ${versionScript}
+${editUrlScript}
+${announcementChrome.hashScript}
 ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
 <script type="importmap">${importMap}</script>
@@ -319,6 +334,48 @@ function buildFontLinks(offline = false) {
   return `<link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">`;
+}
+
+function buildAnnouncementChrome({ config, versionConfig, currentVersion, offline = false }) {
+  const announcement = getAnnouncement(config, currentVersion, versionConfig);
+  if (!announcement) {
+    return { head: '', html: '', hashScript: '' };
+  }
+
+  const hash = hashAnnouncementMessage(announcement.message);
+  const messageHtml = renderMarkdown(announcement.message).trim();
+  const type = escHtml(announcement.type || 'neutral');
+  const dismissible = announcement.dismissible !== false;
+  const dismissBtn = dismissible
+    ? `<button class="announcement-dismiss" type="button" aria-label="Dismiss announcement"${offline ? '' : ' onclick="dismissAnnouncement()"'}>✕</button>`
+    : '';
+
+  const head = `<script>(function(){try{if(localStorage.getItem('docslit-announcement')===${JSON.stringify(hash)})document.documentElement.classList.add('announcement-dismissed');}catch(e){}})();</script>`;
+  const html = `<div class="announcement-banner announcement-${type}" id="announcement-banner" role="region" aria-label="Announcement"><div class="announcement-inner">${messageHtml}</div>${dismissBtn}</div>`;
+  const hashScript = `<script>window.__DOCSLIT_ANNOUNCEMENT_HASH__=${JSON.stringify(hash)};</script>`;
+
+  return { head, html, hashScript };
+}
+
+function buildAnnouncementRuntime() {
+  return `
+(function(){
+  if (!window.__DOCSLIT_ANNOUNCEMENT_HASH__) return;
+  var hash = window.__DOCSLIT_ANNOUNCEMENT_HASH__;
+  function syncAnnouncementLayout() {
+    var el = document.getElementById('announcement-banner');
+    var h = el && !document.documentElement.classList.contains('announcement-dismissed') ? el.offsetHeight : 0;
+    document.documentElement.style.setProperty('--announcement-h', h + 'px');
+  }
+  window.dismissAnnouncement = function() {
+    try { localStorage.setItem('docslit-announcement', hash); } catch(e) {}
+    document.documentElement.classList.add('announcement-dismissed');
+    syncAnnouncementLayout();
+  };
+  syncAnnouncementLayout();
+  window.addEventListener('resize', syncAnnouncementLayout);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncAnnouncementLayout);
+})();`;
 }
 
 function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false, logoSrc = '/favicon-32x32.png') {
@@ -551,6 +608,7 @@ function buildAppScript(mode, loaderScript, wsScript, offline = false) {
   return `var _OFFLINE = ${offline ? 'true' : 'false'};
 ${buildTheme()}
 ${buildA11y()}
+${buildAnnouncementRuntime()}
 ${loaderScript}
 ${buildSearchScript(mode, offline)}
 ${wsScript}
@@ -594,7 +652,7 @@ function _setActiveToc(id) {
 function _tocScroll(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 60;
+  const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-h')) || 60;
   const top = el.getBoundingClientRect().top + window.scrollY - navH - 44 - 16;
   try { history.pushState(null, '', location.pathname + '#' + id); } catch(e) {}
   _setActiveToc(id);
@@ -637,7 +695,7 @@ function buildToc(container) {
   // Track the topmost heading whose top has crossed the active line (just
   // below the sticky nav). Picks the lowest heading still "above the line",
   // which is the section the user is currently reading.
-  const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 60;
+  const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-h')) || 60;
   const activeLineY = navH + 60;
   const compute = () => {
     if (Date.now() < _tocClickGuardUntil) return;
@@ -1952,8 +2010,10 @@ function buildStyles() {
   --font-sans: 'Inter', 'Inter-fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'JetBrains-fallback', 'Fira Code', 'Cascadia Code', monospace;
   --radius: 8px; --radius-lg: 12px;
-  --nav-h: 60px; --sidebar-w: 264px;
+  --nav-h: 60px; --announcement-h: 0px; --chrome-h: calc(var(--nav-h) + var(--announcement-h)); --sidebar-w: 264px;
 }
+html.announcement-dismissed { --announcement-h: 0px; }
+html.announcement-dismissed #announcement-banner { display: none; }
 html.light {
   --bg: #ffffff; --surface: #f8f8f8; --surface2: #f0f0f0; --surface3: #e8e8e8;
   --border: #e2e2e2; --border2: #d0d0d0;
@@ -2006,9 +2066,37 @@ html, body {
   transition: background .2s, color .2s;
 }
 
+/* ANNOUNCEMENT */
+.announcement-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 350;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 10px 44px 10px 20px;
+  font-family: var(--font-sans); font-size: 13px; line-height: 1.55; text-align: center;
+  border-bottom: 1px solid;
+}
+.announcement-inner { flex: 1; min-width: 0; }
+.announcement-inner p { margin: 0; }
+.announcement-inner a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.announcement-dismiss {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; color: inherit; opacity: .55;
+  font-size: 16px; line-height: 1; padding: 4px 6px; flex-shrink: 0; transition: opacity .15s;
+}
+.announcement-dismiss:hover { opacity: 1; }
+.announcement-dismiss:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 2px; }
+.announcement-neutral { background: rgba(160,160,160,.08); border-color: var(--border); color: var(--text2); }
+.announcement-info { background: rgba(59,130,246,.1); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+html.light .announcement-info { color: #2563eb; }
+.announcement-warning { background: rgba(245,158,11,.1); border-color: rgba(245,158,11,.3); color: #fcd34d; }
+html.light .announcement-warning { color: #b45309; }
+.announcement-success { background: rgba(16,185,129,.1); border-color: rgba(16,185,129,.3); color: #34d399; }
+html.light .announcement-success { color: #047857; }
+.announcement-error { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); color: #f87171; }
+html.light .announcement-error { color: #dc2626; }
+
 /* NAV */
 .nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+  position: fixed; top: var(--announcement-h); left: 0; right: 0; z-index: 300;
   height: var(--nav-h);
   background: rgba(10,10,10,.92);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -2063,7 +2151,7 @@ html.light .nav { background: rgba(255,255,255,.93); }
 /* OVERLAY */
 .sidebar-overlay {
   display: none;
-  position: fixed; inset: var(--nav-h) 0 0 0;
+  position: fixed; inset: var(--chrome-h) 0 0 0;
   background: rgba(0,0,0,.6);
   z-index: 199;
   backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
@@ -2072,10 +2160,10 @@ html.light .nav { background: rgba(255,255,255,.93); }
 .sidebar-overlay.open { display: block; }
 
 /* LAYOUT */
-.docs-page { padding-top: var(--nav-h); min-height: 100vh; }
+.docs-page { padding-top: var(--chrome-h); min-height: 100vh; }
 .docs-layout {
   display: flex; max-width: 1560px; margin: 0 auto;
-  min-height: calc(100vh - var(--nav-h));
+  min-height: calc(100vh - var(--chrome-h));
 }
 
 /* SIDEBAR */
@@ -2084,8 +2172,8 @@ html.light .nav { background: rgba(255,255,255,.93); }
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
   padding: 0;
-  position: sticky; top: var(--nav-h);
-  height: calc(100vh - var(--nav-h));
+  position: sticky; top: var(--chrome-h);
+  height: calc(100vh - var(--chrome-h));
   display: flex; flex-direction: column;
   align-self: flex-start; z-index: 200;
 }
@@ -2166,7 +2254,7 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 /* MAIN COLUMN */
 .docs-main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .docs-nav-top {
-  position: sticky; top: var(--nav-h); height: 44px;
+  position: sticky; top: var(--chrome-h); height: 44px;
   background: var(--bg); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 52px; z-index: 40;
 }
@@ -2181,9 +2269,9 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 .docs-toc {
   width: 216px; flex-shrink: 0;
   padding: 48px 24px 48px 16px;
-  position: sticky; top: calc(var(--nav-h) + 44px);
+  position: sticky; top: calc(var(--chrome-h) + 44px);
   align-self: flex-start;
-  max-height: calc(100vh - var(--nav-h) - 44px);
+  max-height: calc(100vh - var(--chrome-h) - 44px);
   overflow-y: auto; scrollbar-width: none;
 }
 .docs-toc::-webkit-scrollbar { display: none; }
@@ -2417,8 +2505,8 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 .api-layout .docs-examples {
   width: 480px; flex-shrink: 0;
   background: transparent;
-  position: sticky; top: calc(var(--nav-h) + 44px);
-  align-self: flex-start; max-height: calc(100vh - var(--nav-h) - 44px);
+  position: sticky; top: calc(var(--chrome-h) + 44px);
+  align-self: flex-start; max-height: calc(100vh - var(--chrome-h) - 44px);
   overflow-y: auto; padding: 48px 24px 24px;
 }
 .docs-examples { display: none; }
@@ -2449,7 +2537,7 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 @media(max-width:1024px) {
   .nav-menu-btn { display: flex; }
   .docs-sidebar {
-    position: fixed; top: var(--nav-h); left: 0; height: calc(100vh - var(--nav-h)); height: calc(100dvh - var(--nav-h));
+    position: fixed; top: var(--chrome-h); left: 0; height: calc(100vh - var(--chrome-h)); height: calc(100dvh - var(--chrome-h));
     transform: translateX(-100%);
     transition: transform .25s cubic-bezier(.4,0,.2,1), box-shadow .25s;
     width: min(var(--sidebar-w), 85vw); box-shadow: none;
@@ -2499,7 +2587,7 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 }
 .a11y-btn:hover { background: var(--surface3); }
 .a11y-panel {
-  display: none; position: fixed; top: calc(var(--nav-h) + 4px); right: 54px;
+  display: none; position: fixed; top: calc(var(--chrome-h) + 4px); right: 54px;
   width: 300px; background: var(--bg); border: 1px solid var(--border);
   border-radius: var(--radius-lg); box-shadow: 0 8px 32px rgba(0,0,0,.18);
   z-index: 1000; font-family: var(--font-sans); overflow: hidden;
@@ -2581,7 +2669,7 @@ html.a11y-underline .docs-content a { text-decoration: underline !important; tex
   border-radius: 0 0 var(--radius) var(--radius);
   text-decoration: none; transition: top .15s;
 }
-.skip-link:focus { top: 0; outline: none; }
+.skip-link:focus { top: var(--announcement-h); outline: none; }
 
 /* FOCUS INDICATORS */
 *:focus-visible {
@@ -2628,7 +2716,7 @@ html.a11y-underline .docs-content a { text-decoration: underline !important; tex
   @page { margin: 1.5cm 2cm; size: A4; }
   body { background: #fff !important; color: #000 !important; font-size: 12pt; }
   .docs-sidebar, .docs-toc, .docs-examples, .docs-nav-top, .docs-topbar,
-  .nav, .page-meta, .page-nav, .page-edit, .search-overlay, .skip-link, .sidebar-toggle,
+  .nav, .announcement-banner, .page-meta, .page-nav, .page-edit, .search-overlay, .skip-link, .sidebar-toggle,
   .nav-menu-btn, .feedback-widget, .pdf-menu { display: none !important; }
   .docs-layout { display: block !important; }
   .docs-main { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
