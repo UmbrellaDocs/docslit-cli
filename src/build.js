@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile, buildOfflineThemeInitFile, buildOfflineAppFile, isEsbuildAvailable } from './template.js';
+import { resolveSiteTheme } from './themes.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 import { initHighlighter } from './highlighter.js';
 import { resolvePdfOptions, buildPdfManifest, getChapterManifest, generatePdfs } from './pdf.js';
@@ -67,6 +68,7 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   const t0 = performance.now();
   const cwd = process.cwd();
   const [config] = await Promise.all([loadConfig(cwd), initHighlighter()]);
+  const siteTheme = await resolveSiteTheme(config, cwd);
   const outDir = path.resolve(cwd, out);
   const versionConfig = getVersionConfig(config);
   const pdfOptions = resolvePdfOptions(config, { pdf, noPdf, pdfDir });
@@ -115,9 +117,9 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   }
 
   if (versionConfig) {
-    await buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions });
+    await buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions, siteTheme });
   } else {
-    await buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions });
+    await buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions, siteTheme });
   }
 
   const sizeKb = await getDirSize(outDir);
@@ -132,7 +134,7 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   }
 }
 
-async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions }) {
+async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions, siteTheme }) {
   const pageIds = getAllPageIds(config);
   const pagesData = {};
   const draftPageIds = [];
@@ -218,7 +220,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
   if (offline) {
     const vendorData = await _loadVendorData();
     const searchIndex = buildSearchIndex(config, pagesData);
-    const indexHtml = renderShell({ config, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData });
+    const indexHtml = renderShell({ config, siteTheme, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData });
     await Promise.all([
       fs.writeFile(path.join(outDir, 'index.html'), indexHtml),
       _writeSearchIndexJs(outDir, searchIndex),
@@ -226,7 +228,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     ]);
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} (offline)${draftNote}${skippedNote}`);
   } else {
-    await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile({ minify, config }));
+    await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile({ minify, siteTheme }));
     await fs.writeFile(path.join(outDir, 'docslit.js'), buildComponentsFile('static', { minify }));
     await fs.writeFile(path.join(outDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
@@ -234,7 +236,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     const hasRegularDocs = (config.sidebar || []).length > 0;
     const isHybrid = specData && hasRegularDocs;
     for (const [id, { meta, html, isApiPage }] of Object.entries(pagesData)) {
-      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null, pdfManifest });
+      const pageHtml = renderPage({ config, siteTheme, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null, pdfManifest });
       const destHtml = path.join(outDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -261,7 +263,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
   }
 }
 
-async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions }) {
+async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions, siteTheme }) {
   const defaultVersion = versionConfig.default;
   const defaultEntry = versionConfig.list.find(v => v.version === defaultVersion);
   const defaultBranch = defaultEntry?.branch || 'main';
@@ -332,7 +334,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     built++;
   }
 
-  const sharedCss = offline ? null : buildStylesFile({ minify, config });
+  const sharedCss = offline ? null : buildStylesFile({ minify, siteTheme });
   const sharedJs = offline ? null : buildComponentsFile('static', { minify });
   const sharedApp = offline ? null : buildAppFile('static', { minify });
   const vendorData = offline ? await _loadVendorData() : null;
@@ -341,7 +343,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   if (offline) {
     await fs.ensureDir(defaultDir);
     const defaultShell = renderShell({
-      config, mode: 'static', out, draftPageIds,
+      config, siteTheme, mode: 'static', out, draftPageIds,
       versionConfig, currentVersion: defaultVersion,
       offline: true, minify,
       specData, apiMeta, vendorData,
@@ -361,7 +363,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const defaultHasRegularDocs = (config.sidebar || []).length > 0;
     const defaultIsHybrid = specData && defaultHasRegularDocs;
     for (const [id, { meta, html, isApiPage }] of Object.entries(defaultPagesData)) {
-      const pageHtml = renderPage({ config, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null, pdfManifest: defaultPdfManifest });
+      const pageHtml = renderPage({ config, siteTheme, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null, pdfManifest: defaultPdfManifest });
       const destHtml = path.join(defaultDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -437,7 +439,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
 
     if (offline) {
       const versionShell = renderShell({
-        config: versionConf, mode: 'static', out, draftPageIds: [],
+        config: versionConf, siteTheme, mode: 'static', out, draftPageIds: [],
         versionConfig, currentVersion: entry.version,
         offline: true, minify,
         specData, apiMeta, vendorData,
@@ -458,7 +460,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       const versionPdfManifest = preparePdfManifest(versionConf, versionPagesData, pdfOptions);
       for (const [id, { meta, html }] of Object.entries(versionPagesData)) {
         const isApiPage = id.startsWith('api/') || meta.layout === 'api';
-        const pageHtml = renderPage({ config: versionConf, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null, pdfManifest: versionPdfManifest });
+        const pageHtml = renderPage({ config: versionConf, siteTheme, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null, pdfManifest: versionPdfManifest });
         const destHtml = path.join(versionDir, `${id}.html`);
         await fs.ensureDir(path.dirname(destHtml));
         await fs.writeFile(destHtml, pageHtml);

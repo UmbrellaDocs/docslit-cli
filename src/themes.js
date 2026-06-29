@@ -1,6 +1,15 @@
-/** @typedef {{ preset: string, colors: Record<string, string> }} SiteTheme */
+import fs from 'fs-extra';
+import path from 'path';
 
-const CSS_VAR_KEYS = {
+/** @typedef {{
+ *   id: string,
+ *   basePreset: string,
+ *   dark: Record<string, string>,
+ *   light: Record<string, string>,
+ *   isCustom: boolean,
+ * }} ResolvedSiteTheme */
+
+export const CSS_VAR_KEYS = {
   bg: '--bg',
   surface: '--surface',
   surface2: '--surface2',
@@ -22,6 +31,29 @@ const CSS_VAR_KEYS = {
   radius: '--radius',
   radiusLg: '--radius-lg',
 };
+
+export const THEME_VAR_DOCS = [
+  { key: 'accent', description: 'Primary brand color — links, active nav, buttons' },
+  { key: 'accentLight', description: 'Lighter/darker accent for hover and emphasis' },
+  { key: 'accentDim', description: 'Translucent accent for subtle backgrounds' },
+  { key: 'accentDim2', description: 'Slightly stronger translucent accent' },
+  { key: 'bg', description: 'Page background' },
+  { key: 'surface', description: 'Card and panel background' },
+  { key: 'surface2', description: 'Secondary surface (inputs, chips)' },
+  { key: 'surface3', description: 'Tertiary surface (hover states)' },
+  { key: 'border', description: 'Default border color' },
+  { key: 'border2', description: 'Stronger border color' },
+  { key: 'text', description: 'Primary text' },
+  { key: 'text2', description: 'Secondary text' },
+  { key: 'text3', description: 'Muted text' },
+  { key: 'sidebarBg', description: 'Sidebar background' },
+  { key: 'codeBg', description: 'Code block background' },
+  { key: 'codeText', description: 'Code block text' },
+  { key: 'fontSans', description: 'Body font stack' },
+  { key: 'fontMono', description: 'Monospace font stack' },
+  { key: 'radius', description: 'Default border radius' },
+  { key: 'radiusLg', description: 'Large border radius' },
+];
 
 export const THEME_PRESETS = {
   teal: {
@@ -180,15 +212,7 @@ export const THEME_PRESETS = {
 
 export const DEFAULT_THEME_PRESET = 'teal';
 
-export function getSiteTheme(config) {
-  const raw = config?.theme;
-  if (!raw) return { preset: DEFAULT_THEME_PRESET, colors: {} };
-  if (typeof raw === 'string') return { preset: raw, colors: {} };
-  return {
-    preset: raw.preset || DEFAULT_THEME_PRESET,
-    colors: raw.colors && typeof raw.colors === 'object' && !Array.isArray(raw.colors) ? raw.colors : {},
-  };
-}
+const RESERVED_IDS = new Set([...Object.keys(THEME_PRESETS), 'custom']);
 
 export function isValidThemePreset(preset) {
   return preset === DEFAULT_THEME_PRESET || Boolean(THEME_PRESETS[preset]);
@@ -198,10 +222,147 @@ export function listThemePresets() {
   return Object.entries(THEME_PRESETS).map(([id, theme]) => ({ id, label: theme.label }));
 }
 
-function varsBlock(vars) {
-  return Object.entries(vars)
-    .map(([key, value]) => `${CSS_VAR_KEYS[key] || `--${key}`}: ${value}`)
-    .join('; ');
+export function listThemeVariables() {
+  return THEME_VAR_DOCS;
+}
+
+/** @deprecated Use resolveSiteTheme — kept for simple preset-only lookups */
+export function getSiteTheme(config) {
+  const resolved = resolveSiteThemeSync(config);
+  return {
+    preset: resolved.basePreset,
+    colors: {},
+    id: resolved.id,
+    isCustom: resolved.isCustom,
+  };
+}
+
+export function parseThemeConfig(config) {
+  const raw = config?.theme;
+  if (!raw) {
+    return { basePreset: DEFAULT_THEME_PRESET, file: null, id: null, colors: {}, dark: {}, light: {}, fonts: {} };
+  }
+  if (typeof raw === 'string') {
+    if (isValidThemePreset(raw)) {
+      return { basePreset: raw, file: null, id: raw, colors: {}, dark: {}, light: {}, fonts: {}, presetOnly: true };
+    }
+    return { basePreset: DEFAULT_THEME_PRESET, file: raw, id: null, colors: {}, dark: {}, light: {}, fonts: {} };
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return {
+      basePreset: raw.extends || raw.preset || DEFAULT_THEME_PRESET,
+      file: raw.file || null,
+      id: raw.id || (raw.name ? slugifyThemeId(raw.name) : null),
+      colors: raw.colors && typeof raw.colors === 'object' && !Array.isArray(raw.colors) ? raw.colors : {},
+      dark: raw.dark && typeof raw.dark === 'object' && !Array.isArray(raw.dark) ? raw.dark : {},
+      light: raw.light && typeof raw.light === 'object' && !Array.isArray(raw.light) ? raw.light : {},
+      fonts: raw.fonts && typeof raw.fonts === 'object' && !Array.isArray(raw.fonts) ? raw.fonts : {},
+    };
+  }
+  return { basePreset: DEFAULT_THEME_PRESET, file: null, id: null, colors: {}, dark: {}, light: {}, fonts: {} };
+}
+
+export function resolveSiteThemeSync(config) {
+  return resolveFromSpec(parseThemeConfig(config));
+}
+
+export async function resolveSiteTheme(config, cwd = process.cwd()) {
+  const parsed = parseThemeConfig(config);
+  if (!parsed.file) return resolveFromSpec(parsed);
+  const fileSpec = await loadThemeFile(parsed.file, cwd);
+  return resolveFromSpec({ ...parsed, ...fileSpec, file: null });
+}
+
+export async function loadThemeFile(filePath, cwd) {
+  const resolved = path.resolve(cwd, filePath);
+  if (!await fs.pathExists(resolved)) {
+    throw new Error(`Theme file not found: ${filePath}`);
+  }
+  let data;
+  try {
+    data = await fs.readJson(resolved);
+  } catch (e) {
+    throw new Error(`Theme file is not valid JSON (${filePath}): ${e.message}`);
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(`Theme file must be a JSON object: ${filePath}`);
+  }
+  return {
+    basePreset: data.extends || data.preset || undefined,
+    id: data.id || (data.name ? slugifyThemeId(data.name) : slugifyThemeId(path.basename(filePath, path.extname(filePath)))),
+    colors: data.colors || {},
+    dark: data.dark || {},
+    light: data.light || {},
+    fonts: data.fonts || {},
+  };
+}
+
+function resolveFromSpec(spec) {
+  const basePreset = isValidThemePreset(spec.basePreset) ? spec.basePreset : DEFAULT_THEME_PRESET;
+  const base = THEME_PRESETS[basePreset];
+  const shared = normalizeThemeVars(spec.colors);
+  const darkOverrides = normalizeThemeVars(spec.dark);
+  const lightOverrides = normalizeThemeVars(spec.light);
+  const fontVars = normalizeFonts(spec.fonts);
+
+  const hasOverrides = Boolean(spec.file)
+    || Object.keys(shared).length > 0
+    || Object.keys(darkOverrides).length > 0
+    || Object.keys(lightOverrides).length > 0
+    || Object.keys(fontVars).length > 0;
+
+  if (spec.presetOnly && !hasOverrides) {
+    return {
+      id: basePreset,
+      basePreset,
+      dark: { ...base.dark },
+      light: { ...base.light },
+      isCustom: false,
+    };
+  }
+
+  let dark = mergePalette(base.dark, shared, darkOverrides, fontVars);
+  let light = mergePalette(base.light, shared, lightOverrides, fontVars);
+  dark = applyAccentDefaults(dark, darkOverrides, shared, 'dark');
+  light = applyAccentDefaults(light, lightOverrides, shared, 'light');
+
+  let id = spec.id || (hasOverrides ? 'custom' : basePreset);
+  if (RESERVED_IDS.has(id) && hasOverrides && id !== 'custom') {
+    id = `brand-${id}`;
+  }
+
+  return {
+    id,
+    basePreset,
+    dark,
+    light,
+    isCustom: hasOverrides,
+  };
+}
+
+function mergePalette(base, ...overlays) {
+  return overlays.reduce((acc, layer) => ({ ...acc, ...layer }), { ...base });
+}
+
+function normalizeThemeVars(vars) {
+  if (!vars || typeof vars !== 'object') return {};
+  const out = {};
+  for (const [key, value] of Object.entries(vars)) {
+    if (typeof value !== 'string' || !value.trim()) continue;
+    const normalized = normalizeColorKey(key);
+    if (normalized) out[normalized] = value.trim();
+  }
+  return out;
+}
+
+function normalizeFonts(fonts) {
+  if (!fonts || typeof fonts !== 'object') return {};
+  const out = {};
+  if (typeof fonts.sans === 'string' && fonts.sans.trim()) out.fontSans = fonts.sans.trim();
+  if (typeof fonts.mono === 'string' && fonts.mono.trim()) out.fontMono = fonts.mono.trim();
+  if (typeof fonts.radius === 'string' && fonts.radius.trim()) out.radius = fonts.radius.trim();
+  if (typeof fonts.radiusLg === 'string' && fonts.radiusLg.trim()) out.radiusLg = fonts.radiusLg.trim();
+  return out;
 }
 
 function normalizeColorKey(key) {
@@ -210,8 +371,42 @@ function normalizeColorKey(key) {
   return CSS_VAR_KEYS[camel] ? camel : null;
 }
 
-export function buildThemeCss(siteTheme) {
-  const { preset, colors } = siteTheme;
+function slugifyThemeId(value) {
+  const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return slug || 'custom';
+}
+
+function hexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex).trim());
+  if (!m) return null;
+  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+}
+
+function applyAccentDefaults(palette, modeOverrides, shared, mode) {
+  const accentChanged = Boolean(modeOverrides.accent || shared.accent);
+  if (!accentChanged) return palette;
+  const accent = modeOverrides.accent || shared.accent || palette.accent;
+  const out = { ...palette, accent };
+  const rgb = hexToRgb(accent);
+  if (!rgb) return out;
+  if (!(modeOverrides.accentDim || shared.accentDim)) {
+    const a = mode === 'light' ? 0.08 : 0.15;
+    out.accentDim = `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
+  }
+  if (!(modeOverrides.accentDim2 || shared.accentDim2)) {
+    const a = mode === 'light' ? 0.16 : 0.25;
+    out.accentDim2 = `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
+  }
+  return out;
+}
+
+function varsBlock(vars) {
+  return Object.entries(vars)
+    .map(([key, value]) => `${CSS_VAR_KEYS[key] || `--${key}`}: ${value}`)
+    .join('; ');
+}
+
+export function buildThemeCss(resolved) {
   const blocks = [];
 
   for (const [id, theme] of Object.entries(THEME_PRESETS)) {
@@ -220,27 +415,43 @@ export function buildThemeCss(siteTheme) {
     blocks.push(`html.light[data-theme="${id}"] { ${varsBlock(theme.light)}; }`);
   }
 
-  const customVars = Object.entries(colors)
-    .map(([key, value]) => {
-      const normalized = normalizeColorKey(key);
-      if (!normalized || typeof value !== 'string' || !value.trim()) return null;
-      return `${CSS_VAR_KEYS[normalized]}: ${value.trim()}`;
-    })
-    .filter(Boolean);
-
-  if (customVars.length) {
-    const selector = `html[data-theme="${preset}"]`;
-    blocks.push(`${selector} { ${customVars.join('; ')}; }`);
-    blocks.push(`html.light${selector.replace('html', '')} { ${customVars.join('; ')}; }`);
+  if (resolved.isCustom) {
+    blocks.push(`html[data-theme="${resolved.id}"] { ${varsBlock(resolved.dark)}; }`);
+    blocks.push(`html.light[data-theme="${resolved.id}"] { ${varsBlock(resolved.light)}; }`);
   }
 
   if (!blocks.length) return '';
   return `\n/* SITE THEMES */\n${blocks.join('\n')}\n`;
 }
 
-export function buildHtmlTag(siteTheme) {
-  const preset = isValidThemePreset(siteTheme.preset) ? siteTheme.preset : DEFAULT_THEME_PRESET;
-  const hasCustom = Object.keys(siteTheme.colors || {}).length > 0;
-  if (preset === DEFAULT_THEME_PRESET && !hasCustom) return '<html lang="en">';
-  return `<html lang="en" data-theme="${preset}">`;
+export function buildHtmlTag(resolved) {
+  if (!resolved.isCustom && resolved.id === DEFAULT_THEME_PRESET) return '<html lang="en">';
+  if (!resolved.isCustom && THEME_PRESETS[resolved.id]) {
+    return `<html lang="en" data-theme="${resolved.id}">`;
+  }
+  return `<html lang="en" data-theme="${resolved.id}">`;
+}
+
+export function buildBrandThemeTemplate({ name = 'Acme Brand', extendsPreset = 'slate', accent = '#003366', accentLight = '#0066cc' } = {}) {
+  return {
+    name,
+    extends: extendsPreset,
+    colors: {
+      accent,
+      accentLight,
+    },
+    dark: {
+      accent: accentLight,
+    },
+    fonts: {
+      sans: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      mono: "'JetBrains Mono', 'Fira Code', monospace",
+    },
+  };
+}
+
+export const BRAND_THEME_EXAMPLE_FILENAME = 'brand-theme.json';
+
+export function defaultBrandThemePath() {
+  return BRAND_THEME_EXAMPLE_FILENAME;
 }

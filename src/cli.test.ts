@@ -11,7 +11,7 @@ import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVers
 import { resolvePdfOptions, getChapterManifest, buildPdfManifest, slugifyChapterId } from './pdf.js';
 import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile, buildOfflineAppFile, buildOfflineThemeInitFile, isEsbuildAvailable } from './template.js';
 import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs, schemaToFields, endpointToMarkdown, buildApiPageMarkdown } from './openapi.js';
-import { getSiteTheme, buildThemeCss, buildHtmlTag, listThemePresets, isValidThemePreset } from './themes.js';
+import { resolveSiteThemeSync, resolveSiteTheme, buildThemeCss, buildHtmlTag, listThemePresets, isValidThemePreset, parseThemeConfig } from './themes.js';
 import { buildComponents } from './components/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -737,38 +737,51 @@ describe('getAnnouncement', () => {
 
 describe('site themes', () => {
   it('defaults to teal preset', () => {
-    expect(getSiteTheme({ name: 'Test', sidebar: [] })).toEqual({ preset: 'teal', colors: {} });
+    const resolved = resolveSiteThemeSync({ name: 'Test', sidebar: [] });
+    expect(resolved.id).toBe('teal');
+    expect(resolved.isCustom).toBe(false);
   });
 
   it('accepts theme as a preset string', () => {
-    expect(getSiteTheme({ theme: 'ocean' }).preset).toBe('ocean');
+    expect(resolveSiteThemeSync({ theme: 'ocean' }).id).toBe('ocean');
   });
 
   it('accepts theme object with preset and colors', () => {
-    const theme = getSiteTheme({ theme: { preset: 'violet', colors: { accent: '#7c3aed' } } });
-    expect(theme.preset).toBe('violet');
-    expect(theme.colors.accent).toBe('#7c3aed');
+    const resolved = resolveSiteThemeSync({ theme: { preset: 'violet', colors: { accent: '#7c3aed' } } });
+    expect(resolved.basePreset).toBe('violet');
+    expect(resolved.isCustom).toBe(true);
+    expect(resolved.dark.accent).toBe('#7c3aed');
   });
 
   it('buildThemeCss includes ocean dark variables', () => {
-    const css = buildThemeCss({ preset: 'ocean', colors: {} });
+    const css = buildThemeCss(resolveSiteThemeSync({ theme: 'ocean' }));
     expect(css).toContain('html[data-theme="ocean"]');
     expect(css).toContain('--accent: #2563eb');
     expect(css).toContain('html.light[data-theme="ocean"]');
   });
 
-  it('buildThemeCss includes custom color overrides', () => {
-    const css = buildThemeCss({ preset: 'teal', colors: { accent: '#ff0000' } });
-    expect(css).toContain('html[data-theme="teal"]');
-    expect(css).toContain('--accent: #ff0000');
+  it('buildThemeCss includes custom brand theme block', () => {
+    const resolved = resolveSiteThemeSync({
+      theme: { extends: 'slate', colors: { accent: '#003366' } },
+    });
+    const css = buildThemeCss(resolved);
+    expect(css).toContain('html[data-theme="custom"]');
+    expect(css).toContain('--accent: #003366');
+  });
+
+  it('auto-derives accent dim colors from hex accent', () => {
+    const resolved = resolveSiteThemeSync({
+      theme: { colors: { accent: '#003366' } },
+    });
+    expect(resolved.dark.accentDim).toContain('rgba(0,51,102');
   });
 
   it('buildHtmlTag omits data-theme for default teal', () => {
-    expect(buildHtmlTag({ preset: 'teal', colors: {} })).toBe('<html lang="en">');
+    expect(buildHtmlTag(resolveSiteThemeSync({}))).toBe('<html lang="en">');
   });
 
   it('buildHtmlTag sets data-theme for non-default presets', () => {
-    expect(buildHtmlTag({ preset: 'ocean', colors: {} })).toBe('<html lang="en" data-theme="ocean">');
+    expect(buildHtmlTag(resolveSiteThemeSync({ theme: 'ocean' }))).toBe('<html lang="en" data-theme="ocean">');
   });
 
   it('lists all built-in presets', () => {
@@ -789,9 +802,28 @@ describe('site themes', () => {
     expect(html).toContain('html[data-theme="forest"]');
   });
 
+  it('parseThemeConfig treats non-preset strings as theme files', () => {
+    expect(parseThemeConfig({ theme: './brand-theme.json' }).file).toBe('./brand-theme.json');
+  });
+
   it('rejects unknown presets in validation', () => {
     expect(isValidThemePreset('not-a-theme')).toBe(false);
     expect(isValidThemePreset('ocean')).toBe(true);
+  });
+
+  it('loads brand theme from JSON file', async () => {
+    const tmpDir = path.join(__dirname, '../.test-theme-dir');
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(path.join(tmpDir, 'brand-theme.json'), JSON.stringify({
+      name: 'Acme',
+      extends: 'slate',
+      colors: { accent: '#112233' },
+    }));
+    const resolved = await resolveSiteTheme({ theme: './brand-theme.json' }, tmpDir);
+    expect(resolved.id).toBe('acme');
+    expect(resolved.dark.accent).toBe('#112233');
+    rmSync(tmpDir, { recursive: true });
   });
 });
 

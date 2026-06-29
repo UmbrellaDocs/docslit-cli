@@ -10,7 +10,7 @@ import rehypeRaw from 'rehype-raw';
 import { visit } from 'unist-util-visit';
 import { COMPONENT_MAP, pascalToWcKebab, rewriteMdxTags } from './mdx-bridge.js';
 import { VAR_NAME_RE } from './preprocess.js';
-import { getSiteTheme, isValidThemePreset, listThemePresets } from './themes.js';
+import { isValidThemePreset, listThemePresets, parseThemeConfig, loadThemeFile } from './themes.js';
 
 // ─── Built-in component registry ──────────────────────────────────────────────
 // Mirrors the components actually registered by buildComponents() — keep this
@@ -364,30 +364,54 @@ async function checkConfig(dir) {
   }
 
   if (config.theme != null) {
-    const { preset, colors } = getSiteTheme(config);
-    if (!isValidThemePreset(preset)) {
-      const names = listThemePresets().map(t => t.id).join(', ');
+    const parsed = parseThemeConfig(config);
+    if (typeof config.theme === 'string' && !isValidThemePreset(config.theme) && !parsed.file) {
       issues.push(issue('error', 'docslit.json', null,
-        `Unknown theme preset "${preset}". Available presets: ${names}`));
+        `Unknown theme preset "${config.theme}". Use a preset name, a theme file path, or docslit theme list`));
     }
-    if (typeof config.theme === 'object' && !Array.isArray(config.theme) && config.theme.colors != null) {
-      if (typeof colors !== 'object' || Array.isArray(colors)) {
+    if (typeof config.theme === 'object' && !Array.isArray(config.theme)) {
+      const base = parsed.basePreset;
+      if (!isValidThemePreset(base)) {
+        const names = listThemePresets().map(t => t.id).join(', ');
         issues.push(issue('error', 'docslit.json', null,
-          '"theme.colors" must be an object of CSS color overrides'));
-      } else {
-        for (const [key, value] of Object.entries(colors)) {
-          if (typeof value !== 'string') {
-            issues.push(issue('error', 'docslit.json', null,
-              `theme.colors.${key} must be a string`));
+          `Unknown theme preset "${base}". Available presets: ${names}`));
+      }
+      for (const layer of ['colors', 'dark', 'light']) {
+        const obj = parsed[layer];
+        if (obj && Object.keys(obj).length) {
+          for (const [key, value] of Object.entries(obj)) {
+            if (typeof value !== 'string') {
+              issues.push(issue('error', 'docslit.json', null, `theme.${layer}.${key} must be a string`));
+            }
           }
         }
       }
-    } else if (typeof config.theme === 'object' && !Array.isArray(config.theme) && config.theme.preset != null && typeof config.theme.preset !== 'string') {
+      if (parsed.file) {
+        const themePath = path.resolve(dir, parsed.file);
+        if (!await fs.pathExists(themePath)) {
+          issues.push(issue('error', 'docslit.json', null, `Theme file not found: ${parsed.file}`));
+        } else {
+          try {
+            await loadThemeFile(parsed.file, dir);
+          } catch (e) {
+            issues.push(issue('error', parsed.file, null, e.message));
+          }
+        }
+      }
+    } else if (typeof config.theme !== 'string') {
       issues.push(issue('error', 'docslit.json', null,
-        '"theme.preset" must be a string'));
-    } else if (typeof config.theme !== 'string' && (typeof config.theme !== 'object' || Array.isArray(config.theme))) {
-      issues.push(issue('error', 'docslit.json', null,
-        '"theme" must be a preset name string or an object with "preset" and optional "colors"'));
+        '"theme" must be a preset name, theme file path, or theme config object'));
+    } else if (parsed.file) {
+      const themePath = path.resolve(dir, parsed.file);
+      if (!await fs.pathExists(themePath)) {
+        issues.push(issue('error', 'docslit.json', null, `Theme file not found: ${parsed.file}`));
+      } else {
+        try {
+          await loadThemeFile(parsed.file, dir);
+        } catch (e) {
+          issues.push(issue('error', parsed.file, null, e.message));
+        }
+      }
     }
   }
 

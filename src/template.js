@@ -3,7 +3,7 @@ import { buildComponents } from './components/index.js';
 import { findGroupForPage, toLabel } from './sidebar.js';
 import { getAnnouncement, hashAnnouncementMessage } from './config.js';
 import { renderMarkdown } from './unified.js';
-import { getSiteTheme, buildThemeCss, buildHtmlTag } from './themes.js';
+import { resolveSiteThemeSync, buildThemeCss, buildHtmlTag } from './themes.js';
 
 const require = createRequire(import.meta.url);
 
@@ -38,7 +38,7 @@ function _minifyCSS(code) {
   } catch { return code; }
 }
 
-export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null }) {
+export function renderShell({ config, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null }) {
   const siteTitle = config.name || 'DocsLit';
   const logoSrc = config.logo ? (config.logo.startsWith('/') ? config.logo : '/' + config.logo) : '/favicon-32x32.png';
   const isHybrid = specData && (config.sidebar || []).length > 0;
@@ -68,13 +68,13 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion, offline) : '';
   const importMap = buildImportMap(mode, vendorData);
   const announcementChrome = buildAnnouncementChrome({ config, versionConfig, currentVersion, offline });
-  const siteTheme = getSiteTheme(config);
-  const htmlTag = buildHtmlTag(siteTheme);
+  const resolvedTheme = siteTheme ?? resolveSiteThemeSync(config);
+  const htmlTag = buildHtmlTag(resolvedTheme);
 
   if (offline) {
     const offlineStyles = minify
-      ? `<style>${_minifyCSS(buildStyles(siteTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
-      : buildStyles(siteTheme);
+      ? `<style>${_minifyCSS(buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
+      : buildStyles(resolvedTheme);
     const offlineComponents = minify ? _minifyJS(buildComponents()) : buildComponents();
     const offlineLoaderScript = buildOfflineLoader();
     const offlineApp = minify
@@ -121,8 +121,8 @@ ${offlineApp}
   const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
 
   const stylesBlock = minify
-    ? `<style>${_minifyCSS(buildStyles(siteTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
-    : buildStyles(siteTheme);
+    ? `<style>${_minifyCSS(buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
+    : buildStyles(resolvedTheme);
   const componentsBlock = minify ? _minifyJS(buildComponents()) : buildComponents();
   const appBlock = minify
     ? _minifyJS(buildAppScript(mode, loaderScript, wsScript, false))
@@ -166,7 +166,7 @@ ${appBlock}
 </html>`;
 }
 
-export function renderPage({ config, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null }) {
+export function renderPage({ config, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null }) {
   const isHybridEarly = specData && (config.sidebar || []).length > 0;
   const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null);
   const siteTitle = config.name || 'DocsLit';
@@ -231,8 +231,8 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   }
 
   const announcementChrome = buildAnnouncementChrome({ config, versionConfig, currentVersion });
-  const siteTheme = getSiteTheme(config);
-  const htmlTag = buildHtmlTag(siteTheme);
+  const resolvedTheme = siteTheme ?? resolveSiteThemeSync(config);
+  const htmlTag = buildHtmlTag(resolvedTheme);
 
   return `<!DOCTYPE html>
 ${htmlTag}
@@ -269,9 +269,9 @@ ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)}
 </html>`;
 }
 
-export function buildStylesFile({ minify = false, config = null } = {}) {
-  const siteTheme = config ? getSiteTheme(config) : null;
-  const raw = buildStyles(siteTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
+export function buildStylesFile({ minify = false, siteTheme = null } = {}) {
+  const resolved = siteTheme ?? resolveSiteThemeSync(null);
+  const raw = buildStyles(resolved).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
   return minify ? _minifyCSS(raw) : raw;
 }
 
@@ -2005,8 +2005,9 @@ window.a11yReset = a11yReset;
 `;
 }
 
-function buildStyles(siteTheme = null) {
-  const themeCss = buildThemeCss(siteTheme ?? getSiteTheme(null));
+function buildStyles(resolvedTheme = null) {
+  const resolved = resolvedTheme ?? resolveSiteThemeSync(null);
+  const themeCss = buildThemeCss(resolved);
   return `<style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 

@@ -26,6 +26,9 @@ const help = `
     docslit openapi scaffold  Generate docs pages from an OpenAPI spec.
                               Usage: docslit openapi scaffold <spec.yaml>
                               [--overlay <overlay.yaml>] [--new-only]
+    docslit theme init [file] Scaffold a brand theme JSON file (default:
+                              brand-theme.json) and wire it in docslit.json
+    docslit theme list          List built-in presets and theme variables
 
   DocsLit Cloud:
     docslit login             Authenticate with DocsLit Cloud
@@ -111,6 +114,9 @@ if (command === 'init') {
 } else if (command === 'delete') {
   const { deleteProject } = await import('../src/delete.js');
   await deleteProject(args.slice(1));
+} else if (command === 'theme') {
+  const { theme } = await import('../src/theme-cmd.js');
+  await theme(args.slice(1));
 } else if (command === 'openapi') {
   const subCmd = args[1];
   if (subCmd === 'scaffold') {

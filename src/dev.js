@@ -9,6 +9,7 @@ import pc from 'picocolors';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar } from './config.js';
 import { parseDoc } from './markdown.js';
 import { renderShell } from './template.js';
+import { resolveSiteTheme, parseThemeConfig } from './themes.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 import { initHighlighter } from './highlighter.js';
 
@@ -17,6 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export async function dev({ port = 3000 } = {}) {
   const cwd = process.cwd();
   const [config] = await Promise.all([loadConfig(cwd), initHighlighter()]);
+  let siteTheme = await resolveSiteTheme(config, cwd);
 
   console.log(`\n  ${pc.bold('DocsLit')} dev server starting...\n`);
 
@@ -74,6 +76,15 @@ export async function dev({ port = 3000 } = {}) {
     }
   }
 
+  function themeFilePath(cfg) {
+    const parsed = parseThemeConfig(cfg);
+    return parsed.file ? path.resolve(cwd, parsed.file) : null;
+  }
+
+  async function reloadSiteTheme(cfg) {
+    siteTheme = await resolveSiteTheme(cfg, cwd);
+  }
+
   // Watch for changes
   const watchPaths = [
     path.join(cwd, 'docs/**/*.md'),
@@ -81,6 +92,8 @@ export async function dev({ port = 3000 } = {}) {
     path.join(cwd, 'docslit.json'),
     path.join(cwd, 'components/**/*.js'),
   ];
+  const themePath = themeFilePath(config);
+  if (themePath) watchPaths.push(themePath);
   const openapiConf = getOpenAPIConfig(config);
   if (openapiConf?.spec) watchPaths.push(path.join(cwd, openapiConf.spec));
   if (openapiConf?.overlay) watchPaths.push(path.join(cwd, openapiConf.overlay));
@@ -95,8 +108,13 @@ export async function dev({ port = 3000 } = {}) {
     } else {
       parseCache.delete(filePath);
     }
-    if (filePath.endsWith('docslit.json')) {
+    if (filePath.endsWith('docslit.json') || (themeFilePath(config) && path.resolve(filePath) === themeFilePath(config))) {
       Object.assign(config, await loadConfig(cwd));
+      try {
+        await reloadSiteTheme(config);
+      } catch (e) {
+        console.log(`  ${pc.yellow('!')} Theme reload failed: ${e.message}`);
+      }
     }
     if (openapiConf?.spec && (filePath.endsWith(openapiConf.spec) || (openapiConf.overlay && filePath.endsWith(openapiConf.overlay)))) {
       await reloadSpec();
@@ -411,7 +429,7 @@ export async function dev({ port = 3000 } = {}) {
     }
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(renderShell({ config: shellConfig, mode: 'dev', port, versionConfig: vc, currentVersion, specData, apiMeta }));
+    res.send(renderShell({ config: shellConfig, siteTheme, mode: 'dev', port, versionConfig: vc, currentVersion, specData, apiMeta }));
   });
 
   server.listen(port, () => {
