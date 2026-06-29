@@ -104,6 +104,16 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   }
   console.log(`  ${pc.green('✓')} Copied favicon assets`);
 
+  if (config.logo) {
+    const logoFile = path.resolve(cwd, config.logo);
+    if (await fs.pathExists(logoFile)) {
+      await fs.copyFile(logoFile, path.join(outDir, path.basename(config.logo)));
+      console.log(`  ${pc.green('✓')} Copied logo ${config.logo}`);
+    } else {
+      console.log(`  ${pc.yellow('⚠')} Logo file not found: ${config.logo}`);
+    }
+  }
+
   if (versionConfig) {
     await buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions });
   } else {

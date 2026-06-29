@@ -37,6 +37,7 @@ function _minifyCSS(code) {
 
 export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null }) {
   const siteTitle = config.name || 'DocsLit';
+  const logoSrc = config.logo ? (config.logo.startsWith('/') ? config.logo : '/' + config.logo) : '/favicon-32x32.png';
   const isHybrid = specData && (config.sidebar || []).length > 0;
 
   let apiSidebarHtml = null;
@@ -88,7 +89,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   ${offlineStyles}
 </head>
 <body>
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, offline)}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, offline, logoSrc)}
 ${buildSearchOverlayHtml(offline)}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
@@ -133,7 +134,7 @@ ${offlineApp}
   ${stylesBlock}
 </head>
 <body>
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks)}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
@@ -157,6 +158,7 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   const isHybridEarly = specData && (config.sidebar || []).length > 0;
   const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null);
   const siteTitle = config.name || 'DocsLit';
+  const logoSrc = config.logo ? (config.logo.startsWith('/') ? config.logo : '/' + config.logo) : '/favicon-32x32.png';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
   const importMap = buildImportMap('static');
   const versionScript = versionConfig
@@ -231,7 +233,7 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   <link rel="stylesheet" href="${assetPrefix}docslit.css">
 </head>
 <body class="${apiClass.trim()}">
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks)}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
@@ -319,7 +321,7 @@ function buildFontLinks(offline = false) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">`;
 }
 
-function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false) {
+function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false, logoSrc = '/favicon-32x32.png') {
   let modeLinksHtml = '';
   if (hybridLinks) {
     const showApi = hybridLinks.initialMode !== 'api' ? '' : ' style="display:none"';
@@ -338,7 +340,7 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <a class="nav-logo" href="/">
-      <img class="nav-logo-icon" src="/favicon-32x32.png" alt="${siteTitle}" width="30" height="30">
+      <img class="nav-logo-icon" src="${escHtml(logoSrc)}" alt="${siteTitle}">
       <span class="nav-logo-text">${siteTitle}</span>
     </a>
   </div>

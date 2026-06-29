@@ -35,7 +35,6 @@
   "dependencies": {
     "@redocly/openapi-core": "^2.30.4",
     "chokidar": "^5.0.0",
-    "esbuild": "^0.28.0",
     "express": "^5.2.1",
     "fflate": "^0.8.2",
     "fs-extra": "^11.3.4",
@@ -72,6 +71,9 @@
     "playwright": {
       "optional": true
     }
+  },
+  "optionalDependencies": {
+    "esbuild": "^0.28.0"
   },
   "overrides": {
     "underscore": "^1.13.8"
