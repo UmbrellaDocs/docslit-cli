@@ -226,7 +226,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     ]);
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} (offline)${draftNote}${skippedNote}`);
   } else {
-    await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile({ minify }));
+    await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile({ minify, config }));
     await fs.writeFile(path.join(outDir, 'docslit.js'), buildComponentsFile('static', { minify }));
     await fs.writeFile(path.join(outDir, 'docslit-app.js'), buildAppFile('static', { minify }));
 
@@ -332,7 +332,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     built++;
   }
 
-  const sharedCss = offline ? null : buildStylesFile({ minify });
+  const sharedCss = offline ? null : buildStylesFile({ minify, config });
   const sharedJs = offline ? null : buildComponentsFile('static', { minify });
   const sharedApp = offline ? null : buildAppFile('static', { minify });
   const vendorData = offline ? await _loadVendorData() : null;

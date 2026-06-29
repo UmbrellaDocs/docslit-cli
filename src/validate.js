@@ -10,6 +10,7 @@ import rehypeRaw from 'rehype-raw';
 import { visit } from 'unist-util-visit';
 import { COMPONENT_MAP, pascalToWcKebab, rewriteMdxTags } from './mdx-bridge.js';
 import { VAR_NAME_RE } from './preprocess.js';
+import { getSiteTheme, isValidThemePreset, listThemePresets } from './themes.js';
 
 // ─── Built-in component registry ──────────────────────────────────────────────
 // Mirrors the components actually registered by buildComponents() — keep this
@@ -359,6 +360,34 @@ async function checkConfig(dir) {
         issues.push(issue('error', 'docslit.json', null,
           `Version "${entry.version}" announcement.message must be a string`));
       }
+    }
+  }
+
+  if (config.theme != null) {
+    const { preset, colors } = getSiteTheme(config);
+    if (!isValidThemePreset(preset)) {
+      const names = listThemePresets().map(t => t.id).join(', ');
+      issues.push(issue('error', 'docslit.json', null,
+        `Unknown theme preset "${preset}". Available presets: ${names}`));
+    }
+    if (typeof config.theme === 'object' && !Array.isArray(config.theme) && config.theme.colors != null) {
+      if (typeof colors !== 'object' || Array.isArray(colors)) {
+        issues.push(issue('error', 'docslit.json', null,
+          '"theme.colors" must be an object of CSS color overrides'));
+      } else {
+        for (const [key, value] of Object.entries(colors)) {
+          if (typeof value !== 'string') {
+            issues.push(issue('error', 'docslit.json', null,
+              `theme.colors.${key} must be a string`));
+          }
+        }
+      }
+    } else if (typeof config.theme === 'object' && !Array.isArray(config.theme) && config.theme.preset != null && typeof config.theme.preset !== 'string') {
+      issues.push(issue('error', 'docslit.json', null,
+        '"theme.preset" must be a string'));
+    } else if (typeof config.theme !== 'string' && (typeof config.theme !== 'object' || Array.isArray(config.theme))) {
+      issues.push(issue('error', 'docslit.json', null,
+        '"theme" must be a preset name string or an object with "preset" and optional "colors"'));
     }
   }
 

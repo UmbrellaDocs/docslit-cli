@@ -11,6 +11,7 @@ import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVers
 import { resolvePdfOptions, getChapterManifest, buildPdfManifest, slugifyChapterId } from './pdf.js';
 import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile, buildOfflineAppFile, buildOfflineThemeInitFile, isEsbuildAvailable } from './template.js';
 import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs, schemaToFields, endpointToMarkdown, buildApiPageMarkdown } from './openapi.js';
+import { getSiteTheme, buildThemeCss, buildHtmlTag, listThemePresets, isValidThemePreset } from './themes.js';
 import { buildComponents } from './components/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -731,6 +732,66 @@ describe('getAnnouncement', () => {
   it('hashAnnouncementMessage is stable for the same message', () => {
     expect(hashAnnouncementMessage('Hello')).toBe(hashAnnouncementMessage('Hello'));
     expect(hashAnnouncementMessage('Hello')).not.toBe(hashAnnouncementMessage('Hello!'));
+  });
+});
+
+describe('site themes', () => {
+  it('defaults to teal preset', () => {
+    expect(getSiteTheme({ name: 'Test', sidebar: [] })).toEqual({ preset: 'teal', colors: {} });
+  });
+
+  it('accepts theme as a preset string', () => {
+    expect(getSiteTheme({ theme: 'ocean' }).preset).toBe('ocean');
+  });
+
+  it('accepts theme object with preset and colors', () => {
+    const theme = getSiteTheme({ theme: { preset: 'violet', colors: { accent: '#7c3aed' } } });
+    expect(theme.preset).toBe('violet');
+    expect(theme.colors.accent).toBe('#7c3aed');
+  });
+
+  it('buildThemeCss includes ocean dark variables', () => {
+    const css = buildThemeCss({ preset: 'ocean', colors: {} });
+    expect(css).toContain('html[data-theme="ocean"]');
+    expect(css).toContain('--accent: #2563eb');
+    expect(css).toContain('html.light[data-theme="ocean"]');
+  });
+
+  it('buildThemeCss includes custom color overrides', () => {
+    const css = buildThemeCss({ preset: 'teal', colors: { accent: '#ff0000' } });
+    expect(css).toContain('html[data-theme="teal"]');
+    expect(css).toContain('--accent: #ff0000');
+  });
+
+  it('buildHtmlTag omits data-theme for default teal', () => {
+    expect(buildHtmlTag({ preset: 'teal', colors: {} })).toBe('<html lang="en">');
+  });
+
+  it('buildHtmlTag sets data-theme for non-default presets', () => {
+    expect(buildHtmlTag({ preset: 'ocean', colors: {} })).toBe('<html lang="en" data-theme="ocean">');
+  });
+
+  it('lists all built-in presets', () => {
+    const presets = listThemePresets().map(p => p.id);
+    expect(presets).toContain('teal');
+    expect(presets).toContain('ocean');
+    expect(presets).toContain('graphite');
+    expect(presets.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('renderShell applies data-theme attribute', () => {
+    const html = renderShell({
+      config: { name: 'Test', sidebar: [{ group: 'G', pages: ['intro'] }], theme: 'forest' },
+      mode: 'dev',
+      port: 3000,
+    });
+    expect(html).toContain('data-theme="forest"');
+    expect(html).toContain('html[data-theme="forest"]');
+  });
+
+  it('rejects unknown presets in validation', () => {
+    expect(isValidThemePreset('not-a-theme')).toBe(false);
+    expect(isValidThemePreset('ocean')).toBe(true);
   });
 });
 

@@ -3,6 +3,7 @@ import { buildComponents } from './components/index.js';
 import { findGroupForPage, toLabel } from './sidebar.js';
 import { getAnnouncement, hashAnnouncementMessage } from './config.js';
 import { renderMarkdown } from './unified.js';
+import { getSiteTheme, buildThemeCss, buildHtmlTag } from './themes.js';
 
 const require = createRequire(import.meta.url);
 
@@ -67,11 +68,13 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion, offline) : '';
   const importMap = buildImportMap(mode, vendorData);
   const announcementChrome = buildAnnouncementChrome({ config, versionConfig, currentVersion, offline });
+  const siteTheme = getSiteTheme(config);
+  const htmlTag = buildHtmlTag(siteTheme);
 
   if (offline) {
     const offlineStyles = minify
-      ? `<style>${_minifyCSS(buildStyles().replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
-      : buildStyles();
+      ? `<style>${_minifyCSS(buildStyles(siteTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
+      : buildStyles(siteTheme);
     const offlineComponents = minify ? _minifyJS(buildComponents()) : buildComponents();
     const offlineLoaderScript = buildOfflineLoader();
     const offlineApp = minify
@@ -79,7 +82,7 @@ export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', p
       : buildAppScript('static', offlineLoaderScript, '', true);
 
     return `<!DOCTYPE html>
-<html lang="en">
+${htmlTag}
 <head>
   <meta charset="UTF-8" />
   ${buildThemeInit()}
@@ -118,15 +121,15 @@ ${offlineApp}
   const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
 
   const stylesBlock = minify
-    ? `<style>${_minifyCSS(buildStyles().replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
-    : buildStyles();
+    ? `<style>${_minifyCSS(buildStyles(siteTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
+    : buildStyles(siteTheme);
   const componentsBlock = minify ? _minifyJS(buildComponents()) : buildComponents();
   const appBlock = minify
     ? _minifyJS(buildAppScript(mode, loaderScript, wsScript, false))
     : buildAppScript(mode, loaderScript, wsScript, false);
 
   return `<!DOCTYPE html>
-<html lang="en">
+${htmlTag}
 <head>
   <meta charset="UTF-8" />
   ${buildThemeInit()}
@@ -228,9 +231,11 @@ export function renderPage({ config, id, meta, html, draftPageIds = [], versionC
   }
 
   const announcementChrome = buildAnnouncementChrome({ config, versionConfig, currentVersion });
+  const siteTheme = getSiteTheme(config);
+  const htmlTag = buildHtmlTag(siteTheme);
 
   return `<!DOCTYPE html>
-<html lang="en">
+${htmlTag}
 <head>
   <meta charset="UTF-8" />
   ${buildThemeInit()}
@@ -264,8 +269,9 @@ ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)}
 </html>`;
 }
 
-export function buildStylesFile({ minify = false } = {}) {
-  const raw = buildStyles().replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
+export function buildStylesFile({ minify = false, config = null } = {}) {
+  const siteTheme = config ? getSiteTheme(config) : null;
+  const raw = buildStyles(siteTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
   return minify ? _minifyCSS(raw) : raw;
 }
 
@@ -308,7 +314,12 @@ function buildThemeInitCode() {
   return `(function(){
       var s=localStorage.getItem('docslit-theme')||'system';
       var h=document.documentElement;
-      function a(m){if(m==='light')h.className='light';else if(m==='dark')h.className='dark';else h.className=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
+      function a(m){
+        h.classList.remove('light','dark');
+        if(m==='light')h.classList.add('light');
+        else if(m==='dark')h.classList.add('dark');
+        else if(window.matchMedia('(prefers-color-scheme:dark)').matches)h.classList.add('dark');
+      }
       a(s);window.__themeMode=s;
       window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',function(){if((localStorage.getItem('docslit-theme')||'system')==='system')a('system');});
     })();`;
@@ -1887,9 +1898,10 @@ function toggleTheme() {
   window.__themeMode = next;
   localStorage.setItem('docslit-theme', next);
   const h = document.documentElement;
-  if (next === 'light') h.className = 'light';
-  else if (next === 'dark') h.className = 'dark';
-  else h.className = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+  h.classList.remove('light', 'dark');
+  if (next === 'light') h.classList.add('light');
+  else if (next === 'dark') h.classList.add('dark');
+  else if (window.matchMedia('(prefers-color-scheme:dark)').matches) h.classList.add('dark');
   _updateThemeBtn();
 }`;
 }
@@ -1993,7 +2005,8 @@ window.a11yReset = a11yReset;
 `;
 }
 
-function buildStyles() {
+function buildStyles(siteTheme = null) {
+  const themeCss = buildThemeCss(siteTheme ?? getSiteTheme(null));
   return `<style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2022,6 +2035,7 @@ html.light {
   --accent-dim: rgba(1,105,111,.08); --accent-dim2: rgba(1,105,111,.15);
   --sidebar-bg: #f5f5f5; --code-bg: #f6f8fa; --code-text: #24292f;
 }
+${themeCss}
 html {
   /* Reserve the scrollbar gutter at all times so SPA page swaps don't flash:
      during the brief moment loadPage() clears innerHTML, the page would
