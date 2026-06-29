@@ -8,6 +8,7 @@ import * as nodeFs from 'node:fs';
 import { parseDoc } from './markdown.js';
 import { rewriteMdxTags, pascalToWcKebab, COMPONENT_MAP } from './mdx-bridge.js';
 import { getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar, getChangedDocs } from './config.js';
+import { resolvePdfOptions, getChapterManifest, buildPdfManifest, slugifyChapterId } from './pdf.js';
 import { renderShell, renderPage, buildStylesFile, buildAppFile, buildComponentsFile, buildOfflineAppFile, buildOfflineThemeInitFile, isEsbuildAvailable } from './template.js';
 import { loadSpec, getEndpoints, getOperation, getWebhooks, getSecuritySchemes, getUndocumentedOps, resolveSpecRefs, schemaToFields, endpointToMarkdown, buildApiPageMarkdown } from './openapi.js';
 import { buildComponents } from './components/index.js';
@@ -41,6 +42,7 @@ describe('CLI — help & version', () => {
     expect(stdout).toContain('dev');
     expect(stdout).toContain('build');
     expect(stdout).toContain('validate');
+    expect(stdout).toContain('--pdf');
   });
 
   it('exits 0 and prints usage with -h', async () => {
@@ -479,6 +481,132 @@ describe('getAllPageIds', () => {
   it('handles groups with empty page arrays', () => {
     const config = { sidebar: [{ group: 'Empty', pages: [] }] };
     expect(getAllPageIds(config)).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pdf.js — chapter manifest & options
+// ─────────────────────────────────────────────────────────────────────────────
+describe('resolvePdfOptions', () => {
+  const config = { pdf: { enabled: false, outputDir: 'exports' } };
+
+  it('defaults to disabled', () => {
+    expect(resolvePdfOptions({}, {}).enabled).toBe(false);
+  });
+
+  it('enables via --pdf flag', () => {
+    expect(resolvePdfOptions(config, { pdf: true }).enabled).toBe(true);
+  });
+
+  it('enables via config', () => {
+    expect(resolvePdfOptions({ pdf: { enabled: true } }, {}).enabled).toBe(true);
+  });
+
+  it('--no-pdf overrides config and --pdf', () => {
+    expect(resolvePdfOptions({ pdf: { enabled: true } }, { pdf: true, noPdf: true }).enabled).toBe(false);
+  });
+
+  it('--pdf-dir overrides config outputDir', () => {
+    const opts = resolvePdfOptions(config, { pdf: true, pdfDir: 'manuals' });
+    expect(opts.outputDir).toBe('manuals');
+  });
+});
+
+describe('getChapterManifest', () => {
+  const pagesData = {
+    introduction: { meta: { title: 'Intro' }, html: '<p>Hi</p>' },
+    installation: { meta: { title: 'Install' }, html: '<p>Install</p>' },
+    'api/foo': { meta: { title: 'API' }, html: '<p>API</p>' },
+  };
+  const config = {
+    sidebar: [
+      { group: 'Getting Started', pages: ['introduction', { group: 'Setup', pages: ['installation'] }] },
+      { group: 'API', pages: ['api/foo'] },
+    ],
+  };
+  const baseOptions = resolvePdfOptions({}, { pdf: true });
+
+  it('groups pages by sidebar group in order', () => {
+    const { chapters, pageToChapter } = getChapterManifest(config, pagesData, baseOptions);
+    expect(chapters).toHaveLength(1);
+    expect(chapters[0].id).toBe('getting-started');
+    expect(chapters[0].pages).toEqual(['introduction', 'installation']);
+    expect(pageToChapter.introduction).toBe('getting-started');
+    expect(pageToChapter.installation).toBe('getting-started');
+  });
+
+  it('excludes api pages by default', () => {
+    const { chapters } = getChapterManifest(config, pagesData, baseOptions);
+    expect(chapters.find((c) => c.id === 'api')).toBeUndefined();
+  });
+
+  it('includes api pages when include.apiReference is true', () => {
+    const opts = { ...baseOptions, include: { ...baseOptions.include, apiReference: true } };
+    const { chapters } = getChapterManifest(config, pagesData, opts);
+    expect(chapters.some((c) => c.pages.includes('api/foo'))).toBe(true);
+  });
+
+  it('supports folder strategy', () => {
+    const opts = { ...baseOptions, strategy: 'folders' };
+    const data = {
+      'guides/a': { meta: {}, html: '' },
+      'guides/b': { meta: {}, html: '' },
+      intro: { meta: {}, html: '' },
+    };
+    const { chapters } = getChapterManifest({ sidebar: [] }, data, opts);
+    expect(chapters.find((c) => c.id === 'guides')?.pages).toEqual(['guides/a', 'guides/b']);
+    expect(chapters.find((c) => c.id === 'docs')?.pages).toEqual(['intro']);
+  });
+
+  it('supports manual strategy', () => {
+    const opts = {
+      ...baseOptions,
+      strategy: 'manual',
+      manual: [{ id: 'onboarding', title: 'Onboarding', pages: ['installation', 'introduction'] }],
+    };
+    const { chapters } = getChapterManifest(config, pagesData, opts);
+    expect(chapters).toEqual([{ id: 'onboarding', title: 'Onboarding', pages: ['installation', 'introduction'] }]);
+  });
+
+  it('slugifyChapterId produces stable ids', () => {
+    expect(slugifyChapterId('Getting Started')).toBe('getting-started');
+    expect(slugifyChapterId('API & SDK')).toBe('api-sdk');
+  });
+});
+
+describe('renderPage — PDF UI', () => {
+  const config = { name: 'Test Docs', sidebar: [{ group: 'Docs', pages: ['introduction'] }] };
+  const pdfManifest = buildPdfManifest({
+    options: resolvePdfOptions({}, { pdf: true }),
+    chapters: [{ id: 'docs', title: 'Docs', pages: ['introduction'] }],
+    pageToChapter: { introduction: 'docs' },
+    pagesData: { introduction: { meta: { title: 'Introduction' }, html: '<p>Body</p>' } },
+  });
+
+  it('includes pdf dropdown when pdfManifest is provided', () => {
+    const html = renderPage({
+      config,
+      id: 'introduction',
+      meta: { title: 'Introduction' },
+      html: '<h1>Introduction</h1><p>Body</p>',
+      pdfManifest,
+    });
+    expect(html).toContain('__DOCSLIT_PDF__');
+    expect(html).toContain('pdf-menu');
+    expect(html).toContain('Download this chapter as PDF');
+    expect(html).toContain('Download full documentation');
+  });
+
+  it('uses print button when pdfManifest is absent', () => {
+    const html = renderPage({
+      config,
+      id: 'introduction',
+      meta: { title: 'Introduction' },
+      html: '<h1>Introduction</h1><p>Body</p>',
+    });
+    expect(html).not.toContain('__DOCSLIT_PDF__');
+    expect(html).not.toContain('pdf-menu');
+    expect(html).toContain('Save as PDF');
   });
 });
 

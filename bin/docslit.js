@@ -45,6 +45,12 @@ const help = `
                           works by double-clicking the file (no server needed)
     --no-minify           (build only) Skip CSS/JS minification — useful when
                           inspecting the built output. Default is to minify.
+    --pdf                 (build only) Generate chapter, page, and manual PDFs
+                          (requires Playwright: npm install -D playwright)
+    --no-pdf              (build only) Skip PDF generation even if pdf.enabled
+                          is true in docslit.json
+    --pdf-dir <dir>       (build only) PDF output directory inside --out
+                          (default: pdf, or pdf.outputDir in docslit.json)
     --dry-run             (import only) Scan and report without writing files
     --strict              (validate only) Treat warnings as errors
 `;
@@ -70,8 +76,11 @@ if (command === 'init') {
   const out = getFlag(args, '--out') || 'dist';
   const offline = args.includes('--offline');
   const minify = !args.includes('--no-minify');
+  const pdf = args.includes('--pdf');
+  const noPdf = args.includes('--no-pdf');
+  const pdfDir = getFlag(args, '--pdf-dir');
   const { build } = await import('../src/build.js');
-  await build({ out, offline, minify });
+  await build({ out, offline, minify, pdf, noPdf, pdfDir });
 } else if (command === 'import') {
   const restArgs = args.slice(1);
   if (!restArgs[0] || restArgs[0].startsWith('--')) {

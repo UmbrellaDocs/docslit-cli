@@ -86,6 +86,7 @@ class WcView extends LitElement {
     button:focus-visible{outline:2px solid #01696f;outline-offset:-2px;border-radius:4px 4px 0 0}
     @media(max-width:640px){button{padding:8px 10px;font-size:12px;}}
     @media(prefers-reduced-motion:reduce){button{transition:none}}
+    @media print{.toolbar{display:none}}
   \`;
   constructor(){super();this._active=0;}
   _onKey(e,i,total){
@@ -108,8 +109,8 @@ customElements.define('wc-view',WcView);
 
 class WcViewPanel extends LitElement {
   static properties={label:{type:String}};
-  static styles=css\`:host{display:none}:host([active]){display:block}.inner{padding:0 24px}\`;
-  render(){return html\`<div class="inner"><slot></slot></div>\`;}
+  static styles=css\`:host{display:none}:host([active]){display:block}.inner{padding:0 24px}.print-label{display:none;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:#555;margin:0 0 8px;padding:4px 0;border-bottom:1px solid #ddd}@media print{:host{display:block !important;padding-top:4px;margin-bottom:12px}.print-label{display:block}}\`;
+  render(){return html\`<div class="print-label">\${this.label||''}</div><div class="inner"><slot></slot></div>\`;}
 }
 customElements.define('wc-view-panel',WcViewPanel);
 `;

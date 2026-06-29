@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { buildComponents } from './components/index.js';
+import { findGroupForPage, toLabel } from './sidebar.js';
 
 const require = createRequire(import.meta.url);
 
@@ -34,7 +35,7 @@ function _minifyCSS(code) {
   } catch { return code; }
 }
 
-export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null }) {
+export function renderShell({ config, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null }) {
   const siteTitle = config.name || 'DocsLit';
   const isHybrid = specData && (config.sidebar || []).length > 0;
 
@@ -140,6 +141,7 @@ ${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loadin
 
 ${versionScript}
 ${editUrlScript}
+${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script type="importmap">${importMap}</script>
 <script type="module">
 ${componentsBlock}
@@ -151,7 +153,7 @@ ${appBlock}
 </html>`;
 }
 
-export function renderPage({ config, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null }) {
+export function renderPage({ config, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null }) {
   const isHybridEarly = specData && (config.sidebar || []).length > 0;
   const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null);
   const siteTitle = config.name || 'DocsLit';
@@ -233,9 +235,10 @@ ${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-${buildMainLayoutHtml(docsSidebarHtml, siteTitle, html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id)), breadcrumbText, isApiPage, apiSidebarHtml)}
+${buildMainLayoutHtml(docsSidebarHtml, siteTitle, html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id, pdfManifest, assetPrefix)), breadcrumbText, isApiPage, apiSidebarHtml)}
 
 ${versionScript}
+${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
 <script type="importmap">${importMap}</script>
 <script type="module" src="${assetPrefix}docslit.js"></script>
@@ -272,7 +275,7 @@ export function buildOfflineAppFile({ minify = false } = {}) {
   return minify ? _minifyJS(raw) : raw;
 }
 
-function buildImportMap(mode, vendorData = null) {
+export function buildImportMap(mode, vendorData = null) {
   if (mode === 'dev') return `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","lit/directives/unsafe-html.js":"/vendor/lit-unsafe-html.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`;
   if (vendorData) {
     const imports = {};
@@ -964,13 +967,44 @@ function _setBreadcrumb(id, title) {
   var group = _groupFor(id);
   crumb.textContent = group ? group + ' \\u203A ' + title : title;
 }
+function _pdfAssetHref(file) {
+  var base = _docsBase();
+  if (!file) return base;
+  if (file.charAt(0) === '/') return file;
+  return base + file;
+}
+function _printPdfButton() {
+  return '<span class="meta-sep">|</span>' +
+    '<button class="meta-btn"' + (_OFFLINE ? '' : ' onclick="printPage()"') + ' title="Save page as PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Save as PDF</button>';
+}
+function _pdfDownloadButton(id) {
+  var m = window.__DOCSLIT_PDF__;
+  if (!m) return _printPdfButton();
+  var chapterId = m.pageToChapter && m.pageToChapter[id];
+  var chapter = null;
+  if (chapterId && m.chapters) {
+    for (var i = 0; i < m.chapters.length; i++) {
+      if (m.chapters[i].id === chapterId) { chapter = m.chapters[i]; break; }
+    }
+  }
+  var items = '<button type="button" class="pdf-menu-item" role="menuitem" onclick="printPage();closePdfMenu()">This page as PDF</button>';
+  if (chapter) {
+    items += '<a class="pdf-menu-item" role="menuitem" href="' + _escHtml(_pdfAssetHref(chapter.file)) + '" download>Download this chapter as PDF</a>';
+  }
+  if (m.fullManual) {
+    items += '<a class="pdf-menu-item" role="menuitem" href="' + _escHtml(_pdfAssetHref(m.fullManual.file)) + '" download>Download full documentation</a>';
+  }
+  return '<span class="meta-sep">|</span><div class="pdf-menu">' +
+    '<button type="button" class="meta-btn pdf-menu-btn" onclick="togglePdfMenu(event)" aria-haspopup="true" aria-expanded="false" title="Download PDF">' +
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Download PDF <span class="pdf-menu-chevron" aria-hidden="true">▾</span></button>' +
+    '<div class="pdf-menu-dropdown" role="menu" hidden>' + items + '</div></div>';
+}
 function _mdButtons(id) {
   return '<span class="meta-sep">|</span>' +
     '<button class="meta-btn"' + (_OFFLINE ? '' : ' onclick="copyMd()"') + ' title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button>' +
     '<span class="meta-sep">|</span>' +
     '<button class="meta-btn"' + (_OFFLINE ? '' : ' onclick="viewMd()"') + ' title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>' +
-    '<span class="meta-sep">|</span>' +
-    '<button class="meta-btn"' + (_OFFLINE ? '' : ' onclick="printPage()"') + ' title="Save page as PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Save as PDF</button>';
+    (window.__DOCSLIT_PDF__ ? _pdfDownloadButton(id) : _printPdfButton());
 }
 function _buildMetaBar(meta, id) {
   const parts = [];
@@ -1007,9 +1041,28 @@ function viewMd() {
 function printPage() {
   window.print();
 }
+function togglePdfMenu(e) {
+  e.stopPropagation();
+  var menu = e.currentTarget.closest('.pdf-menu');
+  if (!menu) return;
+  var dd = menu.querySelector('.pdf-menu-dropdown');
+  var btn = menu.querySelector('.pdf-menu-btn');
+  if (!dd) return;
+  var open = !dd.hidden;
+  document.querySelectorAll('.pdf-menu-dropdown').forEach(function(el) { el.hidden = true; });
+  document.querySelectorAll('.pdf-menu-btn').forEach(function(el) { el.setAttribute('aria-expanded', 'false'); });
+  if (!open) { dd.hidden = false; if (btn) btn.setAttribute('aria-expanded', 'true'); }
+}
+function closePdfMenu() {
+  document.querySelectorAll('.pdf-menu-dropdown').forEach(function(el) { el.hidden = true; });
+  document.querySelectorAll('.pdf-menu-btn').forEach(function(el) { el.setAttribute('aria-expanded', 'false'); });
+}
+document.addEventListener('click', function() { closePdfMenu(); });
 window.copyMd = copyMd;
 window.viewMd = viewMd;
 window.printPage = printPage;
+window.togglePdfMenu = togglePdfMenu;
+window.closePdfMenu = closePdfMenu;
 window._filterSidebar = _filterSidebar;
 window._filterKey = _filterKey;
 window._clearSidebarFilter = _clearSidebarFilter;
@@ -1017,17 +1070,39 @@ ${offline ? buildEventDelegation() : ''}`;
 }
 
 
-function mdButtons(id) {
-  return `<span class="meta-sep">|</span><button class="meta-btn" onclick="copyMd()" title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button><span class="meta-sep">|</span><button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button><span class="meta-sep">|</span><button class="meta-btn" onclick="printPage()" title="Save page as PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Save as PDF</button>`;
+const PDF_DOC_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
+
+function pdfAssetHref(assetPrefix, file) {
+  return `${assetPrefix}${file}`;
 }
 
-function injectPageMeta(meta, id) {
+function pdfButtons(id, pdfManifest, assetPrefix = '') {
+  if (!pdfManifest) {
+    return `<span class="meta-sep">|</span><button class="meta-btn" onclick="printPage()" title="Save page as PDF">${PDF_DOC_ICON} Save as PDF</button>`;
+  }
+  const chapterId = pdfManifest.pageToChapter?.[id];
+  const chapter = chapterId ? pdfManifest.chapters?.find((c) => c.id === chapterId) : null;
+  let items = '<button type="button" class="pdf-menu-item" role="menuitem" onclick="printPage();closePdfMenu()">This page as PDF</button>';
+  if (chapter) {
+    items += `<a class="pdf-menu-item" role="menuitem" href="${escHtml(pdfAssetHref(assetPrefix, chapter.file))}" download>Download this chapter as PDF</a>`;
+  }
+  if (pdfManifest.fullManual) {
+    items += `<a class="pdf-menu-item" role="menuitem" href="${escHtml(pdfAssetHref(assetPrefix, pdfManifest.fullManual.file))}" download>Download full documentation</a>`;
+  }
+  return `<span class="meta-sep">|</span><div class="pdf-menu"><button type="button" class="meta-btn pdf-menu-btn" onclick="togglePdfMenu(event)" aria-haspopup="true" aria-expanded="false" title="Download PDF">${PDF_DOC_ICON} Download PDF <span class="pdf-menu-chevron" aria-hidden="true">▾</span></button><div class="pdf-menu-dropdown" role="menu" hidden>${items}</div></div>`;
+}
+
+function mdButtons(id, pdfManifest = null, assetPrefix = '') {
+  return `<span class="meta-sep">|</span><button class="meta-btn" onclick="copyMd()" title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button><span class="meta-sep">|</span><button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>${pdfButtons(id, pdfManifest, assetPrefix)}`;
+}
+
+function injectPageMeta(meta, id, pdfManifest = null, assetPrefix = '') {
   const parts = [];
   if (meta.tag) parts.push(`<span>${escHtml(meta.tag)}</span>`);
   if (meta.component) parts.push(`<span>•</span><span>${escHtml(meta.component)}</span>`);
   if (meta.readtime) parts.push(`<span>•</span><span>${escHtml(meta.readtime)}</span>`);
   if (meta.updated) parts.push(`<span>•</span><span>Updated ${escHtml(meta.updated)}</span>`);
-  parts.push(mdButtons(id));
+  parts.push(mdButtons(id, pdfManifest, assetPrefix));
   return `<div class="page-meta">${parts.join('')}</div>`;
 }
 
@@ -1163,24 +1238,6 @@ function buildVersionSelector(versionConfig, currentVersion, offline = false) {
   return `<select class="version-select" id="version-select"${changeHandler} aria-label="Documentation version">${options}</select>`;
 }
 
-function findGroupForPage(sidebar, id) {
-  for (const g of sidebar) {
-    if (containsPage(g.pages || [], id)) return g.group || '';
-  }
-  return '';
-}
-function containsPage(pages, id) {
-  for (const item of pages) {
-    if (typeof item === 'string' && item === id) return true;
-    if (typeof item === 'object' && item.id && item.id === id) return true;
-    if (typeof item === 'object' && item.pages && containsPage(item.pages, id)) return true;
-  }
-  return false;
-}
-function toLabel(id) {
-  const name = id.includes('/') ? id.split('/').pop() : id;
-  return name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -2216,6 +2273,28 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .meta-btn:hover { color: var(--accent-light); }
 .meta-btn svg { flex-shrink: 0; }
 
+/* PDF DOWNLOAD MENU */
+.pdf-menu { position: relative; display: inline-flex; }
+.pdf-menu-btn { gap: 4px; }
+.pdf-menu-chevron { font-size: 10px; opacity: 0.7; margin-left: 2px; }
+.pdf-menu-dropdown {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 200;
+  min-width: 220px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.pdf-menu-dropdown[hidden] { display: none !important; }
+.pdf-menu-item {
+  display: block; width: 100%; text-align: left;
+  padding: 8px 12px; border: none; border-radius: 6px;
+  font-family: var(--font-sans); font-size: 13px; font-weight: 500;
+  color: var(--text2); background: none; cursor: pointer;
+  text-decoration: none; box-sizing: border-box;
+}
+.pdf-menu-item:hover { background: var(--surface2); color: var(--text); }
+.pdf-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media print { .pdf-menu { display: none !important; } }
+
 /* EDIT THIS PAGE */
 .page-edit { margin: 48px 0 0; }
 .page-edit a { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text3); text-decoration: none; transition: color .15s; }
@@ -2548,7 +2627,7 @@ html.a11y-underline .docs-content a { text-decoration: underline !important; tex
   body { background: #fff !important; color: #000 !important; font-size: 12pt; }
   .docs-sidebar, .docs-toc, .docs-examples, .docs-nav-top, .docs-topbar,
   .nav, .page-meta, .page-nav, .page-edit, .search-overlay, .skip-link, .sidebar-toggle,
-  .nav-menu-btn, .feedback-widget { display: none !important; }
+  .nav-menu-btn, .feedback-widget, .pdf-menu { display: none !important; }
   .docs-layout { display: block !important; }
   .docs-main { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
   .docs-content { padding: 0 !important; max-width: 100% !important; }
