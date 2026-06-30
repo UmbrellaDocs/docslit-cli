@@ -1020,8 +1020,10 @@ describe('template.js — esbuild lazy load', () => {
     expect(html).toContain('function loadPage');
   });
 
-  it('isEsbuildAvailable is true when esbuild is installed', () => {
-    expect(isEsbuildAvailable()).toBe(true);
+  it('isEsbuildAvailable reflects whether esbuild is installed', () => {
+    let esbuildInstalled = true;
+    try { require('esbuild'); } catch { esbuildInstalled = false; }
+    expect(isEsbuildAvailable()).toBe(esbuildInstalled);
   });
 
   it('minify helpers fall back to source when esbuild is unavailable', async () => {
