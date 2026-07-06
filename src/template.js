@@ -354,7 +354,11 @@ function buildAnnouncementChrome({ config, versionConfig, currentVersion, offlin
   }
 
   const hash = hashAnnouncementMessage(announcement.message);
-  const messageHtml = renderMarkdown(announcement.message).trim();
+  const messageHtml = renderMarkdown(
+    announcement.message,
+    [],
+    currentVersion ? { versionSlug: currentVersion } : {},
+  ).trim();
   const type = escHtml(announcement.type || 'neutral');
   const dismissible = announcement.dismissible !== false;
   const dismissBtn = dismissible

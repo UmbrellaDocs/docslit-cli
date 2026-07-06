@@ -9,25 +9,32 @@ import rehypeDocslitWcPreserve from './plugins/rehype-docslit-wc-preserve.js';
 import rehypeDocslitWcContent from './plugins/rehype-docslit-wc-content.js';
 import rehypeDocslitCode from './plugins/rehype-docslit-code.js';
 import rehypeDocslitVars from './plugins/rehype-docslit-vars.js';
+import rehypeDocslitLinkFix from './plugins/rehype-docslit-link-fix.js';
 
 import { rewriteMdxTags } from './mdx-bridge.js';
 
-let processor;
-
-function getProcessor() {
-  if (!processor) {
-    processor = unified()
-      .use(remarkParse)
-      .use(remarkGfm)
-      .use(remarkRehype, { allowDangerousHtml: true })
-      .use(rehypeRaw)
-      .use(rehypeDocslitWcPreserve)
-      .use(rehypeDocslitWcContent)
-      .use(rehypeDocslitCode)
-      .use(rehypeDocslitVars)
-      .use(rehypeStringify, { allowDangerousHtml: true });
-  }
-  return processor;
+/**
+ * Build a fresh unified pipeline. Each call returns an independent processor
+ * because unified freezes processors after they are used as part of `.use()`
+ * chains — reusing the same instance across renders causes "Cannot call `data`
+ * on a frozen processor" errors.
+ */
+function getProcessor(meta = {}) {
+  return unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeRaw)
+    .use(rehypeDocslitWcPreserve)
+    .use(rehypeDocslitWcContent)
+    .use(rehypeDocslitCode)
+    .use(rehypeDocslitVars)
+    // Rewrite relative links (e.g. `getting-started/quickstart`) into site-root-
+    // relative URLs using the version slug from gray-matter metadata. Runs just
+    // before stringify so anchor-only hrefs, external URLs, and already-absolute
+    // paths are left alone.
+    .use(rehypeDocslitLinkFix, meta)
+    .use(rehypeStringify, { allowDangerousHtml: true });
 }
 
 function escapeHtml(s = '') {
@@ -37,7 +44,16 @@ function escapeHtml(s = '') {
     .replace(/>/g, '&gt;');
 }
 
-export function renderMarkdown(src, passBlocks = []) {
+/**
+ * Render Markdown → HTML using the unified pipeline.
+ *
+ * @param {string} src - Raw Markdown string.
+ * @param {Array<{tag: string, html: string}>} [passBlocks=[]] - Extra block-level
+ *   content injected during preprocessing (e.g. TOC, component templates).
+ * @param {object} [meta={}] - Optional metadata for plugins — `versionSlug` and
+ *   `pagePath` are consumed by `rehypeDocslitLinkFix`.
+ */
+export function renderMarkdown(src, passBlocks = [], meta = {}) {
   // Shield fenced code blocks from MDX tag rewriting (the original pipeline
   // extracted them as CODEBLOCK placeholders before rewriteMdxTags ran).
   const fences = [];
@@ -62,7 +78,7 @@ export function renderMarkdown(src, passBlocks = []) {
   // Restore fences before unified parsing (remark-parse handles them natively)
   shielded = shielded.replace(/\x00FENCE(\d+)\x00/g, (_, i) => fences[Number(i)]);
 
-  const proc = getProcessor();
+  const proc = getProcessor(meta);
   const file = proc.processSync(shielded);
   let html = String(file);
 
