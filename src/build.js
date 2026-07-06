@@ -9,6 +9,14 @@ import { resolveSiteTheme } from './themes.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 import { initHighlighter } from './highlighter.js';
 import { resolvePdfOptions, buildPdfManifest, getChapterManifest, generatePdfs } from './pdf.js';
+import {
+  buildAgentDirectiveMarkdown,
+  buildMarkdownPattern,
+  getLlmsTxtUrl,
+  getMarkdownUrl,
+  getVersionPathPrefix,
+  prependAgentDirectiveToMarkdown,
+} from './agent-docs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +31,12 @@ function getRuntimeAttributes(config, version = null, branch = null) {
   attrs.DOCSLIT_VERSION = version || 'unversioned';
   attrs.DOCSLIT_BRANCH = branch || 'working-tree';
   return attrs;
+}
+
+async function writePageMarkdown(destMd, content, config, id, version = null) {
+  await fs.ensureDir(path.dirname(destMd));
+  const markdown = prependAgentDirectiveToMarkdown(content, buildAgentDirectiveMarkdown(config, id, version));
+  await fs.writeFile(destMd, markdown);
 }
 
 function _formatBytes(b) {
@@ -203,12 +217,10 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     pagesData[id] = { meta, html, isApiPage };
     if (!offline) {
       const destMd = path.join(outDir, `${id}.md`);
-      await fs.ensureDir(path.dirname(destMd));
-      if (isApiPage && specData) {
-        await fs.writeFile(destMd, buildApiPageMarkdown(preprocessedMarkdown, specData));
-      } else {
-        await fs.writeFile(destMd, preprocessedMarkdown);
-      }
+      const mdContent = isApiPage && specData
+        ? buildApiPageMarkdown(preprocessedMarkdown, specData)
+        : preprocessedMarkdown;
+      await writePageMarkdown(destMd, mdContent, config, id);
     }
     built++;
   }
@@ -253,7 +265,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
   if (!offline) {
     await generateRobotsTxt({ config, outDir });
     await generateSitemap({ config, pagesData, outDir });
-    await generateMarkdownMiddleware({ pageIds: Object.keys(pagesData), outDir });
+    await generateMarkdownMiddleware({ pageIds: Object.keys(pagesData), outDir, cwd });
     await generateAgentJson({ config, pageIds: Object.keys(pagesData), outDir });
     await generateMcpServer({ config, pagesData, outDir });
   }
@@ -324,12 +336,10 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     defaultPagesData[id] = { meta, html, isApiPage };
     if (!offline) {
       const destMd = path.join(defaultDir, `${id}.md`);
-      await fs.ensureDir(path.dirname(destMd));
-      if (isApiPage && specData) {
-        await fs.writeFile(destMd, buildApiPageMarkdown(preprocessedMarkdown, specData));
-      } else {
-        await fs.writeFile(destMd, preprocessedMarkdown);
-      }
+      const mdContent = isApiPage && specData
+        ? buildApiPageMarkdown(preprocessedMarkdown, specData)
+        : preprocessedMarkdown;
+      await writePageMarkdown(destMd, mdContent, config, id, defaultVersion);
     }
     built++;
   }
@@ -372,7 +382,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     if (publishedIds.length) {
       await fs.copyFile(path.join(defaultDir, `${publishedIds[0]}.html`), path.join(defaultDir, 'index.html'));
     }
-    await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir });
+    await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir, version: defaultVersion });
     if (pdfOptions.enabled) {
       await generatePdfs({ outDir: defaultDir, config, pagesData: defaultPagesData, pdfOptions });
     }
@@ -423,9 +433,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
         if (specData) html = resolveSpecRefs(html, specData);
         versionPagesData[id] = { meta, html };
         if (!offline) {
-          const destMd = path.join(versionDir, 'docs', `${id}.md`);
-          await fs.ensureDir(path.dirname(destMd));
-          await fs.writeFile(destMd, preprocessedMarkdown);
+          const destMd = path.join(versionDir, `${id}.md`);
+          await writePageMarkdown(destMd, preprocessedMarkdown, config, id, entry.version);
         }
         manifest[id] = entry.version;
         vBuilt++;
@@ -476,7 +485,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
 
     await fs.writeFile(path.join(versionDir, '_manifest.json'), JSON.stringify(manifest, null, 2));
     if (!offline) {
-      await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir });
+      await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir, version: entry.version });
     }
 
     console.log(`  ${pc.green('✓')} ${entry.version}: ${vBuilt} changed page${vBuilt !== 1 ? 's' : ''} built, ${Object.keys(manifest).length - vBuilt} shared from ${defaultVersion}`);
@@ -495,10 +504,11 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     for (const id of defaultPageIds) {
       if (defaultPagesData[id]) allPagesData[id] = defaultPagesData[id];
     }
+    await generateRootLlmsIndex({ config, versionConfig, outDir });
     await generateRobotsTxt({ config, outDir, versionConfig });
     await generateSitemap({ config, pagesData: allPagesData, outDir, versionConfig, defaultVersion });
     const allPageIds = Object.keys(allPagesData);
-    await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, versionConfig });
+    await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, cwd, versionConfig });
     await generateAgentJson({ config, pageIds: allPageIds, outDir, versionConfig });
     await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig });
   }
@@ -558,16 +568,15 @@ function stripFrontmatter(src) {
   return m ? m[1].trim() : src.trim();
 }
 
-async function generateLlmsTxt({ config, pagesData, outDir }) {
+async function generateLlmsTxt({ config, pagesData, outDir, version = null }) {
   const siteTitle = config.name || 'Documentation';
   const siteDesc = config.description || '';
-  const baseUrl = (config.url || '').replace(/\/$/, '');
+  const mdPattern = buildMarkdownPattern(config, version);
 
   // ── llms.txt ──
   const lines = [`# ${siteTitle}`];
   if (siteDesc) lines.push(`\n> ${siteDesc}`);
-  const mdBase = baseUrl ? `${baseUrl}/docs` : 'docs';
-  lines.push(`\n> Raw Markdown for each page is available at ${mdBase}/{slug}.md`);
+  lines.push(`\n> Raw Markdown for each page is available at ${mdPattern}`);
   lines.push('');
 
   function collectLlmsPages(pages) {
@@ -589,7 +598,7 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
       const { meta } = pagesData[id];
       const title = meta.title || toLabel(id);
       const desc = meta.description || meta.desc || '';
-      const mdUrl = baseUrl ? `${baseUrl}/${id}.md` : `${id}.md`;
+      const mdUrl = getMarkdownUrl(config, id, version);
       lines.push(desc ? `- [${title}](${mdUrl}): ${desc}` : `- [${title}](${mdUrl})`);
     }
     lines.push('');
@@ -640,6 +649,26 @@ async function generateLlmsTxt({ config, pagesData, outDir }) {
 
   const count = Object.keys(pagesData).length;
   console.log(`  ${pc.green('✓')} Generated llms.txt + llms-full.txt + search-index.json (${count} page${count !== 1 ? 's' : ''} indexed)`);
+}
+
+async function generateRootLlmsIndex({ config, versionConfig, outDir }) {
+  const siteTitle = config.name || 'Documentation';
+  const siteDesc = config.description || '';
+  const lines = [`# ${siteTitle}`];
+  if (siteDesc) lines.push(`\n> ${siteDesc}`);
+  lines.push('\n> Version-specific documentation indexes are listed below. Each links to an llms.txt with page-level Markdown URLs.');
+  lines.push('\n## Versions');
+  lines.push('');
+  for (const entry of versionConfig.list) {
+    const label = entry.version === versionConfig.default
+      ? `${entry.version} (default)`
+      : entry.version;
+    const llmsUrl = getLlmsTxtUrl(config, entry.version);
+    lines.push(`- [${label}](${llmsUrl}): Documentation for version ${entry.version}`);
+  }
+  lines.push('');
+  await fs.writeFile(path.join(outDir, 'llms.txt'), lines.join('\n'));
+  console.log(`  ${pc.green('✓')} Generated root llms.txt (version index)`);
 }
 
 async function generateRobotsTxt({ config, outDir, versionConfig = null }) {
@@ -731,7 +760,7 @@ function escXml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
-async function generateMarkdownMiddleware({ pageIds, outDir, versionConfig = null }) {
+async function generateMarkdownMiddleware({ pageIds, outDir, cwd, versionConfig = null }) {
   const mdPaths = new Set();
   const versions = versionConfig ? versionConfig.list.map(v => v.version) : [];
 
@@ -786,32 +815,52 @@ export function onRequest(context) {
 `;
 
   const vercelConfig = {
+    headers: [
+      {
+        source: '/(.*)\\.md',
+        headers: [{ key: 'Content-Type', value: 'text/markdown; charset=utf-8' }],
+      },
+    ],
     rewrites: [
       {
         source: '/:path*',
-        has: [{ type: 'header', key: 'accept', value: '.*text/markdown.*' }],
+        has: [{ type: 'header', key: 'accept', value: '(?i).*text/markdown.*' }],
         destination: '/:path*.md',
       },
     ],
   };
 
+  const headersFile = '/*.md\n  Content-Type: text/markdown; charset=utf-8\n';
+
   await Promise.all([
     fs.writeFile(path.join(outDir, '_middleware.js'), middleware),
+    fs.ensureDir(path.join(outDir, 'functions')).then(() =>
+      fs.writeFile(path.join(outDir, 'functions', '_middleware.js'), middleware)),
+    fs.ensureDir(path.join(cwd, 'functions')).then(() =>
+      fs.writeFile(path.join(cwd, 'functions', '_middleware.js'), middleware)),
+    fs.writeFile(path.join(outDir, '_headers'), headersFile),
     fs.writeFile(path.join(outDir, 'vercel.json'), JSON.stringify(vercelConfig, null, 2) + '\n'),
   ]);
-  console.log(`  ${pc.green('✓')} Generated _middleware.js + vercel.json (content negotiation for ${mdPaths.size} pages)`);
+  console.log(`  ${pc.green('✓')} Generated functions/_middleware.js + _headers + vercel.json (content negotiation for ${mdPaths.size} pages)`);
 }
 
 async function generateAgentJson({ config, pageIds, outDir, versionConfig = null }) {
   const baseUrl = (config.url || '').replace(/\/$/, '');
+  const defaultVersion = versionConfig?.default || null;
+  const versionPrefix = getVersionPathPrefix(defaultVersion);
+  const llmsFullPath = `${versionPrefix}/llms-full.txt`.replace(/^\/\//, '/');
+  const searchIndexPath = `${versionPrefix}/search-index.json`.replace(/^\/\//, '/');
   const agent = {
     name: config.name || 'Documentation',
     description: config.description || '',
+    spec: 'https://agentdocsspec.com/spec/',
     docs: {
-      llms_txt: baseUrl ? `${baseUrl}/llms.txt` : '/llms.txt',
-      llms_full_txt: baseUrl ? `${baseUrl}/llms-full.txt` : '/llms-full.txt',
-      search_index: baseUrl ? `${baseUrl}/search-index.json` : '/search-index.json',
-      markdown_pattern: baseUrl ? `${baseUrl}/{slug}.md` : '/{slug}.md',
+      llms_txt: getLlmsTxtUrl(config, versionConfig ? null : defaultVersion),
+      llms_full_txt: baseUrl ? `${baseUrl}${llmsFullPath}` : llmsFullPath,
+      search_index: baseUrl ? `${baseUrl}${searchIndexPath}` : searchIndexPath,
+      markdown_pattern: versionConfig
+        ? (baseUrl ? `${baseUrl}/{version}/{slug}.md` : '/{version}/{slug}.md')
+        : buildMarkdownPattern(config),
     },
     content_negotiation: {
       accept: 'text/markdown',
@@ -819,13 +868,14 @@ async function generateAgentJson({ config, pageIds, outDir, versionConfig = null
     },
     pages: pageIds.map(id => ({
       slug: id,
-      markdown: baseUrl ? `${baseUrl}/${id}.md` : `/${id}.md`,
+      markdown: getMarkdownUrl(config, id, defaultVersion),
     })),
   };
 
   if (versionConfig) {
     agent.versions = versionConfig.list.map(v => v.version);
     agent.default_version = versionConfig.default;
+    agent.docs.llms_txt = getLlmsTxtUrl(config);
   }
 
   const wellKnown = path.join(outDir, '.well-known');

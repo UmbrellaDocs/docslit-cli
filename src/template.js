@@ -4,6 +4,7 @@ import { findGroupForPage, toLabel } from './sidebar.js';
 import { getAnnouncement, hashAnnouncementMessage } from './config.js';
 import { renderMarkdown } from './unified.js';
 import { resolveSiteThemeSync, buildThemeCss, buildHtmlTag } from './themes.js';
+import { buildAgentDirectiveHtml } from './agent-docs.js';
 
 const require = createRequire(import.meta.url);
 
@@ -233,6 +234,8 @@ export function renderPage({ config, siteTheme = null, id, meta, html, draftPage
   const announcementChrome = buildAnnouncementChrome({ config, versionConfig, currentVersion });
   const resolvedTheme = siteTheme ?? resolveSiteThemeSync(config);
   const htmlTag = buildHtmlTag(resolvedTheme);
+  const agentDirective = buildAgentDirectiveHtml(config, currentVersion);
+  const pageContent = html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id, pdfManifest, assetPrefix));
 
   return `<!DOCTYPE html>
 ${htmlTag}
@@ -250,12 +253,13 @@ ${htmlTag}
   <link rel="stylesheet" href="${assetPrefix}docslit.css">
 </head>
 <body class="${apiClass.trim()}">
+${agentDirective}
 ${announcementChrome.html}
 ${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-${buildMainLayoutHtml(docsSidebarHtml, siteTitle, html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id, pdfManifest, assetPrefix)), breadcrumbText, isApiPage, apiSidebarHtml)}
+${buildMainLayoutHtml(docsSidebarHtml, siteTitle, pageContent, breadcrumbText, isApiPage, apiSidebarHtml)}
 
 ${versionScript}
 ${editUrlScript}
