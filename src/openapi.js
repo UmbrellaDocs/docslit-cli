@@ -351,7 +351,13 @@ export function resolveSpecRefs(html, specData) {
         examplePanelHtml = `\n<wc-api-examples ref="${ref}" method="${op.method}" url="${escapeAttr(op.path)}" data="${escapeAttr(JSON.stringify(exData))}"></wc-api-examples>`;
       }
 
-      return `<wc-endpoint ${attrs.join(' ')}>${body}\n</wc-endpoint>${examplePanelHtml}`;
+      let playgroundHtml = '';
+      const playgroundParams = [...op.parameters, ...op.bodyFields.map(f => ({ ...f, in: 'body' }))];
+      const paramsJson = playgroundParams.length ? escapeAttr(JSON.stringify(playgroundParams.map(p => ({ name: p.name, in: p.in, type: p.type || 'string', required: !!p.required })))) : '';
+      const authAttr = op.security ? ` auth="${escapeAttr(JSON.stringify(op.security))}"` : '';
+      playgroundHtml = `\n<wc-playground method="${op.method}" url="${escapeAttr(op.path)}"${paramsJson ? ` params="${paramsJson}"` : ''}${authAttr}></wc-playground>`;
+
+      return `<wc-endpoint ${attrs.join(' ')}>${body}\n</wc-endpoint>${examplePanelHtml}${playgroundHtml}`;
     }
   );
 }

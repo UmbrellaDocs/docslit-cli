@@ -1,6 +1,6 @@
 /**
- * Bundles Lit 3.x from node_modules into a single self-contained ESM file
- * at src/vendor/lit-bundle.js using esbuild.
+ * Bundles Lit 3.x and FlexSearch from node_modules into self-contained ESM
+ * files under src/vendor/ using esbuild.
  *
  * Run:  npm run vendor
  */
@@ -12,11 +12,10 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VENDOR_DIR = path.resolve(__dirname, '../src/vendor');
+const ROOT = path.resolve(__dirname, '..');
 
 await fs.ensureDir(VENDOR_DIR);
 
-// Bundle everything Lit exposes into one ESM file.
-// Each entry point is a named export re-exported from the bundle.
 const ENTRIES = [
   { entry: 'lit',                          out: 'lit.js' },
   { entry: 'lit/decorators.js',            out: 'lit-decorators.js' },
@@ -24,17 +23,23 @@ const ENTRIES = [
   { entry: '@lit/reactive-element',        out: 'reactive-element.js' },
   { entry: 'lit-html',                     out: 'lit-html.js' },
   { entry: 'lit-element/lit-element.js',   out: 'lit-element.js' },
+  {
+    entry: 'flexsearch/dist/flexsearch.bundle.module.min.js',
+    out: 'flexsearch.js',
+    stdin: `export { default } from ${JSON.stringify('flexsearch/dist/flexsearch.bundle.module.min.js')};`,
+  },
 ];
 
 let ok = 0;
-for (const { entry, out } of ENTRIES) {
+for (const item of ENTRIES) {
+  const { out } = item;
   const destPath = path.join(VENDOR_DIR, out);
   process.stdout.write(`  Bundling ${out}… `);
   try {
     const result = await esbuild.build({
       stdin: {
-        contents: `export * from ${JSON.stringify(entry)};`,
-        resolveDir: path.resolve(__dirname, '..'),
+        contents: item.stdin || `export * from ${JSON.stringify(item.entry)};`,
+        resolveDir: ROOT,
       },
       bundle: true,
       format: 'esm',
@@ -54,4 +59,3 @@ for (const { entry, out } of ENTRIES) {
 
 console.log(`\n  ${ok}/${ENTRIES.length} files saved to src/vendor/\n`);
 if (ok < ENTRIES.length) process.exit(1);
-

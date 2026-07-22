@@ -133,7 +133,7 @@ export async function openapiScaffold(args) {
       frontmatter.push('layout: api');
       frontmatter.push('---');
 
-      const content = `${frontmatter.join('\n')}\n\n# ${title}\n\n<wc-endpoint ref="${opId}">\n\n</wc-endpoint>\n`;
+      const content = `${frontmatter.join('\n')}\n\n# ${title}\n\n<wc-endpoint ref="${opId}">\n\n</wc-endpoint>\n\n<wc-playground method="${ep.method}" url="${ep.path}"></wc-playground>\n`;
 
       await fs.writeFile(filePath, content);
       console.log(`  ${pc.green('✓')} Created api/${slug}.md — ${ep.method} ${ep.path}`);

@@ -4,6 +4,32 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
+## 0.1.11
+
+### Breaking / licensing
+
+- **Relicensed to Apache-2.0** — the CLI is no longer AGPL-3.0. DocsLit Cloud remains proprietary.
+- **Node engines lowered to `>=20.19.0`** — aligns with common CI images and `@redocly/openapi-core`.
+- **FlexSearch vendored** — search no longer loads from `esm.sh` at runtime.
+
+### What's new
+
+- Site customization: `navbar`, `footer`, `head`, `css`, `analytics`, `favicon` in `docslit.json`
+- `basePath` for GitHub Pages and subpath deploys
+- Site-level `redirects` plus frontmatter `redirect` stubs (`_redirects`, `vercel.json`)
+- Interactive API playground (`wc-playground`)
+- Changelog/blog layouts with RSS/Atom feeds
+- Image lazy-load, lightbox, dark variants, CLS width/height
+- Build-time OG/Twitter card images
+- Section-level search with build-time heading IDs
+- Sitemap `lastmod` from git history
+- i18n via `docs.fr/`-style locale directories
+- `docslit new`, `docslit deploy` recipes, `validate --external` / `--format github`
+- `docslit.config.js` hooks (`transformPage`, `onBuildEnd`)
+- Persistent Shiki highlight cache across runs
+
+---
+
 ## 0.1.8
 
 ### What's new

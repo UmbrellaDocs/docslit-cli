@@ -15,14 +15,19 @@ const help = `
 
   Usage:
     docslit init              Scaffold a new docs project
+    docslit new <page-id>     Create a new page and add to sidebar
     docslit dev               Start the local dev server
     docslit build             Build a static site to ./dist
+    docslit deploy            Write hosting recipe files (GitHub Pages,
+                              Netlify, Cloudflare)
     docslit import <dir>      Migrate a Mintlify (or Fern/GitBook) project
                               to DocsLit — converts MDX components, generates
                               docslit.json, and prints a migration report.
     docslit validate [dir]    Check a project for broken links, missing assets,
                               frontmatter errors, and unknown components.
                               Exits 1 if any errors are found.
+                              --external  Check external http(s) links
+                              --format github  Print GitHub Actions annotations
     docslit openapi scaffold  Generate docs pages from an OpenAPI spec.
                               Usage: docslit openapi scaffold <spec.yaml>
                               [--overlay <overlay.yaml>] [--new-only]
@@ -56,6 +61,8 @@ const help = `
                           (default: pdf, or pdf.outputDir in docslit.json)
     --dry-run             (import only) Scan and report without writing files
     --strict              (validate only) Treat warnings as errors
+    --external            (validate only) Check external http(s) links
+    --format <fmt>        (validate only) Output format: pretty (default), github
 `;
 
 if (!command || command === '--help' || command === '-h') {
@@ -71,6 +78,12 @@ if (command === '--version' || command === '-v') {
 if (command === 'init') {
   const { init } = await import('../src/init.js');
   await init(args.slice(1));
+} else if (command === 'new') {
+  const { newPage } = await import('../src/new-page.js');
+  await newPage(args.slice(1));
+} else if (command === 'deploy') {
+  const { deploy } = await import('../src/deploy.js');
+  await deploy(args.slice(1));
 } else if (command === 'dev') {
   const port = getFlag(args, '--port') || 3000;
   const { dev } = await import('../src/dev.js');

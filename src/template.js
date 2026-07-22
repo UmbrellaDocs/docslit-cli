@@ -5,6 +5,16 @@ import { getAnnouncement, hashAnnouncementMessage } from './config.js';
 import { renderMarkdown } from './unified.js';
 import { resolveSiteThemeSync, buildThemeCss, buildHtmlTag } from './themes.js';
 import { buildAgentDirectiveHtml } from './agent-docs.js';
+import {
+  normalizeBasePath,
+  withBasePath,
+  buildAnalyticsSnippet,
+  buildCustomHead,
+  buildNavbarLinksHtml,
+  buildFooterHtml,
+  faviconLinks,
+} from './site-config.js';
+import { buildLocaleSwitcherHtml, buildHreflangTags, getI18nConfig } from './i18n.js';
 
 const require = createRequire(import.meta.url);
 
@@ -39,10 +49,16 @@ function _minifyCSS(code) {
   } catch { return code; }
 }
 
-export function renderShell({ config, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null }) {
+export async function renderShell({ config, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null, locale = null }) {
   const siteTitle = config.name || 'DocsLit';
-  const logoSrc = config.logo ? (config.logo.startsWith('/') ? config.logo : '/' + config.logo) : '/favicon-32x32.png';
+  const basePath = normalizeBasePath(config.basePath);
+  const logoSrc = config.logo
+    ? withBasePath(basePath, config.logo.startsWith('/') ? config.logo : '/' + config.logo)
+    : withBasePath(basePath, '/favicon-32x32.png');
   const isHybrid = specData && (config.sidebar || []).length > 0;
+  const i18n = getI18nConfig(config);
+  const currentLocale = locale || i18n.defaultLocale;
+  const chrome = buildSiteChrome(config, { basePath, offline, locale: currentLocale, pageId: '' });
 
   let apiSidebarHtml = null;
   let hybridLinks = null;
@@ -66,11 +82,15 @@ export function renderShell({ config, siteTheme = null, mode = 'dev', port = 300
   const editUrlScript = config.editUrl
     ? `<script>window.__DOCSLIT_EDIT_URL__ = ${JSON.stringify(config.editUrl)};</script>`
     : '';
+  const basePathScript = `<script>window.__DOCSLIT_BASE_PATH__=${JSON.stringify(basePath)};window.__DOCSLIT_LOCALE__=${JSON.stringify(currentLocale)};</script>`;
+  const playgroundScript = config.playground?.proxyUrl
+    ? `<script>window.__DOCSLIT_PLAYGROUND_PROXY__=${JSON.stringify(config.playground.proxyUrl)};</script>`
+    : '';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion, offline) : '';
   const importMap = buildImportMap(mode, vendorData);
-  const announcementChrome = buildAnnouncementChrome({ config, versionConfig, currentVersion, offline });
+  const announcementChrome = await buildAnnouncementChrome({ config, versionConfig, currentVersion, offline });
   const resolvedTheme = siteTheme ?? resolveSiteThemeSync(config);
-  const htmlTag = buildHtmlTag(resolvedTheme);
+  const htmlTag = buildHtmlTag(resolvedTheme, currentLocale);
 
   if (offline) {
     const offlineStyles = minify
@@ -89,23 +109,26 @@ ${htmlTag}
   ${buildThemeInit()}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="${escHtml(config.description || siteTitle)}">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  ${chrome.favicon}
   <title>${siteTitle} — DocsLit</title>
   ${announcementChrome.head}
+  ${chrome.head}
   ${offlineStyles}
+  ${chrome.cssLink}
 </head>
 <body>
 ${announcementChrome.html}
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, offline, logoSrc)}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, offline, logoSrc, { navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath })}
 ${buildSearchOverlayHtml(offline)}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
 ${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml, offline)}
+${chrome.footer}
 
 ${versionScript}
 ${editUrlScript}
+${basePathScript}
+${playgroundScript}
 ${announcementChrome.hashScript}
 <script type="importmap">${importMap}</script>
 <script type="module">
@@ -136,24 +159,28 @@ ${htmlTag}
   ${buildThemeInit()}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="${escHtml(config.description || siteTitle)}">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  ${chrome.favicon}
   <title>${siteTitle} — DocsLit</title>
   ${announcementChrome.head}
+  ${chrome.head}
+  ${chrome.analytics}
   ${buildFontLinks()}
   ${stylesBlock}
+  ${chrome.cssLink}
 </head>
 <body>
 ${announcementChrome.html}
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc)}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc, { navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath })}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
 ${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml)}
+${chrome.footer}
 
 ${versionScript}
 ${editUrlScript}
+${basePathScript}
+${playgroundScript}
 ${announcementChrome.hashScript}
 ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script type="importmap">${importMap}</script>
@@ -167,11 +194,16 @@ ${appBlock}
 </html>`;
 }
 
-export function renderPage({ config, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null }) {
+export async function renderPage({ config, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null }) {
+  const basePath = normalizeBasePath(config.basePath);
+  const i18n = getI18nConfig(config);
+  const currentLocale = locale || i18n.defaultLocale;
   const isHybridEarly = specData && (config.sidebar || []).length > 0;
   const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null);
   const siteTitle = config.name || 'DocsLit';
-  const logoSrc = config.logo ? (config.logo.startsWith('/') ? config.logo : '/' + config.logo) : '/favicon-32x32.png';
+  const logoSrc = config.logo
+    ? withBasePath(basePath, config.logo.startsWith('/') ? config.logo : '/' + config.logo)
+    : withBasePath(basePath, '/favicon-32x32.png');
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
   const importMap = buildImportMap('static');
   const versionScript = versionConfig
@@ -180,12 +212,22 @@ export function renderPage({ config, siteTheme = null, id, meta, html, draftPage
   const editUrlScript = config.editUrl
     ? `<script>window.__DOCSLIT_EDIT_URL__ = ${JSON.stringify(config.editUrl)};</script>`
     : '';
+  const basePathScript = `<script>window.__DOCSLIT_BASE_PATH__=${JSON.stringify(basePath)};window.__DOCSLIT_LOCALE__=${JSON.stringify(currentLocale)};</script>`;
+  const playgroundScript = config.playground?.proxyUrl
+    ? `<script>window.__DOCSLIT_PLAYGROUND_PROXY__=${JSON.stringify(config.playground.proxyUrl)};</script>`
+    : '';
 
   const pageTitle = meta.title || toLabel(id);
   const desc = meta.description || meta.desc || config.description || '';
   const baseUrl = (config.url || '').replace(/\/$/, '');
+  const localePrefix = currentLocale !== i18n.defaultLocale ? `/${currentLocale}` : '';
   const versionPrefix = currentVersion ? `/${currentVersion}` : '';
-  const canonicalUrl = baseUrl ? `${baseUrl}${versionPrefix}/${id}` : '';
+  const pathPrefix = `${basePath}${localePrefix}${versionPrefix}`;
+  const canonicalUrl = baseUrl ? `${baseUrl}${pathPrefix}/${id}` : '';
+
+  const depth = id.split('/').length - 1;
+  const assetPrefix = '../'.repeat(depth);
+  const chrome = buildSiteChrome(config, { basePath, locale: currentLocale, pageId: id, assetPrefix });
 
   let seoTags = '';
   if (desc) seoTags += `\n  <meta name="description" content="${escHtml(desc)}">`;
@@ -197,17 +239,23 @@ export function renderPage({ config, siteTheme = null, id, meta, html, draftPage
   seoTags += `\n  <meta property="og:title" content="${escHtml(pageTitle)}">`;
   seoTags += `\n  <meta property="og:site_name" content="${escHtml(siteTitle)}">`;
   if (desc) seoTags += `\n  <meta property="og:description" content="${escHtml(desc)}">`;
-  seoTags += `\n  <meta name="twitter:card" content="summary">`;
+  const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
+  if (ogEnabled && ogImagePath && baseUrl) {
+    const ogUrl = `${baseUrl}${pathPrefix}/${ogImagePath}`;
+    seoTags += `\n  <meta property="og:image" content="${escHtml(ogUrl)}">`;
+    seoTags += `\n  <meta name="twitter:card" content="summary_large_image">`;
+    seoTags += `\n  <meta name="twitter:image" content="${escHtml(ogUrl)}">`;
+  } else {
+    seoTags += `\n  <meta name="twitter:card" content="summary">`;
+  }
   seoTags += `\n  <meta name="twitter:title" content="${escHtml(pageTitle)}">`;
   if (desc) seoTags += `\n  <meta name="twitter:description" content="${escHtml(desc)}">`;
+  if (chrome.hreflang) seoTags += `\n  ${chrome.hreflang}`;
 
   const jsonLd = { '@context': 'https://schema.org', '@type': 'TechArticle', headline: pageTitle, name: pageTitle, isPartOf: { '@type': 'WebSite', name: siteTitle } };
   if (desc) jsonLd.description = desc;
   if (canonicalUrl) jsonLd.url = canonicalUrl;
   if (baseUrl) jsonLd.isPartOf.url = baseUrl;
-
-  const depth = id.split('/').length - 1;
-  const assetPrefix = '../'.repeat(depth);
 
   const groupName = findGroupForPage(config.sidebar || [], id);
   const breadcrumbText = groupName ? `${escHtml(groupName)} › ${escHtml(pageTitle)}` : escHtml(pageTitle);
@@ -231,9 +279,9 @@ export function renderPage({ config, siteTheme = null, id, meta, html, draftPage
     apiSidebarHtml = null;
   }
 
-  const announcementChrome = buildAnnouncementChrome({ config, versionConfig, currentVersion });
+  const announcementChrome = await buildAnnouncementChrome({ config, versionConfig, currentVersion });
   const resolvedTheme = siteTheme ?? resolveSiteThemeSync(config);
-  const htmlTag = buildHtmlTag(resolvedTheme);
+  const htmlTag = buildHtmlTag(resolvedTheme, currentLocale);
   const agentDirective = buildAgentDirectiveHtml(config, currentVersion);
   const pageContent = html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id, pdfManifest, assetPrefix));
 
@@ -243,26 +291,30 @@ ${htmlTag}
   <meta charset="UTF-8" />
   ${buildThemeInit()}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/png" sizes="32x32" href="${assetPrefix}favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="${assetPrefix}favicon-16x16.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="${assetPrefix}apple-touch-icon.png">
+  ${chrome.favicon}
   <title>${escHtml(pageTitle)} — ${escHtml(siteTitle)}</title>${seoTags}
   ${announcementChrome.head}
+  ${chrome.head}
+  ${chrome.analytics}
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   ${buildFontLinks()}
   <link rel="stylesheet" href="${assetPrefix}docslit.css">
+  ${chrome.cssLink}
 </head>
 <body class="${apiClass.trim()}">
 ${agentDirective}
 ${announcementChrome.html}
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc)}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc, { navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath })}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
 ${buildMainLayoutHtml(docsSidebarHtml, siteTitle, pageContent, breadcrumbText, isApiPage, apiSidebarHtml)}
+${chrome.footer}
 
 ${versionScript}
 ${editUrlScript}
+${basePathScript}
+${playgroundScript}
 ${announcementChrome.hashScript}
 ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
@@ -351,18 +403,18 @@ function buildFontLinks(offline = false) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">`;
 }
 
-function buildAnnouncementChrome({ config, versionConfig, currentVersion, offline = false }) {
+async function buildAnnouncementChrome({ config, versionConfig, currentVersion, offline = false }) {
   const announcement = getAnnouncement(config, currentVersion, versionConfig);
   if (!announcement) {
     return { head: '', html: '', hashScript: '' };
   }
 
   const hash = hashAnnouncementMessage(announcement.message);
-  const messageHtml = renderMarkdown(
+  const messageHtml = (await renderMarkdown(
     announcement.message,
     [],
     currentVersion ? { versionSlug: currentVersion } : {},
-  ).trim();
+  )).trim();
   const type = escHtml(announcement.type || 'neutral');
   const dismissible = announcement.dismissible !== false;
   const dismissBtn = dismissible
@@ -397,7 +449,30 @@ function buildAnnouncementRuntime() {
 })();`;
 }
 
-function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false, logoSrc = '/favicon-32x32.png') {
+function buildSiteChrome(config, { basePath = '', offline = false, locale = 'en', pageId = '', assetPrefix = '' } = {}) {
+  const i18n = getI18nConfig(config);
+  let cssLink = '';
+  if (config.css) {
+    const cssHref = assetPrefix
+      ? assetPrefix + String(config.css).replace(/^\//, '')
+      : withBasePath(basePath, '/' + String(config.css).replace(/^\//, ''));
+    cssLink = `<link rel="stylesheet" href="${escHtml(cssHref)}">`;
+  }
+  return {
+    favicon: faviconLinks(config, assetPrefix || (basePath ? basePath.replace(/\/?$/, '/') : '')),
+    head: buildCustomHead(config.head),
+    analytics: offline ? '' : buildAnalyticsSnippet(config.analytics),
+    cssLink,
+    navbarLinks: buildNavbarLinksHtml(config.navbar, basePath, offline),
+    footer: buildFooterHtml(config.footer, basePath),
+    localeSwitcher: buildLocaleSwitcherHtml({ i18n, currentLocale: locale, basePath, pageId, offline }),
+    hreflang: pageId ? buildHreflangTags({ i18n, config, pageId, basePath }) : '',
+  };
+}
+
+function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false, logoSrc = '/favicon-32x32.png', extra = {}) {
+  const { navbarLinks = '', localeSwitcher = '', basePath = '' } = extra;
+  const homeHref = basePath || '/';
   let modeLinksHtml = '';
   if (hybridLinks) {
     const showApi = hybridLinks.initialMode !== 'api' ? '' : ' style="display:none"';
@@ -415,18 +490,20 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
     <button class="nav-menu-btn" id="nav-menu-btn" aria-label="Open navigation" aria-expanded="false">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <a class="nav-logo" href="/">
+    <a class="nav-logo" href="${escHtml(homeHref)}">
       <img class="nav-logo-icon" src="${escHtml(logoSrc)}" alt="${siteTitle}">
       <span class="nav-logo-text">${siteTitle}</span>
     </a>
   </div>
   <div class="nav-links">
     ${modeLinksHtml}
+    ${navbarLinks}
     <button class="search-trigger"${searchClick} id="search-trigger" title="Search (⌘K)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
       <span class="search-trigger-text">Search…</span>
       <span class="search-trigger-kbd"><kbd>⌘</kbd><kbd>K</kbd></span>
     </button>
+    ${localeSwitcher}
     ${versionSelectorHtml}
     <button class="a11y-btn" id="a11y-btn"${offline ? '' : ' onclick="toggleA11yPanel()"'} aria-label="Accessibility settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><path d="M4 8l4.5 1.5M19.5 8L15 9.5"/><path d="M8.5 9.5L12 12l3.5-2.5"/><path d="M12 12v4"/><path d="M9 20l3-4 3 4"/></svg>
@@ -687,54 +764,112 @@ function buildToc(container) {
   while (toc.firstChild) toc.removeChild(toc.firstChild);
 
   const headings = Array.from(container.querySelectorAll('h2, h3'));
-  if (headings.length < 2) return;
 
-  const title = document.createElement('div');
-  title.className = 'toc-title';
-  title.textContent = 'On this page';
-  toc.appendChild(title);
+  if (headings.length >= 2) {
+    const scrollWrap = document.createElement('div');
+    scrollWrap.className = 'toc-scroll';
 
-  const list = document.createElement('ul');
-  list.className = 'toc-list';
-  for (const h of headings) {
-    const id = h.id || h.textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-');
-    h.id = id;
-    const li = document.createElement('li');
-    const a = document.createElement('a');
-    a.className = 'toc-item' + (h.tagName === 'H3' ? ' toc-item-sub' : '');
-    a.dataset.tocTarget = id;
-    a.href = '#' + id;
-    a.textContent = h.textContent;
-    a.addEventListener('click', (e) => { e.preventDefault(); _tocScroll(id); });
-    li.appendChild(a);
-    list.appendChild(li);
-  }
-  toc.appendChild(list);
+    const title = document.createElement('div');
+    title.className = 'toc-title';
+    title.textContent = 'On this page';
+    scrollWrap.appendChild(title);
 
-  // Track the topmost heading whose top has crossed the active line (just
-  // below the sticky nav). Picks the lowest heading still "above the line",
-  // which is the section the user is currently reading.
-  const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-h')) || 60;
-  const activeLineY = navH + 60;
-  const compute = () => {
-    if (Date.now() < _tocClickGuardUntil) return;
-    let current = headings[0];
+    const list = document.createElement('ul');
+    list.className = 'toc-list';
     for (const h of headings) {
-      if (h.getBoundingClientRect().top - activeLineY < 1) current = h;
-      else break;
+      const id = h.id || h.textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+      h.id = id;
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.className = 'toc-item' + (h.tagName === 'H3' ? ' toc-item-sub' : '');
+      a.dataset.tocTarget = id;
+      a.href = '#' + id;
+      a.textContent = h.textContent;
+      a.addEventListener('click', (e) => { e.preventDefault(); _tocScroll(id); });
+      li.appendChild(a);
+      list.appendChild(li);
     }
-    if (current) _setActiveToc(current.id);
-  };
-  _tocObserver = new IntersectionObserver(compute, {
-    rootMargin: \`-\${activeLineY}px 0px -70% 0px\`,
-    threshold: [0, 1],
-  });
-  headings.forEach(h => _tocObserver.observe(h));
+    scrollWrap.appendChild(list);
+    toc.appendChild(scrollWrap);
 
-  // Seed: matching hash → that heading; otherwise the first one.
-  const hashId = decodeURIComponent(location.hash.slice(1));
-  const seed = (hashId && headings.find(h => h.id === hashId)) || headings[0];
-  _setActiveToc(seed.id);
+    // Track the topmost heading whose top has crossed the active line (just
+    // below the sticky nav). Picks the lowest heading still "above the line",
+    // which is the section the user is currently reading.
+    const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-h')) || 60;
+    const activeLineY = navH + 60;
+    const compute = () => {
+      if (Date.now() < _tocClickGuardUntil) return;
+      let current = headings[0];
+      for (const h of headings) {
+        if (h.getBoundingClientRect().top - activeLineY < 1) current = h;
+        else break;
+      }
+      if (current) _setActiveToc(current.id);
+    };
+    _tocObserver = new IntersectionObserver(compute, {
+      rootMargin: \`-\${activeLineY}px 0px -70% 0px\`,
+      threshold: [0, 1],
+    });
+    headings.forEach(h => _tocObserver.observe(h));
+
+    // Seed: matching hash → that heading; otherwise the first one.
+    const hashId = decodeURIComponent(location.hash.slice(1));
+    const seed = (hashId && headings.find(h => h.id === hashId)) || headings[0];
+    _setActiveToc(seed.id);
+  }
+
+  if (!_OFFLINE) {
+    const actions = document.createElement('div');
+    actions.className = 'toc-actions' + (headings.length < 2 ? ' toc-actions-solo' : '');
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'toc-action-btn';
+    copyBtn.title = 'Copy page as Markdown';
+    copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown';
+    copyBtn.addEventListener('click', copyMd);
+    actions.appendChild(copyBtn);
+
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'toc-action-btn';
+    viewBtn.title = 'View page as Markdown';
+    viewBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown';
+    viewBtn.addEventListener('click', viewMd);
+    actions.appendChild(viewBtn);
+
+    const curId = window.__DOCSLIT_CURRENT_PAGE__ || window.__DOCSLIT_PAGE_ID__ || '';
+    const pdfManifest = window.__DOCSLIT_PDF__;
+    if (pdfManifest) {
+      const chapter = (pdfManifest.chapters || []).find(c => c.id === curId) || (pdfManifest.chapters || [])[0];
+      if (chapter) {
+        const pdfLink = document.createElement('a');
+        pdfLink.className = 'toc-action-btn';
+        pdfLink.href = _pdfAssetHref(chapter.file);
+        pdfLink.download = '';
+        pdfLink.title = 'Download PDF';
+        pdfLink.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Download PDF';
+        actions.appendChild(pdfLink);
+      }
+    } else {
+      const pdfBtn = document.createElement('button');
+      pdfBtn.className = 'toc-action-btn';
+      pdfBtn.title = 'Save page as PDF';
+      pdfBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Save as PDF';
+      pdfBtn.addEventListener('click', printPage);
+      actions.appendChild(pdfBtn);
+    }
+
+    toc.appendChild(actions);
+
+    const pageMeta = container.querySelector('.page-meta');
+    if (pageMeta) {
+      const metaViz = new IntersectionObserver((entries) => {
+        actions.classList.toggle('toc-actions-visible', !entries[0].isIntersecting);
+      }, { threshold: 0 });
+      metaViz.observe(pageMeta);
+    } else {
+      actions.classList.add('toc-actions-visible');
+    }
+  }
 }
 
 // ── TABLE WRAPPING ────────────────────────────────────────────────────────
@@ -988,6 +1123,8 @@ function _escFilter(s) {
 }
 
 function _docsBase() {
+  var configured = window.__DOCSLIT_BASE_PATH__ || '';
+  var locale = window.__DOCSLIT_LOCALE__;
   var pageId = window.__DOCSLIT_PAGE_ID__ || window.__DOCSLIT_CURRENT_PAGE__;
   var pathName = window.location.pathname.replace(/\\/+$/, '');
   if (pageId && pathName) {
@@ -1002,8 +1139,13 @@ function _docsBase() {
     var ix = pathName.lastIndexOf(marker + '/');
     if (ix >= 0) return pathName.slice(0, ix + marker.length + 1);
     if (pathName.endsWith(marker)) return pathName + '/';
-    return '/' + vc.current + '/';
+    return (configured || '') + '/' + vc.current + '/';
   }
+  if (locale && configured) {
+    var locMarker = configured + '/' + locale;
+    if (pathName === locMarker || pathName.startsWith(locMarker + '/')) return locMarker + '/';
+  }
+  if (configured) return configured + '/';
   return '/';
 }
 function _docsRoot() {
@@ -1654,12 +1796,15 @@ function buildSearchScript(mode, offline = false) {
       _searchIndex = await res.json();
     }`;
 
-  const buildFlexBlock = offline
-    ? ''
-    : `
-    var { default: FlexSearch } = await import('https://esm.sh/flexsearch@0.7.43/dist/flexsearch.bundle.module.min.js');
+  const buildFlexBlock = `
+    var flexUrl = ${offline
+      ? `'flexsearch.js'`
+      : mode === 'dev'
+        ? `'/vendor/flexsearch.js'`
+        : `_docsBase() + 'flexsearch.js'`};
+    var { default: FlexSearch } = await import(flexUrl);
     _searchFlex = new FlexSearch.Document({
-      document: { id: 'id', index: ['title', 'desc', 'body'], store: ['id', 'title', 'group', 'desc'] },
+      document: { id: 'id', index: ['title', 'desc', 'body'], store: ['id', 'title', 'group', 'desc', 'section', 'pageTitle'] },
       tokenize: 'forward',
       resolution: 9,
     });
@@ -1669,26 +1814,72 @@ function buildSearchScript(mode, offline = false) {
 var _searchIndex = null;
 var _searchFlex = null;
 var _searchActive = -1;
-var _searchReady = false;
+var _searchLoadPromise = null;
+var _searchFailed = false;
+
+function _searchOverlayOpen() {
+  var overlay = document.getElementById('search-overlay');
+  return !!(overlay && overlay.classList.contains('open'));
+}
+
+function _renderSearchLoading() {
+  var container = document.getElementById('search-results');
+  if (!container) return;
+  var rows = '';
+  for (var i = 0; i < 5; i++) {
+    rows += '<div class="search-skel" aria-hidden="true">' +
+      '<div class="search-skel-icon"></div>' +
+      '<div class="search-skel-text"><div class="search-skel-line"></div><div class="search-skel-line short"></div></div>' +
+      '</div>';
+  }
+  container.innerHTML =
+    '<div class="search-loading" role="status" aria-live="polite">' +
+      '<div class="search-loading-label"><span class="search-spinner" aria-hidden="true"></span>Preparing search…</div>' +
+      rows +
+    '</div>';
+}
 
 async function _loadSearchIndex() {
-  if (_searchReady) return;
-  _searchReady = true;
-  try {
-    ${loadIndexBlock}
-    ${buildFlexBlock}
-  } catch(e) { console.error('Search index load failed:', e); }
+  if (_searchIndex && _searchFlex) return;
+  if (_searchLoadPromise) return _searchLoadPromise;
+  _searchLoadPromise = (async function() {
+    try {
+      ${loadIndexBlock}
+      ${buildFlexBlock}
+      _searchFailed = false;
+    } catch(e) {
+      console.error('Search index load failed:', e);
+      _searchFailed = true;
+      _searchIndex = _searchIndex || [];
+    } finally {
+      if (_searchOverlayOpen()) {
+        var input = document.getElementById('search-input');
+        var q = input ? input.value : '';
+        if (q && q.trim()) handleSearchInput(q);
+        else _renderDefaultResults();
+      }
+    }
+  })();
+  return _searchLoadPromise;
+}
+
+function _prefetchSearch() {
+  if (_searchLoadPromise || (_searchIndex && _searchFlex)) return;
+  var run = function() { _loadSearchIndex(); };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 2500 });
+  else setTimeout(run, 800);
 }
 
 function openSearch() {
-  _loadSearchIndex();
   var overlay = document.getElementById('search-overlay');
   overlay.classList.add('open');
   var input = document.getElementById('search-input');
   input.value = '';
   input.focus();
   _searchActive = -1;
-  _renderDefaultResults();
+  if (_searchIndex && _searchIndex.length) _renderDefaultResults();
+  else _renderSearchLoading();
+  _loadSearchIndex();
   document.body.style.overflow = 'hidden';
   overlay.addEventListener('keydown', _trapFocus);
 }
@@ -1720,13 +1911,29 @@ function handleOverlayClick(e) {
   if (e.target === e.currentTarget) closeSearch();
 }
 
+function _quickAccessItems() {
+  if (!_searchIndex || !_searchIndex.length) return [];
+  var pages = [];
+  for (var i = 0; i < _searchIndex.length; i++) {
+    var doc = _searchIndex[i];
+    if (doc.id && String(doc.id).indexOf('#') === -1) pages.push(doc);
+    if (pages.length >= 8) break;
+  }
+  return pages.length ? pages : _searchIndex.slice(0, 8);
+}
+
 function _renderDefaultResults() {
   var container = document.getElementById('search-results');
-  if (!_searchIndex || !_searchIndex.length) {
-    container.innerHTML = '<div class="search-empty">Loading index…</div>';
+  if (!container) return;
+  if (_searchFailed && (!_searchIndex || !_searchIndex.length)) {
+    container.innerHTML = '<div class="search-empty">Search is unavailable. Try refreshing the page.</div>';
     return;
   }
-  var items = _searchIndex.slice(0, 8);
+  if (!_searchIndex || !_searchIndex.length) {
+    _renderSearchLoading();
+    return;
+  }
+  var items = _quickAccessItems();
   var html = '<div class="search-group-title">Quick Access</div>';
   items.forEach(function(item, i) {
     html += _renderItem(item, i);
@@ -1737,20 +1944,24 @@ function _renderDefaultResults() {
 }
 
 function _renderItem(item, idx) {
+  var label = item.section ? (_esc(item.pageTitle || item.title) + ' → ' + _esc(item.section)) : _esc(item.title);
+  var desc = item.section ? '' : (item.desc ? '<div class="search-item-desc">' + _esc(item.desc) + '</div>' : '');
   return '<div class="search-item" id="search-opt-' + idx + '" role="option" data-idx="' + idx + '" data-id="' + _esc(item.id) + '"' + (_OFFLINE ? '' : ' onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()"') + '>' +
     '<div class="search-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>' +
-    '<div class="search-item-text"><div class="search-item-title">' + _esc(item.title) + '</div>' +
-    (item.desc ? '<div class="search-item-desc">' + _esc(item.desc) + '</div>' : '') +
+    '<div class="search-item-text"><div class="search-item-title">' + label + '</div>' +
+    desc +
     '</div>' +
     '<span class="search-item-badge">' + _esc(item.group) + '</span>' +
     '</div>';
 }
 
 function _renderItemHl(item, idx, query) {
+  var title = item.section ? ((item.pageTitle || '') + ' → ' + item.section) : item.title;
+  var desc = item.section ? '' : (item.desc ? '<div class="search-item-desc">' + _highlight(item.desc, query) + '</div>' : '');
   return '<div class="search-item" id="search-opt-' + idx + '" role="option" data-idx="' + idx + '" data-id="' + _esc(item.id) + '"' + (_OFFLINE ? '' : ' onclick="selectSearchItem(this)" onmouseenter="_searchActive=' + idx + ';_updateActive()"') + '>' +
     '<div class="search-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>' +
-    '<div class="search-item-text"><div class="search-item-title">' + _highlight(item.title, query) + '</div>' +
-    (item.desc ? '<div class="search-item-desc">' + _highlight(item.desc, query) + '</div>' : '') +
+    '<div class="search-item-text"><div class="search-item-title">' + _highlight(title, query) + '</div>' +
+    desc +
     '</div>' +
     '<span class="search-item-badge">' + _esc(item.group) + '</span>' +
     '</div>';
@@ -1794,7 +2005,7 @@ function handleSearchInput(value) {
       }
     }
   } else {
-    container.innerHTML = '<div class="search-empty">Loading…</div>'; return;
+    _renderSearchLoading(); return;
   }
 
   if (!results.length) {
@@ -1855,9 +2066,27 @@ function _updateActive() {
 }
 
 function selectSearchItem(el) {
-  var id = el.dataset.id;
+  var id = el.dataset.id || '';
+  var hash = '';
+  var hashIdx = id.indexOf('#');
+  if (hashIdx >= 0) {
+    hash = id.slice(hashIdx + 1);
+    id = id.slice(0, hashIdx);
+  }
   closeSearch();
-  loadPage(id);
+  loadPage(id).then(function() {
+    if (hash) {
+      var target = document.getElementById(hash);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      try { history.replaceState(history.state, '', (window.location.pathname || '') + '#' + hash); } catch (e) {}
+    }
+  }).catch(function() {
+    loadPage(id);
+    if (hash) setTimeout(function() {
+      var target = document.getElementById(hash);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  });
 }
 
 document.addEventListener('keydown', function(e) {
@@ -1874,6 +2103,12 @@ document.addEventListener('keydown', function(e) {
   if (!isMac) {
     document.querySelectorAll('.search-trigger-kbd kbd:first-child').forEach(function(k) { k.textContent = 'Ctrl'; });
   }
+  var trigger = document.getElementById('search-trigger');
+  if (trigger) {
+    trigger.addEventListener('pointerenter', _prefetchSearch, { once: true });
+    trigger.addEventListener('focus', _prefetchSearch, { once: true });
+  }
+  _prefetchSearch();
 })();
 
 window.openSearch = openSearch;
@@ -2107,15 +2342,15 @@ html, body {
 }
 .announcement-dismiss:hover { opacity: 1; }
 .announcement-dismiss:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 2px; }
-.announcement-neutral { background: rgba(160,160,160,.08); border-color: var(--border); color: var(--text2); }
-.announcement-info { background: rgba(59,130,246,.1); border-color: rgba(59,130,246,.3); color: #93c5fd; }
-html.light .announcement-info { color: #2563eb; }
-.announcement-warning { background: rgba(245,158,11,.1); border-color: rgba(245,158,11,.3); color: #fcd34d; }
-html.light .announcement-warning { color: #b45309; }
-.announcement-success { background: rgba(16,185,129,.1); border-color: rgba(16,185,129,.3); color: #34d399; }
-html.light .announcement-success { color: #047857; }
-.announcement-error { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); color: #f87171; }
-html.light .announcement-error { color: #dc2626; }
+.announcement-neutral { background: var(--surface, #111); border-color: var(--border); color: var(--text2); }
+.announcement-info { background: #0c1a2e; border-color: rgba(59,130,246,.45); color: #93c5fd; }
+html.light .announcement-info { background: #eff6ff; color: #1d4ed8; border-color: rgba(37,99,235,.35); }
+.announcement-warning { background: #1c1408; border-color: rgba(245,158,11,.45); color: #fcd34d; }
+html.light .announcement-warning { background: #fffbeb; color: #b45309; border-color: rgba(180,83,9,.3); }
+.announcement-success { background: #071a14; border-color: rgba(16,185,129,.45); color: #34d399; }
+html.light .announcement-success { background: #ecfdf5; color: #047857; border-color: rgba(4,120,87,.3); }
+.announcement-error { background: #1a0c0c; border-color: rgba(239,68,68,.45); color: #f87171; }
+html.light .announcement-error { background: #fef2f2; color: #dc2626; border-color: rgba(220,38,38,.3); }
 
 /* NAV */
 .nav {
@@ -2141,6 +2376,21 @@ html.light .nav { background: rgba(255,255,255,.93); }
 }
 .nav-logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-links { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.nav-ext-link { font-size: 13px; font-weight: 500; color: var(--dl-text-muted, #94a3b8); text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+.nav-ext-link:hover { color: var(--dl-text, #f8fafc); background: rgba(255,255,255,.06); }
+.locale-switcher { font-size: 12px; font-weight: 600; background: transparent; border: 1px solid var(--dl-border, rgba(255,255,255,.12)); color: inherit; border-radius: 6px; padding: 5px 8px; }
+.site-footer { background: var(--surface); border-top: 1px solid var(--border); }
+.site-footer-inner { max-width: 1560px; margin: 0 auto; padding: 40px 24px 28px; display: flex; flex-direction: column; gap: 32px; }
+.site-footer-columns { display: flex; flex-wrap: wrap; gap: 32px 64px; justify-content: center; }
+.site-footer-col { display: flex; flex-direction: column; gap: 8px; min-width: 120px; }
+.site-footer-col-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text); margin-bottom: 4px; }
+.site-footer-col a { color: var(--text2); text-decoration: none; font-size: 13px; line-height: 1.6; }
+.site-footer-col a:hover { color: var(--text); }
+.site-footer-bottom { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 20px; border-top: 1px solid var(--border); }
+.site-footer-links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.site-footer-links a { color: var(--text2); text-decoration: none; font-size: 13px; }
+.site-footer-links a:hover { color: var(--text); }
+.site-footer-copy { font-size: 12px; color: var(--text3); }
 .nav-menu-btn {
   display: none;
   width: 36px; height: 36px; padding: 0;
@@ -2291,13 +2541,21 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 /* TOC */
 .docs-toc {
   width: 216px; flex-shrink: 0;
-  padding: 48px 24px 48px 16px;
+  padding: 48px 0 48px 16px;
   position: sticky; top: calc(var(--chrome-h) + 44px);
   align-self: flex-start;
   max-height: calc(100vh - var(--chrome-h) - 44px);
-  overflow-y: auto; scrollbar-width: none;
+  overflow-y: hidden; scrollbar-width: none;
+  display: flex; flex-direction: column;
 }
-.docs-toc::-webkit-scrollbar { display: none; }
+.docs-toc::-webkit-scrollbar, .toc-scroll::-webkit-scrollbar { display: none; }
+.toc-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding-right: 24px; }
+.toc-actions { flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; padding: 12px 24px 0 0; margin-top: 12px; border-top: 1px solid var(--border); opacity: 0; pointer-events: none; transform: translateY(6px); transition: opacity .22s ease, transform .22s ease; }
+.toc-actions.toc-actions-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.toc-actions-solo { border-top: none; margin-top: 4px; padding-top: 0; }
+.toc-action-btn { display: flex; align-items: center; gap: 7px; background: none; border: none; padding: 5px 0; font-family: var(--font-sans); font-size: 12px; color: var(--text3); cursor: pointer; text-align: left; width: 100%; transition: color .15s; text-decoration: none; }
+.toc-action-btn:hover { color: var(--text2); }
+.toc-action-btn svg { flex-shrink: 0; }
 .toc-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--text3); margin-bottom: 10px; }
 .toc-list {
   list-style: none; margin: 0; padding: 0;
@@ -2509,6 +2767,37 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
   white-space: nowrap; flex-shrink: 0;
 }
 .search-empty { padding: 32px 18px; text-align: center; color: var(--text3); font-size: 14px; }
+.search-loading { padding: 8px 0 12px; }
+.search-loading-label {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 8px 18px 14px; font-size: 13px; color: var(--text3);
+}
+.search-spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border2, var(--border));
+  border-top-color: var(--accent-light, var(--accent, #38bdf8));
+  animation: searchSpin .7s linear infinite; flex-shrink: 0;
+}
+@keyframes searchSpin { to { transform: rotate(360deg); } }
+.search-skel {
+  display: flex; align-items: center; gap: 12px; padding: 10px 18px;
+}
+.search-skel-icon {
+  width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0;
+  background: var(--surface2); border: 1px solid var(--border);
+}
+.search-skel-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.search-skel-line {
+  height: 10px; border-radius: 4px; width: 72%;
+  background: linear-gradient(90deg, var(--surface2) 0%, var(--surface3) 50%, var(--surface2) 100%);
+  background-size: 200% 100%;
+  animation: searchShimmer 1.2s ease-in-out infinite;
+}
+.search-skel-line.short { width: 44%; }
+@keyframes searchShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
 .search-footer {
   display: flex; gap: 16px; padding: 10px 18px;
   border-top: 1px solid var(--border); font-size: 12px; color: var(--text3);

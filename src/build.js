@@ -17,6 +17,14 @@ import {
   getVersionPathPrefix,
   prependAgentDirectiveToMarkdown,
 } from './agent-docs.js';
+import { normalizeBasePath, withBasePath } from './site-config.js';
+import { collectRedirects, writeRedirectArtifacts } from './redirects.js';
+import { writeFeeds } from './feeds.js';
+import { generateOgImage, ogColorsFromTheme } from './og-image.js';
+import { buildSearchEntries } from './search-index.js';
+import { getI18nConfig, localeDocsDir, getSidebarForLocale, discoverLocales, localeUrlPrefix } from './i18n.js';
+import { loadHooks } from './hooks.js';
+import { getPageLastmods } from './git-dates.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -86,11 +94,17 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   const outDir = path.resolve(cwd, out);
   const versionConfig = getVersionConfig(config);
   const pdfOptions = resolvePdfOptions(config, { pdf, noPdf, pdfDir });
+  const hooks = await loadHooks(cwd);
+  const basePath = normalizeBasePath(config.basePath);
 
   const modeLabel = offline ? ' (offline mode)' : '';
   const minifyLabel = minify ? '' : ' (unminified)';
   const pdfLabel = pdfOptions.enabled ? ' + PDF' : '';
   console.log(`\n  ${pc.bold('DocsLit')} building static site${modeLabel}${minifyLabel}${pdfLabel}...\n`);
+
+  if (hooks.file) {
+    console.log(`  ${pc.green('✓')} Loaded hooks from ${path.basename(hooks.file)}`);
+  }
 
   if (pdfOptions.enabled && offline) {
     console.log(`  ${pc.yellow('⚠')} PDF generation skipped in offline mode (use a standard build with --pdf)\n`);
@@ -120,6 +134,24 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   }
   console.log(`  ${pc.green('✓')} Copied favicon assets`);
 
+  // Copy custom favicon if configured
+  if (config.favicon) {
+    const faviconFile = path.resolve(cwd, config.favicon);
+    if (await fs.pathExists(faviconFile)) {
+      await fs.copyFile(faviconFile, path.join(outDir, path.basename(config.favicon)));
+      console.log(`  ${pc.green('✓')} Copied custom favicon ${config.favicon}`);
+    }
+  }
+
+  // Copy custom CSS if configured
+  if (config.css) {
+    const cssFile = path.resolve(cwd, config.css);
+    if (await fs.pathExists(cssFile)) {
+      await fs.copyFile(cssFile, path.join(outDir, path.basename(config.css)));
+      console.log(`  ${pc.green('✓')} Copied custom CSS ${config.css}`);
+    }
+  }
+
   if (config.logo) {
     const logoFile = path.resolve(cwd, config.logo);
     if (await fs.pathExists(logoFile)) {
@@ -130,10 +162,19 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
     }
   }
 
+  // Copy FlexSearch vendor bundle
+  const flexSearchSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
+  if (await fs.pathExists(flexSearchSrc)) {
+    await fs.copyFile(flexSearchSrc, path.join(outDir, 'flexsearch.js'));
+  }
+
+  // Copy docs media (images) preserving relative paths
+  await copyDocsMedia(path.join(cwd, 'docs'), outDir);
+
   if (versionConfig) {
-    await buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions, siteTheme });
+    await buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions, siteTheme, hooks, basePath });
   } else {
-    await buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions, siteTheme });
+    await buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions, siteTheme, hooks, basePath });
   }
 
   const sizeKb = await getDirSize(outDir);
@@ -148,7 +189,7 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   }
 }
 
-async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions, siteTheme }) {
+async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions, siteTheme, hooks, basePath }) {
   const pageIds = getAllPageIds(config);
   const pagesData = {};
   const draftPageIds = [];
@@ -213,8 +254,17 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
       html = resolveSpecRefs(html, specData);
     }
 
+    // Apply transformPage hook
+    if (hooks.transformPage) {
+      try {
+        html = await hooks.transformPage({ id, meta, html }) || html;
+      } catch (e) {
+        console.log(`  ${pc.yellow('⚠')} transformPage hook failed for ${id}: ${e.message}`);
+      }
+    }
+
     const isApiPage = id.startsWith('api/') || meta.layout === 'api';
-    pagesData[id] = { meta, html, isApiPage };
+    pagesData[id] = { meta, html, isApiPage, preprocessedMarkdown };
     if (!offline) {
       const destMd = path.join(outDir, `${id}.md`);
       const mdContent = isApiPage && specData
@@ -229,10 +279,14 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
   const draftNote = drafts ? pc.dim(` (${drafts} draft${drafts !== 1 ? 's' : ''} hidden)`) : '';
   const pdfManifest = !offline ? preparePdfManifest(config, pagesData, pdfOptions) : null;
 
+  // Generate OG images
+  const ogColors = ogColorsFromTheme(siteTheme);
+  const siteName = config.name || 'Documentation';
+
   if (offline) {
     const vendorData = await _loadVendorData();
     const searchIndex = buildSearchIndex(config, pagesData);
-    const indexHtml = renderShell({ config, siteTheme, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData });
+    const indexHtml = await renderShell({ config, siteTheme, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData });
     await Promise.all([
       fs.writeFile(path.join(outDir, 'index.html'), indexHtml),
       _writeSearchIndexJs(outDir, searchIndex),
@@ -247,8 +301,25 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     const publishedIds = Object.keys(pagesData);
     const hasRegularDocs = (config.sidebar || []).length > 0;
     const isHybrid = specData && hasRegularDocs;
+
+    // Generate OG images for each page
+    const ogPromises = [];
+    for (const [id, { meta }] of Object.entries(pagesData)) {
+      if (config.ogImage === false || meta.ogImage === false) continue;
+      const safeId = id.replace(/\//g, '--');
+      const outFile = path.join(outDir, 'og', `${safeId}.png`);
+      ogPromises.push(generateOgImage({ title: meta.title || toLabel(id), siteName, colors: ogColors, outFile }).catch(() => {}));
+    }
+    await Promise.all(ogPromises);
+    if (ogPromises.length) {
+      console.log(`  ${pc.green('✓')} Generated ${ogPromises.length} OG image${ogPromises.length !== 1 ? 's' : ''}`);
+    }
+
     for (const [id, { meta, html, isApiPage }] of Object.entries(pagesData)) {
-      const pageHtml = renderPage({ config, siteTheme, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null, pdfManifest });
+      const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
+      const safeId = id.replace(/\//g, '--');
+      const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
+      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null, pdfManifest, ogImagePath });
       const destHtml = path.join(outDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -263,19 +334,53 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
   }
 
   if (!offline) {
+    // Sitemap with git lastmods
+    const lastmods = await getPageLastmods(cwd, pagesData);
     await generateRobotsTxt({ config, outDir });
-    await generateSitemap({ config, pagesData, outDir });
-    await generateMarkdownMiddleware({ pageIds: Object.keys(pagesData), outDir, cwd });
+    await generateSitemap({ config, pagesData, outDir, lastmods });
+    await generateMarkdownMiddleware({ pageIds: Object.keys(pagesData), outDir, cwd, basePath });
     await generateAgentJson({ config, pageIds: Object.keys(pagesData), outDir });
     await generateMcpServer({ config, pagesData, outDir });
+
+    // Redirects
+    const redirects = collectRedirects(config, pagesData, basePath);
+    if (redirects.length) {
+      const { stubs } = await writeRedirectArtifacts({ redirects, outDir, basePath });
+      console.log(`  ${pc.green('✓')} Generated ${stubs} redirect stub${stubs !== 1 ? 's' : ''}`);
+    }
+
+    // RSS/Atom feeds
+    const wroteFeeds = await writeFeeds({ config, pagesData, outDir, basePath });
+    if (wroteFeeds) {
+      console.log(`  ${pc.green('✓')} Generated rss.xml + atom.xml`);
+    }
   }
 
   if (pdfOptions.enabled && !offline) {
     await generatePdfs({ outDir, config, pagesData, pdfOptions });
   }
+
+  // i18n: build non-default locale pages
+  const i18n = getI18nConfig(config);
+  if (i18n.enabled && !offline) {
+    const locales = await discoverLocales(cwd, i18n);
+    for (const locale of locales) {
+      if (locale === i18n.defaultLocale) continue;
+      await buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, minify, hooks, basePath, specData, apiMeta, draftPageIds, pdfManifest });
+    }
+  }
+
+  // onBuildEnd hook
+  if (hooks.onBuildEnd) {
+    try {
+      await hooks.onBuildEnd({ outDir, pages: pagesData, config });
+    } catch (e) {
+      console.log(`  ${pc.yellow('⚠')} onBuildEnd hook failed: ${e.message}`);
+    }
+  }
 }
 
-async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions, siteTheme }) {
+async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions, siteTheme, hooks, basePath }) {
   const defaultVersion = versionConfig.default;
   const defaultEntry = versionConfig.list.find(v => v.version === defaultVersion);
   const defaultBranch = defaultEntry?.branch || 'main';
@@ -332,6 +437,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     let { id, meta, html, preprocessedMarkdown } = result;
     if (meta.draft === true) { draftPageIds.push(id); continue; }
     if (specData) html = resolveSpecRefs(html, specData);
+    if (hooks.transformPage) {
+      try { html = await hooks.transformPage({ id, meta, html }) || html; } catch {}
+    }
     const isApiPage = id.startsWith('api/') || meta.layout === 'api';
     defaultPagesData[id] = { meta, html, isApiPage };
     if (!offline) {
@@ -352,7 +460,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
 
   if (offline) {
     await fs.ensureDir(defaultDir);
-    const defaultShell = renderShell({
+    const defaultShell = await renderShell({
       config, siteTheme, mode: 'static', out, draftPageIds,
       versionConfig, currentVersion: defaultVersion,
       offline: true, minify,
@@ -368,12 +476,30 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     await fs.writeFile(path.join(defaultDir, 'docslit.css'), sharedCss);
     await fs.writeFile(path.join(defaultDir, 'docslit.js'), sharedJs);
     await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), sharedApp);
+    // Copy FlexSearch into version dir
+    const flexSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
+    if (await fs.pathExists(flexSrc)) await fs.copyFile(flexSrc, path.join(defaultDir, 'flexsearch.js'));
 
     const publishedIds = Object.keys(defaultPagesData);
     const defaultHasRegularDocs = (config.sidebar || []).length > 0;
     const defaultIsHybrid = specData && defaultHasRegularDocs;
+
+    // OG images for versioned default
+    const ogColors = ogColorsFromTheme(siteTheme);
+    const siteName = config.name || 'Documentation';
+    const ogPromises = [];
+    for (const [id, { meta }] of Object.entries(defaultPagesData)) {
+      if (config.ogImage === false || meta.ogImage === false) continue;
+      const safeId = id.replace(/\//g, '--');
+      ogPromises.push(generateOgImage({ title: meta.title || toLabel(id), siteName, colors: ogColors, outFile: path.join(defaultDir, 'og', `${safeId}.png`) }).catch(() => {}));
+    }
+    await Promise.all(ogPromises);
+
     for (const [id, { meta, html, isApiPage }] of Object.entries(defaultPagesData)) {
-      const pageHtml = renderPage({ config, siteTheme, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null, pdfManifest: defaultPdfManifest });
+      const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
+      const safeId = id.replace(/\//g, '--');
+      const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
+      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null, pdfManifest: defaultPdfManifest, ogImagePath });
       const destHtml = path.join(defaultDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -431,6 +557,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
         });
         if (meta.draft === true) continue;
         if (specData) html = resolveSpecRefs(html, specData);
+        if (hooks.transformPage) {
+          try { html = await hooks.transformPage({ id, meta, html }) || html; } catch {}
+        }
         versionPagesData[id] = { meta, html };
         if (!offline) {
           const destMd = path.join(versionDir, `${id}.md`);
@@ -447,7 +576,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     await fs.ensureDir(versionDir);
 
     if (offline) {
-      const versionShell = renderShell({
+      const versionShell = await renderShell({
         config: versionConf, siteTheme, mode: 'static', out, draftPageIds: [],
         versionConfig, currentVersion: entry.version,
         offline: true, minify,
@@ -463,13 +592,15 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       await fs.writeFile(path.join(versionDir, 'docslit.css'), sharedCss);
       await fs.writeFile(path.join(versionDir, 'docslit.js'), sharedJs);
       await fs.writeFile(path.join(versionDir, 'docslit-app.js'), sharedApp);
+      const flexSrcV = path.join(__dirname, 'vendor', 'flexsearch.js');
+      if (await fs.pathExists(flexSrcV)) await fs.copyFile(flexSrcV, path.join(versionDir, 'flexsearch.js'));
 
       const vPublishedIds = Object.keys(versionPagesData);
       const vIsHybrid = specData && (versionConf.sidebar || []).length > 0;
       const versionPdfManifest = preparePdfManifest(versionConf, versionPagesData, pdfOptions);
       for (const [id, { meta, html }] of Object.entries(versionPagesData)) {
         const isApiPage = id.startsWith('api/') || meta.layout === 'api';
-        const pageHtml = renderPage({ config: versionConf, siteTheme, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null, pdfManifest: versionPdfManifest });
+        const pageHtml = await renderPage({ config: versionConf, siteTheme, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null, pdfManifest: versionPdfManifest });
         const destHtml = path.join(versionDir, `${id}.html`);
         await fs.ensureDir(path.dirname(destHtml));
         await fs.writeFile(destHtml, pageHtml);
@@ -505,12 +636,33 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       if (defaultPagesData[id]) allPagesData[id] = defaultPagesData[id];
     }
     await generateRootLlmsIndex({ config, versionConfig, outDir });
+    const lastmods = await getPageLastmods(cwd, allPagesData);
     await generateRobotsTxt({ config, outDir, versionConfig });
-    await generateSitemap({ config, pagesData: allPagesData, outDir, versionConfig, defaultVersion });
+    await generateSitemap({ config, pagesData: allPagesData, outDir, versionConfig, defaultVersion, lastmods });
     const allPageIds = Object.keys(allPagesData);
-    await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, cwd, versionConfig });
+    await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, cwd, versionConfig, basePath });
     await generateAgentJson({ config, pageIds: allPageIds, outDir, versionConfig });
     await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig });
+
+    // Redirects
+    const redirects = collectRedirects(config, allPagesData, basePath);
+    if (redirects.length) {
+      const { stubs } = await writeRedirectArtifacts({ redirects, outDir, basePath });
+      console.log(`  ${pc.green('✓')} Generated ${stubs} redirect stub${stubs !== 1 ? 's' : ''}`);
+    }
+
+    // RSS/Atom feeds
+    const wroteFeeds = await writeFeeds({ config, pagesData: allPagesData, outDir, basePath });
+    if (wroteFeeds) console.log(`  ${pc.green('✓')} Generated rss.xml + atom.xml`);
+  }
+
+  // onBuildEnd hook
+  if (hooks.onBuildEnd) {
+    try {
+      await hooks.onBuildEnd({ outDir, pages: defaultPagesData, config });
+    } catch (e) {
+      console.log(`  ${pc.yellow('⚠')} onBuildEnd hook failed: ${e.message}`);
+    }
   }
 }
 
@@ -534,24 +686,28 @@ function buildSearchIndex(config, pagesData) {
     for (const item of (pages || [])) {
       if (typeof item === 'string') {
         if (!pagesData[item]) continue;
-        const { meta } = pagesData[item];
-        index.push({
+        const { meta, html } = pagesData[item];
+        const entries = buildSearchEntries({
           id: item,
           title: meta.title || toLabel(item),
           group: groupName,
           desc: meta.description || meta.desc || '',
-          body: '',
+          html: html || '',
+          markdown: pagesData[item].preprocessedMarkdown || meta.description || '',
         });
+        index.push(...entries);
       } else if (item.id) {
         if (!pagesData[item.id]) continue;
-        const { meta } = pagesData[item.id];
-        index.push({
+        const { meta, html } = pagesData[item.id];
+        const entries = buildSearchEntries({
           id: item.id,
           title: meta.title || item.title || toLabel(item.id),
           group: groupName,
           desc: meta.description || meta.desc || '',
-          body: '',
+          html: html || '',
+          markdown: pagesData[item.id].preprocessedMarkdown || meta.description || '',
         });
+        index.push(...entries);
       } else if (item.pages) {
         collectPages(item.pages, groupName);
       }
@@ -714,7 +870,7 @@ async function generateRobotsTxt({ config, outDir, versionConfig = null }) {
   console.log(`  ${pc.green('✓')} Generated robots.txt`);
 }
 
-async function generateSitemap({ config, pagesData, outDir, versionConfig = null, defaultVersion = null }) {
+async function generateSitemap({ config, pagesData, outDir, versionConfig = null, defaultVersion = null, lastmods = {} }) {
   const baseUrl = (config.url || '').replace(/\/$/, '');
   if (!baseUrl) {
     console.log(`  ${pc.dim('○')} Skipped sitemap.xml — no url in docslit.json`);
@@ -733,7 +889,8 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
       urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(entry.version)}/</loc>\n    <lastmod>${today}</lastmod>\n    <priority>${priority}</priority>\n  </url>`);
 
       for (const id of Object.keys(pagesData)) {
-        urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(entry.version)}/${escXml(id)}</loc>\n    <lastmod>${today}</lastmod>\n    <priority>${isDefault ? '0.8' : '0.5'}</priority>\n  </url>`);
+        const lastmod = lastmods[id] || today;
+        urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(entry.version)}/${escXml(id)}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <priority>${isDefault ? '0.8' : '0.5'}</priority>\n  </url>`);
       }
 
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
@@ -746,7 +903,8 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
     urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/</loc>\n    <lastmod>${today}</lastmod>\n    <priority>1.0</priority>\n  </url>`);
 
     for (const id of Object.keys(pagesData)) {
-      urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(id)}</loc>\n    <lastmod>${today}</lastmod>\n    <priority>0.8</priority>\n  </url>`);
+      const lastmod = lastmods[id] || today;
+      urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(id)}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <priority>0.8</priority>\n  </url>`);
     }
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
@@ -760,7 +918,7 @@ function escXml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
-async function generateMarkdownMiddleware({ pageIds, outDir, cwd, versionConfig = null }) {
+async function generateMarkdownMiddleware({ pageIds, outDir, cwd, versionConfig = null, basePath = '' }) {
   const mdPaths = new Set();
   const versions = versionConfig ? versionConfig.list.map(v => v.version) : [];
 
@@ -814,18 +972,19 @@ export function onRequest(context) {
 }
 `;
 
+  const sourcePrefix = basePath || '';
   const vercelConfig = {
     headers: [
       {
-        source: '/(.*)\\.md',
+        source: `${sourcePrefix}/(.*)\\.md`,
         headers: [{ key: 'Content-Type', value: 'text/markdown; charset=utf-8' }],
       },
     ],
     rewrites: [
       {
-        source: '/:path*',
+        source: `${sourcePrefix}/:path*`,
         has: [{ type: 'header', key: 'accept', value: '(?i).*text/markdown.*' }],
-        destination: '/:path*.md',
+        destination: `${sourcePrefix}/:path*.md`,
       },
     ],
   };
@@ -1085,4 +1244,119 @@ async function getDirBytes(dir) {
     else total += (await fs.stat(p)).size;
   }
   return total;
+}
+
+const MEDIA_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico']);
+
+async function copyDocsMedia(docsDir, outDir) {
+  if (!await fs.pathExists(docsDir)) return;
+  let copied = 0;
+  async function walk(dir) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name.startsWith('_')) continue;
+        await walk(full);
+      } else if (MEDIA_EXTENSIONS.has(path.extname(e.name).toLowerCase())) {
+        const rel = path.relative(docsDir, full);
+        const dest = path.join(outDir, rel);
+        await fs.ensureDir(path.dirname(dest));
+        await fs.copyFile(full, dest);
+        copied++;
+      }
+    }
+  }
+  await walk(docsDir);
+
+  // Also copy from locale docs dirs (docs.fr/ etc.)
+  const parent = path.dirname(docsDir);
+  const entries = await fs.readdir(parent, { withFileTypes: true });
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    const m = e.name.match(/^docs\.([a-z]{2,})$/);
+    if (!m) continue;
+    const locale = m[1];
+    const locDir = path.join(parent, e.name);
+    async function walkLoc(dir) {
+      const subs = await fs.readdir(dir, { withFileTypes: true });
+      for (const s of subs) {
+        const full = path.join(dir, s.name);
+        if (s.isDirectory()) {
+          if (s.name.startsWith('_')) continue;
+          await walkLoc(full);
+        } else if (MEDIA_EXTENSIONS.has(path.extname(s.name).toLowerCase())) {
+          const rel = path.relative(locDir, full);
+          const dest = path.join(outDir, locale, rel);
+          await fs.ensureDir(path.dirname(dest));
+          await fs.copyFile(full, dest);
+          copied++;
+        }
+      }
+    }
+    await walkLoc(locDir);
+  }
+
+  if (copied) console.log(`  ${pc.green('✓')} Copied ${copied} media file${copied !== 1 ? 's' : ''} from docs/`);
+}
+
+async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, minify, hooks, basePath, specData, apiMeta, draftPageIds, pdfManifest }) {
+  const docsDir = localeDocsDir(cwd, locale, i18n.defaultLocale);
+  if (!await fs.pathExists(docsDir)) return;
+
+  const sidebar = getSidebarForLocale(config, locale, i18n.defaultLocale);
+  const localeConfig = { ...config, sidebar };
+  const pageIds = getAllPageIds(localeConfig);
+  const localeOutDir = path.join(outDir, locale);
+  await fs.ensureDir(localeOutDir);
+
+  let built = 0;
+  const localePagesData = {};
+
+  for (const id of pageIds) {
+    const mdPath = path.join(docsDir, `${id}.md`);
+    if (!await fs.pathExists(mdPath)) continue;
+    const raw = await fs.readFile(mdPath, 'utf8');
+    let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+      docsRoot: docsDir,
+      pagePath: mdPath,
+      globalAttributes: getRuntimeAttributes(config),
+    });
+
+    if (meta.draft === true) continue;
+    if (specData) html = resolveSpecRefs(html, specData);
+    if (hooks.transformPage) {
+      try { html = await hooks.transformPage({ id, meta, html, locale }) || html; } catch {}
+    }
+
+    const isApiPage = id.startsWith('api/') || meta.layout === 'api';
+    localePagesData[id] = { meta, html, isApiPage };
+
+    const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
+    const safeId = id.replace(/\//g, '--');
+    const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
+
+    const pageHtml = await renderPage({ config: localeConfig, siteTheme, id, meta, html, draftPageIds, specData, apiMeta, pdfManifest, locale, ogImagePath });
+    const destHtml = path.join(localeOutDir, `${id}.html`);
+    await fs.ensureDir(path.dirname(destHtml));
+    await fs.writeFile(destHtml, pageHtml);
+
+    const destMd = path.join(localeOutDir, `${id}.md`);
+    await writePageMarkdown(destMd, preprocessedMarkdown, config, id);
+    built++;
+  }
+
+  const publishedIds = Object.keys(localePagesData);
+  if (publishedIds.length) {
+    await fs.copyFile(path.join(localeOutDir, `${publishedIds[0]}.html`), path.join(localeOutDir, 'index.html'));
+  }
+
+  // Copy shared CSS/JS/app into locale dir
+  await fs.writeFile(path.join(localeOutDir, 'docslit.css'), buildStylesFile({ minify, siteTheme }));
+  await fs.writeFile(path.join(localeOutDir, 'docslit.js'), buildComponentsFile('static', { minify }));
+  await fs.writeFile(path.join(localeOutDir, 'docslit-app.js'), buildAppFile('static', { minify }));
+
+  if (built) {
+    console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} for locale ${pc.cyan(locale)}`);
+  }
 }

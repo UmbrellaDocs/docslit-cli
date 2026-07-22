@@ -31,7 +31,7 @@ export async function parseDoc(rawContent, opts = {}) {
     ...(opts.pagePath ? { pagePath: opts.pagePath } : {}),
     ...(versionSlug ? { versionSlug } : {}),
   };
-  const html = renderMarkdown(preprocess.content, preprocess.passBlocks || [], renderMeta);
+  const html = await renderMarkdown(preprocess.content, preprocess.passBlocks || [], renderMeta);
   const preprocessedMarkdown = Object.keys(meta || {}).length
     ? matter.stringify(preprocess.content, meta)
     : preprocess.content;

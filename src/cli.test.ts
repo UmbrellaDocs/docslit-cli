@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { spawn } from 'child_process';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
 import git from 'isomorphic-git';
@@ -418,38 +419,38 @@ echo {{PRODUCT}}
 // mdx-bridge — pascalToWcKebab + rewriteMdxTags
 // ─────────────────────────────────────────────────────────────────────────────
 describe('pascalToWcKebab', () => {
-  it('handles simple PascalCase', () => {
+  it('handles simple PascalCase', async () => {
     expect(pascalToWcKebab('CardGroup')).toBe('wc-card-group');
   });
 
-  it('handles consecutive uppercase letters (acronyms)', () => {
+  it('handles consecutive uppercase letters (acronyms)', async () => {
     expect(pascalToWcKebab('APIDocsCard')).toBe('wc-api-docs-card');
     expect(pascalToWcKebab('MyAPIBlock')).toBe('wc-my-api-block');
   });
 
-  it('handles single-word names', () => {
+  it('handles single-word names', async () => {
     expect(pascalToWcKebab('Tip')).toBe('wc-tip');
   });
 });
 
 describe('rewriteMdxTags', () => {
-  it('returns input untouched when there are no PascalCase tags', () => {
+  it('returns input untouched when there are no PascalCase tags', async () => {
     expect(rewriteMdxTags('plain text and <wc-card></wc-card>')).toBe('plain text and <wc-card></wc-card>');
   });
 
-  it('leaves unmapped PascalCase alone when conventionFallback is false', () => {
+  it('leaves unmapped PascalCase alone when conventionFallback is false', async () => {
     const out = rewriteMdxTags('<CustomThing>x</CustomThing>', { conventionFallback: false });
     expect(out).toContain('<CustomThing>');
     expect(out).not.toContain('wc-custom-thing');
   });
 
-  it('still rewrites mapped components when conventionFallback is false', () => {
+  it('still rewrites mapped components when conventionFallback is false', async () => {
     const out = rewriteMdxTags('<Tip>hi</Tip>', { conventionFallback: false });
     expect(out).toContain('<wc-callout');
     expect(out).toContain('type="tip"');
   });
 
-  it('exports the COMPONENT_MAP with expected aliases', () => {
+  it('exports the COMPONENT_MAP with expected aliases', async () => {
     expect(COMPONENT_MAP.Tip.tag).toBe('wc-callout');
     expect(COMPONENT_MAP.CardGroup.tag).toBe('wc-tiles');
     expect(COMPONENT_MAP.Tooltip.flatten).toBe(true);
@@ -460,7 +461,7 @@ describe('rewriteMdxTags', () => {
 // config.js — getAllPageIds
 // ─────────────────────────────────────────────────────────────────────────────
 describe('getAllPageIds', () => {
-  it('returns all page slugs from sidebar groups', () => {
+  it('returns all page slugs from sidebar groups', async () => {
     const config = {
       name: 'Test',
       sidebar: [
@@ -471,15 +472,15 @@ describe('getAllPageIds', () => {
     expect(getAllPageIds(config)).toEqual(['introduction', 'quickstart', 'api-reference']);
   });
 
-  it('returns an empty array when sidebar is empty', () => {
+  it('returns an empty array when sidebar is empty', async () => {
     expect(getAllPageIds({ sidebar: [] })).toEqual([]);
   });
 
-  it('returns an empty array when config has no sidebar key', () => {
+  it('returns an empty array when config has no sidebar key', async () => {
     expect(getAllPageIds({})).toEqual([]);
   });
 
-  it('handles groups with empty page arrays', () => {
+  it('handles groups with empty page arrays', async () => {
     const config = { sidebar: [{ group: 'Empty', pages: [] }] };
     expect(getAllPageIds(config)).toEqual([]);
   });
@@ -491,23 +492,23 @@ describe('getAllPageIds', () => {
 describe('resolvePdfOptions', () => {
   const config = { pdf: { enabled: false, outputDir: 'exports' } };
 
-  it('defaults to disabled', () => {
+  it('defaults to disabled', async () => {
     expect(resolvePdfOptions({}, {}).enabled).toBe(false);
   });
 
-  it('enables via --pdf flag', () => {
+  it('enables via --pdf flag', async () => {
     expect(resolvePdfOptions(config, { pdf: true }).enabled).toBe(true);
   });
 
-  it('enables via config', () => {
+  it('enables via config', async () => {
     expect(resolvePdfOptions({ pdf: { enabled: true } }, {}).enabled).toBe(true);
   });
 
-  it('--no-pdf overrides config and --pdf', () => {
+  it('--no-pdf overrides config and --pdf', async () => {
     expect(resolvePdfOptions({ pdf: { enabled: true } }, { pdf: true, noPdf: true }).enabled).toBe(false);
   });
 
-  it('--pdf-dir overrides config outputDir', () => {
+  it('--pdf-dir overrides config outputDir', async () => {
     const opts = resolvePdfOptions(config, { pdf: true, pdfDir: 'manuals' });
     expect(opts.outputDir).toBe('manuals');
   });
@@ -527,7 +528,7 @@ describe('getChapterManifest', () => {
   };
   const baseOptions = resolvePdfOptions({}, { pdf: true });
 
-  it('groups pages by sidebar group in order', () => {
+  it('groups pages by sidebar group in order', async () => {
     const { chapters, pageToChapter } = getChapterManifest(config, pagesData, baseOptions);
     expect(chapters).toHaveLength(1);
     expect(chapters[0].id).toBe('getting-started');
@@ -536,18 +537,18 @@ describe('getChapterManifest', () => {
     expect(pageToChapter.installation).toBe('getting-started');
   });
 
-  it('excludes api pages by default', () => {
+  it('excludes api pages by default', async () => {
     const { chapters } = getChapterManifest(config, pagesData, baseOptions);
     expect(chapters.find((c) => c.id === 'api')).toBeUndefined();
   });
 
-  it('includes api pages when include.apiReference is true', () => {
+  it('includes api pages when include.apiReference is true', async () => {
     const opts = { ...baseOptions, include: { ...baseOptions.include, apiReference: true } };
     const { chapters } = getChapterManifest(config, pagesData, opts);
     expect(chapters.some((c) => c.pages.includes('api/foo'))).toBe(true);
   });
 
-  it('supports folder strategy', () => {
+  it('supports folder strategy', async () => {
     const opts = { ...baseOptions, strategy: 'folders' };
     const data = {
       'guides/a': { meta: {}, html: '' },
@@ -559,7 +560,7 @@ describe('getChapterManifest', () => {
     expect(chapters.find((c) => c.id === 'docs')?.pages).toEqual(['intro']);
   });
 
-  it('supports manual strategy', () => {
+  it('supports manual strategy', async () => {
     const opts = {
       ...baseOptions,
       strategy: 'manual',
@@ -569,7 +570,7 @@ describe('getChapterManifest', () => {
     expect(chapters).toEqual([{ id: 'onboarding', title: 'Onboarding', pages: ['installation', 'introduction'] }]);
   });
 
-  it('slugifyChapterId produces stable ids', () => {
+  it('slugifyChapterId produces stable ids', async () => {
     expect(slugifyChapterId('Getting Started')).toBe('getting-started');
     expect(slugifyChapterId('API & SDK')).toBe('api-sdk');
   });
@@ -584,8 +585,8 @@ describe('renderPage — PDF UI', () => {
     pagesData: { introduction: { meta: { title: 'Introduction' }, html: '<p>Body</p>' } },
   });
 
-  it('includes pdf dropdown when pdfManifest is provided', () => {
-    const html = renderPage({
+  it('includes pdf dropdown when pdfManifest is provided', async () => {
+    const html = await renderPage({
       config,
       id: 'introduction',
       meta: { title: 'Introduction' },
@@ -598,8 +599,8 @@ describe('renderPage — PDF UI', () => {
     expect(html).toContain('Download full documentation');
   });
 
-  it('uses print button when pdfManifest is absent', () => {
-    const html = renderPage({
+  it('uses print button when pdfManifest is absent', async () => {
+    const html = await renderPage({
       config,
       id: 'introduction',
       meta: { title: 'Introduction' },
@@ -617,16 +618,16 @@ describe('renderPage — PDF UI', () => {
 describe('buildComponents', () => {
   const output = buildComponents();
 
-  it('returns a non-empty string', () => {
+  it('returns a non-empty string', async () => {
     expect(typeof output).toBe('string');
     expect(output.length).toBeGreaterThan(100);
   });
 
-  it('includes the Lit import', () => {
+  it('includes the Lit import', async () => {
     expect(output).toContain("from 'lit'");
   });
 
-  it('wc-code-block captures innerHTML on connectedCallback so child tags render as source text', () => {
+  it('wc-code-block captures innerHTML on connectedCallback so child tags render as source text', async () => {
     // The component must capture innerHTML before shadow DOM renders, not use a slot.
     expect(output).toContain('connectedCallback');
     expect(output).toContain('this.innerHTML');
@@ -647,11 +648,13 @@ describe('buildComponents', () => {
     'wc-icon', 'wc-file', 'wc-dir', 'wc-files', 'wc-tree', 'wc-tree-item', 'wc-download', 'wc-copy',
     // Data & API
     'wc-field', 'wc-fields', 'wc-response-fields', 'wc-color', 'wc-table',
-    'wc-schema', 'wc-mermaid', 'wc-endpoint', 'wc-runnable-endpoint',
+    'wc-schema', 'wc-mermaid', 'wc-endpoint', 'wc-runnable-endpoint', 'wc-playground',
     // Content
     'wc-card', 'wc-tile', 'wc-tiles', 'wc-button', 'wc-prompt',
     // Utility
     'wc-anchor', 'wc-indent', 'wc-visibility', 'wc-version', 'wc-versions', 'wc-page-meta',
+    // Media
+    'wc-image',
   ];
 
   for (const tag of expectedComponents) {
@@ -665,19 +668,19 @@ describe('buildComponents', () => {
 // config.js — getVersionConfig
 // ─────────────────────────────────────────────────────────────────────────────
 describe('getVersionConfig', () => {
-  it('returns null when no versions field', () => {
+  it('returns null when no versions field', async () => {
     expect(getVersionConfig({ name: 'Test', sidebar: [] })).toBeNull();
   });
 
-  it('returns null when versions.list is empty', () => {
+  it('returns null when versions.list is empty', async () => {
     expect(getVersionConfig({ versions: { default: 'v1', list: [] } })).toBeNull();
   });
 
-  it('returns null when versions field exists but has no list', () => {
+  it('returns null when versions field exists but has no list', async () => {
     expect(getVersionConfig({ versions: { default: 'v1' } })).toBeNull();
   });
 
-  it('returns the versions object when properly configured', () => {
+  it('returns the versions object when properly configured', async () => {
     const config = {
       versions: {
         default: 'v2',
@@ -696,11 +699,11 @@ describe('getVersionConfig', () => {
 });
 
 describe('getAnnouncement', () => {
-  it('returns null when no announcement is configured', () => {
+  it('returns null when no announcement is configured', async () => {
     expect(getAnnouncement({ name: 'Test', sidebar: [] })).toBeNull();
   });
 
-  it('returns config-level announcement', () => {
+  it('returns config-level announcement', async () => {
     const ann = getAnnouncement({
       name: 'Test',
       sidebar: [],
@@ -711,7 +714,7 @@ describe('getAnnouncement', () => {
     expect(ann?.dismissible).toBe(true);
   });
 
-  it('version-level announcement overrides config-level', () => {
+  it('version-level announcement overrides config-level', async () => {
     const versionConfig = {
       default: 'v2',
       list: [
@@ -729,38 +732,38 @@ describe('getAnnouncement', () => {
     expect(getAnnouncement(config, 'v2', versionConfig)?.message).toBe('site-wide');
   });
 
-  it('hashAnnouncementMessage is stable for the same message', () => {
+  it('hashAnnouncementMessage is stable for the same message', async () => {
     expect(hashAnnouncementMessage('Hello')).toBe(hashAnnouncementMessage('Hello'));
     expect(hashAnnouncementMessage('Hello')).not.toBe(hashAnnouncementMessage('Hello!'));
   });
 });
 
 describe('site themes', () => {
-  it('defaults to teal preset', () => {
+  it('defaults to teal preset', async () => {
     const resolved = resolveSiteThemeSync({ name: 'Test', sidebar: [] });
     expect(resolved.id).toBe('teal');
     expect(resolved.isCustom).toBe(false);
   });
 
-  it('accepts theme as a preset string', () => {
+  it('accepts theme as a preset string', async () => {
     expect(resolveSiteThemeSync({ theme: 'ocean' }).id).toBe('ocean');
   });
 
-  it('accepts theme object with preset and colors', () => {
+  it('accepts theme object with preset and colors', async () => {
     const resolved = resolveSiteThemeSync({ theme: { preset: 'violet', colors: { accent: '#7c3aed' } } });
     expect(resolved.basePreset).toBe('violet');
     expect(resolved.isCustom).toBe(true);
     expect(resolved.dark.accent).toBe('#7c3aed');
   });
 
-  it('buildThemeCss includes ocean dark variables', () => {
+  it('buildThemeCss includes ocean dark variables', async () => {
     const css = buildThemeCss(resolveSiteThemeSync({ theme: 'ocean' }));
     expect(css).toContain('html[data-theme="ocean"]');
     expect(css).toContain('--accent: #2563eb');
     expect(css).toContain('html.light[data-theme="ocean"]');
   });
 
-  it('buildThemeCss includes custom brand theme block', () => {
+  it('buildThemeCss includes custom brand theme block', async () => {
     const resolved = resolveSiteThemeSync({
       theme: { extends: 'slate', colors: { accent: '#003366' } },
     });
@@ -769,22 +772,22 @@ describe('site themes', () => {
     expect(css).toContain('--accent: #003366');
   });
 
-  it('auto-derives accent dim colors from hex accent', () => {
+  it('auto-derives accent dim colors from hex accent', async () => {
     const resolved = resolveSiteThemeSync({
       theme: { colors: { accent: '#003366' } },
     });
     expect(resolved.dark.accentDim).toContain('rgba(0,51,102');
   });
 
-  it('buildHtmlTag omits data-theme for default teal', () => {
+  it('buildHtmlTag omits data-theme for default teal', async () => {
     expect(buildHtmlTag(resolveSiteThemeSync({}))).toBe('<html lang="en">');
   });
 
-  it('buildHtmlTag sets data-theme for non-default presets', () => {
+  it('buildHtmlTag sets data-theme for non-default presets', async () => {
     expect(buildHtmlTag(resolveSiteThemeSync({ theme: 'ocean' }))).toBe('<html lang="en" data-theme="ocean">');
   });
 
-  it('lists all built-in presets', () => {
+  it('lists all built-in presets', async () => {
     const presets = listThemePresets().map(p => p.id);
     expect(presets).toContain('teal');
     expect(presets).toContain('ocean');
@@ -792,8 +795,8 @@ describe('site themes', () => {
     expect(presets.length).toBeGreaterThanOrEqual(8);
   });
 
-  it('renderShell applies data-theme attribute', () => {
-    const html = renderShell({
+  it('renderShell applies data-theme attribute', async () => {
+    const html = await renderShell({
       config: { name: 'Test', sidebar: [{ group: 'G', pages: ['intro'] }], theme: 'forest' },
       mode: 'dev',
       port: 3000,
@@ -802,11 +805,11 @@ describe('site themes', () => {
     expect(html).toContain('html[data-theme="forest"]');
   });
 
-  it('parseThemeConfig treats non-preset strings as theme files', () => {
+  it('parseThemeConfig treats non-preset strings as theme files', async () => {
     expect(parseThemeConfig({ theme: './brand-theme.json' }).file).toBe('./brand-theme.json');
   });
 
-  it('rejects unknown presets in validation', () => {
+  it('rejects unknown presets in validation', async () => {
     expect(isValidThemePreset('not-a-theme')).toBe(false);
     expect(isValidThemePreset('ocean')).toBe(true);
   });
@@ -834,29 +837,29 @@ describe('renderShell — announcement banner', () => {
     announcement: { message: 'New feature: [Learn more](https://example.com)', type: 'info' },
   };
 
-  it('renders announcement banner above nav', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+  it('renders announcement banner above nav', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
     const navIdx = html.indexOf('<nav class="nav">');
     const bannerIdx = html.indexOf('announcement-banner');
     expect(bannerIdx).toBeGreaterThan(-1);
     expect(bannerIdx).toBeLessThan(navIdx);
   });
 
-  it('renders markdown links in announcement message', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+  it('renders markdown links in announcement message', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
     expect(html).toContain('href="https://example.com"');
     expect(html).toContain('announcement-info');
   });
 
-  it('includes dismiss persistence scripts', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+  it('includes dismiss persistence scripts', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
     expect(html).toContain('docslit-announcement');
     expect(html).toContain('window.__DOCSLIT_ANNOUNCEMENT_HASH__');
     expect(html).toContain('dismissAnnouncement');
   });
 
-  it('omits announcement when not configured', () => {
-    const html = renderShell({ config: { name: 'Test', sidebar: [] }, mode: 'dev', port: 3000 });
+  it('omits announcement when not configured', async () => {
+    const html = await renderShell({ config: { name: 'Test', sidebar: [] }, mode: 'dev', port: 3000 });
     expect(html).not.toContain('class="announcement-banner announcement-');
     expect(html).not.toContain('window.__DOCSLIT_ANNOUNCEMENT_HASH__=');
   });
@@ -866,7 +869,7 @@ describe('renderShell — announcement banner', () => {
 // config.js — git helpers (isomorphic-git)
 // ─────────────────────────────────────────────────────────────────────────────
 describe('git helpers (isomorphic-git)', () => {
-  const tmpDir = path.join(__dirname, '../.test-git-repo');
+  const tmpDir = path.join(os.tmpdir(), `docslit-test-git-${process.pid}`);
   const author = { name: 'Test', email: 'test@test.com' };
 
   beforeAll(async () => {
@@ -974,39 +977,39 @@ describe('renderShell — versioning', () => {
     ],
   };
 
-  it('does not inject version selector when versionConfig is null', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+  it('does not inject version selector when versionConfig is null', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
     expect(html).not.toContain('<select class="version-select"');
     expect(html).not.toContain('window.__DOCSLIT_VERSIONS__ =');
   });
 
-  it('injects version selector when versionConfig is provided', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
+  it('injects version selector when versionConfig is provided', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
     expect(html).toContain('<select class="version-select"');
     expect(html).toContain('v1 (Legacy)');
     expect(html).toContain('v2 (Latest)');
   });
 
-  it('marks the current version as selected', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v1' });
+  it('marks the current version as selected', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v1' });
     expect(html).toContain('value="v1" selected');
     expect(html).not.toContain('value="v2" selected');
   });
 
-  it('injects __DOCSLIT_VERSIONS__ script with correct data', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
+  it('injects __DOCSLIT_VERSIONS__ script with correct data', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
     expect(html).toContain('window.__DOCSLIT_VERSIONS__');
     expect(html).toContain('"current":"v2"');
     expect(html).toContain('"default":"v2"');
   });
 
-  it('includes switchVersion function in output', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
+  it('includes switchVersion function in output', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
     expect(html).toContain('function switchVersion');
   });
 
-  it('includes version-select CSS styles', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
+  it('includes version-select CSS styles', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
     expect(html).toContain('.version-select');
   });
 });
@@ -1014,13 +1017,13 @@ describe('renderShell — versioning', () => {
 describe('template.js — esbuild lazy load', () => {
   const baseConfig = { name: 'Test', sidebar: [{ group: 'G', pages: ['intro'] }] };
 
-  it('renderShell with minify=false does not require esbuild', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, minify: false });
+  it('renderShell with minify=false does not require esbuild', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000, minify: false });
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('function loadPage');
   });
 
-  it('isEsbuildAvailable reflects whether esbuild is installed', () => {
+  it('isEsbuildAvailable reflects whether esbuild is installed', async () => {
     let esbuildInstalled = true;
     try { require('esbuild'); } catch { esbuildInstalled = false; }
     expect(isEsbuildAvailable()).toBe(esbuildInstalled);
@@ -1058,22 +1061,22 @@ describe('renderShell — versioned loaders', () => {
     ],
   };
 
-  it('dev loader uses versioned API path when __DOCSLIT_VERSIONS__ is set', () => {
-    const html = renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
+  it('dev loader uses versioned API path when __DOCSLIT_VERSIONS__ is set', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000, versionConfig, currentVersion: 'v2' });
     expect(html).toContain("'/api/page/' + vc.current + '/' + id");
   });
 
-  it('static loader includes fallback fetch to default version', () => {
-    const html = renderShell({ config: baseConfig, mode: 'static', versionConfig, currentVersion: 'v1' });
+  it('static loader includes fallback fetch to default version', async () => {
+    const html = await renderShell({ config: baseConfig, mode: 'static', versionConfig, currentVersion: 'v1' });
     expect(html).toContain("vc.default + '/'");
   });
 
-  it('all three loaders reference __DOCSLIT_VERSIONS__ for versioned routing', () => {
+  it('all three loaders reference __DOCSLIT_VERSIONS__ for versioned routing', async () => {
     for (const mode of ['dev', 'static'] as const) {
-      const html = renderShell({ config: baseConfig, mode, port: 3000, versionConfig, currentVersion: 'v2' });
+      const html = await renderShell({ config: baseConfig, mode, port: 3000, versionConfig, currentVersion: 'v2' });
       expect(html).toContain('__DOCSLIT_VERSIONS__');
     }
-    const offlineHtml = renderShell({
+    const offlineHtml = await renderShell({
       config: baseConfig, mode: 'static', versionConfig, currentVersion: 'v2',
       pagesData: { intro: { meta: {}, html: '<p>hi</p>' } }, offline: true,
     });
@@ -1086,23 +1089,23 @@ describe('renderShell — versioned loaders', () => {
 describe('renderShell — search UI', () => {
   const config = { name: 'Test', sidebar: [{ group: 'Guide', pages: ['intro', 'setup'] }] };
 
-  it('includes search trigger button in nav', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes search trigger button in nav', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('search-trigger');
     expect(html).toContain('Search…');
     expect(html).toContain('⌘K');
   });
 
-  it('includes search overlay modal markup', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes search overlay modal markup', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('search-overlay');
     expect(html).toContain('search-modal');
     expect(html).toContain('search-input');
     expect(html).toContain('Search docs…');
   });
 
-  it('includes search JS functions', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes search JS functions', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('function openSearch');
     expect(html).toContain('function closeSearch');
     expect(html).toContain('function handleSearchInput');
@@ -1110,30 +1113,31 @@ describe('renderShell — search UI', () => {
     expect(html).toContain('function selectSearchItem');
   });
 
-  it('includes Cmd+K keyboard shortcut handler', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes Cmd+K keyboard shortcut handler', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain("e.key === 'k'");
     expect(html).toContain('e.metaKey');
     expect(html).toContain('e.ctrlKey');
   });
 
-  it('includes FlexSearch CDN import', () => {
-    const html = renderShell({ config, mode: 'static' });
-    expect(html).toContain('flexsearch');
+  it('includes vendored FlexSearch import', async () => {
+    const html = await renderShell({ config, mode: 'static' });
+    expect(html).toContain('flexsearch.js');
+    expect(html).not.toContain('esm.sh/flexsearch');
   });
 
-  it('fetches search-index.json in static mode', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('fetches search-index.json in static mode', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('search-index.json');
   });
 
-  it('fetches /api/search-index in dev mode', () => {
-    const html = renderShell({ config, mode: 'dev' });
+  it('fetches /api/search-index in dev mode', async () => {
+    const html = await renderShell({ config, mode: 'dev' });
     expect(html).toContain('/api/search-index');
   });
 
-  it('includes search CSS styles', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes search CSS styles', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('.search-trigger');
     expect(html).toContain('.search-overlay');
     expect(html).toContain('.search-modal');
@@ -1147,20 +1151,20 @@ describe('renderShell — search offline mode', () => {
   const pagesData = { intro: { meta: { title: 'Intro' }, html: '<h1>Intro</h1>' } };
   const searchIndex = [{ id: 'intro', title: 'Intro', group: 'Guide', desc: '', body: 'content' }];
 
-  it('loads search index via script tag in offline mode', () => {
+  it('loads search index via script tag in offline mode', async () => {
     const appJs = buildOfflineAppFile({});
     expect(appJs).toContain('search-index.js');
-    const html = renderShell({ config, mode: 'static', offline: true, pagesData, searchIndex });
+    const html = await renderShell({ config, mode: 'static', offline: true, pagesData, searchIndex });
     expect(html).not.toContain('"id":"intro"');
   });
 
-  it('does not inline search index when not offline', () => {
-    const html = renderShell({ config, mode: 'static', searchIndex });
+  it('does not inline search index when not offline', async () => {
+    const html = await renderShell({ config, mode: 'static', searchIndex });
     expect(html).not.toContain('window.__DOCSLIT_SEARCH_INDEX__ =');
   });
 
-  it('does not inline search index when no searchIndex provided', () => {
-    const html = renderShell({ config, mode: 'static', offline: true, pagesData });
+  it('does not inline search index when no searchIndex provided', async () => {
+    const html = await renderShell({ config, mode: 'static', offline: true, pagesData });
     expect(html).not.toContain('window.__DOCSLIT_SEARCH_INDEX__ =');
   });
 });
@@ -1170,39 +1174,39 @@ describe('renderShell — search offline mode', () => {
 describe('renderShell — sidebar filter', () => {
   const config = { name: 'Test', sidebar: [{ group: 'Guide', pages: ['intro', 'setup'] }] };
 
-  it('includes filter input in sidebar', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes filter input in sidebar', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('sidebar-filter');
     expect(html).toContain('Filter pages…');
   });
 
-  it('includes clear button', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes clear button', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('sidebar-filter-clear');
     expect(html).toContain('_clearSidebarFilter()');
   });
 
-  it('includes filter JS function', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes filter JS function', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('function _filterSidebar');
     expect(html).toContain('function _clearSidebarFilter');
   });
 
-  it('includes filter highlight CSS', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes filter highlight CSS', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('.sidebar-filter-wrap');
     expect(html).toContain('mark.filter-hl');
     expect(html).toContain('.sidebar-no-results');
   });
 
-  it('wraps sidebar items in a scrollable container', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('wraps sidebar items in a scrollable container', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('sidebar-scroll');
     expect(html).toContain('id="sidebar-scroll"');
   });
 
-  it('sidebar items have oninput wired to _filterSidebar', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('sidebar items have oninput wired to _filterSidebar', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('oninput="_filterSidebar(this.value)"');
   });
 });
@@ -1212,76 +1216,76 @@ describe('renderShell — sidebar filter', () => {
 describe('renderShell — accessibility', () => {
   const config = { name: 'Test', sidebar: [{ group: 'Guide', pages: ['intro'] }] };
 
-  it('includes skip-to-content link', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes skip-to-content link', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('skip-link');
     expect(html).toContain('href="#docs-content"');
     expect(html).toContain('Skip to content');
   });
 
-  it('uses <main> element for content area', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('uses <main> element for content area', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('<main class="docs-content"');
     expect(html).toContain('role="main"');
     expect(html).toContain('</main>');
   });
 
-  it('sidebar scroll has nav landmark with aria-label', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('sidebar scroll has nav landmark with aria-label', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('<nav class="sidebar-scroll"');
     expect(html).toContain('aria-label="Documentation pages"');
   });
 
-  it('search input has combobox role and aria attributes', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('search input has combobox role and aria attributes', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('role="combobox"');
     expect(html).toContain('aria-controls="search-results"');
     expect(html).toContain('aria-activedescendant');
   });
 
-  it('search results container has listbox role', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('search results container has listbox role', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('role="listbox"');
     expect(html).toContain('aria-label="Search results"');
   });
 
-  it('search result items have role="option" in render functions', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('search result items have role="option" in render functions', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain("role=\"option\"");
   });
 
-  it('includes focus trap function for search modal', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes focus trap function for search modal', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('function _trapFocus');
     expect(html).toContain('addEventListener(\'keydown\', _trapFocus)');
   });
 
-  it('returns focus to trigger on search close', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('returns focus to trigger on search close', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('search-trigger');
     expect(html).toContain('trigger.focus()');
   });
 
-  it('includes prefers-reduced-motion styles', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes prefers-reduced-motion styles', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('prefers-reduced-motion: reduce');
     expect(html).toContain('animation-duration: 0.01ms');
     expect(html).toContain('transition-duration: 0.01ms');
   });
 
-  it('includes prefers-contrast styles', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes prefers-contrast styles', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('prefers-contrast: more');
   });
 
-  it('includes focus-visible indicators', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('includes focus-visible indicators', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('*:focus-visible');
     expect(html).toContain('outline: 2px solid var(--accent)');
   });
 
-  it('content links have underline for distinguishability', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('content links have underline for distinguishability', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('.docs-content a { text-decoration: underline');
   });
 });
@@ -1289,37 +1293,37 @@ describe('renderShell — accessibility', () => {
 describe('components — accessibility', () => {
   const components = buildComponents();
 
-  it('tabs have ARIA tablist/tab/tabpanel roles', () => {
+  it('tabs have ARIA tablist/tab/tabpanel roles', async () => {
     expect(components).toContain('role="tablist"');
     expect(components).toContain('role="tab"');
     expect(components).toContain('role="tabpanel"');
     expect(components).toContain('aria-selected');
   });
 
-  it('tabs support arrow key navigation', () => {
+  it('tabs support arrow key navigation', async () => {
     expect(components).toContain('ArrowRight');
     expect(components).toContain('ArrowLeft');
   });
 
-  it('expandable has keyboard support and ARIA', () => {
+  it('expandable has keyboard support and ARIA', async () => {
     expect(components).toContain('aria-expanded');
     expect(components).toContain('tabindex="0"');
   });
 
-  it('copy button is keyboard accessible', () => {
+  it('copy button is keyboard accessible', async () => {
     expect(components).toContain("role=\"button\"");
     expect(components).toContain('tabindex="0"');
   });
 
-  it('callout has appropriate role', () => {
+  it('callout has appropriate role', async () => {
     expect(components).toContain("role=");
   });
 
-  it('components include focus-visible styles', () => {
+  it('components include focus-visible styles', async () => {
     expect(components).toContain('focus-visible');
   });
 
-  it('components include prefers-reduced-motion', () => {
+  it('components include prefers-reduced-motion', async () => {
     expect(components).toContain('prefers-reduced-motion');
   });
 });
@@ -1331,102 +1335,102 @@ describe('renderPage — per-route HTML', () => {
   const meta = { title: 'Introduction', description: 'Getting started guide' };
   const pageHtml = '<h1>Introduction</h1><p>Welcome to the docs.</p>';
 
-  it('includes pre-rendered content', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('includes pre-rendered content', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('<h1>Introduction</h1>');
     expect(html).toContain('<p>Welcome to the docs.</p>');
     expect(html).not.toContain('Loading…');
   });
 
-  it('sets page-specific title', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('sets page-specific title', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('<title>Introduction — TestSite</title>');
   });
 
-  it('includes SEO meta tags', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('includes SEO meta tags', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('og:title');
     expect(html).toContain('og:type');
     expect(html).toContain('twitter:card');
     expect(html).toContain('application/ld+json');
   });
 
-  it('includes description meta when provided', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('includes description meta when provided', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('name="description"');
     expect(html).toContain('Getting started guide');
   });
 
-  it('references external CSS instead of inline styles', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('references external CSS instead of inline styles', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('href="docslit.css"');
     expect(html).not.toMatch(/<style>[^<]{1000,}<\/style>/);
   });
 
-  it('references external JS files', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('references external JS files', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('src="docslit.js"');
     expect(html).toContain('src="docslit-app.js"');
   });
 
-  it('sets __DOCSLIT_PAGE_ID__', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('sets __DOCSLIT_PAGE_ID__', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('window.__DOCSLIT_PAGE_ID__ = "intro"');
   });
 
-  it('marks active sidebar item', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('marks active sidebar item', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('sidebar-item active');
     expect(html).toMatch(/data-page="intro"[^>]*>.*?Intro/);
   });
 
-  it('includes version selector when versionConfig provided', () => {
+  it('includes version selector when versionConfig provided', async () => {
     const vc = { default: 'v1', list: [{ version: 'v1', branch: 'main', tag: 'Latest' }] };
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [], versionConfig: vc, currentVersion: 'v1' });
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [], versionConfig: vc, currentVersion: 'v1' });
     expect(html).toContain('version-select');
     expect(html).toContain('__DOCSLIT_VERSIONS__');
   });
 
-  it('includes theme init script in head', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('includes theme init script in head', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('docslit-theme');
     expect(html).toContain('__themeMode');
   });
 
-  it('includes import map', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('includes import map', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('importmap');
     expect(html).toContain('esm.sh/lit@3');
   });
 
-  it('computes asset prefix for nested page IDs', () => {
-    const html = renderPage({ config, id: 'commands/check', meta, html: pageHtml, draftPageIds: [] });
+  it('computes asset prefix for nested page IDs', async () => {
+    const html = await renderPage({ config, id: 'commands/check', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('href="../docslit.css"');
     expect(html).toContain('src="../docslit.js"');
     expect(html).toContain('src="../docslit-app.js"');
   });
 
-  it('includes canonical URL when config.url is set', () => {
+  it('includes canonical URL when config.url is set', async () => {
     const cfgWithUrl = { ...config, url: 'https://docs.example.com' };
-    const html = renderPage({ config: cfgWithUrl, id: 'intro', meta, html: pageHtml, draftPageIds: [], versionConfig: { default: 'v1', list: [] }, currentVersion: 'v1' });
+    const html = await renderPage({ config: cfgWithUrl, id: 'intro', meta, html: pageHtml, draftPageIds: [], versionConfig: { default: 'v1', list: [] }, currentVersion: 'v1' });
     expect(html).toContain('rel="canonical"');
     expect(html).toContain('https://docs.example.com/v1/intro');
   });
 
-  it('includes breadcrumb with page title', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('includes breadcrumb with page title', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('docs-breadcrumb-current');
     expect(html).toContain('>Introduction<');
   });
 
-  it('includes skip link for accessibility', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
+  it('includes skip link for accessibility', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('skip-link');
     expect(html).toContain('Skip to content');
   });
 
-  it('hides draft pages from sidebar', () => {
-    const html = renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: ['setup'] });
+  it('hides draft pages from sidebar', async () => {
+    const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: ['setup'] });
     expect(html).not.toContain('data-page="setup"');
     expect(html).toContain('data-page="intro"');
   });
@@ -1435,14 +1439,14 @@ describe('renderPage — per-route HTML', () => {
 // ── buildStylesFile ─────────────────────────────────────────────────────
 
 describe('buildStylesFile', () => {
-  it('returns CSS without style tags', () => {
+  it('returns CSS without style tags', async () => {
     const css = buildStylesFile();
     expect(css).not.toContain('<style>');
     expect(css).not.toContain('</style>');
     expect(css).toContain(':root');
   });
 
-  it('contains theme variables', () => {
+  it('contains theme variables', async () => {
     const css = buildStylesFile();
     expect(css).toContain('--bg:');
     expect(css).toContain('--accent:');
@@ -1453,7 +1457,7 @@ describe('buildStylesFile', () => {
 // ── buildAppFile ────────────────────────────────────────────────────────
 
 describe('buildAppFile', () => {
-  it('contains all required functions for static mode', () => {
+  it('contains all required functions for static mode', async () => {
     const js = buildAppFile('static');
     expect(js).toContain('function loadPage');
     expect(js).toContain('function toggleTheme');
@@ -1464,19 +1468,19 @@ describe('buildAppFile', () => {
     expect(js).toContain('function _filterSidebar');
   });
 
-  it('contains pre-render check for __DOCSLIT_PAGE_ID__', () => {
+  it('contains pre-render check for __DOCSLIT_PAGE_ID__', async () => {
     const js = buildAppFile('static');
     expect(js).toContain('__DOCSLIT_PAGE_ID__');
   });
 
-  it('exports functions to window', () => {
+  it('exports functions to window', async () => {
     const js = buildAppFile('static');
     expect(js).toContain('window.loadPage');
     expect(js).toContain('window.openSidebar');
     expect(js).toContain('window.switchVersion');
   });
 
-  it('strips .html from pathname in _pageFromUrl', () => {
+  it('strips .html from pathname in _pageFromUrl', async () => {
     const js = buildAppFile('static');
     expect(js).toContain(".replace(/\\.html$/, '')");
   });
@@ -1485,7 +1489,7 @@ describe('buildAppFile', () => {
 // ── buildComponentsFile ─────────────────────────────────────────────────
 
 describe('buildComponentsFile', () => {
-  it('returns ES module with Lit import', () => {
+  it('returns ES module with Lit import', async () => {
     const js = buildComponentsFile('static');
     expect(js).toContain("import { LitElement");
     expect(js).toContain('customElements.define');
@@ -1532,17 +1536,17 @@ describe('getEndpoints', () => {
     endpoints = getEndpoints(spec);
   });
 
-  it('extracts all endpoints from spec', () => {
+  it('extracts all endpoints from spec', async () => {
     expect(endpoints).toHaveLength(3);
   });
 
-  it('extracts method and path correctly', () => {
+  it('extracts method and path correctly', async () => {
     const listPets = endpoints.find((e: any) => e.operationId === 'listPets');
     expect(listPets.method).toBe('GET');
     expect(listPets.path).toBe('/pets');
   });
 
-  it('extracts parameters with constraints', () => {
+  it('extracts parameters with constraints', async () => {
     const listPets = endpoints.find((e: any) => e.operationId === 'listPets');
     expect(listPets.parameters).toHaveLength(2);
     const limit = listPets.parameters.find((p: any) => p.name === 'limit');
@@ -1553,7 +1557,7 @@ describe('getEndpoints', () => {
     expect(limit.maximum).toBe(100);
   });
 
-  it('merges path-level parameters into operations', () => {
+  it('merges path-level parameters into operations', async () => {
     const listPets = endpoints.find((e: any) => e.operationId === 'listPets');
     const header = listPets.parameters.find((p: any) => p.name === 'X-Request-ID');
     expect(header).toBeDefined();
@@ -1561,13 +1565,13 @@ describe('getEndpoints', () => {
     expect(header.format).toBe('uuid');
   });
 
-  it('extracts maxLength from body fields', () => {
+  it('extracts maxLength from body fields', async () => {
     const createPet = endpoints.find((e: any) => e.operationId === 'createPet');
     const nameField = createPet.bodyFields.find((f: any) => f.name === 'name');
     expect(nameField.maxLength).toBe(100);
   });
 
-  it('extracts request body fields', () => {
+  it('extracts request body fields', async () => {
     const createPet = endpoints.find((e: any) => e.operationId === 'createPet');
     expect(createPet.bodyFields).toHaveLength(2);
     const nameField = createPet.bodyFields.find((f: any) => f.name === 'name');
@@ -1576,12 +1580,12 @@ describe('getEndpoints', () => {
     expect(nameField.type).toBe('string');
   });
 
-  it('extracts tags', () => {
+  it('extracts tags', async () => {
     const getPet = endpoints.find((e: any) => e.operationId === 'getPet');
     expect(getPet.tags).toEqual(['Pets']);
   });
 
-  it('extracts summary', () => {
+  it('extracts summary', async () => {
     const getPet = endpoints.find((e: any) => e.operationId === 'getPet');
     expect(getPet.summary).toBe('Get a pet by ID');
   });
@@ -1639,7 +1643,7 @@ describe('getSecuritySchemes', () => {
     expect(schemes.apiKey.name).toBe('X-API-Key');
   });
 
-  it('returns empty object when no schemes defined', () => {
+  it('returns empty object when no schemes defined', async () => {
     expect(getSecuritySchemes({ openapi: '3.1.0', paths: {} })).toEqual({});
   });
 });
@@ -1668,7 +1672,7 @@ describe('resolveSpecRefs', () => {
     specData = getEndpoints(spec);
   });
 
-  it('injects method and url into wc-endpoint with ref', () => {
+  it('injects method and url into wc-endpoint with ref', async () => {
     const html = '<wc-endpoint ref="listPets">User prose</wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('method="GET"');
@@ -1676,7 +1680,7 @@ describe('resolveSpecRefs', () => {
     expect(resolved).toContain('User prose');
   });
 
-  it('generates wc-fields with wc-field children from spec params', () => {
+  it('generates wc-fields with wc-field children from spec params', async () => {
     const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('<wc-fields title="Query Parameters">');
@@ -1685,26 +1689,26 @@ describe('resolveSpecRefs', () => {
     expect(resolved).toContain('in="query"');
   });
 
-  it('groups fields by type with separate wc-fields blocks', () => {
+  it('groups fields by type with separate wc-fields blocks', async () => {
     const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('<wc-fields title="Headers">');
     expect(resolved).toContain('<wc-fields title="Query Parameters">');
   });
 
-  it('passes description attribute to wc-endpoint', () => {
+  it('passes description attribute to wc-endpoint', async () => {
     const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('description="');
   });
 
-  it('adds maxlength attr to wc-field', () => {
+  it('adds maxlength attr to wc-field', async () => {
     const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toMatch(/wc-field[^>]*name="name"[^>]*maxlength="100"/);
   });
 
-  it('generates body fields from request body', () => {
+  it('generates body fields from request body', async () => {
     const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('name="name"');
@@ -1712,14 +1716,14 @@ describe('resolveSpecRefs', () => {
     expect(resolved).toContain('required');
   });
 
-  it('preserves existing children', () => {
+  it('preserves existing children', async () => {
     const html = '<wc-endpoint ref="listPets"><p>Custom content</p></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('<p>Custom content</p>');
     expect(resolved).toContain('method="GET"');
   });
 
-  it('injects examples from overlay', () => {
+  it('injects examples from overlay', async () => {
     const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('<wc-code-tab');
@@ -1727,33 +1731,33 @@ describe('resolveSpecRefs', () => {
     expect(resolved).toContain('language="bash"');
   });
 
-  it('leaves unmatched refs unchanged', () => {
+  it('leaves unmatched refs unchanged', async () => {
     const html = '<wc-endpoint ref="nonExistent">Content</wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toBe(html);
   });
 
-  it('handles multiple refs in one document', () => {
+  it('handles multiple refs in one document', async () => {
     const html = '<wc-endpoint ref="listPets"></wc-endpoint>\n<wc-endpoint ref="getPet"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('method="GET" url="/pets"');
     expect(resolved).toContain('method="GET" url="/pets/{petId}"');
   });
 
-  it('adds example and default attrs to wc-field', () => {
+  it('adds example and default attrs to wc-field', async () => {
     const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('example="10"');
     expect(resolved).toContain('default="20"');
   });
 
-  it('adds deprecated attr to wc-field', () => {
+  it('adds deprecated attr to wc-field', async () => {
     const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toMatch(/wc-field[^>]*name="tag"[^>]*deprecated/);
   });
 
-  it('generates wc-responses with status codes', () => {
+  it('generates wc-responses with status codes', async () => {
     const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('<wc-responses>');
@@ -1762,7 +1766,7 @@ describe('resolveSpecRefs', () => {
     expect(resolved).toContain('description="A list of pets"');
   });
 
-  it('generates wc-api-examples with response data', () => {
+  it('generates wc-api-examples with response data', async () => {
     const html = '<wc-endpoint ref="listPets"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('<wc-api-examples');
@@ -1770,7 +1774,7 @@ describe('resolveSpecRefs', () => {
     expect(resolved).toContain('data="');
   });
 
-  it('adds security attr to wc-endpoint', () => {
+  it('adds security attr to wc-endpoint', async () => {
     const html = '<wc-endpoint ref="createPet"></wc-endpoint>';
     const resolved = resolveSpecRefs(html, specData);
     expect(resolved).toContain('security="');
@@ -1789,20 +1793,20 @@ describe('getEndpoints — enriched data', () => {
     specData = getEndpoints(spec);
   });
 
-  it('extracts example and default from parameters', () => {
+  it('extracts example and default from parameters', async () => {
     const ep = specData.find((e: any) => e.operationId === 'listPets');
     const limit = ep.parameters.find((p: any) => p.name === 'limit');
     expect(limit.example).toBe(10);
     expect(limit.default).toBe(20);
   });
 
-  it('extracts deprecated flag from body fields', () => {
+  it('extracts deprecated flag from body fields', async () => {
     const ep = specData.find((e: any) => e.operationId === 'createPet');
     const tag = ep.bodyFields.find((f: any) => f.name === 'tag');
     expect(tag.deprecated).toBe(true);
   });
 
-  it('extracts structured responses with status codes', () => {
+  it('extracts structured responses with status codes', async () => {
     const ep = specData.find((e: any) => e.operationId === 'listPets');
     expect(ep.responses).toBeInstanceOf(Array);
     expect(ep.responses.length).toBe(2);
@@ -1811,7 +1815,7 @@ describe('getEndpoints — enriched data', () => {
     expect(ep.responses[1].code).toBe('400');
   });
 
-  it('extracts response examples', () => {
+  it('extracts response examples', async () => {
     const ep = specData.find((e: any) => e.operationId === 'listPets');
     const r200 = ep.responses.find((r: any) => r.code === '200');
     expect(r200.content.length).toBe(1);
@@ -1821,17 +1825,17 @@ describe('getEndpoints — enriched data', () => {
     expect(r200.content[0].examples[0].value).toBeInstanceOf(Array);
   });
 
-  it('extracts operation-level security', () => {
+  it('extracts operation-level security', async () => {
     const ep = specData.find((e: any) => e.operationId === 'createPet');
     expect(ep.security).toEqual([{ apiKey: [] }]);
   });
 
-  it('returns null security when not set at operation level', () => {
+  it('returns null security when not set at operation level', async () => {
     const ep = specData.find((e: any) => e.operationId === 'listPets');
     expect(ep.security).toBeNull();
   });
 
-  it('extracts request body examples', () => {
+  it('extracts request body examples', async () => {
     const ep = specData.find((e: any) => e.operationId === 'createPet');
     expect(ep.requestBodyExamples.length).toBe(1);
     expect(ep.requestBodyExamples[0].mediaType).toBe('application/json');
@@ -1839,13 +1843,13 @@ describe('getEndpoints — enriched data', () => {
     expect(ep.requestBodyExamples[0].examples[0].summary).toBe('Create a dog');
   });
 
-  it('extracts example from body fields', () => {
+  it('extracts example from body fields', async () => {
     const ep = specData.find((e: any) => e.operationId === 'createPet');
     const name = ep.bodyFields.find((f: any) => f.name === 'name');
     expect(name.example).toBe('Buddy');
   });
 
-  it('extracts inline response example via media.example', () => {
+  it('extracts inline response example via media.example', async () => {
     const ep = specData.find((e: any) => e.operationId === 'getPet');
     const r200 = ep.responses.find((r: any) => r.code === '200');
     expect(r200.content[0].examples.length).toBe(1);
@@ -1857,7 +1861,7 @@ describe('getEndpoints — enriched data', () => {
 // schemaToFields — recursive schema walker
 // ─────────────────────────────────────────────────────────────────────────────
 describe('schemaToFields', () => {
-  it('extracts flat properties with types and constraints', () => {
+  it('extracts flat properties with types and constraints', async () => {
     const schema = {
       type: 'object',
       required: ['id'],
@@ -1874,7 +1878,7 @@ describe('schemaToFields', () => {
     expect(fields[1].maxLength).toBe(100);
   });
 
-  it('handles nested objects with children', () => {
+  it('handles nested objects with children', async () => {
     const schema = {
       type: 'object',
       properties: {
@@ -1897,7 +1901,7 @@ describe('schemaToFields', () => {
     expect(fields[0].children[0].required).toBe(true);
   });
 
-  it('handles array of objects', () => {
+  it('handles array of objects', async () => {
     const schema = {
       type: 'object',
       properties: {
@@ -1918,7 +1922,7 @@ describe('schemaToFields', () => {
     expect(fields[0].children[0].name).toBe('id');
   });
 
-  it('resolves allOf composition', () => {
+  it('resolves allOf composition', async () => {
     const schema = {
       allOf: [
         { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] },
@@ -1958,21 +1962,21 @@ describe('response fields in getEndpoints', () => {
 // config.js — getOpenAPIConfig
 // ─────────────────────────────────────────────────────────────────────────────
 describe('getOpenAPIConfig', () => {
-  it('returns null when no openapi field', () => {
+  it('returns null when no openapi field', async () => {
     expect(getOpenAPIConfig({ name: 'Test', sidebar: [] })).toBeNull();
   });
 
-  it('parses string shorthand', () => {
+  it('parses string shorthand', async () => {
     const result = getOpenAPIConfig({ openapi: 'spec.yaml' });
     expect(result).toEqual({ spec: 'spec.yaml', overlay: null });
   });
 
-  it('parses object form with spec and overlay', () => {
+  it('parses object form with spec and overlay', async () => {
     const result = getOpenAPIConfig({ openapi: { spec: 'api.yaml', overlay: 'overlay.yaml' } });
     expect(result).toEqual({ spec: 'api.yaml', overlay: 'overlay.yaml' });
   });
 
-  it('parses object form without overlay', () => {
+  it('parses object form without overlay', async () => {
     const result = getOpenAPIConfig({ openapi: { spec: 'api.yaml' } });
     expect(result).toEqual({ spec: 'api.yaml', overlay: null });
   });
@@ -2040,7 +2044,7 @@ describe('openapi scaffold — file generation', () => {
     expect(content).toContain('layout: api');
   });
 
-  it('updates docslit.json with API Reference group', () => {
+  it('updates docslit.json with API Reference group', async () => {
     const config = JSON.parse(readFileSync(path.join(tmpDir, 'docslit.json'), 'utf8'));
     expect(config.openapi).toBeDefined();
     const apiGroup = config.sidebar.find((g: any) => g.group === 'API Reference');
@@ -2059,26 +2063,26 @@ describe('renderPage — API layout', () => {
   const meta = { title: 'List Pets', layout: 'api' as const };
   const pageHtml = '<h1>List Pets</h1><wc-endpoint method="GET" url="/pets" ref="listPets"></wc-endpoint>';
 
-  it('adds api-layout class for pages with layout: api', () => {
-    const html = renderPage({ config, id: 'api/list-pets', meta, html: pageHtml, draftPageIds: [] });
+  it('adds api-layout class for pages with layout: api', async () => {
+    const html = await renderPage({ config, id: 'api/list-pets', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('api-layout');
   });
 
-  it('includes docs-examples panel for API pages', () => {
-    const html = renderPage({ config, id: 'api/list-pets', meta, html: pageHtml, draftPageIds: [] });
+  it('includes docs-examples panel for API pages', async () => {
+    const html = await renderPage({ config, id: 'api/list-pets', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('docs-examples');
   });
 
-  it('does not add api-layout for non-API pages', () => {
+  it('does not add api-layout for non-API pages', async () => {
     const normalMeta = { title: 'Intro' };
-    const html = renderPage({ config, id: 'intro', meta: normalMeta, html: '<h1>Intro</h1>', draftPageIds: [] });
+    const html = await renderPage({ config, id: 'intro', meta: normalMeta, html: '<h1>Intro</h1>', draftPageIds: [] });
     expect(html).not.toContain('api-layout');
   });
 
   it('generates API sidebar with method badges when specData provided', async () => {
     const spec = await loadSpec(FIXTURE_SPEC);
     const specData = getEndpoints(spec);
-    const html = renderPage({ config, id: 'api/list-pets', meta, html: pageHtml, draftPageIds: [], specData });
+    const html = await renderPage({ config, id: 'api/list-pets', meta, html: pageHtml, draftPageIds: [], specData });
     expect(html).toContain('method-badge');
     expect(html).toContain('api-nav-item');
     expect(html).toContain('/pets');
@@ -2089,7 +2093,7 @@ describe('renderPage — API layout', () => {
 // Phase 1 — API layout CSS
 // ─────────────────────────────────────────────────────────────────────────────
 describe('buildStylesFile — API layout', () => {
-  it('includes API layout styles', () => {
+  it('includes API layout styles', async () => {
     const css = buildStylesFile();
     expect(css).toContain('.api-layout');
     expect(css).toContain('.docs-examples');
@@ -2097,7 +2101,7 @@ describe('buildStylesFile — API layout', () => {
     expect(css).toContain('.api-nav-item');
   });
 
-  it('includes responsive rules for API layout', () => {
+  it('includes responsive rules for API layout', async () => {
     const css = buildStylesFile();
     expect(css).toContain('.api-layout .docs-examples');
   });
@@ -2109,36 +2113,36 @@ describe('buildStylesFile — API layout', () => {
 describe('components — wc-field upgrades', () => {
   const components = buildComponents();
 
-  it('wc-field has in property', () => {
+  it('wc-field has in property', async () => {
     expect(components).toContain("in:{type:String}");
   });
 
-  it('wc-field has enum property', () => {
+  it('wc-field has enum property', async () => {
     expect(components).toContain("enum:{type:String}");
   });
 
-  it('wc-field has format property', () => {
+  it('wc-field has format property', async () => {
     expect(components).toContain("format:{type:String}");
   });
 
-  it('wc-field has pattern property', () => {
+  it('wc-field has pattern property', async () => {
     expect(components).toContain("pattern:{type:String}");
   });
 
-  it('wc-field has minimum/maximum properties', () => {
+  it('wc-field has minimum/maximum properties', async () => {
     expect(components).toContain("minimum:{type:String}");
     expect(components).toContain("maximum:{type:String}");
   });
 
-  it('wc-field has collapsible property', () => {
+  it('wc-field has collapsible property', async () => {
     expect(components).toContain("collapsible:{type:Boolean}");
   });
 
-  it('wc-field renders in-badge for location', () => {
+  it('wc-field renders in-badge for location', async () => {
     expect(components).toContain('in-badge');
   });
 
-  it('wc-field renders constraint info', () => {
+  it('wc-field renders constraint info', async () => {
     expect(components).toContain('constraint');
   });
 });
@@ -2149,11 +2153,11 @@ describe('components — wc-field upgrades', () => {
 describe('components — wc-endpoint upgrades', () => {
   const components = buildComponents();
 
-  it('wc-endpoint has ref property', () => {
+  it('wc-endpoint has ref property', async () => {
     expect(components).toContain("ref:{type:String}");
   });
 
-  it('wc-endpoint has summary property', () => {
+  it('wc-endpoint has summary property', async () => {
     expect(components).toContain("summary:{type:String}");
   });
 });
@@ -2170,26 +2174,26 @@ describe('endpointToMarkdown', () => {
     endpoints = getEndpoints(spec);
   });
 
-  it('generates heading with method and path', () => {
+  it('generates heading with method and path', async () => {
     const op = endpoints.find((e: any) => e.operationId === 'listPets');
     const md = endpointToMarkdown(op);
     expect(md).toContain('## GET /pets');
   });
 
-  it('includes summary and description', () => {
+  it('includes summary and description', async () => {
     const op = endpoints.find((e: any) => e.operationId === 'listPets');
     const md = endpointToMarkdown(op);
     expect(md).toContain('List all pets');
   });
 
-  it('renders query parameters table', () => {
+  it('renders query parameters table', async () => {
     const op = endpoints.find((e: any) => e.operationId === 'listPets');
     const md = endpointToMarkdown(op);
     expect(md).toContain('### Query Parameters');
     expect(md).toContain('`limit`');
   });
 
-  it('renders request body fields', () => {
+  it('renders request body fields', async () => {
     const op = endpoints.find((e: any) => e.operationId === 'createPet');
     const md = endpointToMarkdown(op);
     expect(md).toContain('### Request Body');
@@ -2197,21 +2201,21 @@ describe('endpointToMarkdown', () => {
     expect(md).toContain('**required**');
   });
 
-  it('renders response sections', () => {
+  it('renders response sections', async () => {
     const op = endpoints.find((e: any) => e.operationId === 'createPet');
     const md = endpointToMarkdown(op);
     expect(md).toContain('### Responses');
     expect(md).toContain('#### 201 Pet created');
   });
 
-  it('renders response examples', () => {
+  it('renders response examples', async () => {
     const op = endpoints.find((e: any) => e.operationId === 'listPets');
     const md = endpointToMarkdown(op);
     expect(md).toContain('```json');
     expect(md).toContain('Fido');
   });
 
-  it('returns empty string for null input', () => {
+  it('returns empty string for null input', async () => {
     expect(endpointToMarkdown(null)).toBe('');
   });
 });
@@ -2225,7 +2229,7 @@ describe('buildApiPageMarkdown', () => {
     endpoints = getEndpoints(spec);
   });
 
-  it('replaces wc-endpoint refs with enriched markdown', () => {
+  it('replaces wc-endpoint refs with enriched markdown', async () => {
     const raw = `---
 title: Pets API
 layout: api
@@ -2242,7 +2246,7 @@ layout: api
     expect(md).not.toContain('wc-endpoint');
   });
 
-  it('preserves frontmatter', () => {
+  it('preserves frontmatter', async () => {
     const raw = `---
 title: Test
 layout: api
@@ -2254,7 +2258,7 @@ layout: api
     expect(md).toContain('---\ntitle: Test\nlayout: api\n---');
   });
 
-  it('handles multiple refs', () => {
+  it('handles multiple refs', async () => {
     const raw = `---
 title: All
 ---
@@ -2269,13 +2273,13 @@ title: All
     expect(md).toContain('## POST /pets');
   });
 
-  it('passes through content with no refs unchanged', () => {
+  it('passes through content with no refs unchanged', async () => {
     const raw = `# Just a page\n\nNo API refs here.`;
     const md = buildApiPageMarkdown(raw, endpoints);
     expect(md).toBe(raw);
   });
 
-  it('skips unknown refs gracefully', () => {
+  it('skips unknown refs gracefully', async () => {
     const raw = `---
 title: Missing
 ---
@@ -2394,8 +2398,8 @@ This reusable snippet links to [vars](variables-and-precedence).
 describe('offline build — security hardening', () => {
   const config = { name: 'Test', sidebar: [{ group: 'Guide', pages: ['intro', 'setup'] }] };
 
-  it('offline HTML has no inline event handlers in markup', () => {
-    const html = renderShell({ config, mode: 'static', offline: true });
+  it('offline HTML has no inline event handlers in markup', async () => {
+    const html = await renderShell({ config, mode: 'static', offline: true });
     const markup = html.replace(/<script[\s>][^]*?<\/script>/g, '');
     expect(markup).not.toMatch(/\bonclick=/);
     expect(markup).not.toMatch(/\boninput=/);
@@ -2404,64 +2408,64 @@ describe('offline build — security hardening', () => {
     expect(markup).not.toMatch(/\bonmouseenter=/);
   });
 
-  it('non-offline HTML retains inline event handlers', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('non-offline HTML retains inline event handlers', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toMatch(/\bonclick=/);
     expect(html).toMatch(/\boninput=/);
   });
 
-  it('offline HTML inlines styles for file:// compatibility', () => {
-    const html = renderShell({ config, mode: 'static', offline: true });
+  it('offline HTML inlines styles for file:// compatibility', async () => {
+    const html = await renderShell({ config, mode: 'static', offline: true });
     expect(html).toMatch(/<style>/);
   });
 
-  it('offline HTML contains _OFFLINE flag set to true', () => {
-    const html = renderShell({ config, mode: 'static', offline: true });
+  it('offline HTML contains _OFFLINE flag set to true', async () => {
+    const html = await renderShell({ config, mode: 'static', offline: true });
     expect(html).toContain('var _OFFLINE = true');
   });
 
-  it('offline HTML contains event delegation', () => {
-    const html = renderShell({ config, mode: 'static', offline: true });
+  it('offline HTML contains event delegation', async () => {
+    const html = await renderShell({ config, mode: 'static', offline: true });
     expect(html).toContain('EVENT DELEGATION');
     expect(html).toContain('addEventListener');
   });
 
-  it('offline HTML has no Google Fonts references', () => {
-    const html = renderShell({ config, mode: 'static', offline: true });
+  it('offline HTML has no Google Fonts references', async () => {
+    const html = await renderShell({ config, mode: 'static', offline: true });
     expect(html).not.toContain('fonts.googleapis.com');
     expect(html).not.toContain('fonts.gstatic.com');
   });
 
-  it('non-offline HTML still loads Google Fonts', () => {
-    const html = renderShell({ config, mode: 'static' });
+  it('non-offline HTML still loads Google Fonts', async () => {
+    const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('fonts.googleapis.com');
   });
 
-  it('offline app file contains event delegation', () => {
+  it('offline app file contains event delegation', async () => {
     const js = buildOfflineAppFile({});
     expect(js).toContain('EVENT DELEGATION');
     expect(js).toContain('addEventListener');
     expect(js).toContain("var _OFFLINE = true");
   });
 
-  it('non-offline app file does not contain event delegation', () => {
+  it('non-offline app file does not contain event delegation', async () => {
     const js = buildAppFile('static', {});
     expect(js).toContain("var _OFFLINE = false");
     expect(js).not.toContain('EVENT DELEGATION');
   });
 
-  it('offline theme init file is standalone JS', () => {
+  it('offline theme init file is standalone JS', async () => {
     const js = buildOfflineThemeInitFile({});
     expect(js).toContain('docslit-theme');
     expect(js).not.toContain('<script');
   });
 
-  it('_show404 escapes page id', () => {
+  it('_show404 escapes page id', async () => {
     const js = buildOfflineAppFile({});
     expect(js).toContain('_escHtml(id)');
   });
 
-  it('_buildPrevNext escapes text content', () => {
+  it('_buildPrevNext escapes text content', async () => {
     const js = buildOfflineAppFile({});
     expect(js).toContain('_escHtml(prev.textContent.trim())');
     expect(js).toContain('_escHtml(next.textContent.trim())');

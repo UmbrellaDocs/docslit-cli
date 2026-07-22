@@ -3,6 +3,7 @@ import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkRehype from 'remark-rehype';
 import rehypeRaw from 'rehype-raw';
+import rehypeSlug from 'rehype-slug';
 import rehypeStringify from 'rehype-stringify';
 
 import rehypeDocslitWcPreserve from './plugins/rehype-docslit-wc-preserve.js';
@@ -10,6 +11,7 @@ import rehypeDocslitWcContent from './plugins/rehype-docslit-wc-content.js';
 import rehypeDocslitCode from './plugins/rehype-docslit-code.js';
 import rehypeDocslitVars from './plugins/rehype-docslit-vars.js';
 import rehypeDocslitLinkFix from './plugins/rehype-docslit-link-fix.js';
+import rehypeDocslitImages from './plugins/rehype-docslit-images.js';
 
 import { rewriteMdxTags } from './mdx-bridge.js';
 
@@ -20,19 +22,21 @@ import { rewriteMdxTags } from './mdx-bridge.js';
  * on a frozen processor" errors.
  */
 function getProcessor(meta = {}) {
+  const imageOpts = {};
+  if (meta.docsDir) imageOpts.docsDir = meta.docsDir;
+  if (meta.cwd) imageOpts.cwd = meta.cwd;
+
   return unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeRaw)
+    .use(rehypeSlug)
     .use(rehypeDocslitWcPreserve)
     .use(rehypeDocslitWcContent)
     .use(rehypeDocslitCode)
     .use(rehypeDocslitVars)
-    // Rewrite relative links (e.g. `getting-started/quickstart`) into site-root-
-    // relative URLs using the version slug from gray-matter metadata. Runs just
-    // before stringify so anchor-only hrefs, external URLs, and already-absolute
-    // paths are left alone.
+    .use(rehypeDocslitImages, imageOpts)
     .use(rehypeDocslitLinkFix, meta)
     .use(rehypeStringify, { allowDangerousHtml: true });
 }
@@ -53,13 +57,24 @@ function escapeHtml(s = '') {
  * @param {object} [meta={}] - Optional metadata for plugins — `versionSlug` and
  *   `pagePath` are consumed by `rehypeDocslitLinkFix`.
  */
-export function renderMarkdown(src, passBlocks = [], meta = {}) {
+export async function renderMarkdown(src, passBlocks = [], meta = {}) {
   // Shield fenced code blocks from MDX tag rewriting (the original pipeline
   // extracted them as CODEBLOCK placeholders before rewriteMdxTags ran).
   const fences = [];
   let shielded = src.replace(/^(`{3,})[^\n]*\n[\s\S]*?^\1\s*$/gm, (m) => {
     fences.push(m);
     return `\x00FENCE${fences.length - 1}\x00`;
+  });
+
+  // Shield inline code that contains < or > so rehype-raw/parse5 does not
+  // promote `` `<wc-foo>` `` to real elements inside HTML blocks (e.g. <wc-update>).
+  // Use placeholders instead of HTML entities — entities would be escaped again
+  // by rehype-stringify and display as literal &lt;…&gt;.
+  const inlineCodes = [];
+  shielded = shielded.replace(/`([^`\n]+)`/g, (m, inner) => {
+    if (!/[<>]/.test(inner)) return m;
+    inlineCodes.push(inner);
+    return `DOCSLIT_INLINECODE_${inlineCodes.length - 1}_END`;
   });
 
   // Shield hand-written <wc-code-block>...</wc-code-block> so parse5 doesn't
@@ -79,8 +94,20 @@ export function renderMarkdown(src, passBlocks = [], meta = {}) {
   shielded = shielded.replace(/\x00FENCE(\d+)\x00/g, (_, i) => fences[Number(i)]);
 
   const proc = getProcessor(meta);
-  const file = proc.processSync(shielded);
+  const file = await proc.process(shielded);
   let html = String(file);
+
+  // Restore shielded inline code as real <code> with a single HTML escape pass
+  html = html.replace(
+    /(?:<code>)?DOCSLIT_INLINECODE_(\d+)_END(?:<\/code>)?/g,
+    (_, i) => `<code>${escapeHtml(inlineCodes[Number(i)])}</code>`,
+  );
+  // Placeholders that sat in text nodes (e.g. inside <wc-update> before
+  // rehypeDocslitWcContent reparse) may appear without a wrapping <code>.
+  html = html.replace(
+    /DOCSLIT_INLINECODE_(\d+)_END/g,
+    (_, i) => `<code>${escapeHtml(inlineCodes[Number(i)])}</code>`,
+  );
 
   // Restore hand-written wc-code-block elements (strip <p> wrappers)
   html = html.replace(

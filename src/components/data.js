@@ -477,4 +477,108 @@ class WcRunnableEndpoint extends LitElement {
   }
 }
 customElements.define('wc-runnable-endpoint',WcRunnableEndpoint);
+
+// ── WC-PLAYGROUND (OpenAPI Try-it) ─────────────────────────────────────────
+class WcPlayground extends LitElement {
+  static properties={
+    method:{type:String},url:{type:String},server:{type:String},proxy:{type:String},
+    params:{type:String},auth:{type:String},
+    _method:{type:String,state:true},_path:{type:String,state:true},_server:{type:String,state:true},
+    _query:{},_headers:{},_pathParams:{},_body:{type:String,state:true},_authValue:{type:String,state:true},
+    _loading:{type:Boolean,state:true},_status:{type:Number,state:true},_response:{type:String,state:true},_error:{type:String,state:true},_offline:{type:Boolean,state:true}
+  };
+  static styles=css\`
+    :host{display:block;margin:0 0 20px}
+    .wrap{border:1px solid var(--dl-border,rgba(255,255,255,.08));border-radius:10px;overflow:hidden;background:var(--dl-surface,#111)}
+    .head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--dl-border,rgba(255,255,255,.08));flex-wrap:wrap}
+    .method{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(16,185,129,.15);color:#34d399}
+    .path{font-family:ui-monospace,monospace;font-size:13px;flex:1;min-width:160px}
+    button.go{background:var(--dl-accent,#01696f);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-weight:600;cursor:pointer}
+    button.go:disabled{opacity:.5;cursor:not-allowed}
+    .body{padding:12px 14px;display:grid;gap:10px}
+    label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.7;display:block;margin-bottom:4px}
+    input,textarea{width:100%;box-sizing:border-box;border-radius:6px;border:1px solid var(--dl-border,rgba(255,255,255,.12));background:transparent;color:inherit;padding:8px 10px;font-family:ui-monospace,monospace;font-size:12px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media(max-width:700px){.grid{grid-template-columns:1fr}}
+    pre{margin:0;padding:12px;border-radius:8px;background:rgba(0,0,0,.25);overflow:auto;max-height:360px;font-size:12px;white-space:pre-wrap}
+    .note{font-size:12px;opacity:.7;padding:0 14px 12px}
+    .err{color:#f87171}
+  \`;
+  constructor(){
+    super();this.method='GET';this.url='/';this.server='';this.proxy='';
+    this._method='GET';this._path='/';this._server='';this._query={};this._headers={};this._pathParams={};
+    this._body='{}';this._authValue='';this._loading=false;this._status=null;this._response='';this._error='';
+    this._offline=typeof location!=='undefined'&&location.protocol==='file:';
+  }
+  connectedCallback(){
+    super.connectedCallback();
+    this._method=(this.method||'GET').toUpperCase();
+    this._path=this.url||'/';
+    this._server=this.server||'';
+    try{
+      const params=this.params?JSON.parse(this.params):[];
+      for(const p of params){
+        if(p.in==='path')this._pathParams[p.name]=p.example??'';
+        else if(p.in==='query')this._query[p.name]=p.example??'';
+        else if(p.in==='header')this._headers[p.name]=p.example??'';
+      }
+    }catch(e){}
+    if(window.__DOCSLIT_PLAYGROUND_PROXY__&&!this.proxy)this.proxy=window.__DOCSLIT_PLAYGROUND_PROXY__;
+  }
+  _buildUrl(){
+    let p=this._path;
+    for(const [k,v] of Object.entries(this._pathParams))p=p.replace(new RegExp('\\\\{'+k+'\\\\}','g'),encodeURIComponent(v||''));
+    const qs=Object.entries(this._query).filter(([,v])=>v!==''&&v!=null).map(([k,v])=>encodeURIComponent(k)+'='+encodeURIComponent(v)).join('&');
+    const base=(this._server||'').replace(/\\/$/,'');
+    return base+p+(qs?('?'+qs):'');
+  }
+  async _send(){
+    if(this._offline){this._error='Playground requires network access (not available offline).';return;}
+    this._loading=true;this._error='';this._response='';this._status=null;
+    try{
+      const target=this._buildUrl();
+      const fetchUrl=this.proxy?String(this.proxy).replace(/\\/$/,'')+'?url='+encodeURIComponent(target):target;
+      const headers={...this._headers};
+      if(this._authValue){
+        try{
+          const auth=this.auth?JSON.parse(this.auth):{type:'bearer'};
+          if(auth.type==='apiKey'&&auth.in==='header'&&auth.name)headers[auth.name]=this._authValue;
+          else headers.Authorization=(auth.type==='basic'?'Basic ':'Bearer ')+this._authValue;
+        }catch(e){headers.Authorization='Bearer '+this._authValue;}
+      }
+      const opts={method:this._method,headers};
+      if(!['GET','HEAD'].includes(this._method)&&this._body.trim()){
+        opts.body=this._body;if(!headers['Content-Type']&&!headers['content-type'])headers['Content-Type']='application/json';
+      }
+      const res=await fetch(fetchUrl,opts);
+      this._status=res.status;
+      const text=await res.text();
+      try{this._response=JSON.stringify(JSON.parse(text),null,2);}catch(e){this._response=text;}
+    }catch(e){this._error=e.message+(this.proxy?'':' — If this is a CORS error, set playground.proxyUrl in docslit.json');}
+    finally{this._loading=false;}
+  }
+  render(){
+    const pathKeys=Object.keys(this._pathParams);
+    const queryKeys=Object.keys(this._query);
+    return html\`<div class="wrap">
+      <div class="head">
+        <span class="method">\${this._method}</span>
+        <input class="path" .value=\${this._server} @input=\${e=>this._server=e.target.value} placeholder="https://api.example.com" />
+        <span class="path">\${this._path}</span>
+        <button class="go" @click=\${this._send.bind(this)} ?disabled=\${this._loading||this._offline}>\${this._loading?'Sending…':'Try it'}</button>
+      </div>
+      <div class="body">
+        \${pathKeys.length?html\`<div class="grid">\${pathKeys.map(k=>html\`<div><label>Path: \${k}</label><input .value=\${this._pathParams[k]||''} @input=\${e=>{this._pathParams={...this._pathParams,[k]:e.target.value};}} /></div>\`)}</div>\`:nothing}
+        \${queryKeys.length?html\`<div class="grid">\${queryKeys.map(k=>html\`<div><label>Query: \${k}</label><input .value=\${this._query[k]||''} @input=\${e=>{this._query={...this._query,[k]:e.target.value};}} /></div>\`)}</div>\`:nothing}
+        <div><label>Auth</label><input placeholder="token / api key" .value=\${this._authValue} @input=\${e=>this._authValue=e.target.value} /></div>
+        \${!['GET','HEAD'].includes(this._method)?html\`<div><label>Body</label><textarea rows="4" .value=\${this._body} @input=\${e=>this._body=e.target.value}></textarea></div>\`:nothing}
+        \${this._error?html\`<div class="err">\${this._error}</div>\`:nothing}
+        \${this._status!=null?html\`<div>Status: \${this._status}</div>\`:nothing}
+        \${this._response?html\`<pre>\${this._response}</pre>\`:nothing}
+      </div>
+      \${this._offline?html\`<div class="note">Offline builds cannot execute live requests.</div>\`:nothing}
+    </div>\`;
+  }
+}
+customElements.define('wc-playground',WcPlayground);
 `;

@@ -110,6 +110,10 @@ Also works with **Fern** (`fern/fern.config.json`) and **GitBook** (`SUMMARY.md`
 ```json
 {
   "name": "My Docs",
+  "basePath": "",
+  "navbar": { "links": [{ "label": "GitHub", "href": "https://github.com/org/repo", "external": true }] },
+  "footer": { "copyright": "© Acme" },
+  "analytics": { "provider": "plausible", "domain": "docs.example.com" },
   "sidebar": [
     {
       "group": "Getting Started",
@@ -118,6 +122,12 @@ Also works with **Fern** (`fern/fern.config.json`) and **GitBook** (`SUMMARY.md`
   ]
 }
 ```
+
+See the [DocsLit documentation](https://docs.docslit.com) for `basePath`, redirects, i18n, playground, and more.
+
+## License
+
+Apache-2.0. DocsLit Cloud remains a separate proprietary product.
 
 ## Markdown + Web Components
 

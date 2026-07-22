@@ -12,6 +12,7 @@ import { renderShell } from './template.js';
 import { resolveSiteTheme, parseThemeConfig } from './themes.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 import { initHighlighter } from './highlighter.js';
+import { normalizeBasePath } from './site-config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -343,6 +344,17 @@ export async function dev({ port = 3000 } = {}) {
   // Serve custom user components
   app.use('/components', express.static(path.join(cwd, 'components')));
 
+  // Serve docs/ static assets (images etc.) with path traversal protection
+  const docsStaticDir = path.join(cwd, 'docs');
+  app.use((req, res, next) => {
+    const ext = path.extname(req.path).toLowerCase();
+    if (!['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.mp4', '.webm'].includes(ext)) return next();
+    const resolved = path.resolve(docsStaticDir, req.path.replace(/^\//, ''));
+    if (!resolved.startsWith(docsStaticDir + path.sep)) return next();
+    if (!fs.pathExistsSync(resolved)) return next();
+    res.sendFile(resolved);
+  });
+
   // Catch-all: serve the app shell (or raw Markdown via Accept header)
   app.get('/{*path}', async (req, res) => {
     const vc = getVersionConfig(config);
@@ -429,11 +441,14 @@ export async function dev({ port = 3000 } = {}) {
     }
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(renderShell({ config: shellConfig, siteTheme, mode: 'dev', port, versionConfig: vc, currentVersion, specData, apiMeta }));
+    res.send(await renderShell({ config: shellConfig, siteTheme, mode: 'dev', port, versionConfig: vc, currentVersion, specData, apiMeta }));
   });
 
+  const basePath = normalizeBasePath(config.basePath);
   server.listen(port, () => {
-    console.log(`  ${pc.green('✓')} Ready at ${pc.cyan(`http://localhost:${port}`)}`);
+    const url = basePath ? `http://localhost:${port}${basePath}` : `http://localhost:${port}`;
+    console.log(`  ${pc.green('✓')} Ready at ${pc.cyan(url)}`);
+    if (basePath) console.log(`  ${pc.dim(`basePath: ${basePath}`)}`);
     console.log(`  ${pc.dim('Watching docs/ for changes...')}\n`);
   });
 }

@@ -205,4 +205,36 @@ class WcCopy extends LitElement {
   render(){return html\`<div class="wrap \${this._copied?'copied':''}" @click=\${this._copy.bind(this)} @keydown=\${this._onKey} role="button" tabindex="0" aria-label=\${this._copied?'Copied to clipboard':'Copy to clipboard'}>\${window.__DOCSLIT_ICONS__?.copy?html\`<span class="icon" .innerHTML=\${window.__DOCSLIT_ICONS__.copy}></span>\`:nothing}\${this._copied?'Copied!':this.label||this.text||'Copy'}</div>\`;}
 }
 customElements.define('wc-copy',WcCopy);
+
+// ── WC-IMAGE (lazy, dark-src, lightbox) ────────────────────────────────────
+class WcImage extends LitElement {
+  static properties={src:{type:String},alt:{type:String},darkSrc:{type:String,'dark-src':{type:String,attribute:'dark-src'}},width:{type:Number},height:{type:Number},_open:{type:Boolean,state:true},_isDark:{type:Boolean,state:true}};
+  static styles=css\`
+    :host{display:block;margin:1rem 0}
+    img{max-width:100%;height:auto;border-radius:8px;cursor:zoom-in;display:block}
+    .lb{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9999;cursor:zoom-out;padding:24px}
+    .lb img{max-width:95vw;max-height:95vh;cursor:zoom-out;border-radius:4px}
+  \`;
+  constructor(){super();this.alt='';this._open=false;this._isDark=false;}
+  connectedCallback(){
+    super.connectedCallback();
+    this._isDark=document.documentElement.classList.contains('dark');
+    this._mq=window.matchMedia('(prefers-color-scheme: dark)');
+    this._onTheme=()=>{this._isDark=document.documentElement.classList.contains('dark')||(!document.documentElement.classList.contains('light')&&this._mq.matches);};
+    this._mq.addEventListener?.('change',this._onTheme);
+    new MutationObserver(this._onTheme).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+  }
+  get _effectiveSrc(){
+    const dark=this.darkSrc||this['dark-src'];
+    return (this._isDark&&dark)?dark:this.src;
+  }
+  render(){
+    const src=this._effectiveSrc;
+    return html\`
+      <img src=\${src||''} alt=\${this.alt||''} loading="lazy" decoding="async" width=\${this.width||nothing} height=\${this.height||nothing} @click=\${()=>this._open=true} />
+      \${this._open?html\`<div class="lb" @click=\${()=>this._open=false} role="dialog" aria-label="Image preview"><img src=\${src||''} alt=\${this.alt||''} /></div>\`:nothing}
+    \`;
+  }
+}
+customElements.define('wc-image',WcImage);
 `;

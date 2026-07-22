@@ -43,7 +43,7 @@ A single collapsible section, open state controllable via the `open` attribute.
 
 <wc-expandable title="What is DocsLit?">DocsLit is a Markdown-first documentation framework powered by Lit web components. It generates fast, self-contained docs sites with no build step required for the reader.</wc-expandable>
 
-<wc-expandable title="Is it free to use?" open>Yes — DocsLit is fully open source under the MIT license. You can use it for personal and commercial projects at no cost.</wc-expandable>
+<wc-expandable title="Is it free to use?" open>Yes — DocsLit CLI is open source under the Apache-2.0 license. You can use it for personal and commercial projects at no cost.</wc-expandable>
 
 <wc-expandable title="Which browsers are supported?">All modern browsers that support Custom Elements v1: Chrome 67+, Firefox 63+, Safari 10.1+, and Edge 79+.</wc-expandable>
 

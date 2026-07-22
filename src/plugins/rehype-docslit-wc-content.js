@@ -38,6 +38,27 @@ function collectText(children) {
   return text;
 }
 
+/** Rebuild markdown source when parse5 promoted `` `<wc-*>` `` into element nodes. */
+function reconstructProseSource(children) {
+  let text = '';
+  for (const child of children) {
+    if (child.type === 'text' || child.type === 'raw') {
+      text += child.value;
+      continue;
+    }
+    if (child.type === 'element' && child.tagName?.startsWith('wc-')) {
+      const inner = child.children?.length ? reconstructProseSource(child.children) : '';
+      if (inner === null) return null;
+      // Emit real HTML so rehypeRaw keeps a <code> node; entities display as <wc-*>.
+      text += `<code>&lt;${child.tagName}&gt;</code>`;
+      if (inner) text += inner;
+      continue;
+    }
+    return null;
+  }
+  return text;
+}
+
 function hasOnlyTextChildren(children) {
   return children.every((c) => c.type === 'text' || c.type === 'raw');
 }
@@ -61,16 +82,13 @@ export default function rehypeDocslitWcContent() {
 
       selfCloseIfEmpty(node);
 
-      if (!hasOnlyTextChildren(node.children)) {
-        for (const child of node.children) {
-          if (child.type === 'element' && child.tagName?.startsWith('wc-')) {
-            continue;
-          }
-        }
-        return;
+      let text = null;
+      if (hasOnlyTextChildren(node.children)) {
+        text = collectText(node.children);
+      } else {
+        // Defense: accidental <wc-*> nodes from inline code inside HTML blocks
+        text = reconstructProseSource(node.children);
       }
-
-      const text = collectText(node.children);
       if (text === null) return;
       if (!MD_SYNTAX_RE.test(text)) return;
 

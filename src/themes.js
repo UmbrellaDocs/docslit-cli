@@ -424,12 +424,13 @@ export function buildThemeCss(resolved) {
   return `\n/* SITE THEMES */\n${blocks.join('\n')}\n`;
 }
 
-export function buildHtmlTag(resolved) {
-  if (!resolved.isCustom && resolved.id === DEFAULT_THEME_PRESET) return '<html lang="en">';
+export function buildHtmlTag(resolved, lang = 'en') {
+  const safeLang = lang || 'en';
+  if (!resolved.isCustom && resolved.id === DEFAULT_THEME_PRESET) return `<html lang="${safeLang}">`;
   if (!resolved.isCustom && THEME_PRESETS[resolved.id]) {
-    return `<html lang="en" data-theme="${resolved.id}">`;
+    return `<html lang="${safeLang}" data-theme="${resolved.id}">`;
   }
-  return `<html lang="en" data-theme="${resolved.id}">`;
+  return `<html lang="${safeLang}" data-theme="${resolved.id}">`;
 }
 
 export function buildBrandThemeTemplate({ name = 'Acme Brand', extendsPreset = 'slate', accent = '#003366', accentLight = '#0066cc' } = {}) {

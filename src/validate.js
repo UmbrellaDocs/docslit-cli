@@ -28,9 +28,11 @@ const BUILTIN_COMPONENTS = new Set([
   'wc-icon', 'wc-file', 'wc-dir', 'wc-files', 'wc-tree', 'wc-tree-item', 'wc-download', 'wc-copy',
   // Data & API
   'wc-field', 'wc-fields', 'wc-response-fields', 'wc-color', 'wc-table',
-  'wc-schema', 'wc-mermaid', 'wc-endpoint', 'wc-runnable-endpoint',
+  'wc-schema', 'wc-mermaid', 'wc-endpoint', 'wc-runnable-endpoint', 'wc-playground',
   // Content
   'wc-card', 'wc-tile', 'wc-tiles', 'wc-button', 'wc-prompt',
+  // Media
+  'wc-image',
   // Utility
   'wc-anchor', 'wc-indent', 'wc-visibility', 'wc-version', 'wc-versions', 'wc-page-meta',
 ]);
@@ -42,6 +44,7 @@ const AUTHORING_COMPONENTS = new Set([
 const VALID_FM_KEYS = new Set([
   'title', 'description', 'icon', 'tag', 'readtime', 'updated',
   'sidebar_title', 'component', 'draft', 'order', 'redirect', 'layout',
+  'date', 'ogImage',
 ]);
 
 // Recognised icon names (subset — just validates non-empty string)
@@ -814,10 +817,77 @@ function renderReport(allIssues, fileCount, elapsed) {
   console.log('');
 }
 
+// ─── External link checking ────────────────────────────────────────────────────
+async function checkExternalLinks(files, dir, issues) {
+  const urls = new Map();
+  for (const file of files) {
+    const rel = path.relative(dir, file);
+    const raw = await fs.readFile(file, 'utf8');
+    const body = matter(raw).content;
+    const tree = parseMdast(body);
+    visit(tree, 'link', (node) => {
+      const target = (node.url || '').trim().split('#')[0];
+      if (/^https?:\/\//i.test(target)) {
+        if (!urls.has(target)) urls.set(target, []);
+        urls.get(target).push({ file: rel, line: posLine(node) });
+      }
+    });
+  }
+
+  const CONCURRENCY = 8;
+  const TIMEOUT = 8000;
+  const entries = [...urls.entries()];
+  let idx = 0;
+
+  async function worker() {
+    while (idx < entries.length) {
+      const i = idx++;
+      const [url, refs] = entries[i];
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), TIMEOUT);
+        let res = await fetch(url, { method: 'HEAD', signal: controller.signal, redirect: 'follow' });
+        if (!res.ok && res.status >= 400) {
+          res = await fetch(url, { method: 'GET', signal: controller.signal, redirect: 'follow' });
+        }
+        clearTimeout(timer);
+        if (!res.ok) {
+          for (const ref of refs) {
+            issues.push(issue('warning', ref.file, ref.line, `External link returned ${res.status}: ${url}`));
+          }
+        }
+      } catch (e) {
+        for (const ref of refs) {
+          issues.push(issue('warning', ref.file, ref.line, `External link failed: ${url} (${e.message})`));
+        }
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, entries.length) }, () => worker()));
+}
+
+// ─── GitHub Actions format ─────────────────────────────────────────────────────
+function renderGithubFormat(allIssues) {
+  for (const i of allIssues) {
+    const level = i.level === 'error' ? 'error' : i.level === 'warning' ? 'warning' : 'notice';
+    const filePart = i.file ? `file=${i.file}` : '';
+    const linePart = i.line ? `,line=${i.line}` : '';
+    console.log(`::${level} ${filePart}${linePart}::${i.message}`);
+  }
+}
+
+function getValidateFlag(args, flag) {
+  const i = args.indexOf(flag);
+  return i !== -1 ? args[i + 1] : null;
+}
+
 // ─── Entry point ───────────────────────────────────────────────────────────────
 export async function validate(args) {
   const strict    = args.includes('--strict');
-  const positional = args.filter(a => !a.startsWith('--'));
+  const external  = args.includes('--external');
+  const format    = getValidateFlag(args, '--format') || 'pretty';
+  const positional = args.filter(a => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--format');
   const dir       = path.resolve(positional[0] || '.');
 
   if (!await fs.pathExists(dir)) {
@@ -858,8 +928,19 @@ export async function validate(args) {
   // 10. Orphans
   await checkOrphans(files, slugs, dir, allIssues);
 
+  // 11. External link check (opt-in)
+  if (external) {
+    console.log(pc.dim(`  Checking external links…`));
+    await checkExternalLinks(files, dir, allIssues);
+  }
+
   const elapsed = Date.now() - t0;
-  renderReport(allIssues, files.length, elapsed);
+
+  if (format === 'github') {
+    renderGithubFormat(allIssues);
+  } else {
+    renderReport(allIssues, files.length, elapsed);
+  }
 
   const hasErrors = allIssues.some(i => i.level === 'error') ||
     (strict && allIssues.some(i => i.level === 'warning'));

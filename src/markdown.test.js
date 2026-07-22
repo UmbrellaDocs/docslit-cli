@@ -128,6 +128,31 @@ describe('relative link edge cases', () => {
     expect(html).toContain('href="/0.1/customization/logo"');
   });
 
+  it('renders bold + inline <wc-*> code inside wc-update without swallowing prose', async () => {
+    const html = await renderWithVersion(
+      '<wc-update type="added">**API playground:** `<wc-playground>` lets readers try it.</wc-update>',
+      '0.1',
+      'docs/changelog/whats-new.md',
+    );
+    expect(html).toContain('<strong>API playground:</strong>');
+    expect(html).toContain('lets readers try it');
+    expect(html).not.toContain('**API');
+    expect(html).not.toMatch(/<wc-update[^>]*>[\s\S]*<wc-playground[\s>]/);
+    expect(html).toMatch(/<code>(&lt;|&#x3C;)wc-playground(&gt;|&#x3E;)<\/code>/);
+    expect(html).not.toMatch(/&amp;lt;|&amp;#x3C;/);
+  });
+
+  it('renders inline <wc-*> code in normal prose without double-escaping', async () => {
+    const html = await renderWithVersion(
+      'Drop in `<wc-*>` components.',
+      '0.1',
+      'docs/getting-started/introduction.md',
+    );
+    expect(html).toMatch(/<code>(&lt;|&#x3C;)wc-\*(&gt;|&#x3E;)<\/code>/);
+    expect(html).not.toMatch(/&amp;lt;|&amp;#x3C;/);
+    expect(html).not.toContain('&amp;lt;wc-');
+  });
+
   it('rewrites docs-root page ids without a leading slash', async () => {
     const html = await renderWithVersion(
       '<a href="getting-started/quickstart">Quickstart</a>',
