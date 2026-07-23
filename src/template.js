@@ -86,6 +86,9 @@ export async function renderShell({ config, siteTheme = null, mode = 'dev', port
   const playgroundScript = config.playground?.proxyUrl
     ? `<script>window.__DOCSLIT_PLAYGROUND_PROXY__=${JSON.stringify(config.playground.proxyUrl)};</script>`
     : '';
+  const siteUrlScript = config.url
+    ? `<script>window.__DOCSLIT_SITE_URL__=${JSON.stringify(config.url.replace(/\/$/, ''))};</script>`
+    : '';
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion, offline) : '';
   const importMap = buildImportMap(mode, vendorData);
   const announcementChrome = await buildAnnouncementChrome({ config, versionConfig, currentVersion, offline });
@@ -129,6 +132,7 @@ ${versionScript}
 ${editUrlScript}
 ${basePathScript}
 ${playgroundScript}
+${siteUrlScript}
 ${announcementChrome.hashScript}
 <script type="importmap">${importMap}</script>
 <script type="module">
@@ -181,6 +185,7 @@ ${versionScript}
 ${editUrlScript}
 ${basePathScript}
 ${playgroundScript}
+${siteUrlScript}
 ${announcementChrome.hashScript}
 ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script type="importmap">${importMap}</script>
@@ -215,6 +220,9 @@ export async function renderPage({ config, siteTheme = null, id, meta, html, dra
   const basePathScript = `<script>window.__DOCSLIT_BASE_PATH__=${JSON.stringify(basePath)};window.__DOCSLIT_LOCALE__=${JSON.stringify(currentLocale)};</script>`;
   const playgroundScript = config.playground?.proxyUrl
     ? `<script>window.__DOCSLIT_PLAYGROUND_PROXY__=${JSON.stringify(config.playground.proxyUrl)};</script>`
+    : '';
+  const siteUrlScript = config.url
+    ? `<script>window.__DOCSLIT_SITE_URL__=${JSON.stringify(config.url.replace(/\/$/, ''))};</script>`
     : '';
 
   const pageTitle = meta.title || toLabel(id);
@@ -283,7 +291,8 @@ export async function renderPage({ config, siteTheme = null, id, meta, html, dra
   const resolvedTheme = siteTheme ?? resolveSiteThemeSync(config);
   const htmlTag = buildHtmlTag(resolvedTheme, currentLocale);
   const agentDirective = buildAgentDirectiveHtml(config, currentVersion);
-  const pageContent = html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id, pdfManifest, assetPrefix));
+  const siteUrl = (config.url || '').replace(/\/$/, '');
+  const pageContent = html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id, pdfManifest, assetPrefix, siteUrl, basePath));
 
   return `<!DOCTYPE html>
 ${htmlTag}
@@ -315,6 +324,7 @@ ${versionScript}
 ${editUrlScript}
 ${basePathScript}
 ${playgroundScript}
+${siteUrlScript}
 ${announcementChrome.hashScript}
 ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
@@ -669,11 +679,20 @@ function buildEventDelegation() {
       if (window.innerWidth <= 1024) closeSidebar();
       return;
     }
+    var copyToggle = e.target.closest('.copy-page-toggle');
+    if (copyToggle) { toggleCopyMenu(e); return; }
+    var copyItem = e.target.closest('.copy-page-item');
+    if (copyItem) {
+      var titleEl = copyItem.querySelector('.copy-page-item-title');
+      var titleText = titleEl ? titleEl.textContent : '';
+      if (titleText.indexOf('Copy page') >= 0) { copyMd(); closeCopyMenu(); }
+      else if (titleText.indexOf('MCP') >= 0) { copyMcpCommand(); closeCopyMenu(); }
+      return;
+    }
     var metaBtn = e.target.closest('.meta-btn');
     if (metaBtn) {
       var title = metaBtn.getAttribute('title') || '';
       if (title.indexOf('Copy') >= 0) copyMd();
-      else if (title.indexOf('View') >= 0) viewMd();
       else if (title.indexOf('Save') >= 0) printPage();
       return;
     }
@@ -822,19 +841,28 @@ function buildToc(container) {
     const actions = document.createElement('div');
     actions.className = 'toc-actions' + (headings.length < 2 ? ' toc-actions-solo' : '');
 
+    const copyWrap = document.createElement('div');
+    copyWrap.className = 'copy-page-menu toc-copy-menu';
     const copyBtn = document.createElement('button');
     copyBtn.className = 'toc-action-btn';
     copyBtn.title = 'Copy page as Markdown';
-    copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown';
+    copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy page';
     copyBtn.addEventListener('click', copyMd);
-    actions.appendChild(copyBtn);
-
-    const viewBtn = document.createElement('button');
-    viewBtn.className = 'toc-action-btn';
-    viewBtn.title = 'View page as Markdown';
-    viewBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown';
-    viewBtn.addEventListener('click', viewMd);
-    actions.appendChild(viewBtn);
+    copyWrap.appendChild(copyBtn);
+    const tocToggle = document.createElement('button');
+    tocToggle.className = 'toc-action-btn copy-page-toggle toc-chevron';
+    tocToggle.setAttribute('aria-haspopup', 'true');
+    tocToggle.setAttribute('aria-expanded', 'false');
+    tocToggle.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+    tocToggle.addEventListener('click', function(e) { toggleCopyMenu(e); });
+    copyWrap.appendChild(tocToggle);
+    const tocDd = document.createElement('div');
+    tocDd.className = 'copy-page-dropdown';
+    tocDd.setAttribute('role', 'menu');
+    tocDd.hidden = true;
+    tocDd.innerHTML = _copyPageDropdownItems();
+    copyWrap.appendChild(tocDd);
+    actions.appendChild(copyWrap);
 
     const curId = window.__DOCSLIT_CURRENT_PAGE__ || window.__DOCSLIT_PAGE_ID__ || '';
     const pdfManifest = window.__DOCSLIT_PDF__;
@@ -1220,11 +1248,35 @@ function _pdfDownloadButton(id) {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Download PDF <span class="pdf-menu-chevron" aria-hidden="true">▾</span></button>' +
     '<div class="pdf-menu-dropdown" role="menu" hidden>' + items + '</div></div>';
 }
+function _copyPageDropdownItems() {
+  var siteUrl = window.__DOCSLIT_SITE_URL__ || '';
+  var id = window.__DOCSLIT_CURRENT_PAGE__ || window.__DOCSLIT_PAGE_ID__ || '';
+  var pageUrl = siteUrl && id ? siteUrl + _docsBase() + id : '';
+  var items = '<button type="button" class="copy-page-item" role="menuitem" onclick="copyMd();closeCopyMenu()">' +
+    '<span class="copy-page-item-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></span>' +
+    '<span class="copy-page-item-text"><span class="copy-page-item-title">Copy page</span><span class="copy-page-item-desc">Copy page as Markdown for LLMs</span></span></button>';
+  if (pageUrl) {
+    var q = encodeURIComponent('Read from ' + pageUrl + ' so I can ask questions about it.');
+    items += '<a class="copy-page-item" role="menuitem" href="https://chatgpt.com/?q=' + q + '" target="_blank" rel="noopener">' +
+      '<span class="copy-page-item-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg></span>' +
+      '<span class="copy-page-item-text"><span class="copy-page-item-title">Open in ChatGPT <span class="copy-page-arrow">\\u2197</span></span><span class="copy-page-item-desc">Ask questions about this page</span></span></a>';
+    items += '<a class="copy-page-item" role="menuitem" href="https://claude.ai/new?q=' + q + '" target="_blank" rel="noopener">' +
+      '<span class="copy-page-item-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4.709 15.955l4.397-10.985c.2-.497.378-.878.575-1.14.208-.277.503-.497.916-.497.414 0 .709.22.917.497.197.262.375.643.575 1.14L16.1 15.432l.055.137c.15.374.278.697.343.987.07.313.077.622-.046.925a1.494 1.494 0 01-.644.72c-.272.161-.576.203-.893.196-.294-.006-.64-.058-1.028-.118l-.147-.023-3.408-.537a3.22 3.22 0 00-.503-.042c-.17 0-.34.014-.504.042l-3.408.537-.146.023c-.389.06-.735.112-1.028.118-.318.007-.622-.035-.894-.197a1.494 1.494 0 01-.644-.72c-.123-.302-.117-.611-.046-.924.065-.29.193-.613.343-.987l.055-.137zM17.584 18.01c-.04.03-.068.073-.08.122a.228.228 0 00.017.148l.96 2.122c.083.183.15.303.217.386.077.096.175.212.35.212.177 0 .274-.116.351-.212.068-.083.134-.203.217-.386l.96-2.122a.228.228 0 00.017-.148.228.228 0 00-.08-.122l-1.688-1.374a.219.219 0 00-.138-.049.219.219 0 00-.139.049l-1.688 1.374z"/></svg></span>' +
+      '<span class="copy-page-item-text"><span class="copy-page-item-title">Open in Claude <span class="copy-page-arrow">\\u2197</span></span><span class="copy-page-item-desc">Ask questions about this page</span></span></a>';
+    items += '<button type="button" class="copy-page-item" role="menuitem" onclick="copyMcpCommand();closeCopyMenu()">' +
+      '<span class="copy-page-item-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>' +
+      '<span class="copy-page-item-text"><span class="copy-page-item-title">Copy MCP install command</span><span class="copy-page-item-desc">Copy npx command to install MCP server</span></span></button>';
+  }
+  return items;
+}
 function _mdButtons(id) {
+  var copyIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
   return '<span class="meta-sep">|</span>' +
-    '<button class="meta-btn"' + (_OFFLINE ? '' : ' onclick="copyMd()"') + ' title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button>' +
-    '<span class="meta-sep">|</span>' +
-    '<button class="meta-btn"' + (_OFFLINE ? '' : ' onclick="viewMd()"') + ' title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>' +
+    '<div class="copy-page-menu">' +
+    '<button class="meta-btn copy-page-main"' + (_OFFLINE ? '' : ' onclick="copyMd()"') + ' title="Copy page as Markdown">' + copyIcon + ' Copy page</button>' +
+    '<button type="button" class="meta-btn copy-page-toggle"' + (_OFFLINE ? '' : ' onclick="toggleCopyMenu(event)"') + ' aria-haspopup="true" aria-expanded="false"><span class="copy-page-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>' +
+    '<div class="copy-page-dropdown" role="menu" hidden>' + _copyPageDropdownItems() + '</div>' +
+    '</div>' +
     (window.__DOCSLIT_PDF__ ? _pdfDownloadButton(id) : _printPdfButton());
 }
 function _buildMetaBar(meta, id) {
@@ -1245,8 +1297,8 @@ async function copyMd() {
     if (!res.ok) throw new Error('Not found');
     var text = await res.text();
     await navigator.clipboard.writeText(text);
-    var btn = document.querySelector('.meta-btn');
-    if (btn) { var orig = btn.innerHTML; btn.innerHTML = btn.innerHTML.replace('Copy as Markdown', 'Copied!'); setTimeout(function() { btn.innerHTML = orig; }, 2000); }
+    var btn = document.querySelector('.copy-page-main');
+    if (btn) { var orig = btn.innerHTML; btn.innerHTML = btn.innerHTML.replace('Copy page', 'Copied!'); setTimeout(function() { btn.innerHTML = orig; }, 2000); }
   } catch(e) { console.error('Copy failed', e); }
 }
 
@@ -1278,9 +1330,48 @@ function closePdfMenu() {
   document.querySelectorAll('.pdf-menu-dropdown').forEach(function(el) { el.hidden = true; });
   document.querySelectorAll('.pdf-menu-btn').forEach(function(el) { el.setAttribute('aria-expanded', 'false'); });
 }
-document.addEventListener('click', function() { closePdfMenu(); });
+function toggleCopyMenu(e) {
+  e.stopPropagation();
+  closePdfMenu();
+  var menu = e.currentTarget.closest('.copy-page-menu');
+  if (!menu) return;
+  var dd = menu.querySelector('.copy-page-dropdown');
+  var btn = menu.querySelector('.copy-page-toggle');
+  if (!dd) return;
+  var open = !dd.hidden;
+  closeCopyMenu();
+  if (!open) {
+    dd.hidden = false;
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    var tocEl = menu.closest('.docs-toc');
+    if (tocEl) tocEl.style.overflow = 'visible';
+  }
+}
+function closeCopyMenu() {
+  document.querySelectorAll('.copy-page-dropdown').forEach(function(el) { el.hidden = true; });
+  document.querySelectorAll('.copy-page-toggle').forEach(function(el) { el.setAttribute('aria-expanded', 'false'); });
+  var tocEl = document.getElementById('docs-toc');
+  if (tocEl) tocEl.style.overflow = '';
+}
+async function copyMcpCommand() {
+  try {
+    var siteUrl = window.__DOCSLIT_SITE_URL__ || '';
+    if (!siteUrl) return;
+    var cmd = 'npx docslit mcp ' + siteUrl;
+    await navigator.clipboard.writeText(cmd);
+    var item = document.querySelector('.copy-page-item[onclick*="copyMcpCommand"]');
+    if (item) {
+      var titleEl = item.querySelector('.copy-page-item-title');
+      if (titleEl) { var orig = titleEl.textContent; titleEl.textContent = 'Copied!'; setTimeout(function() { titleEl.textContent = orig; }, 2000); }
+    }
+  } catch(e) { console.error('Copy failed', e); }
+}
+document.addEventListener('click', function() { closePdfMenu(); closeCopyMenu(); });
 window.copyMd = copyMd;
 window.viewMd = viewMd;
+window.toggleCopyMenu = toggleCopyMenu;
+window.closeCopyMenu = closeCopyMenu;
+window.copyMcpCommand = copyMcpCommand;
 window.printPage = printPage;
 window.togglePdfMenu = togglePdfMenu;
 window.closePdfMenu = closePdfMenu;
@@ -1313,17 +1404,35 @@ function pdfButtons(id, pdfManifest, assetPrefix = '') {
   return `<span class="meta-sep">|</span><div class="pdf-menu"><button type="button" class="meta-btn pdf-menu-btn" onclick="togglePdfMenu(event)" aria-haspopup="true" aria-expanded="false" title="Download PDF">${PDF_DOC_ICON} Download PDF <span class="pdf-menu-chevron" aria-hidden="true">▾</span></button><div class="pdf-menu-dropdown" role="menu" hidden>${items}</div></div>`;
 }
 
-function mdButtons(id, pdfManifest = null, assetPrefix = '') {
-  return `<span class="meta-sep">|</span><button class="meta-btn" onclick="copyMd()" title="Copy page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy as Markdown</button><span class="meta-sep">|</span><button class="meta-btn" onclick="viewMd()" title="View page as Markdown"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> View as Markdown</button>${pdfButtons(id, pdfManifest, assetPrefix)}`;
+function copyPageDropdownItems(pageUrl, siteUrl) {
+  const copyIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+  const chatgptIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>';
+  const claudeIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4.709 15.955l4.397-10.985c.2-.497.378-.878.575-1.14.208-.277.503-.497.916-.497.414 0 .709.22.917.497.197.262.375.643.575 1.14L16.1 15.432l.055.137c.15.374.278.697.343.987.07.313.077.622-.046.925a1.494 1.494 0 01-.644.72c-.272.161-.576.203-.893.196-.294-.006-.64-.058-1.028-.118l-.147-.023-3.408-.537a3.22 3.22 0 00-.503-.042c-.17 0-.34.014-.504.042l-3.408.537-.146.023c-.389.06-.735.112-1.028.118-.318.007-.622-.035-.894-.197a1.494 1.494 0 01-.644-.72c-.123-.302-.117-.611-.046-.924.065-.29.193-.613.343-.987l.055-.137zM17.584 18.01c-.04.03-.068.073-.08.122a.228.228 0 00.017.148l.96 2.122c.083.183.15.303.217.386.077.096.175.212.35.212.177 0 .274-.116.351-.212.068-.083.134-.203.217-.386l.96-2.122a.228.228 0 00.017-.148.228.228 0 00-.08-.122l-1.688-1.374a.219.219 0 00-.138-.049.219.219 0 00-.139.049l-1.688 1.374z"/></svg>';
+  const mcpIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+  let items = `<button type="button" class="copy-page-item" role="menuitem" onclick="copyMd();closeCopyMenu()"><span class="copy-page-item-icon">${copyIcon}</span><span class="copy-page-item-text"><span class="copy-page-item-title">Copy page</span><span class="copy-page-item-desc">Copy page as Markdown for LLMs</span></span></button>`;
+  if (pageUrl) {
+    const q = encodeURIComponent('Read from ' + pageUrl + ' so I can ask questions about it.');
+    items += `<a class="copy-page-item" role="menuitem" href="https://chatgpt.com/?q=${q}" target="_blank" rel="noopener"><span class="copy-page-item-icon">${chatgptIcon}</span><span class="copy-page-item-text"><span class="copy-page-item-title">Open in ChatGPT <span class="copy-page-arrow">↗</span></span><span class="copy-page-item-desc">Ask questions about this page</span></span></a>`;
+    items += `<a class="copy-page-item" role="menuitem" href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener"><span class="copy-page-item-icon">${claudeIcon}</span><span class="copy-page-item-text"><span class="copy-page-item-title">Open in Claude <span class="copy-page-arrow">↗</span></span><span class="copy-page-item-desc">Ask questions about this page</span></span></a>`;
+    items += `<button type="button" class="copy-page-item" role="menuitem" onclick="copyMcpCommand();closeCopyMenu()"><span class="copy-page-item-icon">${mcpIcon}</span><span class="copy-page-item-text"><span class="copy-page-item-title">Copy MCP install command</span><span class="copy-page-item-desc">Copy npx command to install MCP server</span></span></button>`;
+  }
+  return items;
 }
 
-function injectPageMeta(meta, id, pdfManifest = null, assetPrefix = '') {
+function mdButtons(id, pdfManifest = null, assetPrefix = '', siteUrl = '', basePath = '') {
+  const copyIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+  const pageUrl = siteUrl && id ? siteUrl + (basePath || '/') + id : '';
+  const dropdownItems = copyPageDropdownItems(pageUrl, siteUrl);
+  return `<span class="meta-sep">|</span><div class="copy-page-menu"><button class="meta-btn copy-page-main" onclick="copyMd()" title="Copy page as Markdown">${copyIcon} Copy page</button><button type="button" class="meta-btn copy-page-toggle" onclick="toggleCopyMenu(event)" aria-haspopup="true" aria-expanded="false"><span class="copy-page-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></button><div class="copy-page-dropdown" role="menu" hidden>${dropdownItems}</div></div>${pdfButtons(id, pdfManifest, assetPrefix)}`;
+}
+
+function injectPageMeta(meta, id, pdfManifest = null, assetPrefix = '', siteUrl = '', basePath = '') {
   const parts = [];
   if (meta.tag) parts.push(`<span>${escHtml(meta.tag)}</span>`);
   if (meta.component) parts.push(`<span>•</span><span>${escHtml(meta.component)}</span>`);
   if (meta.readtime) parts.push(`<span>•</span><span>${escHtml(meta.readtime)}</span>`);
   if (meta.updated) parts.push(`<span>•</span><span>Updated ${escHtml(meta.updated)}</span>`);
-  parts.push(mdButtons(id, pdfManifest, assetPrefix));
+  parts.push(mdButtons(id, pdfManifest, assetPrefix, siteUrl, basePath));
   return `<div class="page-meta">${parts.join('')}</div>`;
 }
 
@@ -1506,6 +1615,7 @@ function buildDevLoader() {
 async function loadPage(id, el) {
   window.__DOCSLIT_CURRENT_PAGE__ = id;
   activateSidebar(id);
+  window.scrollTo(0, 0);
   const target = _docsBase() + id;
   if (location.pathname !== target) history.pushState({page: id}, '', target);
   _setBreadcrumb(id, _toLabel(id));
@@ -1592,6 +1702,7 @@ async function _fetchPageHtml(id) {
 async function loadPage(id, el) {
   window.__DOCSLIT_CURRENT_PAGE__ = id;
   activateSidebar(id);
+  window.scrollTo(0, 0);
   const target = _docsBase() + id;
   if (location.pathname !== target) history.pushState({page: id}, '', target);
   const content = document.getElementById('docs-content');
@@ -1682,6 +1793,7 @@ function _loadPageData(id) {
 async function loadPage(id, el) {
   window.__DOCSLIT_CURRENT_PAGE__ = id;
   activateSidebar(id);
+  window.scrollTo(0, 0);
   _safePushState({page: id}, '', _isFile ? '' : _docsBase() + id);
   const content = document.getElementById('docs-content');
   content.textContent = 'Loading…';
@@ -2674,6 +2786,38 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .pdf-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media print { .pdf-menu { display: none !important; } }
 
+/* COPY PAGE SPLIT BUTTON */
+.copy-page-menu { position: relative; display: inline-flex; align-items: center; }
+.copy-page-main { border-right: none; }
+.copy-page-toggle { padding: 2px 6px !important; margin-left: -2px; gap: 0 !important; }
+.copy-page-chevron { display: inline-flex; align-items: center; }
+.copy-page-dropdown {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 200;
+  min-width: 300px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.copy-page-dropdown[hidden] { display: none !important; }
+.copy-page-item {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 12px; border: none; border-radius: 6px;
+  font-family: var(--font-sans); font-size: 13px;
+  color: var(--text2); background: none; cursor: pointer;
+  text-decoration: none; box-sizing: border-box;
+}
+.copy-page-item:hover { background: var(--surface2); color: var(--text); }
+.copy-page-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.copy-page-item-icon { flex-shrink: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; margin-top: 1px; opacity: 0.7; }
+.copy-page-item-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.copy-page-item-title { font-weight: 600; font-size: 13px; color: var(--text); white-space: nowrap; }
+.copy-page-item-desc { font-size: 12px; color: var(--text3); }
+.copy-page-arrow { font-size: 11px; opacity: 0.6; }
+.toc-copy-menu { display: flex; align-items: center; white-space: nowrap; }
+.toc-copy-menu .toc-action-btn { width: auto; }
+.toc-chevron { padding: 5px 2px !important; margin-left: 0 !important; flex-shrink: 0; }
+.toc-copy-menu .copy-page-dropdown { top: calc(100% + 6px); bottom: auto; right: auto; left: 0; }
+@media print { .copy-page-menu { display: none !important; } }
+
 /* EDIT THIS PAGE */
 .page-edit { margin: 48px 0 0; }
 .page-edit a { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text3); text-decoration: none; transition: color .15s; }
@@ -3037,7 +3181,7 @@ html.a11y-underline .docs-content a { text-decoration: underline !important; tex
   body { background: #fff !important; color: #000 !important; font-size: 12pt; }
   .docs-sidebar, .docs-toc, .docs-examples, .docs-nav-top, .docs-topbar,
   .nav, .announcement-banner, .page-meta, .page-nav, .page-edit, .search-overlay, .skip-link, .sidebar-toggle,
-  .nav-menu-btn, .feedback-widget, .pdf-menu { display: none !important; }
+  .nav-menu-btn, .feedback-widget, .pdf-menu, .copy-page-menu { display: none !important; }
   .docs-layout { display: block !important; }
   .docs-main { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
   .docs-content { padding: 0 !important; max-width: 100% !important; }
