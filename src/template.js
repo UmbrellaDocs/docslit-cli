@@ -49,7 +49,7 @@ function _minifyCSS(code) {
   } catch { return code; }
 }
 
-export async function renderShell({ config, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null, locale = null }) {
+export async function renderShell({ config, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null, locale = null, titleMap = null }) {
   const siteTitle = config.name || 'DocsLit';
   const basePath = normalizeBasePath(config.basePath);
   const logoSrc = config.logo
@@ -67,13 +67,13 @@ export async function renderShell({ config, siteTheme = null, mode = 'dev', port
   if (isHybrid) {
     const firstApiPage = getFirstApiPageId(specData);
     const firstDocPage = getFirstDocPageId(config);
-    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, 'api/', offline)
+    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, 'api/', offline, titleMap)
       + (firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon, offline) : '');
     apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta, offline)
       + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon, offline) : '');
     hybridLinks = firstApiPage && firstDocPage ? { apiPage: firstApiPage, docsPage: firstDocPage, initialMode: 'docs' } : null;
   } else {
-    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, null, offline);
+    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, null, offline, titleMap);
   }
 
   const versionScript = versionConfig
@@ -194,12 +194,12 @@ ${appBlock}
 </html>`;
 }
 
-export async function renderPage({ config, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null }) {
+export async function renderPage({ config, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null, titleMap = null }) {
   const basePath = normalizeBasePath(config.basePath);
   const i18n = getI18nConfig(config);
   const currentLocale = locale || i18n.defaultLocale;
   const isHybridEarly = specData && (config.sidebar || []).length > 0;
-  const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null);
+  const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null, false, titleMap);
   const siteTitle = config.name || 'DocsLit';
   const logoSrc = config.logo
     ? withBasePath(basePath, config.logo.startsWith('/') ? config.logo : '/' + config.logo)
@@ -1327,7 +1327,7 @@ function injectPageMeta(meta, id, pdfManifest = null, assetPrefix = '') {
   return `<div class="page-meta">${parts.join('')}</div>`;
 }
 
-function buildSidebarHtml(config, draftIds = [], activePageId = null, excludePrefix = null, offline = false) {
+function buildSidebarHtml(config, draftIds = [], activePageId = null, excludePrefix = null, offline = false, titleMap = null) {
   const draftSet = new Set(draftIds);
   function _excluded(id) {
     return draftSet.has(id) || (excludePrefix && id.startsWith(excludePrefix));
@@ -1351,11 +1351,11 @@ function buildSidebarHtml(config, draftIds = [], activePageId = null, excludePre
         out += renderPages(subPages);
         out += `</div>`;
       } else if (typeof item === 'string' && !_excluded(item)) {
-        const label = toLabel(item);
+        const label = (titleMap && titleMap[item]) || toLabel(item);
         const activeClass = item === activePageId ? ' active' : '';
         out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item)}" href="${escHtml(item)}"${_sidebarClick(item)}>${escHtml(label)}</a>`;
       } else if (typeof item === 'object' && item.id && !_excluded(item.id)) {
-        const label = item.title || toLabel(item.id);
+        const label = item.title || (titleMap && titleMap[item.id]) || toLabel(item.id);
         const activeClass = item.id === activePageId ? ' active' : '';
         if (item.method) {
           const methodClass = item.method.toLowerCase();
@@ -1524,6 +1524,12 @@ async function loadPage(id, el) {
     if (meta.title) {
       document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
       _setBreadcrumb(id, meta.title);
+      var sidebarEl = document.querySelector('.sidebar-item[data-page="' + id + '"]');
+      if (sidebarEl) {
+        var labelSpan = sidebarEl.querySelector('.api-nav-label');
+        if (labelSpan) labelSpan.textContent = meta.title;
+        else sidebarEl.textContent = meta.title;
+      }
     }
     var metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute('content', meta.description || meta.desc || '');
@@ -2459,7 +2465,8 @@ html.light .nav { background: rgba(255,255,255,.93); }
 /* SIDEBAR FILTER */
 .sidebar-filter-wrap {
   position: sticky; top: 0; z-index: 10;
-  padding: 12px 14px 10px;
+  height: 44px; box-sizing: border-box;
+  padding: 0 14px;
   background: var(--sidebar-bg);
   display: flex; align-items: center; gap: 8px;
   border-bottom: 1px solid var(--border);
@@ -2530,6 +2537,7 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
   position: sticky; top: var(--chrome-h); height: 44px;
   background: var(--bg); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 52px; z-index: 40;
+  box-shadow: 100vw 0 0 0 var(--bg), 100vw 1px 0 0 var(--border);
 }
 .docs-breadcrumb { font-size: 13px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .docs-breadcrumb span { color: var(--text2); }

@@ -8,6 +8,7 @@ import chokidar from 'chokidar';
 import pc from 'picocolors';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar } from './config.js';
 import { parseDoc } from './markdown.js';
+import { parseFrontmatter } from './frontmatter.js';
 import { renderShell } from './template.js';
 import { resolveSiteTheme, parseThemeConfig } from './themes.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
@@ -59,6 +60,22 @@ export async function dev({ port = 3000 } = {}) {
     clients.add(ws);
     ws.on('close', () => clients.delete(ws));
   });
+
+  let titleMap = {};
+  async function rebuildTitleMap(cfg) {
+    const map = {};
+    const ids = getAllPageIds(cfg);
+    await Promise.all(ids.map(async (id) => {
+      const mdPath = path.join(cwd, 'docs', `${id}.md`);
+      try {
+        const raw = await fs.readFile(mdPath, 'utf8');
+        const { data } = parseFrontmatter(raw);
+        if (data.title) map[id] = data.title;
+      } catch {}
+    }));
+    titleMap = map;
+  }
+  await rebuildTitleMap(config);
 
   const parseCache = new Map();
   async function cachedParseDoc(mdPath, raw, opts) {
@@ -119,6 +136,9 @@ export async function dev({ port = 3000 } = {}) {
     }
     if (openapiConf?.spec && (filePath.endsWith(openapiConf.spec) || (openapiConf.overlay && filePath.endsWith(openapiConf.overlay)))) {
       await reloadSpec();
+    }
+    if (filePath.endsWith('.md') || filePath.endsWith('docslit.json')) {
+      await rebuildTitleMap(config);
     }
     broadcast({ type: 'reload' });
   });
@@ -441,7 +461,7 @@ export async function dev({ port = 3000 } = {}) {
     }
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(await renderShell({ config: shellConfig, siteTheme, mode: 'dev', port, versionConfig: vc, currentVersion, specData, apiMeta }));
+    res.send(await renderShell({ config: shellConfig, siteTheme, mode: 'dev', port, versionConfig: vc, currentVersion, specData, apiMeta, titleMap }));
   });
 
   const basePath = normalizeBasePath(config.basePath);

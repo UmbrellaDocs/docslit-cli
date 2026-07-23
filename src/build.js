@@ -34,6 +34,14 @@ function preparePdfManifest(config, pagesData, pdfOptions) {
   return buildPdfManifest({ options: pdfOptions, chapters, pageToChapter, pagesData });
 }
 
+function buildTitleMap(pagesData) {
+  const map = {};
+  for (const [id, { meta }] of Object.entries(pagesData)) {
+    if (meta.title) map[id] = meta.title;
+  }
+  return map;
+}
+
 function getRuntimeAttributes(config, version = null, branch = null) {
   const attrs = { ...(config.attributes || {}) };
   attrs.DOCSLIT_VERSION = version || 'unversioned';
@@ -277,6 +285,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
 
   const skippedNote = failed ? pc.yellow(` (${failed} skipped)`) : '';
   const draftNote = drafts ? pc.dim(` (${drafts} draft${drafts !== 1 ? 's' : ''} hidden)`) : '';
+  const titleMap = buildTitleMap(pagesData);
   const pdfManifest = !offline ? preparePdfManifest(config, pagesData, pdfOptions) : null;
 
   // Generate OG images
@@ -286,7 +295,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
   if (offline) {
     const vendorData = await _loadVendorData();
     const searchIndex = buildSearchIndex(config, pagesData);
-    const indexHtml = await renderShell({ config, siteTheme, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData });
+    const indexHtml = await renderShell({ config, siteTheme, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData, titleMap });
     await Promise.all([
       fs.writeFile(path.join(outDir, 'index.html'), indexHtml),
       _writeSearchIndexJs(outDir, searchIndex),
@@ -319,7 +328,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
       const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
       const safeId = id.replace(/\//g, '--');
       const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
-      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null, pdfManifest, ogImagePath });
+      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null, pdfManifest, ogImagePath, titleMap });
       const destHtml = path.join(outDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -456,6 +465,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   const sharedJs = offline ? null : buildComponentsFile('static', { minify });
   const sharedApp = offline ? null : buildAppFile('static', { minify });
   const vendorData = offline ? await _loadVendorData() : null;
+  const defaultTitleMap = buildTitleMap(defaultPagesData);
   const defaultPdfManifest = !offline ? preparePdfManifest(config, defaultPagesData, pdfOptions) : null;
 
   if (offline) {
@@ -464,7 +474,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       config, siteTheme, mode: 'static', out, draftPageIds,
       versionConfig, currentVersion: defaultVersion,
       offline: true, minify,
-      specData, apiMeta, vendorData,
+      specData, apiMeta, vendorData, titleMap: defaultTitleMap,
     });
     const searchIndex = buildSearchIndex(config, defaultPagesData);
     await Promise.all([
@@ -499,7 +509,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
       const safeId = id.replace(/\//g, '--');
       const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
-      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null, pdfManifest: defaultPdfManifest, ogImagePath });
+      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null, pdfManifest: defaultPdfManifest, ogImagePath, titleMap: defaultTitleMap });
       const destHtml = path.join(defaultDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
@@ -574,13 +584,14 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     }
 
     await fs.ensureDir(versionDir);
+    const versionTitleMap = buildTitleMap(versionPagesData);
 
     if (offline) {
       const versionShell = await renderShell({
         config: versionConf, siteTheme, mode: 'static', out, draftPageIds: [],
         versionConfig, currentVersion: entry.version,
         offline: true, minify,
-        specData, apiMeta, vendorData,
+        specData, apiMeta, vendorData, titleMap: versionTitleMap,
       });
       const vSearchIndex = buildSearchIndex(versionConf, versionPagesData);
       await Promise.all([
@@ -600,7 +611,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       const versionPdfManifest = preparePdfManifest(versionConf, versionPagesData, pdfOptions);
       for (const [id, { meta, html }] of Object.entries(versionPagesData)) {
         const isApiPage = id.startsWith('api/') || meta.layout === 'api';
-        const pageHtml = await renderPage({ config: versionConf, siteTheme, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null, pdfManifest: versionPdfManifest });
+        const pageHtml = await renderPage({ config: versionConf, siteTheme, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null, pdfManifest: versionPdfManifest, titleMap: versionTitleMap });
         const destHtml = path.join(versionDir, `${id}.html`);
         await fs.ensureDir(path.dirname(destHtml));
         await fs.writeFile(destHtml, pageHtml);
@@ -1312,6 +1323,7 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
 
   let built = 0;
   const localePagesData = {};
+  const localeParsed = [];
 
   for (const id of pageIds) {
     const mdPath = path.join(docsDir, `${id}.md`);
@@ -1331,12 +1343,17 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
 
     const isApiPage = id.startsWith('api/') || meta.layout === 'api';
     localePagesData[id] = { meta, html, isApiPage };
+    localeParsed.push({ id, meta, html, isApiPage, preprocessedMarkdown });
+  }
 
+  const localeTitleMap = buildTitleMap(localePagesData);
+
+  for (const { id, meta, html, isApiPage, preprocessedMarkdown } of localeParsed) {
     const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
     const safeId = id.replace(/\//g, '--');
     const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
 
-    const pageHtml = await renderPage({ config: localeConfig, siteTheme, id, meta, html, draftPageIds, specData, apiMeta, pdfManifest, locale, ogImagePath });
+    const pageHtml = await renderPage({ config: localeConfig, siteTheme, id, meta, html, draftPageIds, specData, apiMeta, pdfManifest, locale, ogImagePath, titleMap: localeTitleMap });
     const destHtml = path.join(localeOutDir, `${id}.html`);
     await fs.ensureDir(path.dirname(destHtml));
     await fs.writeFile(destHtml, pageHtml);
