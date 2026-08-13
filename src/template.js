@@ -2729,10 +2729,19 @@ wc-asciidoc-table .adoc-table-wrap { display: block; }
 wc-asciidoc-table table.adoc-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: unset; margin: 0; }
 wc-asciidoc-table table.adoc-table caption { caption-side: top; text-align: left; padding: 12px 16px 4px; font-size: 13px; font-weight: 600; color: var(--text); }
 wc-asciidoc-table table.adoc-table th,
-wc-asciidoc-table table.adoc-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.6; }
+wc-asciidoc-table table.adoc-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  vertical-align: top;
+  line-height: 1.6;
+}
+wc-asciidoc-table table.adoc-table th:last-child,
+wc-asciidoc-table table.adoc-table td:last-child { border-right: none; }
 wc-asciidoc-table table.adoc-table th { background: var(--surface2, var(--surface)); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); white-space: nowrap; }
 wc-asciidoc-table table.adoc-table td { color: var(--text2); }
-wc-asciidoc-table table.adoc-table tr:last-child td { border-bottom: none; }
+wc-asciidoc-table table.adoc-table > :last-child > tr:last-child > td,
+wc-asciidoc-table table.adoc-table > :last-child > tr:last-child > th { border-bottom: none; }
 wc-asciidoc-table table.adoc-table.stripes-hover tbody tr:hover td { background: rgba(128,128,128,.04); }
 wc-asciidoc-table table.adoc-table.stripes-even tbody tr:nth-child(even) td { background: rgba(128,128,128,.04); }
 wc-asciidoc-table table.adoc-table.stripes-odd tbody tr:nth-child(odd) td { background: rgba(128,128,128,.04); }
@@ -2741,6 +2750,8 @@ wc-asciidoc-table table.adoc-table.grid-none th,
 wc-asciidoc-table table.adoc-table.grid-none td { border: none; }
 wc-asciidoc-table table.adoc-table.grid-cols th,
 wc-asciidoc-table table.adoc-table.grid-cols td { border-bottom: none; border-right: 1px solid var(--border); }
+wc-asciidoc-table table.adoc-table.grid-cols th:last-child,
+wc-asciidoc-table table.adoc-table.grid-cols td:last-child { border-right: none; }
 wc-asciidoc-table table.adoc-table.grid-rows th,
 wc-asciidoc-table table.adoc-table.grid-rows td { border-right: none; }
 wc-asciidoc-table table.adoc-table pre.adoc-literal { margin: 0; white-space: pre-wrap; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
@@ -2748,9 +2759,29 @@ wc-asciidoc-table table.adoc-table p { margin: 0 0 .55em; }
 wc-asciidoc-table table.adoc-table p:last-child { margin: 0; }
 wc-asciidoc-table table.adoc-table ul,
 wc-asciidoc-table table.adoc-table ol { margin: 0 0 .55em; padding-left: 1.25em; }
-.docs-content th { text-align: left; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); font-weight: 600; color: var(--text2); white-space: nowrap; }
-.docs-content td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: top; line-height: 1.6; font-variant-numeric: tabular-nums; }
-.docs-content tr:last-child td { border-bottom: none; }
+.docs-content th {
+  text-align: left;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.docs-content td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  color: var(--text2);
+  vertical-align: top;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.docs-content th:last-child,
+.docs-content td:last-child { border-right: none; }
+.docs-content table > :last-child > tr:last-child > td,
+.docs-content table > :last-child > tr:last-child > th { border-bottom: none; }
 .docs-content tr:hover td { background: rgba(255,255,255,.015); }
 html.light .docs-content tr:hover td { background: rgba(0,0,0,.015); }
 .docs-content blockquote { border-left: 3px solid var(--accent); padding: 14px 24px; background: var(--surface); border-radius: 0 8px 8px 0; margin: 24px 0; color: var(--text2); }

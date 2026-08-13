@@ -40,6 +40,15 @@ function collectText(children) {
 }
 
 /** Rebuild markdown source when parse5 promoted `` `<wc-*>` `` into element nodes. */
+function hasMeaningfulAttrs(properties = {}) {
+  return Object.keys(properties).some((key) => {
+    const val = properties[key];
+    if (val === undefined || val === false || val === null) return false;
+    if (key === 'className') return Array.isArray(val) ? val.length > 0 : !!val;
+    return true;
+  });
+}
+
 function reconstructProseSource(children) {
   let text = '';
   for (const child of children) {
@@ -48,6 +57,11 @@ function reconstructProseSource(children) {
       continue;
     }
     if (child.type === 'element' && child.tagName?.startsWith('wc-')) {
+      // Real nested components (attrs and/or element children) must stay in the tree.
+      // Only bare `<wc-foo>` promotions from inline code should be flattened to prose.
+      if (hasMeaningfulAttrs(child.properties)) return null;
+      if (child.children?.some((c) => c.type === 'element')) return null;
+
       const inner = child.children?.length ? reconstructProseSource(child.children) : '';
       if (inner === null) return null;
       // Emit real HTML so rehypeRaw keeps a <code> node; entities display as <wc-*>.

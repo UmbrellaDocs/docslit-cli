@@ -231,6 +231,28 @@ describe('parseDoc', () => {
     expect(html).toContain('</wc-callout>');
   });
 
+  it('keeps nested wc-field children inside wc-fields (does not flatten to code)', async () => {
+    const raw = `<wc-fields header="wc-asciidoc-table">
+<wc-field name="cols" type="string">
+Comma-separated column specifiers (for example \`1,2,3\` or \`3*\`).
+</wc-field>
+<wc-field name="options" type="string">
+Comma-separated options: \`header\`, \`footer\`.
+</wc-field>
+</wc-fields>
+
+## After fields
+
+Content after the fields block.
+`;
+    const { html } = await parseDoc(raw);
+    expect(html).toContain('<wc-field name="cols" type="string">');
+    expect(html).toContain('<wc-field name="options" type="string">');
+    expect(html).not.toMatch(/<code>(&lt;|&#x3C;)wc-field/);
+    expect(html).toMatch(/<\/wc-fields>\s*<h2[^>]*>After fields<\/h2>/);
+    expect(html).toContain('Content after the fields block');
+  });
+
   it('renders GFM tables correctly', async () => {
     const { html } = await parseDoc('| Name | Value |\n|------|-------|\n| foo  | bar   |\n');
     expect(html).toContain('<table>');

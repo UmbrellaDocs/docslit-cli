@@ -75,7 +75,7 @@ class WcField extends LitElement {
 customElements.define('wc-field',WcField);
 
 class WcFields extends LitElement {
-  static properties={title:{type:String}};
+  static properties={title:{type:String},header:{type:String}};
   static styles=css\`
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
@@ -84,13 +84,13 @@ class WcFields extends LitElement {
     .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666)}
     .body{padding:0 16px}
   \`;
-  render(){return html\`<div class="wrap"><div class="header">\${this.title||'Parameters'}</div><div class="body"><slot></slot></div></div>\`;}
+  render(){return html\`<div class="wrap"><div class="header">\${this.title||this.header||'Parameters'}</div><div class="body"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-fields',WcFields);
 
 // ── WC-RESPONSE-FIELDS ─────────────────────────────────────────────────────
 class WcResponseFields extends LitElement {
-  static properties={title:{type:String}};
+  static properties={title:{type:String},header:{type:String}};
   static styles=css\`
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
@@ -99,7 +99,7 @@ class WcResponseFields extends LitElement {
     .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666)}
     .body{padding:0 16px}
   \`;
-  render(){return html\`<div class="wrap"><div class="header">\${this.title||'Response'}</div><div class="body"><slot></slot></div></div>\`;}
+  render(){return html\`<div class="wrap"><div class="header">\${this.title||this.header||'Response'}</div><div class="body"><slot></slot></div></div>\`;}
 }
 customElements.define('wc-response-fields',WcResponseFields);
 
@@ -177,8 +177,9 @@ class WcTable extends LitElement {
     .wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border,#2a2a2a);border-radius:10px;background:var(--surface,#111)}
     table{width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;font-size:14px}
     thead{position:sticky;top:0;z-index:1}
-    th{text-align:left;padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666);white-space:nowrap}
-    td{padding:10px 16px;border-bottom:1px solid var(--border,#2a2a2a);color:var(--text2,#a0a0a0);vertical-align:top;line-height:1.6}
+    th{text-align:left;padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);border-right:1px solid var(--border,#2a2a2a);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666);white-space:nowrap}
+    td{padding:10px 16px;border-bottom:1px solid var(--border,#2a2a2a);border-right:1px solid var(--border,#2a2a2a);color:var(--text2,#a0a0a0);vertical-align:top;line-height:1.6}
+    th:last-child,td:last-child{border-right:none}
     tr:last-child td{border-bottom:none}
     tr:hover td{background:rgba(128,128,128,.04)}
     code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 6px;border-radius:3px;color:#4f98a3}
