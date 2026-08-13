@@ -100,6 +100,11 @@ export const COMPONENT_MAP = {
                    passAttrs: ['name', 'type', 'required', 'optional', 'default'],
                    attrRename: { path: 'name', query: 'name', body: 'name', header: 'name' } },
   ResponseField: { tag: 'wc-field', passAttrs: ['name', 'type', 'required'] },
+  // ── Tables ───────────────────────────────────────────────────────────────────
+  AsciidocTable: {
+    tag: 'wc-asciidoc-table',
+    passAttrs: ['cols', 'options', 'format', 'separator', 'frame', 'grid', 'stripes', 'width', 'caption'],
+  },
   // ── Unsupported (graceful degradation) ───────────────────────────────────────
   Tooltip: { tag: null, flatten: true },
   Icon:    { tag: null, remove: true },

@@ -7,6 +7,7 @@ import rehypeSlug from 'rehype-slug';
 import rehypeStringify from 'rehype-stringify';
 
 import rehypeDocslitWcPreserve from './plugins/rehype-docslit-wc-preserve.js';
+import rehypeDocslitAsciidocTable from './plugins/rehype-docslit-asciidoc-table.js';
 import rehypeDocslitWcContent from './plugins/rehype-docslit-wc-content.js';
 import rehypeDocslitCode from './plugins/rehype-docslit-code.js';
 import rehypeDocslitVars from './plugins/rehype-docslit-vars.js';
@@ -14,6 +15,23 @@ import rehypeDocslitLinkFix from './plugins/rehype-docslit-link-fix.js';
 import rehypeDocslitImages from './plugins/rehype-docslit-images.js';
 
 import { rewriteMdxTags } from './mdx-bridge.js';
+import { asciidocTableToHtml } from './asciidoc-table.js';
+
+/**
+ * Parse a raw HTML attribute string into a plain object.
+ * e.g. ` cols="1,2" options="header"` → { cols: '1,2', options: 'header' }
+ */
+function parseHtmlAttrString(attrStr = '') {
+  const out = {};
+  const re = /([:@\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  let m;
+  while ((m = re.exec(attrStr))) {
+    const key = m[1];
+    const val = m[2] ?? m[3] ?? m[4];
+    out[key] = val === undefined ? '' : val;
+  }
+  return out;
+}
 
 /**
  * Build a fresh unified pipeline. Each call returns an independent processor
@@ -33,6 +51,7 @@ function getProcessor(meta = {}) {
     .use(rehypeRaw)
     .use(rehypeSlug)
     .use(rehypeDocslitWcPreserve)
+    .use(rehypeDocslitAsciidocTable)
     .use(rehypeDocslitWcContent)
     .use(rehypeDocslitCode)
     .use(rehypeDocslitVars)
@@ -88,6 +107,17 @@ export async function renderMarkdown(src, passBlocks = [], meta = {}) {
     },
   );
 
+  // Shield AsciiDoc tables so blank lines / pipes aren't eaten by GFM tables
+  // or HTML-block interruption rules before rehype can process them.
+  const asciidocTables = [];
+  shielded = shielded.replace(
+    /<wc-asciidoc-table([^>]*)>([\s\S]*?)<\/wc-asciidoc-table>/gi,
+    (_, attrs, content) => {
+      asciidocTables.push({ attrs, content });
+      return `DOCSLIT_ASCIIDOC_TABLE_${asciidocTables.length - 1}_END`;
+    },
+  );
+
   shielded = rewriteMdxTags(shielded);
 
   // Restore fences before unified parsing (remark-parse handles them natively)
@@ -115,6 +145,16 @@ export async function renderMarkdown(src, passBlocks = [], meta = {}) {
     (_, i) => {
       const { attrs, content } = codeBlocks[Number(i)];
       return `<wc-code-block${attrs}>${content}</wc-code-block>`;
+    },
+  );
+
+  // Restore AsciiDoc tables and render them (shielded content bypasses rehype).
+  html = html.replace(
+    /(?:<p>)?DOCSLIT_ASCIIDOC_TABLE_(\d+)_END(?:<\/p>)?/g,
+    (_, i) => {
+      const { attrs, content } = asciidocTables[Number(i)];
+      const tableHtml = asciidocTableToHtml(content, parseHtmlAttrString(attrs));
+      return `<wc-asciidoc-table${attrs}>${tableHtml}</wc-asciidoc-table>`;
     },
   );
 

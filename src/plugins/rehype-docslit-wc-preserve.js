@@ -1,7 +1,12 @@
 import { visit } from 'unist-util-visit';
 import { toHtml } from 'hast-util-to-html';
 
-const CODE_TAGS = new Set(['wc-code-block', 'wc-code-group', 'wc-code-tab']);
+const CODE_TAGS = new Set([
+  'wc-code-block',
+  'wc-code-group',
+  'wc-code-tab',
+  'wc-asciidoc-table',
+]);
 
 export default function rehypeDocslitWcPreserve() {
   return (tree) => {

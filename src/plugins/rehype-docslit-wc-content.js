@@ -10,6 +10,7 @@ const CODE_TAGS = new Set([
   'wc-code-block',
   'wc-code-group',
   'wc-code-tab',
+  'wc-asciidoc-table',
 ]);
 
 const MD_SYNTAX_RE = /\*\*|__|\*[^*]|_[^_]|\[.*?\]\(|^#{1,6}\s|^[-*+]\s|^>\s|^```|^\|/m;

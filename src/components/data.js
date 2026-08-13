@@ -1,4 +1,4 @@
-// Data & API components: wc-field, wc-fields, wc-response-fields, wc-color, wc-table, wc-schema, wc-mermaid, wc-endpoint, wc-runnable-endpoint
+// Data & API components: wc-field, wc-fields, wc-response-fields, wc-color, wc-table, wc-asciidoc-table, wc-schema, wc-mermaid, wc-endpoint, wc-runnable-endpoint
 
 export default `
 // ── WC-FIELD / WC-FIELDS ───────────────────────────────────────────────────
@@ -192,6 +192,23 @@ class WcTable extends LitElement {
   }
 }
 customElements.define('wc-table',WcTable);
+
+// ── WC-ASCIIDOC-TABLE ──────────────────────────────────────────────────────
+// AsciiDoc table source is pre-rendered to a real <table> at build/dev time.
+// This component supplies overflow chrome; cell styles come from document CSS
+// (slotted light-DOM descendants are not styleable from shadow CSS).
+class WcAsciidocTable extends LitElement {
+  static properties={caption:{type:String},cols:{type:String},options:{type:String},format:{type:String},separator:{type:String},frame:{type:String},grid:{type:String},stripes:{type:String},width:{type:String}};
+  static styles=css\`
+    :host{display:block;margin:0 0 16px}
+    :host([theme="dark"]){--adoc-border:#2a2a2a;--adoc-surface:#111}
+    :host([theme="light"]){--adoc-border:#e2e2e2;--adoc-surface:#f8f8f8}
+    .wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--adoc-border,var(--border,#2a2a2a));border-radius:10px;background:var(--adoc-surface,var(--surface,#111))}
+    ::slotted(.adoc-table-wrap){display:block}
+  \`;
+  render(){return html\`<div class="wrap"><slot></slot></div>\`;}
+}
+customElements.define('wc-asciidoc-table',WcAsciidocTable);
 
 // ── WC-SCHEMA ──────────────────────────────────────────────────────────────
 class WcSchema extends LitElement {

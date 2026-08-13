@@ -922,6 +922,7 @@ function _show404(id) {
 function _wrapTables(container) {
   container.querySelectorAll('table').forEach(function(t) {
     if (!t.parentElement || t.parentElement.classList.contains('table-wrap')) return;
+    if (t.closest('wc-asciidoc-table') || t.parentElement.classList.contains('adoc-table-wrap')) return;
     const w = document.createElement('div');
     w.className = 'table-wrap';
     t.parentNode.insertBefore(w, t);
@@ -2724,6 +2725,29 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 .docs-content .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: var(--radius-lg); margin: 20px 0; }
 .docs-content table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 480px; }
 .docs-content .table-wrap table { margin: 0; min-width: unset; }
+wc-asciidoc-table .adoc-table-wrap { display: block; }
+wc-asciidoc-table table.adoc-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: unset; margin: 0; }
+wc-asciidoc-table table.adoc-table caption { caption-side: top; text-align: left; padding: 12px 16px 4px; font-size: 13px; font-weight: 600; color: var(--text); }
+wc-asciidoc-table table.adoc-table th,
+wc-asciidoc-table table.adoc-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.6; }
+wc-asciidoc-table table.adoc-table th { background: var(--surface2, var(--surface)); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); white-space: nowrap; }
+wc-asciidoc-table table.adoc-table td { color: var(--text2); }
+wc-asciidoc-table table.adoc-table tr:last-child td { border-bottom: none; }
+wc-asciidoc-table table.adoc-table.stripes-hover tbody tr:hover td { background: rgba(128,128,128,.04); }
+wc-asciidoc-table table.adoc-table.stripes-even tbody tr:nth-child(even) td { background: rgba(128,128,128,.04); }
+wc-asciidoc-table table.adoc-table.stripes-odd tbody tr:nth-child(odd) td { background: rgba(128,128,128,.04); }
+wc-asciidoc-table table.adoc-table.stripes-all tbody td { background: rgba(128,128,128,.03); }
+wc-asciidoc-table table.adoc-table.grid-none th,
+wc-asciidoc-table table.adoc-table.grid-none td { border: none; }
+wc-asciidoc-table table.adoc-table.grid-cols th,
+wc-asciidoc-table table.adoc-table.grid-cols td { border-bottom: none; border-right: 1px solid var(--border); }
+wc-asciidoc-table table.adoc-table.grid-rows th,
+wc-asciidoc-table table.adoc-table.grid-rows td { border-right: none; }
+wc-asciidoc-table table.adoc-table pre.adoc-literal { margin: 0; white-space: pre-wrap; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
+wc-asciidoc-table table.adoc-table p { margin: 0 0 .55em; }
+wc-asciidoc-table table.adoc-table p:last-child { margin: 0; }
+wc-asciidoc-table table.adoc-table ul,
+wc-asciidoc-table table.adoc-table ol { margin: 0 0 .55em; padding-left: 1.25em; }
 .docs-content th { text-align: left; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); font-weight: 600; color: var(--text2); white-space: nowrap; }
 .docs-content td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: top; line-height: 1.6; font-variant-numeric: tabular-nums; }
 .docs-content tr:last-child td { border-bottom: none; }
@@ -2738,7 +2762,7 @@ html.light .docs-content tr:hover td { background: rgba(0,0,0,.015); }
    Prevents inline-display flash and guarantees consistent block spacing. */
 wc-callout, wc-alert, wc-banner, wc-update,
 wc-card, wc-prompt,
-wc-fields, wc-response-fields, wc-color, wc-table, wc-schema, wc-mermaid,
+wc-fields, wc-response-fields, wc-color, wc-table, wc-asciidoc-table, wc-schema, wc-mermaid,
 wc-endpoint, wc-runnable-endpoint,
 wc-steps, wc-tabs, wc-view,
 wc-files, wc-tree, wc-download,

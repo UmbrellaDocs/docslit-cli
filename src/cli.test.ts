@@ -647,7 +647,7 @@ describe('buildComponents', () => {
     // Media & Files
     'wc-icon', 'wc-file', 'wc-dir', 'wc-files', 'wc-tree', 'wc-tree-item', 'wc-download', 'wc-copy',
     // Data & API
-    'wc-field', 'wc-fields', 'wc-response-fields', 'wc-color', 'wc-table',
+    'wc-field', 'wc-fields', 'wc-response-fields', 'wc-color', 'wc-table', 'wc-asciidoc-table',
     'wc-schema', 'wc-mermaid', 'wc-endpoint', 'wc-runnable-endpoint', 'wc-playground',
     // Content
     'wc-card', 'wc-tile', 'wc-tiles', 'wc-button', 'wc-prompt',

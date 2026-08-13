@@ -72,6 +72,58 @@ A JSON-driven table with sticky headers and hover rows.
 
 <wc-table headers='["Method","Endpoint","Auth","Description"]' rows='[["GET","/api/v2/documents","Bearer","List all documents"],["POST","/api/v2/documents","Bearer","Create a new document"],["GET","/api/v2/documents/:id","Bearer","Fetch a single document"],["PATCH","/api/v2/documents/:id","Bearer","Update a document"],["DELETE","/api/v2/documents/:id","Bearer","Delete a document"]]'></wc-table>
 
+## wc-asciidoc-table
+
+Author tables using [AsciiDoc table syntax](https://docs.asciidoctor.org/asciidoc/latest/tables/table-ref/). Supports PSV (default), CSV, DSV, TSV, column specs, header/footer options, cell spans, alignment, and cell styles.
+
+<wc-asciidoc-table>
+[cols="1,2,3",options="header"]
+|===
+|Method |Path |Description
+
+|GET
+|/users
+|List users
+
+|POST
+|/users
+|Create a user
+
+|GET
+|/users/:id
+|Fetch one user
+|===
+</wc-asciidoc-table>
+
+Spans, alignment, and styles:
+
+<wc-asciidoc-table>
+|===
+|Feature |Notes
+
+2+|Spans both columns
+
+|Right aligned
+>|This cell is right-aligned
+
+|Strong
+s|Bold cell text
+
+|Monospace
+m|GET /v1/items
+|===
+</wc-asciidoc-table>
+
+CSV format:
+
+<wc-asciidoc-table format="csv" options="header">
+|===
+Method,Path,Description
+GET,/health,Liveness probe
+POST,/deploy,Trigger deploy
+|===
+</wc-asciidoc-table>
+
 ## wc-mermaid
 
 Renders Mermaid diagrams lazily (loads mermaid@10 from CDN on first render).

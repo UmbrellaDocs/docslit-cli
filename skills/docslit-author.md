@@ -312,8 +312,20 @@ Admin-only content visible from v2.0.
 Indented content with colored left border.
 </wc-indent>
 
-<!-- Data table -->
+<!-- Data table (JSON) -->
 <wc-table headers='["Method", "Path", "Description"]' rows='[["GET", "/users", "List users"], ["POST", "/users", "Create user"]]'></wc-table>
+
+<!-- AsciiDoc table syntax -->
+<wc-asciidoc-table>
+[cols="1,2,3",options="header"]
+|===
+|Method |Path |Description
+
+|GET
+|/users
+|List users
+|===
+</wc-asciidoc-table>
 
 <!-- Schema definition -->
 <wc-schema type="User" description="A user object" extends="BaseModel">
