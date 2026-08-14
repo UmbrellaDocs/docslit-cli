@@ -59,8 +59,19 @@ if (command === 'init') {
   const pdf = args.includes('--pdf');
   const noPdf = args.includes('--no-pdf');
   const pdfDir = getFlag(args, '--pdf-dir');
+  const incremental = args.includes('--incremental');
+  const noOgImages = args.includes('--no-og-images');
+  const noSearchIndex = args.includes('--no-search-index');
+  const noLlmsTxt = args.includes('--no-llms-txt');
+  const noMcp = args.includes('--no-mcp');
+  const noSitemap = args.includes('--no-sitemap');
+  const profile = args.includes('--profile');
+  const verbose = args.includes('--verbose');
   const { build } = await import('../src/build.js');
-  await build({ out, offline, minify, pdf, noPdf, pdfDir });
+  await build({
+    out, offline, minify, pdf, noPdf, pdfDir,
+    incremental, noOgImages, noSearchIndex, noLlmsTxt, noMcp, noSitemap, profile, verbose,
+  });
 } else if (command === 'import') {
   const restArgs = args.slice(1);
   if (!restArgs[0] || restArgs[0].startsWith('--')) {

@@ -23,25 +23,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function dev({ port = 3000, themePicker = false } = {}) {
   const cwd = process.cwd();
-  const [config] = await Promise.all([loadConfig(cwd), initHighlighter()]);
+  const config = await loadConfig(cwd);
   let siteTheme = await resolveSiteTheme(config, cwd);
   if (themePicker) siteTheme.picker = true;
 
   console.log(`\n  ${pc.bold('DocsLit')} dev server starting...\n`);
 
-  // Load OpenAPI spec if configured
   let specData = null;
   let apiMeta = null;
+  let resolveSpecRefs = null;
+  let buildApiPageMarkdown = null;
   async function reloadSpec() {
     const openapiConfig = getOpenAPIConfig(config);
     if (!openapiConfig?.spec) return;
     try {
-      const spec = await loadSpec(
+      const openapi = await import('./openapi.js');
+      const spec = await openapi.loadSpec(
         path.resolve(cwd, openapiConfig.spec),
         openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
       );
-      specData = getEndpoints(spec);
-      apiMeta = getApiMeta(spec);
+      specData = openapi.getEndpoints(spec);
+      apiMeta = openapi.getApiMeta(spec);
+      resolveSpecRefs = openapi.resolveSpecRefs;
+      buildApiPageMarkdown = openapi.buildApiPageMarkdown;
       console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
     } catch (e) {
       console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
@@ -346,7 +350,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
     const { preprocessedMarkdown } = await parseDoc(mdRaw, parseOpts);
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
     const isApiPage = slug.startsWith('api/') || /^---\n[\s\S]*?layout:\s*api[\s\S]*?\n---/.test(mdRaw);
-    res.send(isApiPage && specData ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
+    res.send(isApiPage && specData && buildApiPageMarkdown ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
   });
 
   // API: search index
@@ -492,7 +496,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
         const { preprocessedMarkdown } = await parseDoc(mdRaw, parseOpts);
         const isApi = slug.startsWith('api/') || /^---\n[\s\S]*?layout:\s*api[\s\S]*?\n---/.test(mdRaw);
         res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-        return res.send(isApi && specData ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
+        return res.send(isApi && specData && buildApiPageMarkdown ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
       }
       return res.status(404).send('Not found');
     }

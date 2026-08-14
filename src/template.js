@@ -33,8 +33,7 @@ const require = createRequire(import.meta.url);
 // ── Minification helpers ──────────────────────────────────────────────────
 // Used by build.js (default on) but bypassed by tests and dev mode so the
 // served output stays readable for debugging. esbuild is loaded lazily via
-// createRequire so dev/npx installs without esbuild still work; transformSync
-// keeps these calls synchronous so renderShell/renderPage don't need to go async.
+// createRequire so dev/npx installs without esbuild still work.
 function _getEsbuild() {
   return require('esbuild');
 }
@@ -48,16 +47,18 @@ export function isEsbuildAvailable() {
   }
 }
 
-function _minifyJS(code) {
+async function _minifyJS(code) {
   try {
     const esbuild = _getEsbuild();
-    return esbuild.transformSync(code, { loader: 'js', minify: true, legalComments: 'none' }).code;
+    const result = await esbuild.transform(code, { loader: 'js', minify: true, legalComments: 'none' });
+    return result.code;
   } catch { return code; }
 }
-function _minifyCSS(code) {
+async function _minifyCSS(code) {
   try {
     const esbuild = _getEsbuild();
-    return esbuild.transformSync(code, { loader: 'css', minify: true }).code;
+    const result = await esbuild.transform(code, { loader: 'css', minify: true });
+    return result.code;
   } catch { return code; }
 }
 
@@ -125,14 +126,15 @@ export async function renderShell({ config: baseConfig, siteTheme = null, mode =
   const htmlTag = buildHtmlTag(resolvedTheme, currentLocale);
 
   if (offline) {
-    const offlineStyles = minify
-      ? `<style>${_minifyCSS(buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
-      : buildStyles(resolvedTheme);
-    const offlineComponents = minify ? _minifyJS(buildComponents()) : buildComponents();
+    const rawStyles = buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
     const offlineLoaderScript = buildOfflineLoader();
-    const offlineApp = minify
-      ? _minifyJS(buildAppScript('static', offlineLoaderScript, '', true))
-      : buildAppScript('static', offlineLoaderScript, '', true);
+    const rawApp = buildAppScript('static', offlineLoaderScript, '', true);
+    const [minStyles, minComponents, minApp] = minify
+      ? await Promise.all([_minifyCSS(rawStyles), _minifyJS(buildComponents()), _minifyJS(rawApp)])
+      : [rawStyles, buildComponents(), rawApp];
+    const offlineStyles = minify ? `<style>${minStyles}</style>` : buildStyles(resolvedTheme);
+    const offlineComponents = minComponents;
+    const offlineApp = minApp;
 
     return `<!DOCTYPE html>
 ${htmlTag}
@@ -181,14 +183,17 @@ ${offlineApp}
 
   const wsScript = mode === 'dev' ? buildWsScript(port) : '';
   const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
+  const rawStyles = buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
+  const rawComponents = buildComponents();
+  const rawApp = buildAppScript(mode, loaderScript, wsScript, false);
 
-  const stylesBlock = minify
-    ? `<style>${_minifyCSS(buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
-    : buildStyles(resolvedTheme);
-  const componentsBlock = minify ? _minifyJS(buildComponents()) : buildComponents();
-  const appBlock = minify
-    ? _minifyJS(buildAppScript(mode, loaderScript, wsScript, false))
-    : buildAppScript(mode, loaderScript, wsScript, false);
+  const [minStyles, minComponents, minApp] = minify
+    ? await Promise.all([_minifyCSS(rawStyles), _minifyJS(rawComponents), _minifyJS(rawApp)])
+    : [rawStyles, rawComponents, rawApp];
+
+  const stylesBlock = minify ? `<style>${minStyles}</style>` : buildStyles(resolvedTheme);
+  const componentsBlock = minComponents;
+  const appBlock = minApp;
 
   return `<!DOCTYPE html>
 ${htmlTag}
@@ -398,30 +403,30 @@ ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)}
 </html>`;
 }
 
-export function buildStylesFile({ minify = false, siteTheme = null } = {}) {
+export async function buildStylesFile({ minify = false, siteTheme = null } = {}) {
   const resolved = siteTheme ?? resolveSiteThemeSync(null);
   const raw = buildStyles(resolved).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
   return minify ? _minifyCSS(raw) : raw;
 }
 
-export function buildComponentsFile(mode = 'static', { minify = false } = {}) {
+export async function buildComponentsFile(mode = 'static', { minify = false } = {}) {
   const raw = buildComponents();
   return minify ? _minifyJS(raw) : raw;
 }
 
-export function buildAppFile(mode = 'static', { minify = false } = {}) {
+export async function buildAppFile(mode = 'static', { minify = false } = {}) {
   const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
   const wsScript = mode === 'dev' ? buildWsScript(3000) : '';
   const raw = buildAppScript(mode, loaderScript, wsScript);
   return minify ? _minifyJS(raw) : raw;
 }
 
-export function buildOfflineThemeInitFile({ minify = false, siteTheme = null } = {}) {
+export async function buildOfflineThemeInitFile({ minify = false, siteTheme = null } = {}) {
   const raw = buildThemeInitCode(siteTheme) + buildA11yInitCode();
   return minify ? _minifyJS(raw) : raw;
 }
 
-export function buildOfflineAppFile({ minify = false } = {}) {
+export async function buildOfflineAppFile({ minify = false } = {}) {
   const loaderScript = buildOfflineLoader();
   const raw = buildAppScript('static', loaderScript, '', true);
   return minify ? _minifyJS(raw) : raw;

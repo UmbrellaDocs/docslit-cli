@@ -3,6 +3,12 @@
  */
 import path from 'path';
 import fs from 'fs-extra';
+import { renderSvgToPng } from './og-image-pool.js';
+import {
+  ogImageCacheKey,
+  readOgImageCache,
+  writeOgImageCache,
+} from './build-cache.js';
 
 function escXml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -49,13 +55,30 @@ export function buildOgSvg({ title, siteName, colors = {} }) {
 </svg>`;
 }
 
-export async function generateOgImage({ title, siteName, colors, outFile }) {
+async function renderAndWrite({ title, siteName, colors, outFile, incremental = false }) {
   const svg = buildOgSvg({ title, siteName, colors });
   await fs.ensureDir(path.dirname(outFile));
+
+  if (incremental) {
+    const cacheKey = ogImageCacheKey({ title, siteName, colors });
+    const cached = await readOgImageCache(cacheKey);
+    if (cached) {
+      await fs.writeFile(outFile, cached);
+      return true;
+    }
+    try {
+      const png = await renderSvgToPng(svg);
+      await fs.writeFile(outFile, png);
+      await writeOgImageCache(cacheKey, png);
+      return true;
+    } catch {
+      await fs.writeFile(outFile.replace(/\.png$/, '.svg'), svg);
+      return false;
+    }
+  }
+
   try {
-    const { Resvg } = await import('@resvg/resvg-js');
-    const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: 1200 } });
-    const png = resvg.render().asPng();
+    const png = await renderSvgToPng(svg);
     await fs.writeFile(outFile, png);
     return true;
   } catch {
@@ -63,6 +86,28 @@ export async function generateOgImage({ title, siteName, colors, outFile }) {
     return false;
   }
 }
+
+export async function generateOgImage({ title, siteName, colors, outFile, incremental = false }) {
+  return renderAndWrite({ title, siteName, colors, outFile, incremental });
+}
+
+/**
+ * Batch-generate OG images using the worker pool.
+ * @param {Array<{ title, siteName, colors, outFile }>} jobs
+ * @param {{ incremental?: boolean }} opts
+ * @returns {Promise<number>} count of successfully rendered PNGs
+ */
+export async function generateOgImages(jobs, { incremental = false } = {}) {
+  if (!jobs.length) return 0;
+  let count = 0;
+  await Promise.all(jobs.map(async (job) => {
+    const ok = await renderAndWrite({ ...job, incremental });
+    if (ok) count++;
+  }));
+  return count;
+}
+
+export { shutdownOgImagePool } from './og-image-pool.js';
 
 export function ogColorsFromTheme(siteTheme) {
   const colors = siteTheme?.colors || siteTheme?.light || {};

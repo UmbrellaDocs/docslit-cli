@@ -1,6 +1,6 @@
 {
   "name": "docslit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The best open-source docs platform, built for AI agents. Markdown + Lit web components",
   "homepage": "https://docslit.com",
   "repository": {
@@ -29,7 +29,8 @@
     "vendor": "node scripts/download-vendor.js",
     "prepack": "node scripts/download-vendor.js",
     "skills": "node scripts/build-skills.js",
-    "icons": "node scripts/build-icons.js"
+    "icons": "node scripts/build-icons.js",
+    "benchmark": "node scripts/benchmark-build.js"
   },
   "keywords": [
     "docs",

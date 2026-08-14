@@ -1,6 +1,5 @@
 import fs from 'fs-extra';
 import path from 'path';
-import git from 'isomorphic-git';
 import nodeFs from 'node:fs';
 import { expandAllSidebars, expandSidebarValue, expandTabsValue, hasTabAutogenerate, createFileListSource, hasAutogenerate } from './auto-sidebar.js';
 import { applyNavigation, collectIds } from './navigation.js';
@@ -12,6 +11,11 @@ function warnOnce(msg) {
   console.warn(`  Warning: ${msg}`);
 }
 import { setMathConfig } from './math.js';
+
+async function getGit() {
+  const mod = await import('isomorphic-git');
+  return mod.default;
+}
 
 export async function loadConfig(cwd) {
   const configPath = path.join(cwd, 'docslit.json');
@@ -45,6 +49,7 @@ export async function loadConfig(cwd) {
 
 export async function detectEditUrl(dir) {
   try {
+    const git = await getGit();
     const remotes = await git.listRemotes({ fs: nodeFs, dir });
     const remote = remotes.find(r => r.remote === 'upstream')
                 || remotes.find(r => r.remote === 'origin');
@@ -81,6 +86,7 @@ export function getVersionConfig(config) {
 
 export async function gitReadFile(branch, filePath, dir) {
   try {
+    const git = await getGit();
     const oid = await git.resolveRef({ fs: nodeFs, dir, ref: branch });
     const { blob } = await git.readBlob({ fs: nodeFs, dir, oid, filepath: path.posix.normalize(filePath.replace(/\\/g, '/')) });
     return new TextDecoder().decode(blob);
@@ -131,6 +137,7 @@ export async function getVersionSidebar(branch, dir) {
 
 export async function getChangedDocs(defaultBranch, versionBranch, dir) {
   try {
+    const git = await getGit();
     await git.resolveRef({ fs: nodeFs, dir, ref: defaultBranch });
     await git.resolveRef({ fs: nodeFs, dir, ref: versionBranch });
     const changed = [];

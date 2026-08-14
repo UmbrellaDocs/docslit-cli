@@ -288,8 +288,8 @@ describe('offline build', () => {
     expectNoBrokenLinks(crawlDist(out, { file: true }));
   });
 
-  it('offline click handlers read data-page, not the #id href', () => {
-    const app = buildOfflineAppFile({ minify: false });
+  it('offline click handlers read data-page, not the #id href', async () => {
+    const app = await buildOfflineAppFile({ minify: false });
     expect(app).toContain('loadPage(navBtn.dataset.page)');
     expect(app).toContain('loadPage(this.dataset.page)');
     expect(app).not.toMatch(/loadPage\((navBtn|this)\.getAttribute\('href'\)\)/);

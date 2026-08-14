@@ -9,8 +9,6 @@ import { hasTabs, tabIdForPage, tabLandingId, walkPages, pageNavMeta, isNoindexM
 import { pageClientInfo, withApiTab } from './nav-chrome.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile, buildOfflineThemeInitFile, buildOfflineAppFile, isEsbuildAvailable } from './template.js';
 import { resolveSiteTheme } from './themes.js';
-import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
-import { initHighlighter } from './highlighter.js';
 import { resolvePdfOptions, buildPdfManifest, getChapterManifest, generatePdfs } from './pdf.js';
 import {
   buildAgentDirectiveMarkdown,
@@ -23,13 +21,25 @@ import {
 import { normalizeBasePath, withBasePath, logoFiles } from './site-config.js';
 import { collectRedirects, writeRedirectArtifacts, redirectStubHtml } from './redirects.js';
 import { writeFeeds } from './feeds.js';
-import { generateOgImage, ogColorsFromTheme } from './og-image.js';
+import { shutdownOgImagePool } from './og-image.js';
 import { buildSearchEntries } from './search-index.js';
 import { getI18nConfig, localeDocsDir, getSidebarForLocale, discoverLocales, localeUrlPrefix } from './i18n.js';
 import { loadHooks } from './hooks.js';
 import { getPageLastmods } from './git-dates.js';
 import { PREFERS_MARKDOWN_SRC } from './negotiation.js';
 import { pagesUseMath, writeKatexAssets } from './math.js';
+import { resolveBuildOptions } from './build-options.js';
+import {
+  createBuildProfiler,
+  loadOpenApiIfNeeded,
+  writeSharedAssets,
+  collectOgJobs,
+  generateOgImagesForPages,
+  writePageHtmlBatch,
+  parsePageWithCache,
+  getOgImagePath,
+  ogColorsFromTheme,
+} from './build-helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -164,10 +174,29 @@ async function _loadVendorData() {
   return data;
 }
 
-export async function build({ out = 'dist', offline = false, minify = true, pdf = false, noPdf = false, pdfDir = null } = {}) {
+export async function build({
+  out = 'dist',
+  offline = false,
+  minify = true,
+  pdf = false,
+  noPdf = false,
+  pdfDir = null,
+  incremental = false,
+  noOgImages = false,
+  noSearchIndex = false,
+  noLlmsTxt = false,
+  noMcp = false,
+  noSitemap = false,
+  profile = false,
+  verbose = false,
+} = {}) {
   const t0 = performance.now();
   const cwd = process.cwd();
-  const [config] = await Promise.all([loadConfig(cwd), initHighlighter()]);
+  const config = await loadConfig(cwd);
+  const buildOptions = resolveBuildOptions(config, {
+    offline, minify, incremental, noOgImages, noSearchIndex, noLlmsTxt, noMcp, noSitemap, profile, verbose,
+  });
+  const profiler = createBuildProfiler(buildOptions.profile);
   const siteTheme = await resolveSiteTheme(config, cwd);
   const outDir = path.resolve(cwd, out);
   const versionConfig = getVersionConfig(config);
@@ -175,8 +204,8 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   const hooks = await loadHooks(cwd);
   const basePath = normalizeBasePath(config.basePath);
 
-  const modeLabel = offline ? ' (offline mode)' : '';
-  const minifyLabel = minify ? '' : ' (unminified)';
+  const modeLabel = buildOptions.offline ? ' (offline mode)' : '';
+  const minifyLabel = buildOptions.minify ? '' : ' (unminified)';
   const pdfLabel = pdfOptions.enabled ? ' + PDF' : '';
   console.log(`\n  ${pc.bold('DocsLit')} building static site${modeLabel}${minifyLabel}${pdfLabel}...\n`);
 
@@ -184,16 +213,21 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
     console.log(`  ${pc.green('✓')} Loaded hooks from ${path.basename(hooks.file)}`);
   }
 
-  if (pdfOptions.enabled && offline) {
+  if (pdfOptions.enabled && buildOptions.offline) {
     console.log(`  ${pc.yellow('⚠')} PDF generation skipped in offline mode (use a standard build with --pdf)\n`);
     pdfOptions.enabled = false;
   }
 
-  if (minify && !isEsbuildAvailable()) {
+  if (buildOptions.minify && !isEsbuildAvailable()) {
     console.log(`  ${pc.yellow('⚠')} esbuild not found — output unminified; install esbuild or use --no-minify\n`);
   }
 
-  await fs.emptyDir(outDir);
+  if (!buildOptions.incremental) {
+    await fs.emptyDir(outDir);
+  } else {
+    await fs.ensureDir(outDir);
+    console.log(`  ${pc.dim('○')} Incremental build — preserving existing dist output`);
+  }
 
   // Copy user components (shared across versions)
   const componentsDir = path.join(cwd, 'components');
@@ -253,15 +287,18 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   await copyDocsMedia(path.join(cwd, 'docs'), outDir);
 
   if (versionConfig) {
-    await buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions, siteTheme, hooks, basePath });
+    await buildVersioned({ config, versionConfig, cwd, outDir, out, buildOptions, pdfOptions, siteTheme, hooks, basePath, profiler });
   } else {
-    await buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions, siteTheme, hooks, basePath });
+    await buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions, siteTheme, hooks, basePath, profiler });
   }
+
+  await shutdownOgImagePool();
 
   const sizeKb = await getDirSize(outDir);
   const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+  profiler.log();
   console.log(`\n  ${pc.bold('Done!')} Output: ${pc.cyan(path.relative(cwd, outDir))}/ (${sizeKb} KB) in ${pc.green(elapsed + 's')}\n`);
-  if (offline) {
+  if (buildOptions.offline) {
     console.log(`  Serve locally:  ${pc.cyan(`npx serve ${out}`)}  ${pc.dim('or')}  ${pc.cyan(`open ${out}/index.html`)}`);
     console.log(`  ${pc.dim('Self-contained — no internet connection required')}\n`);
   } else {
@@ -270,28 +307,20 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   }
 }
 
-async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptions, siteTheme, hooks, basePath }) {
+async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions, siteTheme, hooks, basePath, profiler }) {
+  const { offline, minify, incremental } = buildOptions;
   const pageIds = getAllPageIds(config);
   const pagesData = {};
   const draftPageIds = [];
   let built = 0, drafts = 0, failed = 0;
 
-  // Load OpenAPI spec if configured
-  let specData = null;
-  let apiMeta = null;
-  const openapiConfig = getOpenAPIConfig(config);
-  if (openapiConfig?.spec) {
-    try {
-      const spec = await loadSpec(
-        path.resolve(cwd, openapiConfig.spec),
-        openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
-      );
-      specData = getEndpoints(spec);
-      apiMeta = getApiMeta(spec);
-      console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
-    } catch (e) {
-      console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
-    }
+  profiler.start('openapi');
+  const { specData, apiMeta, resolveSpecRefs, buildApiPageMarkdown, error: openApiError } = await loadOpenApiIfNeeded(config, cwd);
+  profiler.end('openapi');
+  if (openApiError) {
+    console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${openApiError.message}`);
+  } else if (specData) {
+    console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
   }
 
   if (specData) {
@@ -303,18 +332,25 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     }
   }
 
+  profiler.start('parse');
   const parseResults = await Promise.all(pageIds.map(async (id) => {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
     if (!await fs.pathExists(mdPath)) return { id, notFound: true };
     const raw = await fs.readFile(mdPath, 'utf8');
-    const parsed = await parseDoc(raw, {
-      onWarning: warnPage,
-      docsRoot: path.join(cwd, 'docs'),
-      pagePath: mdPath,
-      globalAttributes: getRuntimeAttributes(config),
+    return parsePageWithCache({
+      id,
+      mdPath,
+      raw,
+      parseOpts: {
+        onWarning: warnPage,
+        docsRoot: path.join(cwd, 'docs'),
+        pagePath: mdPath,
+        globalAttributes: getRuntimeAttributes(config),
+      },
+      incremental,
     });
-    return { id, ...parsed };
   }));
+  profiler.end('parse');
 
   for (const result of parseResults) {
     if (result.notFound) {
@@ -332,7 +368,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
       continue;
     }
 
-    if (specData) {
+    if (specData && resolveSpecRefs) {
       html = resolveSpecRefs(html, specData);
     }
 
@@ -349,7 +385,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     pagesData[id] = { meta, html, isApiPage, preprocessedMarkdown };
     if (!offline) {
       const destMd = path.join(outDir, `${id}.md`);
-      const mdContent = isApiPage && specData
+      const mdContent = isApiPage && specData && buildApiPageMarkdown
         ? buildApiPageMarkdown(preprocessedMarkdown, specData)
         : preprocessedMarkdown;
       await writePageMarkdown(destMd, mdContent, config, id);
@@ -363,8 +399,6 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
   const navMeta = buildNavMeta(pagesData);
   const navConfig = withApiTab(config, !!specData);
   const pdfManifest = !offline ? preparePdfManifest(config, pagesData, pdfOptions) : null;
-
-  // Generate OG images
   const ogColors = ogColorsFromTheme(siteTheme);
   const siteName = config.name || 'Documentation';
 
@@ -380,53 +414,66 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     ]);
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} (offline)${draftNote}${skippedNote}`);
   } else {
-    await fs.writeFile(path.join(outDir, 'docslit.css'), buildStylesFile({ minify, siteTheme }));
-    await fs.writeFile(path.join(outDir, 'docslit.js'), buildComponentsFile('static', { minify }));
-    await fs.writeFile(path.join(outDir, 'docslit-app.js'), buildAppFile('static', { minify }));
+    profiler.start('minify');
+    await writeSharedAssets(outDir, { minify, siteTheme });
+    profiler.end('minify');
 
     const publishedIds = Object.keys(pagesData);
     const hasRegularDocs = (config.sidebar || []).length > 0;
     const isHybrid = specData && hasRegularDocs;
 
-    // Generate OG images for each page
-    const ogPromises = [];
-    for (const [id, { meta }] of Object.entries(pagesData)) {
-      if (config.ogImage === false || meta.ogImage === false) continue;
-      const safeId = id.replace(/\//g, '--');
-      const outFile = path.join(outDir, 'og', `${safeId}.png`);
-      ogPromises.push(generateOgImage({ title: meta.title || toLabel(id), siteName, colors: ogColors, outFile }).catch(() => {}));
-    }
-    await Promise.all(ogPromises);
-    if (ogPromises.length) {
-      console.log(`  ${pc.green('✓')} Generated ${ogPromises.length} OG image${ogPromises.length !== 1 ? 's' : ''}`);
+    profiler.start('og');
+    const ogJobs = collectOgJobs(pagesData, { buildOptions, siteName, ogColors, outDir, toLabel });
+    const ogCount = await generateOgImagesForPages(ogJobs, { incremental });
+    profiler.end('og');
+    if (ogCount) {
+      console.log(`  ${pc.green('✓')} Generated ${ogCount} OG image${ogCount !== 1 ? 's' : ''}`);
     }
 
-    for (const [id, { meta, html, isApiPage }] of Object.entries(pagesData)) {
-      const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
-      const safeId = id.replace(/\//g, '--');
-      const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
-      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null, pdfManifest, ogImagePath, titleMap, navMeta });
-      const destHtml = path.join(outDir, `${id}.html`);
-      await fs.ensureDir(path.dirname(destHtml));
-      await fs.writeFile(destHtml, pageHtml);
-    }
+    profiler.start('html');
+    await writePageHtmlBatch(
+      Object.entries(pagesData).map(([id, { meta, html, isApiPage }]) => [
+        id,
+        { meta, html, isApiPage, destHtml: path.join(outDir, `${id}.html`) },
+      ]),
+      async (id, { meta, html, isApiPage }) => renderPage({
+        config, siteTheme, id, meta, html, draftPageIds,
+        specData: (isApiPage || isHybrid) ? specData : null,
+        apiMeta: (isApiPage || isHybrid) ? apiMeta : null,
+        pdfManifest,
+        ogImagePath: getOgImagePath(buildOptions, meta, id),
+        titleMap,
+        navMeta,
+      }),
+    );
+    profiler.end('html');
 
     if (publishedIds.length) {
       await writeRootIndexStub({ dir: outDir, firstId: firstVisibleId(config, pagesData), urlPrefix: basePath, config });
     }
 
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} + shared assets${draftNote}${skippedNote}`);
-    await generateLlmsTxt({ config, pagesData, outDir });
+    if (buildOptions.llmsTxt || buildOptions.searchIndex) {
+      profiler.start('llms');
+      await generateLlmsTxt({ config, pagesData, outDir, buildOptions });
+      profiler.end('llms');
+    }
   }
 
   if (!offline) {
-    // Sitemap with git lastmods
-    const lastmods = await getPageLastmods(cwd, pagesData);
-    await generateRobotsTxt({ config, outDir });
-    await generateSitemap({ config, pagesData, outDir, lastmods });
+    if (buildOptions.sitemap && config.url) {
+      profiler.start('seo');
+      const { getPageLastmods } = await import('./git-dates.js');
+      const lastmods = await getPageLastmods(cwd, pagesData);
+      await generateRobotsTxt({ config, outDir, buildOptions });
+      await generateSitemap({ config, pagesData, outDir, lastmods });
+      profiler.end('seo');
+    }
     await generateMarkdownMiddleware({ pageIds: Object.keys(pagesData), outDir, cwd, basePath });
-    await generateAgentJson({ config, pageIds: Object.keys(pagesData), pagesData, outDir });
-    await generateMcpServer({ config, pagesData, outDir });
+    if (buildOptions.mcp) {
+      await generateAgentJson({ config, pageIds: Object.keys(pagesData), pagesData, outDir });
+      await generateMcpServer({ config, pagesData, outDir });
+    }
 
     // Redirects
     const redirects = collectRedirects(config, pagesData, basePath);
@@ -452,7 +499,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     const locales = await discoverLocales(cwd, i18n);
     for (const locale of locales) {
       if (locale === i18n.defaultLocale) continue;
-      await buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, minify, hooks, basePath, specData, apiMeta, draftPageIds, pdfManifest });
+      await buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, buildOptions, hooks, basePath, specData, apiMeta, draftPageIds, pdfManifest, resolveSpecRefs });
     }
   }
 
@@ -466,29 +513,19 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
   }
 }
 
-async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline, minify, pdfOptions, siteTheme, hooks, basePath }) {
+async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOptions, pdfOptions, siteTheme, hooks, basePath, profiler }) {
+  const { offline, minify, incremental } = buildOptions;
   const defaultVersion = versionConfig.default;
   const defaultEntry = versionConfig.list.find(v => v.version === defaultVersion);
   const defaultBranch = defaultEntry?.branch || 'main';
 
   console.log(`  ${pc.bold('Versions:')} ${versionConfig.list.map(v => v.version === defaultVersion ? pc.cyan(v.version + ' (default)') : v.version).join(', ')}\n`);
 
-  // Load OpenAPI spec if configured
-  let specData = null;
-  let apiMeta = null;
-  const openapiConfig = getOpenAPIConfig(config);
-  if (openapiConfig?.spec) {
-    try {
-      const spec = await loadSpec(
-        path.resolve(cwd, openapiConfig.spec),
-        openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
-      );
-      specData = getEndpoints(spec);
-      apiMeta = getApiMeta(spec);
-      console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
-    } catch (e) {
-      console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
-    }
+  const { specData, apiMeta, resolveSpecRefs, buildApiPageMarkdown, error: openApiError } = await loadOpenApiIfNeeded(config, cwd);
+  if (openApiError) {
+    console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${openApiError.message}`);
+  } else if (specData) {
+    console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
   }
 
   // Build default version fully from the working directory
@@ -524,7 +561,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     if (!result) continue;
     let { id, meta, html, preprocessedMarkdown } = result;
     if (meta.draft === true) { draftPageIds.push(id); continue; }
-    if (specData) html = resolveSpecRefs(html, specData);
+    if (specData && resolveSpecRefs) html = resolveSpecRefs(html, specData);
     if (hooks.transformPage) {
       try { html = await hooks.transformPage({ id, meta, html }) || html; } catch {}
     }
@@ -532,7 +569,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     defaultPagesData[id] = { meta, html, isApiPage };
     if (!offline) {
       const destMd = path.join(defaultDir, `${id}.md`);
-      const mdContent = isApiPage && specData
+      const mdContent = isApiPage && specData && buildApiPageMarkdown
         ? buildApiPageMarkdown(preprocessedMarkdown, specData)
         : preprocessedMarkdown;
       await writePageMarkdown(destMd, mdContent, config, id, defaultVersion);
@@ -540,9 +577,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     built++;
   }
 
-  const sharedCss = offline ? null : buildStylesFile({ minify, siteTheme });
-  const sharedJs = offline ? null : buildComponentsFile('static', { minify });
-  const sharedApp = offline ? null : buildAppFile('static', { minify });
+  const sharedCss = offline ? null : await buildStylesFile({ minify, siteTheme });
+  const sharedJs = offline ? null : await buildComponentsFile('static', { minify });
+  const sharedApp = offline ? null : await buildAppFile('static', { minify });
   const vendorData = offline ? await _loadVendorData() : null;
   const defaultTitleMap = buildTitleMap(defaultPagesData);
   const defaultNavMeta = buildNavMeta(defaultPagesData);
@@ -577,32 +614,34 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const publishedIds = Object.keys(defaultPagesData);
     const defaultHasRegularDocs = (config.sidebar || []).length > 0;
     const defaultIsHybrid = specData && defaultHasRegularDocs;
-
-    // OG images for versioned default
     const ogColors = ogColorsFromTheme(siteTheme);
     const siteName = config.name || 'Documentation';
-    const ogPromises = [];
-    for (const [id, { meta }] of Object.entries(defaultPagesData)) {
-      if (config.ogImage === false || meta.ogImage === false) continue;
-      const safeId = id.replace(/\//g, '--');
-      ogPromises.push(generateOgImage({ title: meta.title || toLabel(id), siteName, colors: ogColors, outFile: path.join(defaultDir, 'og', `${safeId}.png`) }).catch(() => {}));
-    }
-    await Promise.all(ogPromises);
 
-    for (const [id, { meta, html, isApiPage }] of Object.entries(defaultPagesData)) {
-      const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
-      const safeId = id.replace(/\//g, '--');
-      const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
-      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null, pdfManifest: defaultPdfManifest, ogImagePath, titleMap: defaultTitleMap, navMeta: defaultNavMeta });
-      const destHtml = path.join(defaultDir, `${id}.html`);
-      await fs.ensureDir(path.dirname(destHtml));
-      await fs.writeFile(destHtml, pageHtml);
-    }
+    const ogJobs = collectOgJobs(defaultPagesData, { buildOptions, siteName, ogColors, outDir: defaultDir, toLabel });
+    await generateOgImagesForPages(ogJobs, { incremental });
+
+    await writePageHtmlBatch(
+      Object.entries(defaultPagesData).map(([id, { meta, html, isApiPage }]) => [
+        id,
+        { meta, html, isApiPage, destHtml: path.join(defaultDir, `${id}.html`) },
+      ]),
+      async (id, { meta, html, isApiPage }) => renderPage({
+        config, siteTheme, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion,
+        specData: (isApiPage || defaultIsHybrid) ? specData : null,
+        apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null,
+        pdfManifest: defaultPdfManifest,
+        ogImagePath: getOgImagePath(buildOptions, meta, id),
+        titleMap: defaultTitleMap,
+        navMeta: defaultNavMeta,
+      }),
+    );
 
     if (publishedIds.length) {
       await writeRootIndexStub({ dir: defaultDir, firstId: firstVisibleId(config, defaultPagesData), urlPrefix: `${basePath}/${defaultVersion}`, config });
     }
-    await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir, version: defaultVersion });
+    if (buildOptions.llmsTxt || buildOptions.searchIndex) {
+      await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir, version: defaultVersion, buildOptions });
+    }
     if (pdfOptions.enabled) {
       await generatePdfs({ outDir: defaultDir, config, pagesData: defaultPagesData, pdfOptions });
     }
@@ -656,7 +695,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
           strictFsSafety: false,
         });
         if (meta.draft === true) continue;
-        if (specData) html = resolveSpecRefs(html, specData);
+        if (specData && resolveSpecRefs) html = resolveSpecRefs(html, specData);
         if (hooks.transformPage) {
           try { html = await hooks.transformPage({ id, meta, html }) || html; } catch {}
         }
@@ -703,13 +742,20 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       const vPublishedIds = Object.keys(versionPagesData);
       const vIsHybrid = specData && (versionConf.sidebar || []).length > 0;
       const versionPdfManifest = preparePdfManifest(versionConf, versionPagesData, pdfOptions);
-      for (const [id, { meta, html }] of Object.entries(versionPagesData)) {
-        const isApiPage = id.startsWith('api/') || meta.layout === 'api';
-        const pageHtml = await renderPage({ config: versionConf, siteTheme, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null, pdfManifest: versionPdfManifest, titleMap: versionTitleMap, navMeta: versionNavMeta });
-        const destHtml = path.join(versionDir, `${id}.html`);
-        await fs.ensureDir(path.dirname(destHtml));
-        await fs.writeFile(destHtml, pageHtml);
-      }
+      await writePageHtmlBatch(
+        Object.entries(versionPagesData).map(([id, { meta, html }]) => [
+          id,
+          { meta, html, isApiPage: id.startsWith('api/') || meta.layout === 'api', destHtml: path.join(versionDir, `${id}.html`) },
+        ]),
+        async (id, { meta, html, isApiPage }) => renderPage({
+          config: versionConf, siteTheme, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version,
+          specData: (isApiPage || vIsHybrid) ? specData : null,
+          apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null,
+          pdfManifest: versionPdfManifest,
+          titleMap: versionTitleMap,
+          navMeta: versionNavMeta,
+        }),
+      );
 
       if (vPublishedIds.length) {
         await writeRootIndexStub({ dir: versionDir, firstId: firstVisibleId(versionConf, versionPagesData), urlPrefix: `${basePath}/${entry.version}`, config: versionConf });
@@ -720,8 +766,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     }
 
     await fs.writeFile(path.join(versionDir, '_manifest.json'), JSON.stringify(manifest, null, 2));
-    if (!offline) {
-      await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir, version: entry.version });
+    if (!offline && (buildOptions.llmsTxt || buildOptions.searchIndex)) {
+      await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir, version: entry.version, buildOptions });
     }
 
     versionPages[entry.version] = pageListOf(versionPagesData, versionConf);
@@ -744,14 +790,21 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     for (const id of defaultPageIds) {
       if (defaultPagesData[id]) allPagesData[id] = defaultPagesData[id];
     }
-    await generateRootLlmsIndex({ config, versionConfig, outDir });
-    const lastmods = await getPageLastmods(cwd, allPagesData);
-    await generateRobotsTxt({ config, outDir, versionConfig });
-    await generateSitemap({ config, pagesData: allPagesData, outDir, versionConfig, defaultVersion, lastmods });
+    if (buildOptions.llmsTxt) {
+      await generateRootLlmsIndex({ config, versionConfig, outDir });
+    }
+    if (buildOptions.sitemap && config.url) {
+      const { getPageLastmods } = await import('./git-dates.js');
+      const lastmods = await getPageLastmods(cwd, allPagesData);
+      await generateRobotsTxt({ config, outDir, versionConfig, buildOptions });
+      await generateSitemap({ config, pagesData: allPagesData, outDir, versionConfig, defaultVersion, lastmods });
+    }
     const allPageIds = Object.keys(allPagesData);
     await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, cwd, versionConfig, basePath });
-    await generateAgentJson({ config, pageIds: allPageIds, pagesData: allPagesData, outDir, versionConfig });
-    await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig, versionPages });
+    if (buildOptions.mcp) {
+      await generateAgentJson({ config, pageIds: allPageIds, pagesData: allPagesData, outDir, versionConfig });
+      await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig, versionPages });
+    }
 
     // Redirects
     const redirects = collectRedirects(config, allPagesData, basePath);
@@ -817,18 +870,16 @@ function stripFrontmatter(src) {
   return m ? m[1].trim() : src.trim();
 }
 
-async function generateLlmsTxt({ config, pagesData, outDir, version = null }) {
+async function generateLlmsTxt({ config, pagesData, outDir, version = null, buildOptions = null }) {
+  const includeLlms = !buildOptions || buildOptions.llmsTxt !== false;
+  const includeSearch = !buildOptions || buildOptions.searchIndex !== false;
+  if (!includeLlms && !includeSearch) return;
+
   const siteTitle = config.name || 'Documentation';
   const siteDesc = config.description || '';
   const mdPattern = buildMarkdownPattern(config, version);
 
   // ── llms.txt ──
-  const lines = [`# ${siteTitle}`];
-  if (siteDesc) lines.push(`\n> ${siteDesc}`);
-  // Not a URL: a literal "{slug}" link reads as a broken link to crawlers and link checkers.
-  lines.push(`\n> Raw Markdown for each page: append \`.md\` to the page URL, or request the page with \`Accept: text/markdown\`. Every link below already points at the Markdown.`);
-  lines.push('');
-
   const excluded = indexExcludedIds(config, pagesData);
   // One section per (tab, group): "## Tab — Group" (just "## Group" without tabs).
   const sections = [];
@@ -845,27 +896,33 @@ async function generateLlmsTxt({ config, pagesData, outDir, version = null }) {
     }
     if (!section.ids.includes(entry.id)) section.ids.push(entry.id);
   }
-  for (const section of sections) {
-    lines.push(`## ${section.title}`);
+
+  if (includeLlms) {
+    const lines = [`# ${siteTitle}`];
+    if (siteDesc) lines.push(`\n> ${siteDesc}`);
+    // Not a URL: a literal "{slug}" link reads as a broken link to crawlers and link checkers.
+    lines.push(`\n> Raw Markdown for each page: append \`.md\` to the page URL, or request the page with \`Accept: text/markdown\`. Every link below already points at the Markdown.`);
     lines.push('');
-    for (const id of section.ids) {
-      const { meta } = pagesData[id];
-      const title = meta.title || toLabel(id);
-      const desc = meta.description || meta.desc || '';
-      const mdUrl = getMarkdownUrl(config, id, version);
-      lines.push(desc ? `- [${title}](${mdUrl}): ${desc}` : `- [${title}](${mdUrl})`);
+    for (const section of sections) {
+      lines.push(`## ${section.title}`);
+      lines.push('');
+      for (const id of section.ids) {
+        const { meta } = pagesData[id];
+        const title = meta.title || toLabel(id);
+        const desc = meta.description || meta.desc || '';
+        const mdUrl = getMarkdownUrl(config, id, version);
+        lines.push(desc ? `- [${title}](${mdUrl}): ${desc}` : `- [${title}](${mdUrl})`);
+      }
+      lines.push('');
     }
-    lines.push('');
+    await fs.writeFile(path.join(outDir, 'llms.txt'), lines.join('\n'));
   }
 
-  await fs.writeFile(path.join(outDir, 'llms.txt'), lines.join('\n'));
-
-  // ── llms-full.txt + search-index.json (single pass) ──
-  const fullParts = [
+  const fullParts = includeLlms ? [
     `# ${siteTitle} — Full Documentation`,
     `# Generated by DocsLit · https://docslit.com`,
     '',
-  ];
+  ] : [];
   const searchIndex = [];
 
   for (const section of sections) {
@@ -876,33 +933,39 @@ async function generateLlmsTxt({ config, pagesData, outDir, version = null }) {
       const resolvedMdPath = await fs.pathExists(mdPath) ? mdPath : mdPathFallback;
       if (await fs.pathExists(resolvedMdPath)) {
         const src = await fs.readFile(resolvedMdPath, 'utf8');
-        fullParts.push('---');
-        fullParts.push(`# Source: ${id}.md`);
-        fullParts.push('');
-        fullParts.push(src.trim());
-        fullParts.push('');
-
-        const { meta } = pagesData[id];
-        const doc = {
-          id,
-          title: meta.title || toLabel(id),
-          group: groupName,
-          desc: meta.description || meta.desc || '',
-          body: stripFrontmatter(src),
-        };
-        if (section.tabLabel) doc.tab = section.tabLabel;
-        searchIndex.push(doc);
+        if (includeLlms) {
+          fullParts.push('---');
+          fullParts.push(`# Source: ${id}.md`);
+          fullParts.push('');
+          fullParts.push(src.trim());
+          fullParts.push('');
+        }
+        if (includeSearch) {
+          const { meta } = pagesData[id];
+          const doc = {
+            id,
+            title: meta.title || toLabel(id),
+            group: groupName,
+            desc: meta.description || meta.desc || '',
+            body: stripFrontmatter(src),
+          };
+          if (section.tabLabel) doc.tab = section.tabLabel;
+          searchIndex.push(doc);
+        }
       }
     }
   }
 
-  await Promise.all([
-    fs.writeFile(path.join(outDir, 'llms-full.txt'), fullParts.join('\n')),
-    fs.writeFile(path.join(outDir, 'search-index.json'), JSON.stringify(searchIndex)),
-  ]);
+  const writes = [];
+  if (includeLlms) writes.push(fs.writeFile(path.join(outDir, 'llms-full.txt'), fullParts.join('\n')));
+  if (includeSearch) writes.push(fs.writeFile(path.join(outDir, 'search-index.json'), JSON.stringify(searchIndex)));
+  await Promise.all(writes);
 
   const count = Object.keys(pagesData).length;
-  console.log(`  ${pc.green('✓')} Generated llms.txt + llms-full.txt + search-index.json (${count} page${count !== 1 ? 's' : ''} indexed)`);
+  const parts = [];
+  if (includeLlms) parts.push('llms.txt', 'llms-full.txt');
+  if (includeSearch) parts.push('search-index.json');
+  console.log(`  ${pc.green('✓')} Generated ${parts.join(' + ')} (${count} page${count !== 1 ? 's' : ''} indexed)`);
 }
 
 async function generateRootLlmsIndex({ config, versionConfig, outDir }) {
@@ -925,7 +988,8 @@ async function generateRootLlmsIndex({ config, versionConfig, outDir }) {
   console.log(`  ${pc.green('✓')} Generated root llms.txt (version index)`);
 }
 
-async function generateRobotsTxt({ config, outDir, versionConfig = null }) {
+async function generateRobotsTxt({ config, outDir, versionConfig = null, buildOptions = null }) {
+  if (buildOptions && !buildOptions.sitemap) return;
   const baseUrl = (config.url || '').replace(/\/$/, '') + normalizeBasePath(config.basePath);
   const lines = [
     'User-agent: *',
@@ -1504,7 +1568,8 @@ async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } 
   if (copied) console.log(`  ${pc.green('✓')} Copied ${copied} media file${copied !== 1 ? 's' : ''} from docs/`);
 }
 
-async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, minify, hooks, basePath, specData, apiMeta, draftPageIds, pdfManifest }) {
+async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, buildOptions, hooks, basePath, specData, apiMeta, draftPageIds, pdfManifest, resolveSpecRefs }) {
+  const { minify, incremental } = buildOptions;
   const docsDir = localeDocsDir(cwd, locale, i18n.defaultLocale);
   if (!await fs.pathExists(docsDir)) return;
 
@@ -1520,7 +1585,7 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
   const localeParsed = [];
 
   const defaultDocsDir = path.join(cwd, 'docs');
-  for (const id of pageIds) {
+  await Promise.all(pageIds.map(async (id) => {
     // Untranslated pages fall back to the default-locale source so every sidebar link
     // in the locale site resolves; their canonical points at the default-locale page.
     let mdPath = path.join(docsDir, `${id}.md`);
@@ -1528,18 +1593,25 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
     if (!await fs.pathExists(mdPath)) {
       mdPath = path.join(defaultDocsDir, `${id}.md`);
       untranslated = true;
-      if (!await fs.pathExists(mdPath)) continue;
+      if (!await fs.pathExists(mdPath)) return;
     }
     const raw = await fs.readFile(mdPath, 'utf8');
-    let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
-      onWarning: untranslated ? () => {} : warnPage,
-      docsRoot: untranslated ? defaultDocsDir : docsDir,
-      pagePath: mdPath,
-      globalAttributes: getRuntimeAttributes(config),
+    const result = await parsePageWithCache({
+      id,
+      mdPath,
+      raw,
+      parseOpts: {
+        onWarning: untranslated ? () => {} : warnPage,
+        docsRoot: untranslated ? defaultDocsDir : docsDir,
+        pagePath: mdPath,
+        globalAttributes: getRuntimeAttributes(config),
+      },
+      incremental,
     });
+    let { meta, html, preprocessedMarkdown } = result;
 
-    if (meta.draft === true) continue;
-    if (specData) html = resolveSpecRefs(html, specData);
+    if (meta.draft === true) return;
+    if (specData && resolveSpecRefs) html = resolveSpecRefs(html, specData);
     if (hooks.transformPage) {
       try { html = await hooks.transformPage({ id, meta, html, locale }) || html; } catch {}
     }
@@ -1547,21 +1619,30 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
     const isApiPage = id.startsWith('api/') || meta.layout === 'api';
     localePagesData[id] = { meta, html, isApiPage };
     localeParsed.push({ id, meta, html, isApiPage, preprocessedMarkdown, untranslated });
-  }
+  }));
 
   const localeTitleMap = buildTitleMap(localePagesData);
   const localeNavMeta = buildNavMeta(localePagesData);
+  const ogColors = ogColorsFromTheme(siteTheme);
+  const siteName = config.name || 'Documentation';
+  const ogJobs = collectOgJobs(localePagesData, { buildOptions, siteName, ogColors, outDir: localeOutDir, toLabel });
+  await generateOgImagesForPages(ogJobs, { incremental });
 
-  for (const { id, meta, html, isApiPage, preprocessedMarkdown, untranslated } of localeParsed) {
-    const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
-    const safeId = id.replace(/\//g, '--');
-    const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
+  await writePageHtmlBatch(
+    localeParsed.map(({ id, meta, html, isApiPage, untranslated }) => [
+      id,
+      { meta, html, isApiPage, untranslated, destHtml: path.join(localeOutDir, `${id}.html`) },
+    ]),
+    async (id, { meta, html, untranslated }) => renderPage({
+      config: localeConfig, siteTheme, id, meta, html, draftPageIds, specData, apiMeta, pdfManifest, locale,
+      ogImagePath: getOgImagePath(buildOptions, meta, id),
+      titleMap: localeTitleMap,
+      navMeta: localeNavMeta,
+      untranslated,
+    }),
+  );
 
-    const pageHtml = await renderPage({ config: localeConfig, siteTheme, id, meta, html, draftPageIds, specData, apiMeta, pdfManifest, locale, ogImagePath, titleMap: localeTitleMap, navMeta: localeNavMeta, untranslated });
-    const destHtml = path.join(localeOutDir, `${id}.html`);
-    await fs.ensureDir(path.dirname(destHtml));
-    await fs.writeFile(destHtml, pageHtml);
-
+  for (const { id, preprocessedMarkdown } of localeParsed) {
     const destMd = path.join(localeOutDir, `${id}.md`);
     await writePageMarkdown(destMd, preprocessedMarkdown, config, id);
     if (!untranslated) built++;
@@ -1574,9 +1655,7 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
 
   if (pagesUseMath(localePagesData)) await writeKatexAssets(localeOutDir);
   // Copy shared CSS/JS/app into locale dir
-  await fs.writeFile(path.join(localeOutDir, 'docslit.css'), buildStylesFile({ minify, siteTheme }));
-  await fs.writeFile(path.join(localeOutDir, 'docslit.js'), buildComponentsFile('static', { minify }));
-  await fs.writeFile(path.join(localeOutDir, 'docslit-app.js'), buildAppFile('static', { minify }));
+  await writeSharedAssets(localeOutDir, { minify, siteTheme });
 
   if (built) {
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} for locale ${pc.cyan(locale)}`);
