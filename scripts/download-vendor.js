@@ -23,11 +23,7 @@ const ENTRIES = [
   { entry: '@lit/reactive-element',        out: 'reactive-element.js' },
   { entry: 'lit-html',                     out: 'lit-html.js' },
   { entry: 'lit-element/lit-element.js',   out: 'lit-element.js' },
-  {
-    entry: 'flexsearch/dist/flexsearch.bundle.module.min.js',
-    out: 'flexsearch.js',
-    stdin: `export { default } from ${JSON.stringify('flexsearch/dist/flexsearch.bundle.module.min.js')};`,
-  },
+  { entry: 'flexsearch', out: 'flexsearch.js' },
 ];
 
 let ok = 0;
