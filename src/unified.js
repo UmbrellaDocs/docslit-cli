@@ -85,13 +85,14 @@ export async function renderMarkdown(src, passBlocks = [], meta = {}) {
     return `\x00FENCE${fences.length - 1}\x00`;
   });
 
-  // Shield inline code that contains < or > so rehype-raw/parse5 does not
-  // promote `` `<wc-foo>` `` to real elements inside HTML blocks (e.g. <wc-update>).
+  // Shield inline code that contains < > or | so rehype-raw/parse5 does not
+  // promote `` `<wc-foo>` `` to real elements inside HTML blocks (e.g. <wc-update>),
+  // and so remark-gfm does not split table cells on pipes inside code spans.
   // Use placeholders instead of HTML entities — entities would be escaped again
   // by rehype-stringify and display as literal &lt;…&gt;.
   const inlineCodes = [];
   shielded = shielded.replace(/`([^`\n]+)`/g, (m, inner) => {
-    if (!/[<>]/.test(inner)) return m;
+    if (!/[<>|]/.test(inner)) return m;
     inlineCodes.push(inner);
     return `DOCSLIT_INLINECODE_${inlineCodes.length - 1}_END`;
   });

@@ -208,3 +208,30 @@ describe('relative link edge cases', () => {
     expect(html).toBeDefined();
   });
 });
+
+describe('GFM table: pipe inside inline code', () => {
+  it('renders pipe characters inside backtick code spans as cell content, not separators', async () => {
+    const md = [
+      '| Operator | Effect |',
+      '|----------|--------|',
+      '| `2+|` | Span 2 columns |',
+      '| `.2+|` | Span 2 rows |',
+      '| `2.2+|` | Span 2 columns and 2 rows |',
+      '| `3*|` | Repeat the cell across 3 columns |',
+    ].join('\n');
+    const html = await renderWithVersion(md, null);
+    // Each operator must be in a <code> tag, not split across cells
+    expect(html).toContain('<code>2+|</code>');
+    expect(html).toContain('<code>.2+|</code>');
+    expect(html).toContain('<code>2.2+|</code>');
+    expect(html).toContain('<code>3*|</code>');
+    // The Effect column must contain the full description text
+    expect(html).toContain('Span 2 columns');
+    expect(html).toContain('Span 2 rows');
+    expect(html).toContain('Span 2 columns and 2 rows');
+    expect(html).toContain('Repeat the cell across 3 columns');
+    // Table must have exactly 2 columns (th count)
+    const thCount = (html.match(/<th>/g) || []).length;
+    expect(thCount).toBe(2);
+  });
+});
