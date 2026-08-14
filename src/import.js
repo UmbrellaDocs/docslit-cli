@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
-import yaml from 'js-yaml';
+import { load as yamlLoad } from 'js-yaml';
 import matter from './frontmatter.js';
 import readline from 'node:readline';
 import git from 'isomorphic-git';
@@ -558,7 +558,7 @@ async function setupBranchVersioning({ outDir, versions, sidebarsByVersion }) {
 async function readFernAnnouncement(fernDocsPath) {
   if (!fernDocsPath || !await fs.pathExists(fernDocsPath)) return null;
   try {
-    const doc = yaml.load(await fs.readFile(fernDocsPath, 'utf8'));
+    const doc = yamlLoad(await fs.readFile(fernDocsPath, 'utf8'));
     if (doc?.announcement?.message) return { message: String(doc.announcement.message) };
   } catch { /* ignore malformed docs.yml */ }
   return null;
