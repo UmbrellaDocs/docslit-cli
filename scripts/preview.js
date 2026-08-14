@@ -93,9 +93,9 @@ app.get('/api/page/:id', async (req, res) => {
 });
 
 // Catch-all: serve the app shell
-app.get('/{*path}', (_req, res) => {
+app.get('/{*path}', async (_req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(renderShell({ config: PREVIEW_CONFIG, mode: 'dev', port: PORT }));
+  res.send(await renderShell({ config: PREVIEW_CONFIG, mode: 'dev', port: PORT }));
 });
 
 server.listen(PORT, () => {

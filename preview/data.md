@@ -124,6 +124,71 @@ POST,/deploy,Trigger deploy
 |===
 </wc-asciidoc-table>
 
+## wc-response / wc-responses
+
+HTTP status code tables. `wc-responses` wraps one or more `wc-response` rows.
+
+<wc-responses>
+<wc-response code="200" description="Document returned successfully" content-type="application/json"></wc-response>
+<wc-response code="201" description="Document created" content-type="application/json"></wc-response>
+<wc-response code="400" description="Invalid request body — check required fields" content-type="application/json"></wc-response>
+<wc-response code="401" description="Missing or invalid Bearer token"></wc-response>
+<wc-response code="404" description="Document not found"></wc-response>
+<wc-response code="500" description="Internal server error"></wc-response>
+</wc-responses>
+
+## wc-endpoint
+
+Full API endpoint card. Tabs are auto-generated from child components (`wc-fields`, `wc-responses`, `wc-response-fields`, `wc-code-tab`).
+
+<wc-endpoint method="GET" url="/api/v2/documents/:id" summary="Fetch a document" description="Returns a single document by its unique identifier. The `id` must be prefixed with `doc_`." security='[{"BearerAuth":[]}]'>
+<wc-fields title="Path parameters">
+<wc-field name="id" type="string" required in="path" description="The document identifier (e.g. `doc_abc123`)."></wc-field>
+</wc-fields>
+<wc-responses>
+<wc-response code="200" description="Document found" content-type="application/json"></wc-response>
+<wc-response code="401" description="Unauthorized"></wc-response>
+<wc-response code="404" description="No document with that ID exists"></wc-response>
+</wc-responses>
+<wc-response-fields title="Response body">
+<wc-field name="id" type="string" description="Unique document ID."></wc-field>
+<wc-field name="title" type="string" description="Document title."></wc-field>
+<wc-field name="content" type="string" description="Raw Markdown content."></wc-field>
+<wc-field name="draft" type="boolean" description="Whether the document is a draft."></wc-field>
+<wc-field name="createdAt" type="ISO 8601" description="Creation timestamp."></wc-field>
+</wc-response-fields>
+<wc-code-tab label="cURL">curl -X GET https://api.docslit.com/api/v2/documents/doc_abc123 \
+  -H "Authorization: Bearer $TOKEN"</wc-code-tab>
+<wc-code-tab label="JavaScript">const res = await fetch('https://api.docslit.com/api/v2/documents/doc_abc123', {
+  headers: { Authorization: `Bearer ${token}` }
+});
+const doc = await res.json();</wc-code-tab>
+<wc-code-tab label="Python">import requests
+r = requests.get(
+    "https://api.docslit.com/api/v2/documents/doc_abc123",
+    headers={"Authorization": f"Bearer {token}"}
+)
+doc = r.json()</wc-code-tab>
+</wc-endpoint>
+
+## wc-api-examples
+
+Response and request-body example viewer driven by a `data` JSON attribute (pre-built from an OpenAPI spec).
+
+<wc-api-examples method="POST" url="/api/v2/documents" data='{"responses":[{"code":"201","content":[{"mediaType":"application/json","examples":[{"summary":"Created","value":{"id":"doc_xyz789","title":"My Guide","slug":"my-guide","draft":false,"createdAt":"2025-01-15T10:30:00Z"}}]}]},{"code":"400","content":[{"mediaType":"application/json","examples":[{"summary":"Validation error","value":{"error":"title is required","field":"title"}}]}]},{"code":"401","content":[{"mediaType":"application/json","examples":[{"summary":"Unauthorized","value":{"error":"Invalid or expired token"}}]}]}],"requestBody":[{"mediaType":"application/json","examples":[{"summary":"Minimal","value":{"title":"My Guide","content":"# Hello\n\nWelcome to my guide."}},{"summary":"Full","value":{"title":"My Guide","slug":"my-guide","content":"# Hello","draft":false,"tags":["tutorial","api"]}}]}]}'></wc-api-examples>
+
+## wc-runnable-endpoint
+
+An interactive REST client that sends live requests from the browser. Pre-populated with `method` and `url` attributes.
+
+<wc-runnable-endpoint method="GET" url="https://httpbin.org/get"></wc-runnable-endpoint>
+
+## wc-playground
+
+OpenAPI-style "Try it" widget. Reads `params` (JSON array of parameter objects with `in`, `name`, `example`) and an optional `auth` descriptor.
+
+<wc-playground method="GET" url="/get" server="https://httpbin.org" params='[{"in":"query","name":"format","example":"json"},{"in":"query","name":"page","example":"1"},{"in":"header","name":"X-Request-ID","example":"preview-001"}]'></wc-playground>
+
 ## wc-mermaid
 
 Renders Mermaid diagrams lazily (loads mermaid@10 from CDN on first render).

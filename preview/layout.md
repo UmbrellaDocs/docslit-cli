@@ -57,6 +57,25 @@ FAQ-style collapsible sections with bolder headings.
 
 <wc-accordion title="Does DocsLit support search?">Full-text search is on the roadmap. For now, the sidebar navigation and TOC make it easy to browse content.</wc-accordion>
 
+## wc-accordion-group
+
+Groups multiple `wc-accordion` or `wc-expandable` items into a seamless joined panel — removes gaps and rounds only the outer corners.
+
+<wc-accordion-group>
+<wc-accordion title="What is DocsLit?">DocsLit is a Markdown-first documentation framework powered by Lit web components. It generates fast, self-contained docs sites with no build step required for the reader.</wc-accordion>
+<wc-accordion title="How do I install it?">Run `npm install -g @docslit/cli` then `docslit init` inside your project directory to scaffold a new docs site.</wc-accordion>
+<wc-accordion title="Can I mix wc-expandable items?">Yes — `wc-accordion-group` accepts both `wc-accordion` and `wc-expandable` children and joins them seamlessly.</wc-accordion>
+<wc-accordion title="Is it open source?">Yes, DocsLit CLI is published under the Apache-2.0 license and available on npm as `@docslit/cli`.</wc-accordion>
+</wc-accordion-group>
+
+Mixed `wc-expandable` items:
+
+<wc-accordion-group>
+<wc-expandable title="Step 1 — Install">Run `npm install -g @docslit/cli` to install the CLI globally.</wc-expandable>
+<wc-expandable title="Step 2 — Initialise" open>Run `docslit init` inside your project to create a starter `docslit.json` and example pages.</wc-expandable>
+<wc-expandable title="Step 3 — Develop">Run `docslit dev` to start the dev server with hot reload on `http://localhost:3000`.</wc-expandable>
+</wc-accordion-group>
+
 ## wc-aside
 
 A float-right sticky sidebar for supplementary content (auto-stacks on mobile).

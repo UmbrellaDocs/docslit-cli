@@ -65,6 +65,16 @@ A download link button with an icon and optional description.
 
 <wc-download href="/dist/docslit-1.2.0.zip" filename="docslit-1.2.0.zip" label="DocsLit v1.2.0" description="Source archive (zip) — 92 KB"></wc-download>
 
+## wc-image
+
+Lazy-loaded image with optional dark-mode alternate source and click-to-expand lightbox.
+
+<wc-image src="https://picsum.photos/seed/docslit/800/400" alt="Sample landscape" width="800" height="400"></wc-image>
+
+With a dark-mode alternate (swap to light theme to see the difference):
+
+<wc-image src="https://picsum.photos/seed/light/800/300" dark-src="https://picsum.photos/seed/dark/800/300" alt="Theme-aware image" width="800" height="300"></wc-image>
+
 ## wc-copy
 
 A click-to-copy code snippet button. Shows ✓ for 2 seconds on success.
