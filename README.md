@@ -1,8 +1,40 @@
 # docslit
 
-The docs framework for the web platform era.
+The best documentation platform for AI tools to generate docs with.
 
-Write Markdown. Drop in web components. Self-host anywhere.
+Write Markdown. Drop in web components. Self-host anywhere. Open source (Apache-2.0).
+
+DocsLit gives AI agents accurate reference data and strict, machine-readable feedback, so they can write valid docs without guessing: discover components, write a page, check it as JSON, fix what the checks report. Published sites are easy for agents to read too: `llms.txt`, a Markdown file per page, content negotiation and an MCP server.
+
+## Agent quick start
+
+In an existing DocsLit project:
+
+```bash
+npx docslit agents init          # AGENTS.md + files for the AI tools it detects
+npx docslit agents init --tool all
+```
+
+Then connect your AI tool to the MCP server. Add this to your client config (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor; `docslit agents init` writes both for you):
+
+```json
+{
+  "mcpServers": {
+    "docslit": { "command": "npx", "args": ["-y", "docslit", "mcp"] }
+  }
+}
+```
+
+`npx docslit mcp --print-config claude|cursor|vscode` prints config for a client. Pass a site URL (`npx docslit mcp https://docs.docslit.com`) to let an agent read and search any published DocsLit site.
+
+The loop an agent follows, all with JSON output and no prompts:
+
+```bash
+docslit components wc-tabs --json                 # attributes, nesting, example
+docslit new guides/setup --title "Set up" --description "..." --json
+docslit validate --format json                    # is it broken?
+docslit lint --format json                        # is it good?
+```
 
 ## Quick start
 
@@ -13,72 +45,76 @@ cd my-docs
 docslit dev
 ```
 
+Or run it without installing: `npx docslit init my-docs`. Requires Node.js 20.19 or later.
+
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `docslit init [dir]` | Scaffold a new docs project |
-| `docslit dev` | Start local dev server (default: port 3000) |
-| `docslit build` | Build static site to `./dist` |
-| `docslit import <dir>` | Migrate a Mintlify / Fern / GitBook project to DocsLit |
-| `docslit validate [dir]` | Check for broken links, missing assets, frontmatter errors, unknown components |
+| `docslit init [dir]` | Scaffold a new docs project (also writes `AGENTS.md`; `--no-agents` to skip) |
+| `docslit new <page-id>` | Create a page and add it to the sidebar. `--title`, `--group`, `--description`, `--position`, `--json` |
+| `docslit dev` | Start the local dev server with hot reload (`--port`, default 3000) |
+| `docslit build` | Build a static site to `./dist` (`--out`, `--offline`, `--no-minify`, `--pdf`, `--no-pdf`, `--pdf-dir`) |
+| `docslit deploy` | Write hosting recipes: `--github-pages`, `--netlify`, `--cloudflare` |
+| `docslit import <dir>` | Migrate Mintlify, Fern, GitBook, Docusaurus, MkDocs and more (`--out`, `--dry-run`) |
+| `docslit validate [dir]` | Check for broken links, missing assets, frontmatter errors, unknown components. `--strict`, `--external`, `--format pretty\|github\|json` |
+| `docslit lint [dir]` | Check docs quality: descriptions, headings, code languages, alt text, link text, page length. `--strict`, `--format pretty\|github\|json` |
+| `docslit components [tag]` | List the built-in `wc-*` components, or show one's attributes and example (`--json`) |
+| `docslit schema [config\|frontmatter]` | Print the JSON Schema for `docslit.json` or page frontmatter |
+| `docslit agents init\|print` | Write AI-agent instruction files and MCP config, or print the skills (`--tool`, `--force`, `--json`) |
+| `docslit mcp [url]` | MCP server over stdio: authoring tools in a project (`--dir`), or read and search a published site. `--print-config` |
+| `docslit theme init\|list` | Scaffold a brand theme file, or list built-in presets |
+| `docslit openapi scaffold <spec>` | Generate API reference pages from an OpenAPI spec (`--overlay`, `--new-only`) |
+| `docslit login` | Log in to DocsLit Cloud with email and password, or `--token <token>`. In CI set `DOCSLIT_TOKEN` |
+| `docslit logout` | Remove stored credentials and revoke the token |
+| `docslit publish` | Build and publish to DocsLit Cloud (`--project`, `--out`, `--build`) |
+| `docslit projects` | List published projects with URLs and status |
+| `docslit rollback <slug> [deploy-id]` | Restore a project to an earlier deploy |
+| `docslit whoami` | Show the authenticated user |
+| `docslit delete <slug>` | Delete a published project and its files |
 
-## Options
+Run `docslit --help` for all options.
 
-```
---port <number>   Dev server port (default: 3000)
---out <dir>       Build output directory (default: dist)
-                  Also used by import (default: <source>-docslit)
---dry-run         (import only) Scan and report without writing files
---strict          (validate only) treat warnings as errors → exit 1
-```
+## What a build gives agents
 
-## Validating a project
+`docslit build` writes `llms.txt`, `llms-full.txt`, a `.md` file for every page, `.well-known/agent.json`, `search-index.json` and a standalone `mcp-server.js`. Sites on DocsLit Cloud also get a hosted MCP endpoint at `/mcp` and `Accept: text/markdown` negotiation.
 
-Run `docslit validate` in any DocsLit project directory to get a full health report:
+## Writing features
+
+- **Autogenerated sidebars:** `"sidebar": "auto"` or `autogenerate` on a group, with `sidebar_position` and `_category.json`; groups can be `collapsed`.
+- **Code import:** pull code from real files with fence meta: ` ```js file="examples/server.js" region="routes" `.
+- **Math:** `$$a^2 + b^2 = c^2$$` and `math` fences, rendered with KaTeX at build time.
+- **Synced tabs:** `<wc-tabs sync="pkg">` switches every tab group with the same key.
+- **Feedback widget:** `"feedback": true` adds "Was this page helpful?" with analytics events and an optional endpoint.
+
+## Validating and linting
 
 ```bash
-docslit validate
-# or point at a specific directory
-docslit validate ./my-docs
-# fail CI on warnings too
-docslit validate --strict
+docslit validate            # broken things; exit 1 on errors
+docslit validate --strict   # warnings fail too
+docslit lint --strict       # quality findings fail too
 ```
-
-### What it checks
 
 | Check | Level |
 |-------|-------|
-| `docslit.json` parses correctly and has a `sidebar` array | error |
+| `docslit.json` parses and has a `sidebar` | error |
 | Every sidebar slug has a matching `.md` file | error |
-| No duplicate slugs in the sidebar | warning |
-| Every `[text](link)` points to a real page slug | error |
-| Every image and file reference resolves on disk | error |
-| All frontmatter contains a `title` field | warning |
-| No unknown frontmatter keys | info |
-| No `<wc-*>` tags that aren't built-in or in `components/` | warning |
-| No orphaned pages (`.md` files not in the sidebar) | info |
+| Every internal link points to a real page | error |
+| Images that start with `/`, `./` or `../` exist; code imports resolve | error |
+| Frontmatter has a `title` | warning |
+| No `<wc-*>` tags that are not built in or in `components/` | warning |
+| No duplicate sidebar slugs | warning |
+| Unknown frontmatter keys, orphaned pages | info |
 
-Exit code is `0` when there are no errors (warnings don't fail by default). Use `--strict` to also fail on warnings.
+`validate` does not check component attribute values. Use `docslit components <tag> --json`, or the `check_markup` MCP tool. Every issue in `--format json` has a stable `code`, a `line` and a `fix`.
 
 ## Migrating from Mintlify
-
-If you have an existing Mintlify project, run:
 
 ```bash
 docslit import ./my-mintlify-docs
 ```
 
-This will:
-
-1. **Detect** `mint.json` and read your sidebar navigation automatically
-2. **Convert** every MDX component to the equivalent DocsLit [web component](https://lit.dev)
-3. **Strip** all `import`/`export` statements (no JSX needed)
-4. **Copy** all static assets (images, fonts, PDFs)
-5. **Generate** a ready-to-run `docslit.json` config
-6. **Print** a full migration report showing what was converted, what needs review, and next steps
-
-The output goes to `./my-mintlify-docs-docslit/` by default (use `--out` to change it).
+This detects `mint.json`, converts MDX components to DocsLit web components, strips `import`/`export` lines, copies static assets, generates `docslit.json` and prints a migration report. Output goes to `./my-mintlify-docs-docslit/` (use `--out` to change it). Use `--dry-run` to preview.
 
 ### Component mapping
 
@@ -104,17 +140,15 @@ The output goes to `./my-mintlify-docs-docslit/` by default (use `--out` to chan
 | `<Tooltip>` | text content only (inlined) |
 | `<Icon>` | removed |
 
-Also works with **Fern** (`fern/fern.config.json`) and **GitBook** (`SUMMARY.md`) projects — DocsLit auto-discovers all `.md`/`.mdx` files and builds the sidebar from the folder structure.
+Also works with **Fern**, **GitBook**, **Docusaurus**, **MkDocs**, **Sphinx**, **ReadMe**, **VuePress**, **VitePress**, **Starlight** and **Nextra** projects. DocsLit auto-discovers all `.md` and `.mdx` files and builds the sidebar from the folder structure.
 
 ## docslit.json
 
 ```json
 {
+  "$schema": "https://unpkg.com/docslit/schema/docslit.schema.json",
   "name": "My Docs",
-  "basePath": "",
-  "navbar": { "links": [{ "label": "GitHub", "href": "https://github.com/org/repo", "external": true }] },
-  "footer": { "copyright": "© Acme" },
-  "analytics": { "provider": "plausible", "domain": "docs.example.com" },
+  "url": "https://docs.example.com",
   "sidebar": [
     {
       "group": "Getting Started",
@@ -124,27 +158,25 @@ Also works with **Fern** (`fern/fern.config.json`) and **GitBook** (`SUMMARY.md`
 }
 ```
 
-See the [DocsLit documentation](https://docs.docslit.com) for `basePath`, redirects, i18n, playground, and more.
+`docslit schema` prints the full schema. See the [DocsLit documentation](https://docs.docslit.com) for `basePath`, redirects, i18n, versions, the playground and more.
 
-## License
-
-Apache-2.0. DocsLit Cloud remains a separate proprietary product.
-
-## Markdown + Web Components
+## Markdown + web components
 
 ```markdown
 ---
 title: My Page
-tag: Guide
-readtime: 3 min read
-updated: May 2025
+description: One sentence that feeds search, SEO and llms.txt.
 ---
 
 # My Page
 
 <wc-callout type="info" title="No imports needed">
-  Just drop a tag. It works.
+Just drop a tag. It works.
 </wc-callout>
-
-<wc-button label="Click me">Click me</wc-button>
 ```
+
+Run `docslit components` for the full list.
+
+## License
+
+Apache-2.0. DocsLit Cloud remains a separate proprietary product.
