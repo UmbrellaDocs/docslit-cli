@@ -11,8 +11,12 @@ import { visit } from 'unist-util-visit';
 import { COMPONENT_MAP, pascalToWcKebab, rewriteMdxTags } from './mdx-bridge.js';
 import { VAR_NAME_RE } from './preprocess.js';
 import { listComponentTags } from './component-manifest.js';
+import { checkMarkup } from './markup-check.js';
+import { listCustomComponentTags } from './custom-components.js';
+import { findMathErrors, resolveMathConfig } from './math.js';
+import { parseArgs, assertCleanArgs, resolveFormat } from './cli-args.js';
 import { expandAllSidebars } from './auto-sidebar.js';
-import { expandCodeImports } from './code-import.js';
+import { expandCodeImports, CODE_IMPORT_FIXES } from './code-import.js';
 import { isValidThemePreset, listThemePresets, parseThemeConfig, loadThemeFile } from './themes.js';
 
 // ─── Built-in component registry ──────────────────────────────────────────────
@@ -86,7 +90,7 @@ const ISSUE_RULES = [
   [/^Frontmatter in reusable file/, 'include-reusable-frontmatter', () => 'Remove the frontmatter from the reusable file'],
   [/^Invalid wc-var declaration name/, 'var-invalid-name', () => 'Use letters, digits and underscores, starting with a letter or underscore'],
   [/^Invalid variable placeholder/, 'var-invalid-placeholder', () => 'Use {{NAME}} with a valid variable name'],
-  [/^Undefined variable "\{\{(.+?)\}\}"/, 'var-undefined', (m) => `Define ${m[1]} in docslit.json "attributes", page frontmatter "attributes", or <wc-var name="${m[1]}" value="..." />`],
+  [/^Undefined variable "\{\{(.+?)\}\}"/, 'var-undefined', (m) => `Define ${m[1]} in docslit.json "attributes", page frontmatter "attributes", <wc-var name="${m[1]}" value="..." /> (build time) or <wc-var name="${m[1]}" default="..."></wc-var> (editable at runtime)`],
   [/^Orphaned page/, 'orphan-page', (m, msg) => { const s = /slug: "(.+?)"/.exec(msg); return s ? `Add "${s[1]}" to a sidebar group in docslit.json` : undefined; }],
   [/^External link returned/, 'external-link-status', () => 'Update or remove the dead link'],
   [/^External link failed/, 'external-link-failed', () => 'Check the URL or your network connection'],
@@ -223,7 +227,8 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
     const bodyLineOffset = raw.split('\n').length - body.split('\n').length;
     const codeImports = await expandCodeImports(body, { projectRoot: dir });
     for (const e of codeImports.errors) {
-      issues.push(issue('error', rel, e.line + bodyLineOffset, e.message));
+      const code = e.code || 'code-import-missing-file';
+      issues.push(issue('error', rel, e.line + bodyLineOffset, e.message, { code, fix: CODE_IMPORT_FIXES[code] }));
     }
     const isReusable = file.startsWith(reusablesRoot + path.sep);
 
@@ -302,6 +307,15 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
       localDeclarations[attrs.name] = attrs.value;
     }
 
+    // Runtime variables: <wc-var name="X" default="…"></wc-var> registers X in the
+    // browser (window.__docslit_vars__) and every {{X}} in prose then renders live
+    // from it, so {{X}} is satisfied without a build-time value (see components/code.js).
+    const runtimeVars = new Set();
+    for (const rv of bodySafe.matchAll(/<wc-var\b([^>]*?)(\/?)>/g)) {
+      const a = parseTagAttrs(rv[1]);
+      if (!a.name || (rv[2] === '/' && Object.prototype.hasOwnProperty.call(a, 'value'))) continue;
+      runtimeVars.add(a.name);
+    }
     const mergedVars = { ...globalAttrs, ...pageAttrs, ...localDeclarations };
     const placeholderRe = /\{\{([^}]+)\}\}/g;
     let placeholder;
@@ -312,7 +326,7 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
           `Invalid variable placeholder "{{${key}}}"`));
         continue;
       }
-      if (!Object.prototype.hasOwnProperty.call(mergedVars, key)) {
+      if (!Object.prototype.hasOwnProperty.call(mergedVars, key) && !runtimeVars.has(key)) {
         issues.push(issue('warning', rel, lineOf(body, placeholder.index) + bodyLineOffset,
           `Undefined variable "{{${key}}}"`));
       }
@@ -674,6 +688,30 @@ function isExternalish(t) {
 }
 
 // ─── 6. Asset check ────────────────────────────────────────────────────────────
+/**
+ * Candidate locations for a local asset reference, or null when the reference is
+ * not a local file (remote URL, data:, anchor, …).
+ *   /x.png        -> docs/ root (media is copied from docs/ to the site root) or project root
+ *   ./x  ../x     -> relative to the page file
+ *   images/x.png  -> relative to the page file, falling back to docs/ and the project root
+ *                    (the same roots the image pipeline searches)
+ */
+function assetCandidates(rawTarget, fileDir, dir) {
+  let target = String(rawTarget || '').trim().split('#')[0].split('?')[0];
+  if (!target || target.startsWith('#') || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(target)) return null;
+  try { target = decodeURI(target); } catch { /* keep as written */ }
+  const docsRoot = path.join(dir, 'docs');
+  let candidates;
+  if (target.startsWith('/')) {
+    candidates = [path.join(dir, target), path.join(docsRoot, target)];
+  } else if (target.startsWith('./') || target.startsWith('../')) {
+    candidates = [path.resolve(fileDir, target)];
+  } else {
+    candidates = [path.resolve(fileDir, target), path.resolve(docsRoot, target), path.resolve(dir, target)];
+  }
+  return { target, candidates };
+}
+
 async function checkAssets(files, dir, issues) {
   for (const file of files) {
     const rel = path.relative(dir, file);
@@ -681,52 +719,33 @@ async function checkAssets(files, dir, issues) {
     const body = matter(raw).content;
     const fileDir = path.dirname(file);
     const off = bodyOffset(raw, body);
+    // Markdown images appear both as mdast `image` and (after remark-rehype) as hast
+    // `img`; report each distinct reference once.
+    const reported = new Set();
 
-    const tree = parseMdast(body);
+    const check = (src, line) => {
+      const found = assetCandidates(src, fileDir, dir);
+      if (!found) return;
+      const key = `${line}\0${found.target}`;
+      if (reported.has(key)) return;
+      if (found.candidates.some((c) => fs.pathExistsSync(c))) return;
+      reported.add(key);
+      issues.push(issue('error', rel, line, `Missing asset: "${found.target}" (resolved to ${path.relative(dir, found.candidates[0])})`));
+    };
 
-    visit(tree, 'image', (node) => {
-      const target = (node.url || '').trim().split('#')[0].split('?')[0];
-      if (!target || /^https?:\/\//.test(target) || target.startsWith('data:')) return;
-      if (!target.startsWith('.') && !target.startsWith('/')) return;
-      const absTarget = target.startsWith('/')
-        ? path.join(dir, target)
-        : path.resolve(fileDir, target);
-      if (!fs.pathExistsSync(absTarget)) {
-        issues.push(issue('error', rel, posLine(node, off),
-          `Missing asset: "${target}" (resolved to ${path.relative(dir, absTarget)})`));
-      }
-    });
+    visit(parseMdast(body), 'image', (node) => check(node.url, posLine(node, off)));
 
-    const rewritten = rewriteMdxTags(body);
-    const hast = parseHast(rewritten);
+    const hast = parseHast(rewriteMdxTags(body));
     visit(hast, 'element', (node) => {
       if (node.tagName !== 'img') return;
-      const target = (node.properties?.src || '').trim().split('#')[0].split('?')[0];
-      if (!target || /^https?:\/\//.test(target) || target.startsWith('data:')) return;
-      if (!target.startsWith('.') && !target.startsWith('/')) return;
-      const absTarget = target.startsWith('/')
-        ? path.join(dir, target)
-        : path.resolve(fileDir, target);
-      if (!fs.pathExistsSync(absTarget)) {
-        issues.push(issue('error', rel, posLine(node, off),
-          `Missing asset: "${target}" (resolved to ${path.relative(dir, absTarget)})`));
-      }
+      check(node.properties?.src, posLine(node, off));
     });
   }
 }
 
 // ─── 7. Component check ────────────────────────────────────────────────────────
 async function checkComponents(files, dir, issues) {
-  const customDir = path.join(dir, 'components');
-  let customComponents = new Set();
-
-  if (await fs.pathExists(customDir)) {
-    const entries = await fs.readdir(customDir);
-    for (const e of entries) {
-      const base = e.replace(/\.(js|ts|mjs)$/, '');
-      customComponents.add(base);
-    }
-  }
+  const customComponents = await listCustomComponentTags(dir);
 
   for (const file of files) {
     const rel = path.relative(dir, file);
@@ -776,6 +795,52 @@ async function checkComponents(files, dir, issues) {
         issues.push(issue('warning', rel, lineOf(body, m.index) + off,
           `<${name}> will render as <${fallback}>, which isn't a built-in and isn't in components/`));
       }
+    }
+  }
+}
+
+// ─── 7b. Component markup check (attributes, values, nesting, unclosed tags) ───
+// Same engine as the MCP `check_markup` tool (src/markup-check.js), run over every
+// page. Levels: unclosed/stray/malformed tags are errors (they break rendering);
+// unknown attributes, invalid enum values, missing required attributes and bad
+// nesting are warnings. Unknown *tags* are left to checkComponents (above).
+const MARKUP_FALLBACK_FIX = {
+  'unclosed-tag': 'Add the missing closing tag',
+  'unexpected-closing-tag': 'Remove the stray closing tag or add the matching opening tag',
+  'malformed-tag': 'Close the tag with ">" and balance attribute quotes',
+};
+
+async function checkComponentMarkup(files, dir, issues) {
+  const customTags = await listCustomComponentTags(dir);
+  for (const file of files) {
+    if (isReusableDocFile(file, dir)) continue; // reusables are fragments; checked where included
+    const rel = path.relative(dir, file);
+    const raw = await fs.readFile(file, 'utf8');
+    // checkMarkup masks frontmatter itself, so line numbers are whole-file.
+    const result = checkMarkup(raw, { customTags });
+    for (const m of result.issues) {
+      if (m.code === 'unknown-component') continue;
+      issues.push(issue(m.level, rel, m.line, m.message, { code: m.code, fix: m.fix || MARKUP_FALLBACK_FIX[m.code] }));
+    }
+  }
+}
+
+// ─── 7c. Math check ───────────────────────────────────────────────────────────
+// KaTeX failures otherwise build silently (a `katex-error` span with a tooltip).
+async function checkMath(files, dir, config, issues) {
+  const cfg = resolveMathConfig(config?.math);
+  if (!cfg.enabled) return;
+  for (const file of files) {
+    const rel = path.relative(dir, file);
+    const raw = await fs.readFile(file, 'utf8');
+    let body;
+    try { body = matter(raw).content; } catch { continue; } // reported by the frontmatter check
+    const off = bodyOffset(raw, body);
+    for (const e of findMathErrors(body, cfg)) {
+      issues.push(issue('warning', rel, e.line + off, `Invalid math: ${e.message}`, {
+        code: 'math-invalid',
+        fix: 'Fix the TeX (see https://katex.org/docs/supported.html) or, for a literal "$$", escape it as \\$\\$',
+      }));
     }
   }
 }
@@ -961,15 +1026,9 @@ async function checkExternalLinks(files, dir, issues) {
 function renderGithubFormat(allIssues) {
   for (const i of allIssues) {
     const level = i.level === 'error' ? 'error' : i.level === 'warning' ? 'warning' : 'notice';
-    const filePart = i.file ? `file=${i.file}` : '';
-    const linePart = i.line ? `,line=${i.line}` : '';
-    console.log(`::${level} ${filePart}${linePart}::${i.message}`);
+    const params = [i.file && `file=${i.file}`, i.line && `line=${i.line}`, i.code && `title=${i.code}`].filter(Boolean).join(',');
+    console.log(`::${level}${params ? ` ${params}` : ''}::${i.message}`);
   }
-}
-
-function getValidateFlag(args, flag) {
-  const i = args.indexOf(flag);
-  return i !== -1 ? args[i + 1] : null;
 }
 
 // ─── Programmatic API ──────────────────────────────────────────────────────────
@@ -1004,13 +1063,15 @@ export async function runValidation(dir, { strict = false, external = false, onE
   const files = await discoverFiles(dir);
 
   // 4–8. Per-file checks (in parallel)
-  const [fmIssues, linkIssues, assetIssues, compIssues] = await Promise.all([
+  const [fmIssues, linkIssues, assetIssues, compIssues, markupIssues, mathIssues] = await Promise.all([
     (async () => { const a = []; await checkFrontmatter(files, dir, a); return a; })(),
     (async () => { const a = []; await checkLinks(files, slugs, dir, a); return a; })(),
     (async () => { const a = []; await checkAssets(files, dir, a); return a; })(),
     (async () => { const a = []; await checkComponents(files, dir, a); return a; })(),
+    (async () => { const a = []; await checkComponentMarkup(files, dir, a); return a; })(),
+    (async () => { const a = []; await checkMath(files, dir, loadedConfig, a); return a; })(),
   ]);
-  allIssues.push(...fmIssues, ...linkIssues, ...assetIssues, ...compIssues);
+  allIssues.push(...fmIssues, ...linkIssues, ...assetIssues, ...compIssues, ...markupIssues, ...mathIssues);
 
   // 8. OpenAPI refs
   await checkOpenAPIRefs(files, dir, loadedConfig, allIssues);
@@ -1050,30 +1111,34 @@ function finishValidation(allIssues, pages, strict, t0) {
 
 // ─── Entry point ───────────────────────────────────────────────────────────────
 export async function validate(args) {
-  const strict    = args.includes('--strict');
-  const external  = args.includes('--external');
-  const format    = getValidateFlag(args, '--format') || 'pretty';
-  const positional = args.filter(a => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--format');
-  const dir       = path.resolve(positional[0] || '.');
+  const parsed = parseArgs(args, { flags: ['--strict', '--external'], options: ['--format'] });
+  assertCleanArgs(parsed, 'validate');
+  const strict    = parsed.flags.has('--strict');
+  const external  = parsed.flags.has('--external');
+  const format    = resolveFormat(parsed, 'validate');
+  const dir       = path.resolve(parsed.positional[0] || '.');
   const json      = format === 'json';
+  const github    = format === 'github';
+  // json and github are machine formats: stdout carries only the payload.
+  const quiet     = json || github;
 
-  if (!json && !await fs.pathExists(dir)) {
+  if (!quiet && !await fs.pathExists(dir)) {
     console.error(pc.red(`  Error: Directory not found: ${dir}`));
     process.exit(1);
   }
 
-  if (!json) console.log(pc.dim(`\n  Validating ${dir}…`));
+  if (!quiet) console.log(pc.dim(`\n  Validating ${dir}…`));
 
   const result = await runValidation(dir, {
     strict,
     external,
-    onExternalStart: json ? undefined : () => console.log(pc.dim(`  Checking external links…`)),
+    onExternalStart: quiet ? undefined : () => console.log(pc.dim(`  Checking external links…`)),
   });
 
   if (json) {
     const { elapsedMs, ...out } = result;
     process.stdout.write(JSON.stringify(out, null, 2) + '\n');
-  } else if (format === 'github') {
+  } else if (github) {
     renderGithubFormat(result.issues);
   } else {
     renderReport(result.issues, result.summary.pages, result.elapsedMs);

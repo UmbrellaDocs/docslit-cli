@@ -33,7 +33,7 @@ describe('protocol core', () => {
       expect((await rpc(server, 'initialize', { protocolVersion: v, capabilities: {}, clientInfo: { name: 'x' } })).result.protocolVersion).toBe(v);
     }
     const r = await rpc(server, 'initialize', { protocolVersion: '1999-01-01' });
-    expect(r.result.protocolVersion).toBe('2025-06-18');
+    expect(r.result.protocolVersion).toBe('2025-11-25');
     expect(r.result.capabilities.tools).toBeDefined();
     expect(r.result.serverInfo.name).toBe('t');
   });
@@ -139,6 +139,18 @@ describe('authoring mode', () => {
     expect(r.issues.map((i) => i.code)).toEqual(expect.arrayContaining(['unknown-component', 'invalid-attribute-value']));
   });
 
+  it('check_markup ignores wc tags inside multi-line fences and accepts schema/field and compile-time wc-var', async () => {
+    const md = [
+      '```html', '<wc-callout>', 'x', '</wc-callout>', '</wc-callout>', '```', '',
+      '<wc-schema type="U"><wc-field name="id" type="string">Id</wc-field></wc-schema>', '',
+      '<wc-var name="X" value="1" />', '',
+      '<wc-tabs sync="os"><wc-tab label="a">x</wc-tab></wc-tabs>',
+    ].join('\n');
+    const r = (await call(server, 'check_markup', { markdown: md })).json;
+    expect(r.issues).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
+
   it('create_page writes file, updates sidebar, reports issues, refuses overwrite', async () => {
     const r = await call(server, 'create_page', {
       id: 'guides/webhooks', title: 'Webhooks', description: 'Receive events.', group: 'Guides', position: 1,
@@ -146,8 +158,10 @@ describe('authoring mode', () => {
     });
     expect(r.json.created).toBe(true);
     expect(r.json.addedH1).toBe(true);
-    expect(r.json.ok).toBe(false);
-    expect(r.json.markup.some((i) => i.code === 'invalid-attribute-value' && i.suggestion === 'warning')).toBe(true);
+    expect(r.json.ok).toBe(true); // an invalid enum value is a warning, not an error
+    expect(r.json.note).toMatch(/warning/);
+    expect(r.json.markup.some((i) => i.code === 'invalid-attribute-value' && i.suggestion === 'warning' && i.level === 'warning')).toBe(true);
+    expect(r.json.validation.some((i) => i.code === 'invalid-attribute-value')).toBe(false); // reported once
     const text = await fs.readFile(path.join(dir, 'docs/guides/webhooks.md'), 'utf8');
     expect(text).toMatch(/^---\ntitle: Webhooks\ndescription: Receive events\.\nsidebar_position: 1\n---\n# Webhooks/);
     const cfg = await fs.readJson(path.join(dir, 'docslit.json'));

@@ -12,7 +12,8 @@
  *     attributes: [{ name, type, description, required?, default?, values? }],
  *     content: 'markdown' | 'text' | 'code' | 'json' | 'mermaid' | 'asciidoc' | 'children' | 'none',
  *     contentDescription: string,
- *     parents?: [tag], children?: [tag], selfClosing?: boolean, example: string }
+ *     parents?: [tag], children?: [tag], selfClosing?: boolean,
+ *     selfClosingWith?: attribute that makes the `<tag ... />` form valid (wc-var value), example: string }
  */
 
 const CATEGORY_LABELS = {
@@ -42,6 +43,14 @@ const THEMED = new Set([
   'wc-aside', 'wc-expandable', 'wc-frame', 'wc-panel', 'wc-copy', 'wc-dir', 'wc-download', 'wc-file',
   'wc-files', 'wc-tree', 'wc-tree-item', 'wc-tabs', 'wc-view',
 ]);
+
+// Read via getAttribute('sync') in navigation.js (not a Lit property, so the
+// static-properties scan alone would miss it; see component-manifest.test.js).
+const SYNC_ATTR = {
+  name: 'sync',
+  type: 'string',
+  description: 'Sync key. Tab groups on the same page (wc-tabs and wc-code-group) that share a sync value switch together when the reader picks a tab label, and the choice is remembered in localStorage. Tab labels must match across groups.',
+};
 
 function attr(name, type, description, opts = {}) {
   return { name, type, description, ...opts };
@@ -245,7 +254,7 @@ Run \`docslit build\`.
 
   def('wc-tabs', 'navigation',
     'Tabbed content switcher for alternative instructions.',
-    [],
+    [SYNC_ATTR],
     'children', 'One or more wc-tab elements.',
     `<wc-tabs>
 <wc-tab label="npm">
@@ -316,7 +325,7 @@ Summary content.
 \`\`\`bash
 rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
 \`\`\``,
-    { selfClosing: false }),
+    { selfClosing: false, selfClosingWith: 'value' }),
 
   def('wc-code-block', 'code',
     'Syntax-highlighted code with copy button, optional filename header and line numbers. Plain fenced code blocks (```lang) are usually preferred; use this tag when you need attributes like filename.',
@@ -336,7 +345,7 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
 
   def('wc-code-group', 'code',
     'Tabbed group of code snippets (e.g. one per package manager or language).',
-    [],
+    [{ ...SYNC_ATTR }],
     'children', 'One or more wc-code-tab elements.',
     `<wc-code-group>
 <wc-code-tab label="npm">npm install docslit</wc-code-tab>
@@ -355,9 +364,9 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
 
   // ── Media & files ────────────────────────────────────────────────────────
   def('wc-icon', 'media',
-    'Inline icon (Lucide name or Font Awesome class).',
+    'Inline icon: one of 33 built-in SVG icons, or any free Font Awesome 6 icon (fetched from the jsDelivr CDN when the page is viewed, so it needs a network connection and will not render offline).',
     [
-      attr('name', 'string', 'Icon name: a built-in Lucide name, or a Font Awesome class like "fa-brands fa-github".', { required: true }),
+      attr('name', 'string', 'Built-in icon name (e.g. check, x, warning, info, error, arrow-right, chevron-down, external-link, link, copy, download, code, terminal, file, folder, search, star, zap, book, settings, user, home, grid, list, eye, lock, package, globe, cpu), or a Font Awesome icon as a bare name ("github", "gear") or class string ("fa-brands fa-github", "fa-solid fa-gear", "far fa-star"; fa-solid/fas, fa-regular/far and fa-brands/fab are understood, size and animation modifiers such as fa-lg are ignored). A bare name picks the brands set for well-known brands (github, docker, npm, slack…), otherwise solid.', { required: true }),
       attr('size', 'number', 'Icon size in pixels.'),
       attr('color', 'string', 'Icon color (any CSS color).'),
     ],
@@ -509,7 +518,7 @@ The user's role.
 ID of the user.
 </wc-field>
 </wc-fields>`,
-    { parents: ['wc-fields', 'wc-response-fields', 'wc-field'], children: ['wc-field'] }),
+    { parents: ['wc-fields', 'wc-response-fields', 'wc-schema', 'wc-field'], children: ['wc-field'] }),
 
   def('wc-response-fields', 'data',
     'Like wc-fields but titled for response bodies.',

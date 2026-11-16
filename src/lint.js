@@ -18,6 +18,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
+import { parseArgs, assertCleanArgs, resolveFormat } from './cli-args.js';
 import { parseFrontmatter } from './frontmatter.js';
 
 // ─── Rule table ────────────────────────────────────────────────────────────────
@@ -512,19 +513,11 @@ function renderGithub(issues) {
 }
 
 export async function lint(args = []) {
-  const strict = args.includes('--strict');
-  const fix = args.includes('--fix');
-  const fi = args.indexOf('--format');
-  const format = fi !== -1 ? args[fi + 1] : (args.find((a) => a.startsWith('--format='))?.slice(9) || 'pretty');
-  if (!['pretty', 'json', 'github'].includes(format)) {
-    console.error(`  Unknown format: ${format}. Use pretty, json or github.`);
-    process.exit(1);
-  }
-  const positional = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--format');
-  const dir = path.resolve(positional[0] || '.');
-  if (fix) {
-    console.error('  Note: --fix is not available. No lint rule has a mechanical fix that is provably safe, so nothing was changed.');
-  }
+  const parsed = parseArgs(args, { flags: ['--strict'], options: ['--format'] });
+  assertCleanArgs(parsed, 'lint');
+  const strict = parsed.flags.has('--strict');
+  const format = resolveFormat(parsed, 'lint');
+  const dir = path.resolve(parsed.positional[0] || '.');
   const result = await runLint(dir, { strict });
   if (format === 'json') {
     const { elapsedMs, ...out } = result;

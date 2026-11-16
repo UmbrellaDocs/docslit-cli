@@ -55,7 +55,7 @@ Or run it without installing: `npx docslit init my-docs`. Requires Node.js 20.19
 | `docslit new <page-id>` | Create a page and add it to the sidebar. `--title`, `--group`, `--description`, `--position`, `--json` |
 | `docslit dev` | Start the local dev server with hot reload (`--port`, default 3000) |
 | `docslit build` | Build a static site to `./dist` (`--out`, `--offline`, `--no-minify`, `--pdf`, `--no-pdf`, `--pdf-dir`) |
-| `docslit deploy` | Write hosting recipes: `--github-pages`, `--netlify`, `--cloudflare` |
+| `docslit deploy` | Write hosting recipes: `--github-pages`, `--netlify`, `--cloudflare`, `--out <dir>` |
 | `docslit import <dir>` | Migrate Mintlify, Fern, GitBook, Docusaurus, MkDocs and more (`--out`, `--dry-run`) |
 | `docslit validate [dir]` | Check for broken links, missing assets, frontmatter errors, unknown components. `--strict`, `--external`, `--format pretty\|github\|json` |
 | `docslit lint [dir]` | Check docs quality: descriptions, headings, code languages, alt text, link text, page length. `--strict`, `--format pretty\|github\|json` |
@@ -73,11 +73,11 @@ Or run it without installing: `npx docslit init my-docs`. Requires Node.js 20.19
 | `docslit whoami` | Show the authenticated user |
 | `docslit delete <slug>` | Delete a published project and its files |
 
-Run `docslit --help` for all options.
+Run `docslit --help` for every option, or `docslit <command> --help` for one command.
 
 ## What a build gives agents
 
-`docslit build` writes `llms.txt`, `llms-full.txt`, a `.md` file for every page, `.well-known/agent.json`, `search-index.json` and a standalone `mcp-server.js`. Sites on DocsLit Cloud also get a hosted MCP endpoint at `/mcp` and `Accept: text/markdown` negotiation.
+`docslit build` writes `llms.txt`, `llms-full.txt`, a `.md` file for every page, `.well-known/agent.json`, `search-index.json` and a standalone `mcp-server.js` (version-aware on versioned sites). Sites on DocsLit Cloud also get a hosted MCP endpoint at `/mcp` and `Accept: text/markdown` negotiation.
 
 ## Writing features
 
@@ -100,13 +100,16 @@ docslit lint --strict       # quality findings fail too
 | `docslit.json` parses and has a `sidebar` | error |
 | Every sidebar slug has a matching `.md` file | error |
 | Every internal link points to a real page | error |
-| Images that start with `/`, `./` or `../` exist; code imports resolve | error |
+| Markdown and HTML images exist (absolute, `./`, `../` and bare relative paths); code imports resolve | error |
 | Frontmatter has a `title` | warning |
 | No `<wc-*>` tags that are not built in or in `components/` | warning |
+| Component attributes, enum values, required attributes and nesting are valid | warning |
+| No unclosed, stray or malformed component tags | error |
+| Math parses in KaTeX | warning |
 | No duplicate sidebar slugs | warning |
 | Unknown frontmatter keys, orphaned pages | info |
 
-`validate` does not check component attribute values. Use `docslit components <tag> --json`, or the `check_markup` MCP tool. Every issue in `--format json` has a stable `code`, a `line` and a `fix`.
+`validate` checks component attributes and nesting against the built-in manifest (the `check_markup` MCP tool runs the same checks on a snippet). Look up one component with `docslit components <tag> --json`. Every issue in `--format json` has a stable `code`, a `line` and a `fix`.
 
 ## Migrating from Mintlify
 

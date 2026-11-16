@@ -10,98 +10,24 @@ const pkg = JSON.parse(readFileSync(path.join(__dirname, '../package.json'), 'ut
 const args = process.argv.slice(2);
 const command = args[0];
 
-const help = `
-  docslit v${pkg.version}
+const { renderMainHelp, renderCommandHelp, commandNames } = await import('../src/help.js');
+const help = renderMainHelp(pkg.version);
 
-  Usage:
-    docslit init [dir]        Scaffold a new docs project (also writes
-                              AGENTS.md; --no-agents to skip)
-    docslit new <page-id>     Create a new page and add to sidebar. Never
-                              prompts. Flags: --title, --group, --description,
-                              --json (prints { id, file, sidebarUpdated, group })
-    docslit dev               Start the local dev server
-    docslit build             Build a static site to ./dist
-    docslit deploy            Write hosting recipe files (GitHub Pages,
-                              Netlify, Cloudflare)
-    docslit import <dir>      Migrate a Mintlify (or Fern/GitBook) project
-                              to DocsLit — converts MDX components, generates
-                              docslit.json, and prints a migration report.
-    docslit validate [dir]    Check a project for broken links, missing assets,
-                              frontmatter errors, and unknown components.
-                              Exits 1 if any errors are found.
-                              --external  Check external http(s) links
-                              --format github  Print GitHub Actions annotations
-                              --format json    Print { ok, summary, issues[] } as
-                                               JSON only (for agents and CI)
-    docslit openapi scaffold  Generate docs pages from an OpenAPI spec.
-                              Usage: docslit openapi scaffold <spec.yaml>
-                              [--overlay <overlay.yaml>] [--new-only]
-    docslit theme init [file] Scaffold a brand theme JSON file (default:
-                              brand-theme.json) and wire it in docslit.json
-    docslit theme list          List built-in presets and theme variables
-
-  Agent & tooling:
-    docslit components [tag]  List the built-in wc-* components, or show one
-                              component's attributes and example.
-                              --json  Print the manifest (or one entry) as JSON
-    docslit schema [kind]     Print a JSON Schema: config (docslit.json,
-                              default) or frontmatter
-    docslit lint [dir]        Check docs quality (descriptions, headings, code
-                              languages, alt text, link text, page length).
-                              --format pretty|json|github, --strict
-                              Exits 1 on errors (or warnings with --strict)
-    docslit agents init       Write AI-agent instructions into this project:
-                              AGENTS.md plus Claude Code, Cursor, Copilot and
-                              Windsurf files and MCP config.
-                              --tool claude,cursor,copilot,windsurf,codex,
-                              gemini|all (default: AGENTS.md + detected tools),
-                              --force, --json
-    docslit agents print [x]  Print the author skill (default), the migrate
-                              skill, or the AGENTS.md block to stdout
-
-    docslit mcp [url]         Run an MCP server over stdio. No url: authoring
-                              tools for this project (--dir <path>); with a
-                              site url: read/search that published site.
-                              --print-config [claude|cursor|vscode] [url]
-                              Client config: {"mcpServers":{"docs":{"command":
-                              "npx","args":["-y","docslit","mcp","<url>"]}}}
-
-  DocsLit Cloud:
-    docslit login             Authenticate with DocsLit Cloud (email + password prompt, or --token <token>;
-                              in CI set DOCSLIT_TOKEN instead)
-    docslit logout            Remove stored credentials (and revoke the token)
-    docslit publish           Build and publish your docs to DocsLit Cloud
-    docslit projects          List all published projects with URLs and status
-    docslit rollback <slug>   Restore a project to a previous deploy
-    docslit whoami            Show the currently authenticated user
-    docslit delete <slug>     Delete a published project and all its files
-
-  Options:
-    --help, -h            Show this help message
-    --version, -v         Print version
-    --port <number>       Port for dev server (default: 3000)
-    --out <dir>           Output directory for build (default: dist)
-                          Also used by import (default: <source>-docslit)
-    --offline             Inline all page data into index.html so the site
-                          works by double-clicking the file (no server needed)
-    --no-minify           (build only) Skip CSS/JS minification — useful when
-                          inspecting the built output. Default is to minify.
-    --pdf                 (build only) Generate chapter, page, and manual PDFs
-                          (requires Playwright: npm install -D playwright)
-    --no-pdf              (build only) Skip PDF generation even if pdf.enabled
-                          is true in docslit.json
-    --pdf-dir <dir>       (build only) PDF output directory inside --out
-                          (default: pdf, or pdf.outputDir in docslit.json)
-    --dry-run             (import only) Scan and report without writing files
-    --strict              (validate only) Treat warnings as errors
-    --external            (validate only) Check external http(s) links
-    --format <fmt>        (validate, lint) Output format: pretty (default),
-                          github, json
-    --json                (components, new) Machine-readable JSON on stdout
-    --title <text>        (new only) Page title (default: derived from id)
-    --group <name>        (new only) Sidebar group to add the page to
-    --description <text>  (new only) Page description for frontmatter
-`;
+// `docslit <command> --help` / `docslit help [command]` (mcp keeps its own stderr help).
+if (command === 'help') {
+  const target = args[1];
+  const text = target ? renderCommandHelp(target) : help;
+  if (!text) await unknownCommand(target);
+  console.log(text);
+  process.exit(0);
+}
+if (command && command !== 'mcp' && args.slice(1).some((a) => a === '--help' || a === '-h')) {
+  const text = renderCommandHelp(command);
+  if (text) {
+    console.log(text);
+    process.exit(0);
+  }
+}
 
 if (!command || command === '--help' || command === '-h') {
   console.log(help);
@@ -197,8 +123,15 @@ if (command === 'init') {
     process.exit(1);
   }
 } else {
-  console.error(`  Unknown command: ${command}\n`);
-  console.log(help);
+  await unknownCommand(command);
+}
+
+async function unknownCommand(name) {
+  console.error(`  Unknown command: ${name}\n`);
+  const { nearest } = await import('../src/markup-check.js');
+  const suggestion = nearest(String(name), commandNames());
+  if (suggestion) console.error(`  Did you mean ${'`'}docslit ${suggestion}${'`'}?\n`);
+  console.error(`  Run ${'`'}docslit --help${'`'} to see all commands.`);
   process.exit(1);
 }
 

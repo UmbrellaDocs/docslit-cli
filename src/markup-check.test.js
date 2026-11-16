@@ -50,7 +50,8 @@ Do it
     const r = checkMarkup('<wc-callout type="warnning">x</wc-callout>');
     const i = r.issues.find((x) => x.code === 'invalid-attribute-value');
     expect(i.suggestion).toBe('warning');
-    expect(i.level).toBe('error');
+    expect(i.level).toBe('warning');
+    expect(i.fix).toMatch(/warning/);
   });
 
   it('flags wrong parents and children', () => {
@@ -128,6 +129,67 @@ Use \`<wc-also-nope>\` here. <!-- <wc-hidden> -->
 
   it('accepts boolean attributes, data-*, aria-*, class', () => {
     expect(checkMarkup('<wc-banner dismissible class="x" data-a="1" aria-label="b">hi</wc-banner>').issues).toEqual([]);
+  });
+});
+
+describe('fenced code masking', () => {
+  const body = '<wc-callout>\nx\n</wc-callout>';
+  const inFence = (open, close = open) => `${open}html\n${body}\n\n  ${body}\n${close}\n\n<wc-bogus></wc-bogus>\n`;
+
+  it('masks every line of a multi-line backtick fence', () => {
+    const r = checkMarkup(inFence('```'));
+    expect(r.issues.map((i) => i.code)).toEqual(['unknown-component']);
+    expect(r.issues[0].line).toBe(11);
+  });
+
+  it('masks tilde fences, longer fences and indented fences', () => {
+    expect(checkMarkup(inFence('~~~')).issues).toHaveLength(1);
+    expect(checkMarkup(inFence('````', '````')).issues).toHaveLength(1);
+    expect(checkMarkup(inFence('   ```', '   ```')).issues).toHaveLength(1);
+    expect(checkMarkup(inFence('~~~~~', '~~~~~~')).issues).toHaveLength(1);
+  });
+
+  it('a longer fence is not closed by a shorter inner fence', () => {
+    const r = checkMarkup('````md\n```\n</wc-callout>\n```\n</wc-callout>\n````\n');
+    expect(r.issues).toEqual([]);
+  });
+
+  it('a fence of the other character does not close the block', () => {
+    const r = checkMarkup('```\n~~~\n</wc-callout>\n```\n');
+    expect(r.issues).toEqual([]);
+  });
+
+  it('an unterminated fence runs to the end of the file', () => {
+    const r = checkMarkup('text\n```bash\n</wc-callout>\n<wc-bogus>\n');
+    expect(r.issues).toEqual([]);
+  });
+
+  it('does not treat inline triple-backtick spans as fences', () => {
+    const r = checkMarkup('Use ```x``` inline\n</wc-callout>\n');
+    expect(codes(r)).toEqual(['unexpected-closing-tag']);
+  });
+
+  it('works with CRLF line endings', () => {
+    const r = checkMarkup('```html\r\n</wc-callout>\r\n</wc-callout>\r\n```\r\n');
+    expect(r.issues).toEqual([]);
+  });
+});
+
+describe('nesting and compile-time forms', () => {
+  it('accepts wc-field directly inside wc-schema (the component slots any children)', () => {
+    const r = checkMarkup('<wc-schema type="User">\n<wc-field name="id" type="string">Id.</wc-field>\n</wc-schema>');
+    expect(r.issues).toEqual([]);
+  });
+
+  it('accepts the compile-time self-closing <wc-var name value />', () => {
+    expect(checkMarkup('<wc-var name="DOMAIN" value="docs.example.com" />').issues).toEqual([]);
+    expect(codes(checkMarkup('<wc-var name="DOMAIN" default="x" />'))).toEqual(['self-closing-syntax']);
+    expect(checkMarkup('<wc-var name="DOMAIN" default="x"></wc-var>').issues).toEqual([]);
+  });
+
+  it('knows the sync attribute on wc-tabs and wc-code-group', () => {
+    const r = checkMarkup('<wc-tabs sync="os"><wc-tab label="a">x</wc-tab></wc-tabs>\n<wc-code-group sync="os"><wc-code-tab label="a">x</wc-code-tab></wc-code-group>');
+    expect(r.issues).toEqual([]);
   });
 });
 

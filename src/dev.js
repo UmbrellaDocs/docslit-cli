@@ -8,6 +8,7 @@ import chokidar from 'chokidar';
 import pc from 'picocolors';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionSidebar } from './config.js';
 import { parseDoc } from './markdown.js';
+import { sidebarLabel } from './sidebar.js';
 import { katexDistDir } from './math.js';
 import { parseFrontmatter } from './frontmatter.js';
 import { renderShell } from './template.js';
@@ -71,7 +72,8 @@ export async function dev({ port = 3000 } = {}) {
       try {
         const raw = await fs.readFile(mdPath, 'utf8');
         const { data } = parseFrontmatter(raw);
-        if (data.title) map[id] = data.title;
+        const label = sidebarLabel(data);
+        if (label) map[id] = label;
       } catch {}
     }));
     titleMap = map;

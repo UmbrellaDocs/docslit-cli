@@ -125,6 +125,6 @@ describe('docslit init / new', () => {
 
   it('--help lists the new commands and flags', async () => {
     const { stdout } = await run(['--help'], ROOT);
-    for (const s of ['docslit components', 'docslit schema', '--format json', '--description']) expect(stdout).toContain(s);
+    for (const s of ['docslit components', 'docslit schema', '--format <fmt>', '--description', '--position', '--tool']) expect(stdout).toContain(s);
   });
 });

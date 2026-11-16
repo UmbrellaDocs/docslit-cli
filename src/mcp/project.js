@@ -8,6 +8,7 @@ import { parseFrontmatter } from '../frontmatter.js';
 import { expandSidebar } from '../auto-sidebar.js';
 import { collectPageIds } from '../sidebar.js';
 import { ToolError } from './server.js';
+import { listCustomComponentTags } from '../custom-components.js';
 
 const SEGMENT_RE = /^[\p{L}\p{N}_][\p{L}\p{N}_.\- ]*$/u;
 
@@ -169,12 +170,9 @@ export async function sidebarTree(dir, sidebar) {
   return sidebar.map((g) => ({ group: g.group || 'Pages', pages: walk(g.pages) }));
 }
 
-/** Names of custom components in <project>/components (wc-* tags usable in pages). */
+/** Custom component tags in <project>/components (base names + registered tags). */
 export async function customComponentTags(dir) {
-  const customDir = path.join(dir, 'components');
-  if (!await fs.pathExists(customDir)) return [];
-  const entries = await fs.readdir(customDir);
-  return entries.map((e) => e.replace(/\.(js|ts|mjs)$/, '')).filter((n) => n.startsWith('wc-'));
+  return [...await listCustomComponentTags(dir)];
 }
 
 /** Filter validation issues to those that concern one page file. */

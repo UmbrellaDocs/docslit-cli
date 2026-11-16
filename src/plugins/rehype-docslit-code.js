@@ -1,6 +1,21 @@
 import { visit } from 'unist-util-visit';
 import { highlight } from '../highlighter.js';
 
+/**
+ * remark-rehype stores a fence's info string after the language (`js filename="a.js"
+ * linenumbers="true"`) in `code.data.meta`, but rehype-raw rebuilds elements and drops
+ * `data`. Run this BEFORE rehype-raw to carry it across as a `data-meta` property.
+ */
+export function rehypeDocslitCodeMeta() {
+  return (tree) => {
+    visit(tree, 'element', (node) => {
+      if (node.tagName === 'code' && node.data?.meta) {
+        node.properties = { ...(node.properties || {}), dataMeta: String(node.data.meta) };
+      }
+    });
+  };
+}
+
 export default function rehypeDocslitCode() {
   return (tree) => {
     visit(tree, 'element', (node, index, parent) => {
@@ -11,7 +26,9 @@ export default function rehypeDocslitCode() {
       );
       if (!codeEl) return;
 
-      const text = getTextContent(codeEl);
+      // remark-rehype appends a newline to the code text; without stripping it the
+      // highlighter emits a phantom empty last line (and line numbers count it).
+      const text = getTextContent(codeEl).replace(/\r?\n$/, '');
       const className = (codeEl.properties?.className || []).find(
         (c) => typeof c === 'string' && c.startsWith('language-'),
       );
@@ -20,7 +37,7 @@ export default function rehypeDocslitCode() {
       let filename = '';
       let linenumbers = false;
 
-      const meta = codeEl.data?.meta || '';
+      const meta = codeEl.properties?.dataMeta || codeEl.data?.meta || '';
       if (meta) {
         const fm = meta.match(/filename="([^"]+)"/);
         if (fm) filename = fm[1];

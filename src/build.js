@@ -4,6 +4,7 @@ import pc from 'picocolors';
 import { fileURLToPath } from 'url';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
+import { sidebarLabel } from './sidebar.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile, buildOfflineThemeInitFile, buildOfflineAppFile, isEsbuildAvailable } from './template.js';
 import { resolveSiteTheme } from './themes.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
@@ -38,7 +39,8 @@ function preparePdfManifest(config, pagesData, pdfOptions) {
 function buildTitleMap(pagesData) {
   const map = {};
   for (const [id, { meta }] of Object.entries(pagesData)) {
-    if (meta.title) map[id] = meta.title;
+    const label = sidebarLabel(meta);
+    if (label) map[id] = label;
   }
   return map;
 }
@@ -70,6 +72,12 @@ function _writePageJs(outDir, id, data) {
   const file = path.join(outDir, 'pages', _pageFileName(id));
   const js = `(window.__DOCSLIT_PAGES__=window.__DOCSLIT_PAGES__||{})[${JSON.stringify(id)}]=${JSON.stringify(data)};`;
   return fs.ensureDir(path.dirname(file)).then(() => fs.writeFile(file, js));
+}
+
+/** Build-time page warning (e.g. invalid TeX). Printed, never fatal. */
+function warnPage({ file, line, message }) {
+  const where = file ? `${path.isAbsolute(file) ? path.relative(process.cwd(), file) : file}${line ? `:${line}` : ''}` : '';
+  console.log(`  ${pc.yellow('⚠')} ${where ? `${where}  ` : ''}${message}`);
 }
 
 // Copy configured logo/favicon/css to the same relative path the HTML references
@@ -183,9 +191,12 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
     }
   }
 
-  // Copy FlexSearch vendor bundle
+  // Copy FlexSearch vendor bundle (ESM, loaded via import() by online builds).
+  // Offline builds load flexsearch.iife.js instead (see _writeSearchIndexJs), and
+  // versioned builds load the copy inside <version>/ (the search base is the version
+  // dir), so a root copy would be dead weight in both.
   const flexSearchSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
-  if (await fs.pathExists(flexSearchSrc)) {
+  if (!offline && !versionConfig && await fs.pathExists(flexSearchSrc)) {
     await fs.copyFile(flexSearchSrc, path.join(outDir, 'flexsearch.js'));
   }
 
@@ -248,6 +259,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     if (!await fs.pathExists(mdPath)) return { id, notFound: true };
     const raw = await fs.readFile(mdPath, 'utf8');
     const parsed = await parseDoc(raw, {
+      onWarning: warnPage,
       docsRoot: path.join(cwd, 'docs'),
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config),
@@ -448,6 +460,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     if (!await fs.pathExists(mdPath)) return null;
     const raw = await fs.readFile(mdPath, 'utf8');
     const parsed = await parseDoc(raw, {
+      onWarning: warnPage,
       docsRoot: path.join(cwd, 'docs'),
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultBranch),
@@ -540,6 +553,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   }
 
   console.log(`  ${pc.green('✓')} ${defaultVersion}: ${built} pages (full build)`);
+  // Page lists per version for the generated mcp-server.js (files live in <version>/).
+  const versionPages = { [defaultVersion]: pageListOf(defaultPagesData) };
 
   // Build non-default versions — only changed pages
   for (const entry of versionConfig.list) {
@@ -573,6 +588,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
           return fromGit != null;
         };
         let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+      onWarning: warnPage,
           docsRoot: path.join(cwd, 'docs'),
           pagePath: `docs/${id}.md@${versionBranch}`,
           globalAttributes: getRuntimeAttributes(config, entry.version, versionBranch),
@@ -646,6 +662,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir, version: entry.version });
     }
 
+    versionPages[entry.version] = pageListOf(versionPagesData);
     console.log(`  ${pc.green('✓')} ${entry.version}: ${vBuilt} changed page${vBuilt !== 1 ? 's' : ''} built, ${Object.keys(manifest).length - vBuilt} shared from ${defaultVersion}`);
   }
 
@@ -669,7 +686,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const allPageIds = Object.keys(allPagesData);
     await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, cwd, versionConfig, basePath });
     await generateAgentJson({ config, pageIds: allPageIds, outDir, versionConfig });
-    await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig });
+    await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig, versionPages });
 
     // Redirects
     const redirects = collectRedirects(config, allPagesData, basePath);
@@ -1082,15 +1099,31 @@ async function generateAgentJson({ config, pageIds, outDir, versionConfig = null
   console.log(`  ${pc.green('✓')} Generated .well-known/agent.json`);
 }
 
-async function generateMcpServer({ config, pagesData, outDir, versionConfig = null }) {
+/**
+ * Generates a dependency-free stdio MCP server next to the built site.
+ *
+ * The server sits at the output root. For unversioned sites the Markdown pages
+ * (<id>.md) and search-index.json live right next to it; for versioned builds
+ * they live in <version>/ (and non-default versions only carry pages that changed,
+ * the rest are shared with the default version via <version>/_manifest.json), so
+ * the server is version-aware: every tool takes an optional `version` argument and
+ * defaults to the build's default version.
+ */
+function pageListOf(data) {
+  return Object.keys(data).map((id) => ({
+    id,
+    title: data[id].meta.title || toLabel(id),
+    desc: data[id].meta.description || data[id].meta.desc || '',
+  }));
+}
+
+async function generateMcpServer({ config, pagesData, outDir, versionConfig = null, versionPages = null }) {
   const siteTitle = config.name || 'Documentation';
   const siteDesc = config.description || '';
-  const pageIds = Object.keys(pagesData);
-  const pages = pageIds.map(id => ({
-    id,
-    title: pagesData[id].meta.title || toLabel(id),
-    desc: pagesData[id].meta.description || pagesData[id].meta.desc || '',
-  }));
+  const versioned = !!(versionConfig && versionPages && Object.keys(versionPages).length);
+  const pages = versioned ? null : pageListOf(pagesData);
+  const defaultVersion = versioned ? (versionConfig.default || Object.keys(versionPages)[0]) : null;
+  const pageCount = versioned ? (versionPages[defaultVersion] || []).length : pages.length;
 
   const server = `#!/usr/bin/env node
 // MCP server for ${siteTitle} — generated by DocsLit
@@ -1106,35 +1139,80 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const SITE = ${JSON.stringify(siteTitle)};
 const DESCRIPTION = ${JSON.stringify(siteDesc)};
+// Unversioned sites: PAGES + files next to this script.
+// Versioned sites: VERSION_PAGES[version] + files under <version>/.
 const PAGES = ${JSON.stringify(pages)};
+const VERSION_PAGES = ${JSON.stringify(versioned ? versionPages : null)};
+const DEFAULT_VERSION = ${JSON.stringify(defaultVersion)};
 
-let searchIndex = null;
+const searchIndexes = new Map();
 
-async function loadSearchIndex() {
-  if (searchIndex) return searchIndex;
-  try {
-    const raw = await readFile(join(__dirname, 'search-index.json'), 'utf8');
-    searchIndex = JSON.parse(raw);
-  } catch {
-    searchIndex = [];
+class ToolFailure extends Error {}
+
+/** Resolve the requested version (default: the build's default). null for unversioned sites. */
+function resolveVersion(args) {
+  if (!VERSION_PAGES) return null;
+  const v = args.version === undefined || args.version === null || args.version === '' ? DEFAULT_VERSION : String(args.version);
+  if (!Object.prototype.hasOwnProperty.call(VERSION_PAGES, v)) {
+    throw new ToolFailure(\`Unknown version "\${v}". Available versions: \${Object.keys(VERSION_PAGES).join(', ')} (default: \${DEFAULT_VERSION}).\`);
   }
-  return searchIndex;
+  return v;
 }
 
-async function getPage(id) {
-  const mdPath = join(__dirname, id + '.md');
+function pagesFor(version) {
+  return version === null ? PAGES : VERSION_PAGES[version];
+}
+
+function dirFor(version) {
+  return version === null ? __dirname : join(__dirname, version);
+}
+
+async function readJsonFile(file) {
   try {
-    return await readFile(mdPath, 'utf8');
+    return JSON.parse(await readFile(file, 'utf8'));
   } catch {
     return null;
   }
 }
 
+async function loadSearchIndex(version) {
+  const key = version === null ? '' : version;
+  if (searchIndexes.has(key)) return searchIndexes.get(key);
+  const index = (await readJsonFile(join(dirFor(version), 'search-index.json'))) || [];
+  searchIndexes.set(key, index);
+  return index;
+}
+
+async function getPage(id, version) {
+  const slug = String(id || '').trim().replace(/^\\/+/, '').replace(/\\.md$/, '');
+  // Only serve pages that exist in this version's page list (also blocks path traversal).
+  if (!pagesFor(version).some((p) => p.id === slug)) return null;
+  const dirs = [dirFor(version)];
+  if (version !== null) {
+    // Non-default versions only contain changed pages; others are shared (see _manifest.json).
+    const manifest = await readJsonFile(join(dirFor(version), '_manifest.json'));
+    if (manifest && manifest[slug] && manifest[slug] !== version && Object.prototype.hasOwnProperty.call(VERSION_PAGES, manifest[slug])) {
+      dirs.push(dirFor(manifest[slug]));
+    }
+    if (version !== DEFAULT_VERSION) dirs.push(dirFor(DEFAULT_VERSION));
+  }
+  for (const dir of dirs) {
+    try {
+      return await readFile(join(dir, slug + '.md'), 'utf8');
+    } catch { /* try the next location */ }
+  }
+  return null;
+}
+
+const versionProperty = VERSION_PAGES
+  ? { version: { type: 'string', description: \`Documentation version (default: \${DEFAULT_VERSION}). Available: \${Object.keys(VERSION_PAGES).join(', ')}\` } }
+  : {};
+
 const tools = [
   {
     name: 'list_pages',
     description: 'List all documentation pages with titles and descriptions',
-    inputSchema: { type: 'object', properties: {} },
+    inputSchema: { type: 'object', properties: { ...versionProperty } },
   },
   {
     name: 'get_page',
@@ -1143,6 +1221,7 @@ const tools = [
       type: 'object',
       properties: {
         slug: { type: 'string', description: 'Page slug (e.g. "quickstart" or "guides/setup")' },
+        ...versionProperty,
       },
       required: ['slug'],
     },
@@ -1154,6 +1233,7 @@ const tools = [
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Search query' },
+        ...versionProperty,
       },
       required: ['query'],
     },
@@ -1162,23 +1242,26 @@ const tools = [
 
 async function handleToolCall(name, args) {
   if (name === 'list_pages') {
-    const list = PAGES.map(p => p.desc ? \`- **\${p.title}** (\${p.id}): \${p.desc}\` : \`- **\${p.title}** (\${p.id})\`).join('\\n');
-    return \`# \${SITE}\\n\\n\${list}\`;
+    const version = resolveVersion(args);
+    const list = pagesFor(version).map(p => p.desc ? \`- **\${p.title}** (\${p.id}): \${p.desc}\` : \`- **\${p.title}** (\${p.id})\`).join('\\n');
+    return \`# \${SITE}\${version !== null ? \` (version \${version})\` : ''}\\n\\n\${list}\`;
   }
 
   if (name === 'get_page') {
+    const version = resolveVersion(args);
     const slug = args.slug;
-    const content = await getPage(slug);
-    if (!content) return \`Page "\${slug}" not found. Use list_pages to see available pages.\`;
+    const content = await getPage(slug, version);
+    if (!content) throw new ToolFailure(\`Page "\${slug}" not found\${version !== null ? \` in version \${version}\` : ''}. Use list_pages to see available pages.\`);
     return content;
   }
 
   if (name === 'search_docs') {
+    const version = resolveVersion(args);
     const query = (args.query || '').toLowerCase();
-    const index = await loadSearchIndex();
+    const index = await loadSearchIndex(version);
     const results = index
-      .filter(p => p.title.toLowerCase().includes(query) ||
-                   p.desc.toLowerCase().includes(query) ||
+      .filter(p => (p.title || '').toLowerCase().includes(query) ||
+                   (p.desc || '').toLowerCase().includes(query) ||
                    (p.body || '').toLowerCase().includes(query))
       .slice(0, 10);
 
@@ -1197,7 +1280,7 @@ async function handleToolCall(name, args) {
     }).join('\\n');
   }
 
-  return \`Unknown tool: \${name}\`;
+  throw new ToolFailure(\`Unknown tool: \${name}\`);
 }
 
 function send(msg) {
@@ -1219,19 +1302,23 @@ function handleMessage(msg) {
   const { id, method, params } = msg;
 
   if (method === 'initialize') {
-    const SUPPORTED = ['2025-06-18', '2025-03-26', '2024-11-05'];
+    const SUPPORTED = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
     const asked = params && params.protocolVersion;
     return respond(id, { protocolVersion: SUPPORTED.includes(asked) ? asked : SUPPORTED[0], capabilities: CAPABILITIES, serverInfo: SERVER_INFO });
   }
   if (method === 'notifications/initialized') return;
+  if (method === 'ping') return respond(id, {});
   if (method === 'tools/list') {
     return respond(id, { tools });
   }
   if (method === 'tools/call') {
-    const { name, arguments: args } = params;
+    const { name, arguments: args } = params || {};
     handleToolCall(name, args || {}).then(text => {
       respond(id, { content: [{ type: 'text', text }] });
-    }).catch(e => respondError(id, -32603, String(e && e.message || e)));
+    }).catch(e => {
+      if (e instanceof ToolFailure) respond(id, { content: [{ type: 'text', text: e.message }], isError: true });
+      else respondError(id, -32603, String(e && e.message || e));
+    });
     return;
   }
   if (id !== undefined) {
@@ -1260,7 +1347,8 @@ process.stderr.write(\`\${SITE} MCP server running on stdio\\n\`);
 `;
 
   await fs.writeFile(path.join(outDir, 'mcp-server.js'), server);
-  console.log(`  ${pc.green('✓')} Generated mcp-server.js (${pageIds.length} pages, 3 tools: list_pages, get_page, search_docs)`);
+  const verNote = versioned ? `, ${Object.keys(versionPages).length} versions (default ${defaultVersion})` : '';
+  console.log(`  ${pc.green('✓')} Generated mcp-server.js (${pageCount} pages${verNote}, 3 tools: list_pages, get_page, search_docs)`);
 }
 
 function toLabel(id) {
@@ -1355,6 +1443,7 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
     if (!await fs.pathExists(mdPath)) continue;
     const raw = await fs.readFile(mdPath, 'utf8');
     let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+      onWarning: warnPage,
       docsRoot: docsDir,
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config),

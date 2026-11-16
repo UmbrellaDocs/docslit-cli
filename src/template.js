@@ -1882,8 +1882,9 @@ async function loadPage(id, el) {
       var sidebarEl = document.querySelector('.sidebar-item[data-page="' + id + '"]');
       if (sidebarEl) {
         var labelSpan = sidebarEl.querySelector('.api-nav-label');
-        if (labelSpan) labelSpan.textContent = meta.title;
-        else sidebarEl.textContent = meta.title;
+        var sidebarLabel = (typeof meta.sidebar_title === 'string' && meta.sidebar_title.trim()) || meta.title;
+        if (labelSpan) labelSpan.textContent = sidebarLabel;
+        else sidebarEl.textContent = sidebarLabel;
       }
     }
     var metaDesc = document.querySelector('meta[name="description"]');

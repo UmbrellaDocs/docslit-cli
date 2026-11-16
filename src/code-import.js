@@ -24,6 +24,19 @@ const EXT_LANG = {
   sql: 'sql', toml: 'toml', xml: 'xml', ps1: 'powershell', dockerfile: 'dockerfile',
 };
 
+/**
+ * Stable machine-readable codes attached to every import error (`error.code`),
+ * with a short fix suggestion each (used by `docslit validate`).
+ */
+export const CODE_IMPORT_FIXES = {
+  'code-import-invalid-path': 'Set file="path/inside/project.ext" (a non-empty path relative to the project root)',
+  'code-import-outside-project': 'Point file= at a file inside the project root (no "..", symlinks out, .git, node_modules or .env paths)',
+  'code-import-missing-file': 'Create the file, or fix the file= path (paths are relative to the project root, next to docslit.json)',
+  'code-import-missing-region': 'Add matching "// #region NAME" and "// #endregion" markers to the source file, or fix region=',
+  'code-import-invalid-lines': 'Use lines="10-25", "10", "10-" or "1-3,8-9" within the file\'s line count',
+  'code-import-conflicting-options': 'Use either lines= or region=, not both',
+};
+
 /** Cheap check used by the preprocess fast path. */
 export const CODE_IMPORT_DETECT_RE = /(?:`{3,}|~{3,})(?:[^\n]*[ \t])?file\s*=\s*["']/;
 
@@ -63,11 +76,11 @@ function parseRanges(spec, total) {
   for (const part of String(spec).split(',')) {
     const p = part.trim();
     const m = p.match(/^(\d*)\s*-\s*(\d*)$/) || p.match(/^(\d+)$/);
-    if (!m || (m.length === 3 && !m[1] && !m[2])) return { error: `Invalid lines "${spec}" (use "10-25", "10", "10-" or "1-3,8-9")` };
+    if (!m || (m.length === 3 && !m[1] && !m[2])) return { error: `Invalid lines "${spec}" (use "10-25", "10", "10-" or "1-3,8-9")`, code: 'code-import-invalid-lines' };
     const start = m[1] ? Number(m[1]) : 1;
     const end = m.length === 2 ? start : (m[2] ? Number(m[2]) : total);
     if (start < 1 || end < start || start > total || end > total) {
-      return { error: `Line range ${p} is out of range (file has ${total} line${total === 1 ? '' : 's'})` };
+      return { error: `Line range ${p} is out of range (file has ${total} line${total === 1 ? '' : 's'})`, code: 'code-import-invalid-lines' };
     }
     ranges.push([start, end]);
   }
@@ -98,12 +111,12 @@ export function extractCode(text, { lines: linesSpec, region } = {}) {
   if (all.length && all[all.length - 1] === '') all.pop();
   let selected = all;
 
-  if (linesSpec && region) return { error: 'Use either "lines" or "region", not both' };
+  if (linesSpec && region) return { error: 'Use either "lines" or "region", not both', code: 'code-import-conflicting-options' };
 
   if (region) {
     const startRe = regionStartRe(region);
     const startIdx = all.findIndex((l) => startRe.test(l));
-    if (startIdx === -1) return { error: `Region "${region}" not found` };
+    if (startIdx === -1) return { error: `Region "${region}" not found`, code: 'code-import-missing-region' };
     let depth = 1;
     let endIdx = -1;
     for (let i = startIdx + 1; i < all.length; i++) {
@@ -113,11 +126,11 @@ export function extractCode(text, { lines: linesSpec, region } = {}) {
         if (depth === 0) { endIdx = i; break; }
       }
     }
-    if (endIdx === -1) return { error: `Region "${region}" has no matching endregion marker` };
+    if (endIdx === -1) return { error: `Region "${region}" has no matching endregion marker`, code: 'code-import-missing-region' };
     selected = all.slice(startIdx + 1, endIdx);
   } else if (linesSpec) {
     const { ranges, error } = parseRanges(linesSpec, all.length);
-    if (error) return { error };
+    if (error) return { error, code: 'code-import-invalid-lines' };
     selected = ranges.flatMap(([s, e]) => all.slice(s - 1, e));
   }
 
@@ -129,12 +142,12 @@ export function extractCode(text, { lines: linesSpec, region } = {}) {
 
 function validateRelPath(rel) {
   const normalized = String(rel || '').replace(/\\/g, '/').trim().replace(/^\/+/, '');
-  if (!normalized) return { error: 'Code import "file" is empty' };
-  if (normalized.includes('\0')) return { error: 'Code import path is invalid' };
+  if (!normalized) return { error: 'Code import "file" is empty', code: 'code-import-invalid-path' };
+  if (normalized.includes('\0')) return { error: 'Code import path is invalid', code: 'code-import-invalid-path' };
   const parts = path.posix.normalize(normalized).split('/');
-  if (parts.includes('..')) return { error: `Code import "${rel}" resolves outside the project root` };
+  if (parts.includes('..')) return { error: `Code import "${rel}" resolves outside the project root`, code: 'code-import-outside-project' };
   if (parts.some((p) => p === '.git' || p === 'node_modules' || p.startsWith('.env'))) {
-    return { error: `Code import "${rel}" targets a protected path` };
+    return { error: `Code import "${rel}" targets a protected path`, code: 'code-import-outside-project' };
   }
   return { rel: parts.join('/') };
 }
@@ -176,20 +189,20 @@ export async function expandCodeImports(content, {
     }
 
     const lineNo = i + 1;
-    const fail = (message) => {
-      result.errors.push({ file: pagePath, line: lineNo, message });
+    const fail = (message, code = 'code-import-missing-file') => {
+      result.errors.push({ file: pagePath, line: lineNo, message, code });
       out.push(...block);
     };
 
     const checked = validateRelPath(attrs.file);
-    if (checked.error) { fail(checked.error); i = j + 1; continue; }
+    if (checked.error) { fail(checked.error, checked.code); i = j + 1; continue; }
     const abs = path.resolve(root, checked.rel);
-    if (!abs.startsWith(root + path.sep)) { fail(`Code import "${attrs.file}" resolves outside the project root`); i = j + 1; continue; }
+    if (!abs.startsWith(root + path.sep)) { fail(`Code import "${attrs.file}" resolves outside the project root`, 'code-import-outside-project'); i = j + 1; continue; }
     if (!await pathExists(abs)) { fail(`Code import file not found: ${checked.rel}`); i = j + 1; continue; }
     if (strictFsSafety) {
       try {
         const [real, rootReal] = await Promise.all([fs.realpath(abs), fs.realpath(root)]);
-        if (!real.startsWith(rootReal + path.sep)) { fail(`Code import "${attrs.file}" escapes the project root via symlink`); i = j + 1; continue; }
+        if (!real.startsWith(rootReal + path.sep)) { fail(`Code import "${attrs.file}" escapes the project root via symlink`, 'code-import-outside-project'); i = j + 1; continue; }
         if (!(await fs.stat(real)).isFile()) { fail(`Code import "${attrs.file}" is not a file`); i = j + 1; continue; }
       } catch (e) {
         fail(`Code import file not readable: ${checked.rel}`); i = j + 1; continue;
@@ -201,7 +214,7 @@ export async function expandCodeImports(content, {
     try { text = await readFile(abs); } catch { fail(`Code import file not found: ${checked.rel}`); i = j + 1; continue; }
 
     const extracted = extractCode(text, { lines: attrs.lines, region: attrs.region });
-    if (extracted.error) { fail(`${extracted.error} in ${checked.rel}`); i = j + 1; continue; }
+    if (extracted.error) { fail(`${extracted.error} in ${checked.rel}`, extracted.code); i = j + 1; continue; }
 
     // Lengthen the fence if the code itself contains a fence-like line.
     let fenceLen = fence.length;

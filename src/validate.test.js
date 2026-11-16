@@ -153,3 +153,163 @@ describe('runValidation include/variable line numbers', () => {
     } finally { await fs.remove(d); }
   });
 });
+
+describe('validate: component markup, assets, vars, code imports, math, CLI', () => {
+  let dir;
+  const write = (rel, text) => fs.outputFile(path.join(dir, rel), text);
+  const pageList = [];
+  const page = async (slug, body, fm = 'title: T') => {
+    pageList.push(slug);
+    await write(`docs/${slug}.md`, `---\n${fm}\n---\n\n${body}\n`);
+    await fs.writeJson(path.join(dir, 'docslit.json'), { name: 'F', sidebar: [{ group: 'G', pages: pageList }], ...(dir.extra || {}) });
+  };
+
+  beforeAll(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'docslit-validate2-'));
+    await fs.ensureDir(path.join(dir, 'docs'));
+    await write('images/real.png', 'x');
+    await write('docs/shot.png', 'x');
+    await write('components/widget.js', "customElements.define('wc-widget', class extends HTMLElement {});\n");
+    await write('components/wc-fancy-box.js', 'export {};\n');
+    await write('src/code.js', 'a\nb\nc\n');
+    await page('markup',
+      [
+        '<wc-callout type="warnning" colour="red">',
+        'hi',
+        '</wc-callout>',
+        '',
+        '```html',
+        '<wc-callout>',
+        'inside a fence',
+        '</wc-callout>',
+        '</wc-callout>',
+        '```',
+        '',
+        '<wc-tabs>',
+        '<wc-tab title="x">a</wc-tab>',
+        '</wc-tabs>',
+        '',
+        '<wc-schema type="U">',
+        '<wc-field name="id" type="string">Id</wc-field>',
+        '</wc-schema>',
+        '',
+        '<wc-var name="X" value="1" />',
+        '',
+        '<wc-widget>custom</wc-widget> <wc-fancy-box>custom 2</wc-fancy-box>',
+        '',
+        '<wc-steps>',
+        '<wc-step title="a">',
+        'never closed',
+        '</wc-steps>',
+      ].join('\n'));
+    await page('assets', [
+      '![md missing](images/nope.png)',
+      '![ok bare](images/real.png)',
+      '![ok docs](shot.png)',
+      '![ok abs](/images/real.png)',
+      '<img src="rel/nope2.png" alt="x">',
+      '![remote](https://example.com/a.png)',
+    ].join('\n'));
+    await page('vars', [
+      'Runtime: <wc-var name="DOMAIN" default="docs.example.com"></wc-var> -> {{DOMAIN}}',
+      '',
+      'Build: <wc-var name="BUILD" value="1" /> {{BUILD}}',
+      '',
+      'Undefined: {{NOPE}}',
+    ].join('\n'));
+    await page('imports', [
+      '```js file="src/missing.js"', '```', '',
+      '```js file="src/code.js" region="nope"', '```', '',
+      '```js file="src/code.js" lines="9-10"', '```', '',
+      '```js file="../outside.js"', '```',
+    ].join('\n'));
+    await page('math', 'Good $$x^2$$ and bad $$\\foo{x}$$ here.\n\n```math\n\\frac{1}{\n```');
+  });
+  afterAll(async () => { await fs.remove(dir); });
+
+  const forFile = (r, name) => r.issues.filter((i) => i.file === path.join('docs', `${name}.md`));
+
+  it('reports attribute/value/nesting/unclosed issues with codes, levels, fix and whole-file lines', async () => {
+    const r = await runValidation(dir);
+    const issues = forFile(r, 'markup');
+    const by = (code) => issues.filter((i) => i.code === code);
+
+    expect(by('invalid-attribute-value')).toHaveLength(1);
+    expect(by('invalid-attribute-value')[0]).toMatchObject({ level: 'warning', line: 5 });
+    expect(by('invalid-attribute-value')[0].fix).toMatch(/warning/);
+    expect(by('unknown-attribute').map((i) => i.level)).toEqual(['warning', 'warning']);
+    expect(by('unknown-attribute')[0].line).toBe(5);
+    expect(by('unknown-attribute')[0].fix).toBeTruthy();
+    expect(by('missing-required-attribute')).toHaveLength(1);
+    expect(by('unclosed-tag')).toHaveLength(1);
+    expect(by('unclosed-tag')[0]).toMatchObject({ level: 'error', line: 29 });
+    // Nothing from the fenced block, wc-schema > wc-field, compile-time wc-var, or custom components.
+    expect(by('unexpected-closing-tag')).toEqual([]);
+    expect(by('invalid-parent')).toEqual([]);
+    expect(by('self-closing-syntax')).toEqual([]);
+    expect(issues.filter((i) => i.code === 'unknown-component')).toEqual([]);
+    expect(issues.some((i) => i.code === 'other')).toBe(false);
+  });
+
+  it('checks Markdown and HTML images once each, including bare relative paths', async () => {
+    const r = await runValidation(dir);
+    const missing = forFile(r, 'assets').filter((i) => i.code === 'missing-asset');
+    expect(missing.map((i) => i.message.match(/"(.+?)"/)[1]).sort()).toEqual(['images/nope.png', 'rel/nope2.png']);
+    expect(missing.every((i) => i.level === 'error' && i.fix)).toBe(true);
+  });
+
+  it('treats runtime <wc-var default> as defining {{VAR}}', async () => {
+    const r = await runValidation(dir);
+    const undefinedVars = forFile(r, 'vars').filter((i) => i.code === 'var-undefined');
+    expect(undefinedVars.map((i) => i.message)).toEqual(['Undefined variable "{{NOPE}}"']);
+  });
+
+  it('gives code-import failures specific codes and fixes', async () => {
+    const r = await runValidation(dir);
+    const imports = forFile(r, 'imports');
+    expect(imports.map((i) => i.code)).toEqual([
+      'code-import-missing-file', 'code-import-missing-region', 'code-import-invalid-lines', 'code-import-outside-project',
+    ]);
+    expect(imports.every((i) => i.level === 'error' && i.fix && i.line)).toBe(true);
+    expect(imports[0].line).toBe(5);
+  });
+
+  it('reports invalid TeX as math-invalid warnings with the KaTeX message and line', async () => {
+    const r = await runValidation(dir);
+    const m = forFile(r, 'math').filter((i) => i.code === 'math-invalid');
+    expect(m).toHaveLength(2);
+    expect(m[0]).toMatchObject({ level: 'warning', line: 5 });
+    expect(m[0].message).toMatch(/Undefined control sequence: \\foo/);
+    expect(m[0].message).not.toMatch(/\u0332/);
+    expect(m[1].line).toBe(7);
+    expect(m[0].fix).toBeTruthy();
+  });
+
+  it('CLI: github format prints only annotations; unknown --format and unknown flags are rejected', async () => {
+    const gh = await run(['validate', '--format', 'github'], dir);
+    expect(gh.stdout.split('\n').filter(Boolean).every((l) => l.startsWith('::'))).toBe(true);
+    expect(gh.stdout).not.toMatch(/Validating/);
+    expect(gh.stdout).toMatch(/title=math-invalid/);
+
+    const bad = await run(['validate', '--format', 'xml'], dir);
+    expect(bad.code).toBe(1);
+    expect(bad.stderr).toMatch(/Unknown format: xml/);
+    expect(bad.stdout).toBe('');
+
+    const flag = await run(['validate', '--bogus'], dir);
+    expect(flag.code).toBe(1);
+    expect(flag.stderr).toMatch(/Unknown option.*--bogus/);
+
+    const eq = await run(['validate', '--format=json'], dir);
+    expect(() => JSON.parse(eq.stdout)).not.toThrow();
+  });
+
+  it('CLI: lint rejects --fix and unknown formats', async () => {
+    const fix = await run(['lint', '--fix'], dir);
+    expect(fix.code).toBe(1);
+    expect(fix.stderr).toMatch(/Unknown option.*--fix/);
+    const fmt = await run(['lint', '--format', 'xml'], dir);
+    expect(fmt.code).toBe(1);
+    expect(fmt.stderr).toMatch(/Unknown format: xml/);
+  });
+});

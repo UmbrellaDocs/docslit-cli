@@ -367,7 +367,8 @@ Tabbed content switcher for alternative instructions.
 
 - Body: children. One or more wc-tab elements.
 - Children: `wc-tab`
-- Attributes: none
+- Attributes:
+  - `sync` (string): Sync key. Tab groups on the same page (wc-tabs and wc-code-group) that share a sync value switch together when the reader picks a tab label, and the choice is remembered in localStorage. Tab labels must match across groups.
 
 ````markdown
 <wc-tabs>
@@ -488,7 +489,8 @@ Tabbed group of code snippets (e.g. one per package manager or language).
 
 - Body: children. One or more wc-code-tab elements.
 - Children: `wc-code-tab`
-- Attributes: none
+- Attributes:
+  - `sync` (string): Sync key. Tab groups on the same page (wc-tabs and wc-code-group) that share a sync value switch together when the reader picks a tab label, and the choice is remembered in localStorage. Tab labels must match across groups.
 
 ```markdown
 <wc-code-group>
@@ -516,11 +518,11 @@ A single labelled snippet inside wc-code-group (or wc-endpoint). Content is raw 
 
 #### `wc-icon`
 
-Inline icon (Lucide name or Font Awesome class).
+Inline icon: one of 33 built-in SVG icons, or any free Font Awesome 6 icon (fetched from the jsDelivr CDN when the page is viewed, so it needs a network connection and will not render offline).
 
 - Body: none
 - Attributes:
-  - `name` (string, required): Icon name: a built-in Lucide name, or a Font Awesome class like "fa-brands fa-github".
+  - `name` (string, required): Built-in icon name (e.g. check, x, warning, info, error, arrow-right, chevron-down, external-link, link, copy, download, code, terminal, file, folder, search, star, zap, book, settings, user, home, grid, list, eye, lock, package, globe, cpu), or a Font Awesome icon as a bare name ("github", "gear") or class string ("fa-brands fa-github", "fa-solid fa-gear", "far fa-star"; fa-solid/fas, fa-regular/far and fa-brands/fab are understood, size and animation modifiers such as fa-lg are ignored). A bare name picks the brands set for well-known brands (github, docker, npm, slack…), otherwise solid.
   - `size` (number): Icon size in pixels.
   - `color` (string): Icon color (any CSS color).
 
@@ -693,7 +695,7 @@ The user's role.
 A single parameter/property row: name, type, flags and a Markdown description. Can nest other wc-field elements for object properties.
 
 - Body: markdown. Field description (inline Markdown). May also contain nested wc-field elements.
-- Parent: `wc-fields`, `wc-response-fields`, `wc-field`
+- Parent: `wc-fields`, `wc-response-fields`, `wc-schema`, `wc-field`
 - Children: `wc-field`
 - Attributes:
   - `name` (string, required): Parameter or property name.

@@ -114,7 +114,6 @@ class WcCodeBlock extends LitElement {
     .menu-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border:none;background:none;width:100%;cursor:pointer;font-size:13px;font-family:'Inter',sans-serif;color:var(--text3);border-radius:6px;transition:background .15s;white-space:nowrap}
     .menu-item:hover{background:var(--surface2,#1a1a1a)}
     .menu-item svg{flex-shrink:0}
-    .line{display:block}
     :host(.light-shiki) .line span,:host([theme="light"]) .line span{color:var(--shiki-light) !important}
     @media(max-width:640px){.header{padding:8px 12px;}.filename{font-size:11px;}.lang{font-size:10px;}pre{padding:10px 8px;font-size:12px;line-height:1.6;}}
   \`;
@@ -125,7 +124,10 @@ class WcCodeBlock extends LitElement {
         this._highlighted=this.innerHTML.trim();
         const tmp=document.createElement('div');
         tmp.innerHTML=this._highlighted;
-        this._code=tmp.textContent;
+        // Shiki separates lines with real newline characters between inline .line spans
+        // (do NOT make .line display:block: the newlines would then add a second break).
+        // A trailing newline in the source adds an empty final .line; don't count it.
+        this._code=tmp.textContent.replace(/\\n$/,'');
       }else{
         this._code=this.innerHTML.trim().replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
       }
@@ -236,7 +238,6 @@ class WcCodeGroup extends LitElement {
     .panel{display:none}.panel.active{display:block}
     pre{margin:0;padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:var(--code-text);max-width:100%;box-sizing:border-box;scrollbar-width:none}
     pre::-webkit-scrollbar{display:none}
-    .line{display:block}
     :host(.light-shiki) .line span,:host([theme="light"]) .line span{color:var(--shiki-light) !important}
     @media(max-width:640px){.tab-btn{padding:7px 12px;font-size:11px;}pre{padding:10px 8px;font-size:12px;}}
     @media(prefers-reduced-motion:reduce){.tab-btn{transition:none}}

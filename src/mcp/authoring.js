@@ -19,6 +19,12 @@ import {
   customComponentTags, issuesForPage, safeFrontmatter, walkDocs, toPosix,
 } from './project.js';
 
+// Issue codes produced by checkMarkup (shared with `docslit validate`).
+const MARKUP_CODES = new Set([
+  'unclosed-tag', 'unexpected-closing-tag', 'malformed-tag', 'unknown-attribute', 'invalid-attribute-value',
+  'missing-required-attribute', 'invalid-parent', 'invalid-child', 'self-closing-syntax',
+]);
+
 const RO = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 
 /** Run fn with console.log/info/warn redirected to stderr so stdout stays pure JSON-RPC. */
@@ -121,13 +127,20 @@ export function createAuthoringDefinition({ dir, version = '1.0.0' }) {
       quiet(() => runValidation(dir)),
       markupReport(rel, raw, id),
     ]);
-    const validation = issuesForPage(val.issues, rel, id);
+    // validate now includes the same markup checks (attributes, enum values, nesting);
+    // report those once, under `markup`, not twice.
+    const validation = issuesForPage(val.issues, rel, id).filter((i) => !MARKUP_CODES.has(i.code));
     const errors = validation.filter((i) => i.level === 'error').length + markup.summary.errors;
+    const warnings = validation.filter((i) => i.level === 'warning').length + markup.summary.warnings;
     return {
       ok: errors === 0,
       validation,
       markup: markup.issues,
-      note: errors === 0 ? 'No errors for this page.' : 'Fix the errors above, then call validate again.',
+      note: errors > 0
+        ? 'Fix the errors above, then call validate again.'
+        : warnings > 0
+          ? `No errors, but ${warnings} warning${warnings === 1 ? '' : 's'} (e.g. a wrong attribute name or value) — review and fix them.`
+          : 'No errors for this page.',
     };
   }
 

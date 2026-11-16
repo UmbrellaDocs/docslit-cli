@@ -131,6 +131,35 @@ describe('component manifest', () => {
     expect(problems).toEqual([]);
   });
 
+  it('documents every attribute a component reads via getAttribute/hasAttribute', () => {
+    // Lit `static properties` only covers reactive properties. Attributes read
+    // imperatively (e.g. `sync` on wc-tabs / wc-code-group, `cols` on wc-grid) are
+    // invisible to that scan, so also scan the literal names passed to
+    // getAttribute()/hasAttribute() in component source. Child reads (wc-tabs
+    // reading each wc-tab's `label`) count as long as SOME manifest entry
+    // documents the name; `this.getAttribute(..)` reads must be documented on the
+    // component's own entry.
+    const GLOBAL = new Set(['id', 'class', 'style', 'slot']);
+    const documented = new Set(manifest.flatMap((c) => c.attributes.map((a) => a.name)));
+    const problems = [];
+    for (const { file, src } of readComponentSources()) {
+      for (const m of src.matchAll(/(?:\b(this)|[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\.(?:get|has)Attribute\(\s*['"]([^'"]+)['"]/g)) {
+        const name = m[2];
+        if (GLOBAL.has(name)) continue;
+        if (!documented.has(name)) problems.push(`${file}: reads attribute "${name}" but no manifest entry documents it`);
+        if (m[1]) {
+          // Find the enclosing custom element class and make sure it lists the attribute.
+          const before = src.slice(0, m.index);
+          const cls = [...before.matchAll(/\nclass\s+([A-Za-z0-9_]+)\s+extends/g)].pop()?.[1];
+          const tag = cls && [...src.matchAll(new RegExp(`customElements\\.define\\(\\s*['"](wc-[a-z0-9-]+)['"]\\s*,\\s*${cls}\\s*\\)`, 'g'))][0]?.[1];
+          const entry = tag && manifest.find((c) => c.tag === tag);
+          if (entry && !entry.attributes.some((a) => a.name === name)) problems.push(`${file}: ${tag} reads this.getAttribute("${name}") but does not document it`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
   it('getComponent resolves tags with or without the wc- prefix', () => {
     expect(getComponent('wc-callout').tag).toBe('wc-callout');
     expect(getComponent('callout').tag).toBe('wc-callout');

@@ -44,6 +44,28 @@ export default `
   const _faCache={};
   const _faPending={};
 
+  // Accepts a bare name ("github", "zap") or Font Awesome classes
+  // ("fa-brands fa-github", "fa-solid fa-gear", "fas fa-user", "far fa-star").
+  // Returns { key, style, slug } where style is brands|solid|regular and slug the SVG file name.
+  const _FA_STYLE={'fa-solid':'solid','fas':'solid','fa':'solid','fa-regular':'regular','far':'regular','fa-brands':'brands','fab':'brands'};
+  const _FA_MODS=/^fa-(?:xs|sm|lg|xl|2xs|2xl|[1-9]x|10x|fw|spin|pulse|beat|fade|bounce|flip|shake|spin-pulse|spin-reverse|rotate-\\d+|flip-(?:horizontal|vertical|both)|inverse|border|pull-(?:left|right)|stack|ul|li)$/;
+  function _resolveIcon(raw){
+    const n=String(raw||'').trim();
+    if(!n)return {key:'',style:'',slug:''};
+    const parts=n.split(/\\s+/);
+    let style='',slug='';
+    for(const p of parts){
+      if(_FA_STYLE[p]){style=_FA_STYLE[p];continue;}
+      if(_FA_MODS.test(p))continue;
+      if(p.indexOf('fa-')===0)slug=p.slice(3);
+      else if(!slug)slug=p;
+    }
+    if(!slug)return {key:'',style:'',slug:''};
+    if(!style&&parts.length===1&&_ICONS[slug])return {key:slug,style:'',slug:slug};
+    if(!style)style=_FA_BRANDS.has(slug)?'brands':'solid';
+    return {key:style+'/'+slug,style:style,slug:slug};
+  }
+
   class WcIcon extends LitElement {
     static properties={name:{type:String},size:{type:Number},color:{type:String}};
     static styles=css\`
@@ -51,23 +73,24 @@ export default `
       span{display:flex;align-items:center;justify-content:center}
       svg{width:var(--icon-size,16px);height:var(--icon-size,16px);color:var(--icon-color,currentColor)}
     \`;
-    connectedCallback(){super.connectedCallback();if(this.name&&!_ICONS[this.name]&&!_faCache[this.name])this._fetchFa();}
-    updated(changed){if(changed.has('name')&&this.name&&!_ICONS[this.name]&&!_faCache[this.name])this._fetchFa();}
-    async _fetchFa(){
-      const n=this.name;
-      if(_faPending[n]){_faPending[n].then(()=>this.requestUpdate());return;}
-      const prefix=_FA_BRANDS.has(n)?'brands':'solid';
-      _faPending[n]=fetch('https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/svgs/'+prefix+'/'+n+'.svg')
-        .then(r=>r.ok?r.text():null)
-        .then(svg=>{if(svg){_faCache[n]=svg;}delete _faPending[n];})
-        .catch(()=>{delete _faPending[n];});
-      await _faPending[n];
+    _needsFetch(){const r=_resolveIcon(this.name);return !!r.slug&&!!r.style&&!_faCache[r.key]?r:null;}
+    connectedCallback(){super.connectedCallback();const r=this._needsFetch();if(r)this._fetchFa(r);}
+    updated(changed){if(changed.has('name')){const r=this._needsFetch();if(r)this._fetchFa(r);}}
+    async _fetchFa(r){
+      const k=r.key;
+      if(_faPending[k]){_faPending[k].then(()=>this.requestUpdate());return;}
+      _faPending[k]=fetch('https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/svgs/'+r.style+'/'+r.slug+'.svg')
+        .then(res=>res.ok?res.text():null)
+        .then(svg=>{if(svg){_faCache[k]=svg;}delete _faPending[k];})
+        .catch(()=>{delete _faPending[k];});
+      await _faPending[k];
       this.requestUpdate();
     }
     render(){
       const s=this.size||16;
       const c=this.color||'currentColor';
-      const svg=_ICONS[this.name]||_faCache[this.name];
+      const r=_resolveIcon(this.name);
+      const svg=r.style?_faCache[r.key]:_ICONS[r.key];
       if(svg){
         return html\`<span style="color:\${c};width:\${s}px;height:\${s}px" .innerHTML=\${svg.replace(/<svg/,'<svg width="'+s+'" height="'+s+'" fill="currentColor"')}></span>\`;
       }

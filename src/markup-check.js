@@ -69,13 +69,42 @@ function blank(s) {
   return s.replace(/[^\n]/g, ' ');
 }
 
+/**
+ * Blank out fenced code blocks (CommonMark-style): an opening fence of 3+
+ * backticks or tildes (any indentation, optional info string; backtick fences
+ * may not have backticks in the info string) runs until a closing fence of the
+ * same character that is at least as long and has nothing after it. An
+ * unterminated fence runs to the end of the input. Newlines are preserved.
+ */
+function maskFencedCode(src) {
+  const lines = src.split('\n');
+  let open = null; // { ch, len }
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.replace(/\r$/, '');
+    if (open) {
+      const close = /^[ \t]*([`~]{3,})[ \t\r]*$/.exec(line);
+      if (close && close[1].length >= open.len && [...close[1]].every((c) => c === open.ch)) {
+        open = null;
+      }
+      lines[i] = blank(raw);
+      continue;
+    }
+    const m = /^[ \t]*(`{3,}|~{3,})(.*)$/.exec(line);
+    if (m && !(m[1][0] === '`' && m[2].includes('`'))) {
+      open = { ch: m[1][0], len: m[1].length };
+      lines[i] = blank(raw);
+    }
+  }
+  return lines.join('\n');
+}
+
 /** Mask frontmatter, fenced code, HTML comments and inline code. */
 export function maskNonMarkup(src) {
   let s = String(src ?? '');
   const fm = s.match(/^﻿?---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/);
   if (fm) s = blank(fm[0]) + s.slice(fm[0].length);
-  // Fenced code blocks (``` or ~~~, closing fence must be >= opening length).
-  s = s.replace(/^([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n[ \t]*\2[`~]*[ \t]*(?=\n|$)|$)/gm, (m) => blank(m));
+  s = maskFencedCode(s);
   s = s.replace(/<!--[\s\S]*?(?:-->|$)/g, (m) => blank(m));
   // Inline code spans (same line).
   s = s.replace(/(?<!`)(`+)(?!`)[^\n]*?[^`\n]\1(?!`)/g, (m) => blank(m));
@@ -215,26 +244,28 @@ export function checkMarkup(markdown, { customTags = [], lineOffset = 0 } = {}) 
         const near = hint || nearest(name, [...known.keys()]);
         add('warning', 'unknown-attribute', `<${tag}> has no attribute "${attr.name}".${near ? ` Did you mean "${near}"?` : ''}${!near && known.size ? ` Valid attributes: ${[...known.keys()].join(', ')}.` : ''}`, attr.index, {
           tag, attribute: attr.name, ...(near ? { suggestion: near } : {}),
+          fix: near ? `Rename "${attr.name}" to "${near}".` : `Remove "${attr.name}"${known.size ? ` or use one of: ${[...known.keys()].join(', ')}` : ''}.`,
         });
         continue;
       }
       if (spec.values && attr.value !== null && !/\{\{|\{/.test(attr.value)) {
         if (!spec.values.includes(attr.value)) {
           const near = nearest(attr.value, spec.values);
-          add('error', 'invalid-attribute-value', `<${tag} ${spec.name}="${attr.value}"> is not valid. Allowed: ${spec.values.join(', ')}.${near ? ` Did you mean "${near}"?` : ''}`, idx, {
+          add('warning', 'invalid-attribute-value', `<${tag} ${spec.name}="${attr.value}"> is not valid. Allowed: ${spec.values.join(', ')}.${near ? ` Did you mean "${near}"?` : ''}`, idx, {
             tag, attribute: spec.name, ...(near ? { suggestion: near } : {}),
+            fix: near ? `Use ${spec.name}="${near}".` : `Use one of: ${spec.values.join(', ')}.`,
           });
         }
       } else if (spec.values && attr.value === null && spec.type !== 'boolean') {
-        add('error', 'invalid-attribute-value', `<${tag} ${spec.name}> needs a value. Allowed: ${spec.values.join(', ')}.`, idx, { tag, attribute: spec.name });
+        add('warning', 'invalid-attribute-value', `<${tag} ${spec.name}> needs a value. Allowed: ${spec.values.join(', ')}.`, idx, { tag, attribute: spec.name, fix: `Use ${spec.name}="${spec.values[0]}" (one of: ${spec.values.join(', ')}).` });
       }
       if (spec.type === 'number' && attr.value !== null && attr.value !== '' && !/\{/.test(attr.value) && Number.isNaN(Number(attr.value))) {
-        add('warning', 'invalid-attribute-value', `<${tag} ${spec.name}="${attr.value}"> should be a number.`, idx, { tag, attribute: spec.name });
+        add('warning', 'invalid-attribute-value', `<${tag} ${spec.name}="${attr.value}"> should be a number.`, idx, { tag, attribute: spec.name, fix: `Use a numeric value for ${spec.name}.` });
       }
     }
     for (const a of def.attributes) {
       if (a.required && !seen.has(a.name)) {
-        add('error', 'missing-required-attribute', `<${tag}> requires the "${a.name}" attribute.`, idx, {
+        add('warning', 'missing-required-attribute', `<${tag}> requires the "${a.name}" attribute.`, idx, {
           tag, attribute: a.name, fix: `Add ${a.name}="..." to <${tag}>.`,
         });
       }
@@ -263,7 +294,9 @@ export function checkMarkup(markdown, { customTags = [], lineOffset = 0 } = {}) 
     }
 
     if (parsed.selfClose) {
-      if (!def.selfClosing) {
+      // Compile-time form, e.g. <wc-var name="X" value="..." /> (handled by the preprocessor).
+      const compileTime = def.selfClosingWith && seen.has(def.selfClosingWith);
+      if (!def.selfClosing && !compileTime) {
         add('warning', 'self-closing-syntax', `<${tag} ... /> is not valid HTML for custom elements; use <${tag} ...></${tag}>.`, idx, {
           tag, fix: `Write <${tag} ...></${tag}>.`,
         });

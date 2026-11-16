@@ -9,7 +9,7 @@ import rehypeStringify from 'rehype-stringify';
 import rehypeDocslitWcPreserve from './plugins/rehype-docslit-wc-preserve.js';
 import rehypeDocslitAsciidocTable from './plugins/rehype-docslit-asciidoc-table.js';
 import rehypeDocslitWcContent from './plugins/rehype-docslit-wc-content.js';
-import rehypeDocslitCode from './plugins/rehype-docslit-code.js';
+import rehypeDocslitCode, { rehypeDocslitCodeMeta } from './plugins/rehype-docslit-code.js';
 import rehypeDocslitVars from './plugins/rehype-docslit-vars.js';
 import rehypeDocslitLinkFix from './plugins/rehype-docslit-link-fix.js';
 import rehypeDocslitImages from './plugins/rehype-docslit-images.js';
@@ -51,6 +51,7 @@ function getProcessor(meta = {}) {
 
   return proc
     .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeDocslitCodeMeta)
     .use(rehypeRaw)
     .use(rehypeSlug)
     .use(rehypeDocslitMath)

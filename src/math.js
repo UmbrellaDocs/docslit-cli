@@ -4,6 +4,9 @@
 // Opt-in:                "math": { "singleDollar": true } enables $…$ inline.
 // Opt-out:               "math": false
 import { visit } from 'unist-util-visit';
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkGfm from 'remark-gfm';
 import katex from 'katex';
 import remarkMath from 'remark-math';
 import fs from 'fs-extra';
@@ -66,6 +69,44 @@ export function remarkDocslitMathDisplay() {
 function textOf(node) {
   if (node.type === 'text' || node.type === 'raw') return node.value;
   return (node.children || []).map(textOf).join('');
+}
+
+/** KaTeX decorates the error excerpt with combining underlines (U+0332); drop them. */
+function cleanKatexMessage(err) {
+  return String(err?.message || err).replace(/\u0332/g, '').replace(/^KaTeX parse error:\s*/i, '').trim();
+}
+
+/**
+ * Find math the KaTeX renderer rejects (the build otherwise renders a
+ * `katex-error` span and carries on). Pure; never throws.
+ *
+ * @param {string} markdown  Markdown body (frontmatter already removed)
+ * @param {object} [cfg]     resolved math config (defaults to the active one)
+ * @returns {Array<{ line: number, message: string, tex: string, display: boolean }>}
+ */
+export function findMathErrors(markdown, cfg = mathConfig) {
+  if (!cfg.enabled) return [];
+  const src = String(markdown ?? '');
+  const hasFence = /(?:`{3,}|~{3,})\s*math\b/.test(src);
+  if (!hasFence && !mayContainMath(src, cfg)) return [];
+  const errors = [];
+  try {
+    const tree = unified().use(remarkParse).use(remarkGfm).use(remarkMath, { singleDollarTextMath: cfg.singleDollar }).parse(src);
+    visit(tree, (node) => {
+      let tex;
+      let display = false;
+      if (node.type === 'inlineMath') tex = node.value;
+      else if (node.type === 'math') { tex = node.value; display = true; }
+      else if (node.type === 'code' && String(node.lang || '').toLowerCase() === 'math') { tex = node.value; display = true; }
+      else return;
+      try {
+        katex.renderToString(tex, { displayMode: display, throwOnError: true, output: 'htmlAndMathml', strict: 'ignore' });
+      } catch (err) {
+        errors.push({ line: node.position?.start?.line ?? 1, message: cleanKatexMessage(err), tex, display });
+      }
+    });
+  } catch { /* a parse failure here is reported by other checks */ }
+  return errors;
 }
 
 function renderKatex(tex, displayMode) {
