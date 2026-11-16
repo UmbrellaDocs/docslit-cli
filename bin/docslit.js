@@ -67,7 +67,9 @@ const help = `
                               "npx","args":["-y","docslit","mcp","<url>"]}}}
 
   DocsLit Cloud:
-    docslit login             Authenticate with DocsLit Cloud
+    docslit login             Authenticate with DocsLit Cloud (email + password prompt, or --token <token>;
+                              in CI set DOCSLIT_TOKEN instead)
+    docslit logout            Remove stored credentials (and revoke the token)
     docslit publish           Build and publish your docs to DocsLit Cloud
     docslit projects          List all published projects with URLs and status
     docslit rollback <slug>   Restore a project to a previous deploy
@@ -148,6 +150,9 @@ if (command === 'init') {
 } else if (command === 'login') {
   const { login } = await import('../src/login.js');
   await login(args.slice(1));
+} else if (command === 'logout') {
+  const { logout } = await import('../src/login.js');
+  await logout();
 } else if (command === 'whoami') {
   const { whoami } = await import('../src/whoami.js');
   await whoami();
