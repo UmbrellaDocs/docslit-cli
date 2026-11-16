@@ -217,14 +217,18 @@ export function createMcpServer({
       let buf = '';
       const pending = new Set();
       let ended = false;
+      let chain = Promise.resolve();
       const finish = () => { if (ended && pending.size === 0) resolve(); };
       const processLine = (line) => {
         line = line.replace(/\r$/, '');
         if (!line.trim()) return;
-        const p = handleLine(line)
+        // Sequential: messages are handled in arrival order so a pipelined
+        // create_page -> read_page script behaves deterministically.
+        const p = chain.then(() => handleLine(line))
           .then((out) => { if (out !== null) output.write(out + '\n'); })
           .catch((e) => log(`fatal handler error: ${e?.stack || e}`))
           .finally(() => { pending.delete(p); finish(); });
+        chain = p.catch(() => {});
         pending.add(p);
       };
       input.setEncoding?.('utf8');

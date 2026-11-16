@@ -99,3 +99,33 @@ describe('page feedback + math CSS in rendered pages', () => {
     expect(out).toContain('window.__DOCSLIT_FEEDBACK__={}');
   });
 });
+
+describe('math vs {{VAR}} expansion', () => {
+  const parse = (md, globalAttributes = {}) => parseDoc(md, { docsRoot: 'docs', globalAttributes });
+
+  it('does not expand {{VAR}} inside $$…$$, multi-line $$ and ```math fences', async () => {
+    const r = await parse('A $$x^{{N}}$$ and {{N}}.\n\n$$\n\\frac{{N}}{2}\n$$\n\n```math\ny^{{N}}\n```\n', { N: '7' });
+    expect(r.html).toContain('class="katex"');
+    expect(r.html).not.toMatch(/wc-var[^>]*name="N"[^>]*>[^]*katex/); // sanity
+    // outside math the variable is still substituted
+    expect(r.html).toMatch(/and 7\./);
+    // inside math the LaTeX source still contains the double braces (KaTeX annotation)
+    expect((r.html.match(/\{\{N\}\}/g) || []).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('does not warn about invalid placeholders for x^{{2}}', async () => {
+    const r = await parse('$$x^{{2}}$$');
+    expect(JSON.stringify(r.preprocess.diagnostics)).not.toContain('Invalid variable placeholder');
+    expect(r.html).toContain('class="katex"');
+  });
+
+  it('skips $…$ only when singleDollar is enabled', async () => {
+    setMathConfig({ singleDollar: true });
+    const on = await parse('Inline $a^{{N}}$ and {{N}}.', { N: '7' });
+    expect(on.html).toMatch(/and 7\./);
+    expect(on.html).toContain('{{N}}');
+    setMathConfig(undefined);
+    const off = await parse('Cost $5 {{N}} and $6.', { N: '7' });
+    expect(off.html).toContain('$5 7 and $6');
+  });
+});

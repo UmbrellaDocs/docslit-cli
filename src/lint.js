@@ -156,10 +156,18 @@ function analyze(raw, fmEndLine) {
     block.push(ln);
   }
   const inline = block.map((l) => l.replace(/(`+)[^`]+?\1/g, (m) => blank(m)));
-  // HTML comments (possibly multi-line) and pass:[...]
+  // Same as `inline`, but code spans become filler text so `[`code`](url)` keeps non-empty link text.
+  const filled = block.map((l) => l.replace(/(`+)[^`]+?\1/g, (m) => 'x'.repeat(m.length)));
+  const prose = stripComments(inline);
+  const linkText = stripComments(filled);
+  return { lines, block, inline, prose, linkText, fences, rawBlocks };
+}
+
+// Blank HTML comments (possibly multi-line) and pass:[...].
+function stripComments(src) {
   const prose = [];
   let inComment = false;
-  for (const l of inline) {
+  for (const l of src) {
     let out = '';
     let rest = l;
     while (rest.length) {
@@ -173,7 +181,7 @@ function analyze(raw, fmEndLine) {
     }
     prose.push(out.replace(/pass:\[[^\]]*\]/g, (m) => blank(m)));
   }
-  return { lines, block, inline, prose, fences, rawBlocks };
+  return prose;
 }
 
 function parseDirectives(inlineLines) {
@@ -339,7 +347,7 @@ function lintFile({ raw, rel, isReusable, cfg, push }) {
       const decorative = alt && m[1].toLowerCase() === 'img'; // <img alt=""> is an explicit decorative marker
       if (!present && !decorative) emit('image-missing-alt', line, `<${m[1]}> has no alt text`);
     }
-    for (const m of ln.matchAll(/(^|[^!\\])\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g)) {
+    for (const m of a.linkText[i].matchAll(/(^|[^!\\])\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g)) {
       const text = m[2].trim();
       const norm = text.toLowerCase().replace(/[.!:,\s→>»]+$/u, '').replace(/^[«<→\s]+/u, '').trim();
       if (!text) emit('link-text-vague', line, `Link to "${m[3]}" has no text`);
@@ -347,8 +355,8 @@ function lintFile({ raw, rel, isReusable, cfg, push }) {
       else if (VAGUE_TEXT.has(norm)) emit('link-text-vague', line, `Link text "${text}" does not describe the destination`);
     }
     // todo markers
-    const todo = /\b(TODO|FIXME|TBD)\b|lorem ipsum/i.exec(ln);
-    if (todo && (/^(TODO|FIXME|TBD)$/.test(todo[1] || '') || /lorem ipsum/i.test(todo[0]))) {
+    const todo = /\b(?:TODO|FIXME|TBD)\b|lorem ipsum/i.exec(ln);
+    if (todo && (/^(?:TODO|FIXME|TBD)$/.test(todo[0]) || /^lorem ipsum$/i.test(todo[0]))) {
       emit('todo-marker', line, `Placeholder text "${todo[0]}" left in prose`);
     }
     // raw html
@@ -389,7 +397,7 @@ function lintFile({ raw, rel, isReusable, cfg, push }) {
     const { min } = cfg['page-too-short'];
     const firstContent = a.lines.findIndex((l, i) => i >= fmEnd && l.trim()) + 1 || 1;
     if (words > max) emit('page-too-long', firstContent, `Page has ~${words} words (max ${max})`);
-    else if (words < min && !/<wc-(endpoint|api-examples|playground|runnable-endpoint|include|tiles|card)\b/.test(a.prose.join('\n')) &&
+    else if (words < min && !/<wc-(endpoint|api-examples|playground|runnable-endpoint|include|tiles|card|update)\b/.test(a.prose.join('\n')) &&
              data.layout !== 'api') {
       emit('page-too-short', firstContent, `Page has only ~${words} words (min ${min})`);
     }

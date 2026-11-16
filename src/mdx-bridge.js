@@ -65,13 +65,13 @@ export const COMPONENT_MAP = {
   Note:    { tag: 'wc-callout', fixedAttrs: { type: 'info',    title: 'Note'    } },
   Info:    { tag: 'wc-callout', fixedAttrs: { type: 'info',    title: 'Info'    } },
   Warning: { tag: 'wc-callout', fixedAttrs: { type: 'warning', title: 'Warning' } },
-  Danger:  { tag: 'wc-callout', fixedAttrs: { type: 'danger',  title: 'Danger'  } },
+  Danger:  { tag: 'wc-callout', fixedAttrs: { type: 'error',   title: 'Danger'  } },
   Caution: { tag: 'wc-callout', fixedAttrs: { type: 'warning', title: 'Caution' } },
   Tip:     { tag: 'wc-callout', fixedAttrs: { type: 'tip',     title: 'Tip'     } },
   Check:   { tag: 'wc-callout', fixedAttrs: { type: 'success', title: 'Check'   } },
   Success: { tag: 'wc-callout', fixedAttrs: { type: 'success', title: 'Success' } },
   // ── Cards ────────────────────────────────────────────────────────────────────
-  Card:      { tag: 'wc-card',  passAttrs: ['title', 'href', 'color'], attrRename: { icon: 'icon-name' } },
+  Card:      { tag: 'wc-card',  passAttrs: ['title', 'href'], attrRename: { icon: 'icon-name' } },
   CardGroup: { tag: 'wc-tiles', passAttrs: ['cols'] },
   // ── Tabs ─────────────────────────────────────────────────────────────────────
   Tabs: { tag: 'wc-tabs' },
@@ -85,20 +85,26 @@ export const COMPONENT_MAP = {
   // ── Code ─────────────────────────────────────────────────────────────────────
   CodeGroup: { tag: 'wc-code-group' },
   // ── Layout / media ───────────────────────────────────────────────────────────
-  Frame:   { tag: 'wc-frame',   passAttrs: ['caption', 'type'] },
+  Frame:   { tag: 'wc-frame',   passAttrs: ['caption'] },
   Columns: { tag: 'wc-columns' },
   Column:  { tag: null, unwrap: true },
   Panel:   { tag: 'wc-panel',   passAttrs: ['title'] },
   // ── UI elements ──────────────────────────────────────────────────────────────
-  Badge:      { tag: 'wc-badge',      passAttrs: ['variant', 'color'] },
-  Expandable: { tag: 'wc-expandable', passAttrs: ['title', 'defaultOpen'] },
-  Update:     { tag: 'wc-update',     passAttrs: ['label', 'date'] },
+  // Mintlify Badge `color` → wc-badge `variant` (unlisted colors are dropped).
+  Badge:      { tag: 'wc-badge',      passAttrs: ['variant'], attrRename: { color: 'variant' },
+                valueMap: { color: { green: 'success', red: 'danger', orange: 'warning', yellow: 'warning',
+                                     blue: 'info', purple: 'purple', gray: 'neutral', grey: 'neutral',
+                                     white: 'default', black: 'default' } } },
+  Expandable: { tag: 'wc-expandable', passAttrs: ['title'], attrRename: { defaultOpen: 'open' } },
+  Update:     { tag: 'wc-update',     passAttrs: ['date'], attrRename: { label: 'version' } },
   // ── API reference ────────────────────────────────────────────────────────────
   // Mintlify ParamField/ResponseField → docslit wc-field. Users wrap groups in
   // <wc-fields> or <wc-response-fields> themselves (Mintlify has no analogue).
   ParamField:    { tag: 'wc-field',
-                   passAttrs: ['name', 'type', 'required', 'optional', 'default'],
-                   attrRename: { path: 'name', query: 'name', body: 'name', header: 'name' } },
+                   passAttrs: ['name', 'type', 'required', 'default'],
+                   // `path="id"` etc. → name="id" in="path"
+                   attrRename: { path: 'name', query: 'name', body: 'name', header: 'name' },
+                   attrIn: { path: 'path', query: 'query', body: 'body', header: 'header' } },
   ResponseField: { tag: 'wc-field', passAttrs: ['name', 'type', 'required'] },
   // ── Tables ───────────────────────────────────────────────────────────────────
   AsciidocTable: {
@@ -170,7 +176,7 @@ export function parseJSXProps(raw) {
 
 // Build an HTML attribute string from parsed props + component config.
 export function buildAttrs(rawAttrStr, config) {
-  const { fixedAttrs = {}, passAttrs = [], attrRename = {} } = config;
+  const { fixedAttrs = {}, passAttrs = [], attrRename = {}, valueMap = {}, attrIn = {} } = config;
   const parts = [];
 
   // Fixed attrs always go first
@@ -190,6 +196,11 @@ export function buildAttrs(rawAttrStr, config) {
     if (prop.type === 'bool' && prop.value === true)  { parts.push(dest); continue; }
     if (prop.type === 'complex' || prop.value === null) continue; // can't convert
     let val = prop.value;
+    if (valueMap[prop.name]) {
+      val = valueMap[prop.name][String(val).toLowerCase()];
+      if (val === undefined) continue;
+    }
+    if (attrIn[prop.name]) parts.push(`in="${attrIn[prop.name]}"`);
     if (prop.name === 'icon' && typeof val === 'string') val = FA_TO_LUCIDE[val] || val;
     parts.push(`${dest}="${val}"`);
   }

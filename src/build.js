@@ -1201,8 +1201,7 @@ async function handleToolCall(name, args) {
 }
 
 function send(msg) {
-  const json = JSON.stringify(msg);
-  process.stdout.write(\`Content-Length: \${Buffer.byteLength(json)}\\r\\n\\r\\n\${json}\`);
+  process.stdout.write(JSON.stringify(msg) + '\\n');
 }
 
 function respond(id, result) {
@@ -1220,7 +1219,9 @@ function handleMessage(msg) {
   const { id, method, params } = msg;
 
   if (method === 'initialize') {
-    return respond(id, { protocolVersion: '2024-11-05', capabilities: CAPABILITIES, serverInfo: SERVER_INFO });
+    const SUPPORTED = ['2025-06-18', '2025-03-26', '2024-11-05'];
+    const asked = params && params.protocolVersion;
+    return respond(id, { protocolVersion: SUPPORTED.includes(asked) ? asked : SUPPORTED[0], capabilities: CAPABILITIES, serverInfo: SERVER_INFO });
   }
   if (method === 'notifications/initialized') return;
   if (method === 'tools/list') {
@@ -1230,7 +1231,7 @@ function handleMessage(msg) {
     const { name, arguments: args } = params;
     handleToolCall(name, args || {}).then(text => {
       respond(id, { content: [{ type: 'text', text }] });
-    });
+    }).catch(e => respondError(id, -32603, String(e && e.message || e)));
     return;
   }
   if (id !== undefined) {
@@ -1242,20 +1243,16 @@ let buffer = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => {
   buffer += chunk;
-  while (true) {
-    const headerEnd = buffer.indexOf('\\r\\n\\r\\n');
-    if (headerEnd < 0) break;
-    const header = buffer.slice(0, headerEnd);
-    const match = header.match(/Content-Length:\\s*(\\d+)/i);
-    if (!match) { buffer = buffer.slice(headerEnd + 4); continue; }
-    const len = parseInt(match[1], 10);
-    const bodyStart = headerEnd + 4;
-    if (buffer.length < bodyStart + len) break;
-    const body = buffer.slice(bodyStart, bodyStart + len);
-    buffer = buffer.slice(bodyStart + len);
+  let nl;
+  while ((nl = buffer.indexOf('\\n')) !== -1) {
+    const line = buffer.slice(0, nl).trim();
+    buffer = buffer.slice(nl + 1);
+    if (!line) continue;
     try {
-      handleMessage(JSON.parse(body));
-    } catch {}
+      handleMessage(JSON.parse(line));
+    } catch {
+      send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } });
+    }
   }
 });
 

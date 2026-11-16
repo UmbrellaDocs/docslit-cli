@@ -257,6 +257,36 @@
       "description": "Global variables available as {{NAME}} placeholders in every page. Page frontmatter attributes and <wc-var name value /> override them.",
       "additionalProperties": { "type": ["string", "number", "boolean"] }
     },
+    "lint": {
+      "description": "Docs quality linter settings for `docslit lint`.",
+      "type": "object",
+      "properties": {
+        "rules": {
+          "type": "object",
+          "description": "Per-rule level or options. Set a rule to \"off\" to disable it, or { \"level\": \"warning\", \"max\": 4000 } to tune it.",
+          "properties": {
+            "missing-description": { "$ref": "#/$defs/lintRule" },
+            "description-length": { "$ref": "#/$defs/lintRule" },
+            "title-h1-mismatch": { "$ref": "#/$defs/lintRule" },
+            "multiple-h1": { "$ref": "#/$defs/lintRule" },
+            "heading-skip": { "$ref": "#/$defs/lintRule" },
+            "duplicate-heading": { "$ref": "#/$defs/lintRule" },
+            "code-no-language": { "$ref": "#/$defs/lintRule" },
+            "image-missing-alt": { "$ref": "#/$defs/lintRule" },
+            "link-text-vague": { "$ref": "#/$defs/lintRule" },
+            "page-too-long": { "$ref": "#/$defs/lintRule" },
+            "page-too-short": { "$ref": "#/$defs/lintRule" },
+            "empty-section": { "$ref": "#/$defs/lintRule" },
+            "todo-marker": { "$ref": "#/$defs/lintRule" },
+            "raw-html-block": { "$ref": "#/$defs/lintRule" },
+            "callout-overuse": { "$ref": "#/$defs/lintRule" },
+            "long-paragraph": { "$ref": "#/$defs/lintRule" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "math": {
       "description": "Build-time LaTeX math (KaTeX). Enabled by default; set false to disable.",
       "oneOf": [
@@ -302,6 +332,21 @@
   },
   "additionalProperties": true,
   "$defs": {
+    "lintRule": {
+      "description": "A level (\"off\", \"info\", \"warning\", \"error\") or an object with a level and numeric thresholds (min / max).",
+      "oneOf": [
+        { "enum": ["off", "info", "warning", "error"] },
+        {
+          "type": "object",
+          "properties": {
+            "level": { "enum": ["off", "info", "warning", "error"] },
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "stringMap": {
       "type": "object",
       "additionalProperties": { "type": "string" }

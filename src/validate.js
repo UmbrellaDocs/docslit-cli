@@ -230,7 +230,7 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
     const invalidIncludeRe = /<wc-include\b[^>]*>(?:[\s\S]*?)<\/wc-include>/g;
     let badInclude;
     while ((badInclude = invalidIncludeRe.exec(bodySafe)) !== null) {
-      issues.push(issue('error', rel, lineOf(raw, badInclude.index),
+      issues.push(issue('error', rel, lineOf(body, badInclude.index) + bodyLineOffset,
         'wc-include must use self-closing syntax (<wc-include ... />)'));
     }
 
@@ -238,47 +238,47 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
     let includeMatch;
     while ((includeMatch = includeRe.exec(bodySafe)) !== null) {
       if (isReusable) {
-        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+        issues.push(issue('error', rel, lineOf(body, includeMatch.index) + bodyLineOffset,
           'Reusable files in docs/_reusables cannot contain wc-include'));
         continue;
       }
       const attrs = parseTagAttrs(includeMatch[1]);
       if (!attrs.src) {
-        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+        issues.push(issue('error', rel, lineOf(body, includeMatch.index) + bodyLineOffset,
           'wc-include requires a src attribute'));
         continue;
       }
       const mapped = mapIncludeSource(attrs.src);
       if (!mapped) {
-        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+        issues.push(issue('error', rel, lineOf(body, includeMatch.index) + bodyLineOffset,
           `Invalid include path "${attrs.src}" (must resolve under docs/_reusables)`));
         continue;
       }
       const normalized = path.posix.normalize(mapped).replace(/^\/+/, '');
       if (!normalized.startsWith('_reusables/') || normalized.split('/').includes('..')) {
-        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+        issues.push(issue('error', rel, lineOf(body, includeMatch.index) + bodyLineOffset,
           `Include "${attrs.src}" resolves outside docs/_reusables`));
         continue;
       }
       if (!normalized.endsWith('.md')) {
-        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+        issues.push(issue('error', rel, lineOf(body, includeMatch.index) + bodyLineOffset,
           `Include "${attrs.src}" must target a .md file`));
         continue;
       }
       const absTarget = path.resolve(docsRoot, normalized);
       if (!absTarget.startsWith(reusablesRoot + path.sep)) {
-        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+        issues.push(issue('error', rel, lineOf(body, includeMatch.index) + bodyLineOffset,
           `Include "${attrs.src}" resolves outside docs/_reusables`));
         continue;
       }
       if (!await fs.pathExists(absTarget)) {
-        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+        issues.push(issue('error', rel, lineOf(body, includeMatch.index) + bodyLineOffset,
           `Include target not found: docs/${normalized}`));
         continue;
       }
       const includeRaw = await fs.readFile(absTarget, 'utf8');
       if (/<wc-include\b/i.test(stripProtectedContent(includeRaw))) {
-        issues.push(issue('error', rel, lineOf(raw, includeMatch.index),
+        issues.push(issue('error', rel, lineOf(body, includeMatch.index) + bodyLineOffset,
           `Nested include found in reusable target: docs/${normalized}`));
       }
       const includeFm = matter(includeRaw);
@@ -295,7 +295,7 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
       const attrs = parseTagAttrs(dec[1]);
       if (!attrs.name || !Object.prototype.hasOwnProperty.call(attrs, 'value')) continue;
       if (!VAR_NAME_RE.test(attrs.name)) {
-        issues.push(issue('error', rel, lineOf(raw, dec.index),
+        issues.push(issue('error', rel, lineOf(body, dec.index) + bodyLineOffset,
           `Invalid wc-var declaration name "${attrs.name}"`));
         continue;
       }
@@ -308,12 +308,12 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
     while ((placeholder = placeholderRe.exec(bodySafe)) !== null) {
       const key = placeholder[1].trim();
       if (!VAR_NAME_RE.test(key)) {
-        issues.push(issue('warning', rel, lineOf(raw, placeholder.index),
+        issues.push(issue('warning', rel, lineOf(body, placeholder.index) + bodyLineOffset,
           `Invalid variable placeholder "{{${key}}}"`));
         continue;
       }
       if (!Object.prototype.hasOwnProperty.call(mergedVars, key)) {
-        issues.push(issue('warning', rel, lineOf(raw, placeholder.index),
+        issues.push(issue('warning', rel, lineOf(body, placeholder.index) + bodyLineOffset,
           `Undefined variable "{{${key}}}"`));
       }
     }

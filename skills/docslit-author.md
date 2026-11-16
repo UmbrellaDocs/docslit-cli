@@ -31,7 +31,7 @@ Preview with `docslit dev`; build with `docslit build` (output in `dist/`).
 docslit.json        site config and sidebar
 docs/               pages (*.md); sub-folders are fine
 docs/_reusables/    snippets pulled in with <wc-include src="..." />
-components/         optional custom components (components/wc-name.js)
+components/         optional custom components (one file per tag)
 ```
 
 Page IDs map to files: `"quickstart"` is `docs/quickstart.md`, `"guides/setup"` is `docs/guides/setup.md`.

@@ -59,6 +59,13 @@ const help = `
     docslit agents print [x]  Print the author skill (default), the migrate
                               skill, or the AGENTS.md block to stdout
 
+    docslit mcp [url]         Run an MCP server over stdio. No url: authoring
+                              tools for this project (--dir <path>); with a
+                              site url: read/search that published site.
+                              --print-config [claude|cursor|vscode] [url]
+                              Client config: {"mcpServers":{"docs":{"command":
+                              "npx","args":["-y","docslit","mcp","<url>"]}}}
+
   DocsLit Cloud:
     docslit login             Authenticate with DocsLit Cloud
     docslit publish           Build and publish your docs to DocsLit Cloud
@@ -165,6 +172,9 @@ if (command === 'init') {
 } else if (command === 'agents') {
   const { agents } = await import('../src/agents-cmd.js');
   await agents(args.slice(1));
+} else if (command === 'mcp') {
+  const { mcp } = await import('../src/mcp/index.js');
+  await mcp(args.slice(1));
 } else if (command === 'schema') {
   const { schema } = await import('../src/schema-cmd.js');
   await schema(args.slice(1));

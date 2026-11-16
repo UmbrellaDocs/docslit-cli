@@ -35,6 +35,7 @@ export async function init(args) {
   // docs/introduction.md
   await fs.writeFile(path.join(target, 'docs', 'introduction.md'), `---
 title: Introduction
+description: What ${dirName} is, how DocsLit turns Markdown into a docs site, and where to go next.
 tag: Guide
 readtime: 2 min read
 updated: ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -81,6 +82,7 @@ Run \`docslit build\` to generate a static site. Deploy anywhere.
   // docs/installation.md
   await fs.writeFile(path.join(target, 'docs', 'installation.md'), `---
 title: Installation
+description: Install the DocsLit CLI with npm, pnpm or npx and understand the docslit.json project config.
 tag: Guide
 readtime: 3 min read
 ---
@@ -154,6 +156,7 @@ Every page can use built-in Lit web components directly in Markdown — no impor
   // docs/quickstart.md
   await fs.writeFile(path.join(target, 'docs', 'quickstart.md'), `---
 title: Quick Start
+description: Go from a scaffolded project to a built static site with the dev server, page writing, the sidebar and the build command.
 tag: Guide
 readtime: 2 min read
 ---
@@ -168,7 +171,7 @@ Your project is scaffolded and ready. Here's how to go from zero to a live docs 
 docslit dev
 \`\`\`
 
-Open [http://localhost:3000](http://localhost:3000). The server watches your \`docs/\` folder and hot-reloads on every save — including changes to \`docslit.json\`.
+Open [the local preview](http://localhost:3000). The server watches your \`docs/\` folder and hot-reloads on every save — including changes to \`docslit.json\`.
 
 ## 2. Write a page
 

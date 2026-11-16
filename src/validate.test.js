@@ -132,3 +132,24 @@ describe('runValidation line numbers', () => {
     } finally { await fs.remove(d); }
   });
 });
+
+describe('runValidation include/variable line numbers', () => {
+  it('reports whole-file lines for wc-include and variable placeholder issues', async () => {
+    const d = await fs.mkdtemp(path.join(os.tmpdir(), 'docslit-validate-vars-'));
+    try {
+      await fs.ensureDir(path.join(d, 'docs'));
+      await fs.writeJson(path.join(d, 'docslit.json'), { name: 'x', sidebar: [{ group: 'G', pages: ['a'] }] });
+      // 1 ---, 2 title, 3 description, 4 tags, 5 ---, 6 blank, 7 h1, 8 blank,
+      // 9 include (missing target), 10 blank, 11 undefined variable
+      await fs.writeFile(path.join(d, 'docs', 'a.md'), [
+        '---', 'title: A', 'description: d', 'tags: [a, b]', '---', '',
+        '# A', '',
+        '<wc-include src="_reusables/missing.md" />', '',
+        'Hello {{NOPE}}', '',
+      ].join('\n'));
+      const r = await runValidation(d);
+      expect(r.issues.find((i) => i.code === 'include-target-missing')?.line).toBe(9);
+      expect(r.issues.find((i) => i.code === 'var-undefined')?.line).toBe(11);
+    } finally { await fs.remove(d); }
+  });
+});

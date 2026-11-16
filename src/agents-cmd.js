@@ -78,7 +78,7 @@ function copilotInstructions(project) {
 }
 
 function windsurfRule(project) {
-  return `${GENERATED_MARK}\n\n${generateAgentsBlock({ ...project, skillInstalled: false }).trimEnd()}\n`;
+  return `---\ntrigger: glob\nglobs: ${project.docsDir}/**/*.md,docslit.json\ndescription: Writing and editing DocsLit documentation pages\n---\n${GENERATED_MARK}\n\n${generateAgentsBlock({ ...project, skillInstalled: false }).trimEnd()}\n`;
 }
 
 // ─── Writers ───────────────────────────────────────────────────────────────────
@@ -196,6 +196,8 @@ export async function runAgentsInit(dir, { tools = null, force = false } = {}) {
     if (!await fs.pathExists(claudeMd)) {
       await fs.writeFile(claudeMd, '@AGENTS.md\n');
       report.written.push('CLAUDE.md');
+    } else if (/^@AGENTS\.md\s*$/m.test(await fs.readFile(claudeMd, 'utf8'))) {
+      report.unchanged.push('CLAUDE.md');
     } else {
       await writeBlockFile(dir, 'CLAUDE.md', 'DocsLit docs instructions live in @AGENTS.md', report);
     }

@@ -1219,6 +1219,11 @@ function closeSidebar() {
   });
   if (overlay) overlay.addEventListener('click', closeSidebar);
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeSidebar(); });
+  // Leaving the mobile layout (resize/rotate) must reset the drawer, otherwise
+  // the overlay and body scroll-lock stay on and it reappears open when shrunk again.
+  window.addEventListener('resize', function() {
+    if (window.innerWidth > 1024 && document.getElementById('docs-sidebar').classList.contains('open')) closeSidebar();
+  });
 })();
 
 function switchVersion(v) {

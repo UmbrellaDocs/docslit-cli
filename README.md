@@ -86,20 +86,21 @@ The output goes to `./my-mintlify-docs-docslit/` by default (use `--out` to chan
 |----------|---------|
 | `<Note>`, `<Info>` | `<wc-callout type="info">` |
 | `<Warning>`, `<Caution>` | `<wc-callout type="warning">` |
-| `<Danger>` | `<wc-callout type="danger">` |
+| `<Danger>` | `<wc-callout type="error">` |
 | `<Tip>` | `<wc-callout type="tip">` |
 | `<Check>`, `<Success>` | `<wc-callout type="success">` |
 | `<Card>` | `<wc-card>` |
 | `<CardGroup>` | `<wc-tiles>` |
 | `<Tabs>` / `<Tab>` | `<wc-tabs>` / `<wc-tab>` |
-| `<Accordion>` / `<AccordionGroup>` | `<wc-accordion>` (group unwrapped) |
+| `<Accordion>` / `<AccordionGroup>` | `<wc-accordion>` / `<wc-accordion-group>` |
 | `<Steps>` / `<Step>` | `<wc-steps>` / `<wc-step>` (auto-numbered) |
 | `<CodeGroup>` | `<wc-code-group>` |
 | `<Frame>` | `<wc-frame>` |
-| `<Badge>` | `<wc-badge>` |
-| `<Expandable>` | `<wc-expandable>` |
-| `<ParamField>` | `<wc-param>` |
-| `<ResponseField>` | `<wc-response-field>` |
+| `<Badge>` | `<wc-badge>` (`color` → `variant`) |
+| `<Expandable>` | `<wc-expandable>` (`defaultOpen` → `open`) |
+| `<Update>` | `<wc-update>` (`label` → `version`) |
+| `<ParamField>` | `<wc-field>` (`path`/`query`/`body`/`header` → `name` + `in`) |
+| `<ResponseField>` | `<wc-field>` |
 | `<Tooltip>` | text content only (inlined) |
 | `<Icon>` | removed |
 

@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs-extra';
 import matter from './frontmatter.js';
+import { getMathConfig } from './math.js';
 import { expandCodeImports, CODE_IMPORT_DETECT_RE } from './code-import.js';
 
 export const VAR_NAME_RE = /^[A-Z_][A-Z0-9_]*$/;
@@ -33,9 +34,21 @@ function buildErrorMessage(errors) {
   return errors.map((d) => formatDiag(d)).join('\n');
 }
 
+// Math spans/fences must never get {{VAR}} expansion: LaTeX such as x^{{2}} or
+// \frac{{A}}{B} legitimately contains double braces. ```math fences are already
+// covered by the fence alternative; $…$ only counts when math.singleDollar is on.
+function mathSegmentSource() {
+  const cfg = getMathConfig();
+  if (!cfg.enabled) return '';
+  const parts = ['\\$\\$[\\s\\S]*?\\$\\$'];
+  if (cfg.singleDollar) parts.push('(?<![\\\\$])\\$(?![\\s$])[^$\\n]*?[^\\s\\\\$]\\$(?![$\\d])');
+  return '|' + parts.join('|');
+}
+
 function protectSegments(content) {
   const chunks = [];
-  let safe = content.replace(/```[\s\S]*?```|<wc-code-block[\s\S]*?<\/wc-code-block>|`[^`\n]+`/g, (m) => {
+  const re = new RegExp('```[\\s\\S]*?```|<wc-code-block[\\s\\S]*?<\\/wc-code-block>|`[^`\\n]+`' + mathSegmentSource(), 'g');
+  let safe = content.replace(re, (m) => {
     const idx = chunks.push(m) - 1;
     return `\x00PROTECTED_${idx}\x00`;
   });
