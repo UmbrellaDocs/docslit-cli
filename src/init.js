@@ -4,7 +4,8 @@ import pc from 'picocolors';
 import { detectEditUrl } from './config.js';
 
 export async function init(args) {
-  const dirName = args[0] || 'my-docs';
+  const dirName = args.find((a) => !a.startsWith('--')) || 'my-docs';
+  const writeAgents = !args.includes('--no-agents');
   const target = path.resolve(process.cwd(), dirName);
 
   if (await fs.pathExists(target)) {
@@ -19,6 +20,7 @@ export async function init(args) {
   // docslit.json
   const editUrl = await detectEditUrl(process.cwd());
   const config = {
+    $schema: 'https://unpkg.com/docslit/schema/docslit.schema.json',
     name: dirName,
     sidebar: [
       {
@@ -237,7 +239,18 @@ This inlines all page data into \`dist/index.html\` so it works by double-clicki
   console.log(`  ${pc.green('✓')} Created ${pc.cyan('docs/installation.md')}`);
   console.log(`  ${pc.green('✓')} Created ${pc.cyan('docs/quickstart.md')}`);
 
+  if (writeAgents) {
+    const { runAgentsInit } = await import('./agents-cmd.js');
+    const r = await runAgentsInit(target, { tools: [] });
+    if (r.ok && (r.written.length || r.updated.length)) {
+      console.log(`  ${pc.green('✓')} Created ${pc.cyan('AGENTS.md')} ${pc.dim('(instructions for AI coding tools)')}`);
+    }
+  }
+
   console.log(`  ${pc.bold('Done!')} Now run:\n`);
   console.log(`    ${pc.cyan(`cd ${dirName}`)}`);
   console.log(`    ${pc.cyan('npx docslit dev')}\n`);
+  if (writeAgents) {
+    console.log(`  Using an AI coding tool? Run ${pc.cyan('npx docslit agents init --tool all')} for Claude Code, Cursor, Copilot and Windsurf setup.\n`);
+  }
 }

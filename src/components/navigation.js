@@ -28,6 +28,36 @@ class WcStep extends LitElement {
 }
 customElements.define('wc-step',WcStep);
 
+// ── Synced tabs (sync="key" on wc-tabs / wc-code-group) ───────────────────
+const _TAB_SYNC_STORE='docslit-tab-sync';
+function _tabSyncRead(){try{return JSON.parse(localStorage.getItem(_TAB_SYNC_STORE)||'{}')||{};}catch(e){return {};}}
+function _tabSyncConnect(el,getLabels){
+  const key=el.getAttribute('sync');
+  if(!key)return;
+  const saved=_tabSyncRead()[key];
+  if(saved!==undefined){const i=getLabels().indexOf(saved);if(i>=0)el._active=i;}
+  el._syncListener=(e)=>{
+    if(e.detail.key!==key||e.detail.source===el)return;
+    const i=getLabels().indexOf(e.detail.label);
+    if(i>=0)el._active=i;
+  };
+  document.addEventListener('docslit-tab-sync',el._syncListener);
+}
+function _tabSyncDisconnect(el){
+  if(el._syncListener){document.removeEventListener('docslit-tab-sync',el._syncListener);el._syncListener=null;}
+}
+function _tabSelect(el,i,getLabels){
+  const key=el.getAttribute('sync');
+  if(!key){el._active=i;return;}
+  const top=el.getBoundingClientRect().top;
+  el._active=i;
+  const label=getLabels()[i];
+  try{const m=_tabSyncRead();m[key]=label;localStorage.setItem(_TAB_SYNC_STORE,JSON.stringify(m));}catch(e){}
+  document.dispatchEvent(new CustomEvent('docslit-tab-sync',{detail:{key,label,source:el}}));
+  // keep the clicked group where the reader is looking while other groups resize
+  requestAnimationFrame(()=>{const d=el.getBoundingClientRect().top-top;if(d)window.scrollBy(0,d);});
+}
+
 // ── WC-TABS / WC-TAB ──────────────────────────────────────────────────────
 class WcTabs extends LitElement {
   static properties={_active:{type:Number,state:true}};
@@ -46,6 +76,9 @@ class WcTabs extends LitElement {
     @media print{.tabbar{display:none}}
   \`;
   constructor(){super();this._active=0;}
+  _labels(){return Array.from(this.querySelectorAll('wc-tab')).map((t,i)=>t.getAttribute('label')||'Tab '+(i+1));}
+  connectedCallback(){super.connectedCallback();_tabSyncConnect(this,()=>this._labels());}
+  disconnectedCallback(){super.disconnectedCallback();_tabSyncDisconnect(this);}
   _onKey(e,i,total){
     let next=i;
     if(e.key==='ArrowRight')next=Math.min(i+1,total-1);
@@ -53,13 +86,13 @@ class WcTabs extends LitElement {
     else if(e.key==='Home')next=0;
     else if(e.key==='End')next=total-1;
     else return;
-    e.preventDefault();this._active=next;
+    e.preventDefault();_tabSelect(this,next,()=>this._labels());
     this.updateComplete.then(()=>{const btn=this.shadowRoot.querySelectorAll('[role=tab]')[next];if(btn)btn.focus();});
   }
   render(){
     const tabs=Array.from(this.querySelectorAll('wc-tab'));
     tabs.forEach((t,i)=>t.toggleAttribute('active',i===this._active));
-    return html\`<div class="tabbar" role="tablist">\${tabs.map((t,i)=>{const label=t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button role="tab" aria-selected=\${active} tabindex=\${active?0:-1} class="\${active?'active':''}" @click=\${()=>this._active=i} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div><div role="tabpanel"><slot></slot></div>\`;
+    return html\`<div class="tabbar" role="tablist">\${tabs.map((t,i)=>{const label=t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button role="tab" aria-selected=\${active} tabindex=\${active?0:-1} class="\${active?'active':''}" @click=\${()=>_tabSelect(this,i,()=>this._labels())} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div><div role="tabpanel"><slot></slot></div>\`;
   }
 }
 customElements.define('wc-tabs',WcTabs);

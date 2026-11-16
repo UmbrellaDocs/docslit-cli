@@ -38,3 +38,11 @@ https://github.com/nextapps-de/flexsearch
 Copyright 2019-2024 Nextapps GmbH
 Licensed under the Apache License, Version 2.0
 http://www.apache.org/licenses/LICENSE-2.0
+
+-------------------------------------------------------------------------------
+
+KaTeX (stylesheet and fonts shipped with sites that use math)
+https://katex.org
+Copyright (c) 2013-2020 Khan Academy and other contributors
+Licensed under the MIT License. KaTeX fonts are distributed under the SIL Open
+Font License 1.1 / MIT as described in the KaTeX repository.

@@ -1,10 +1,12 @@
 import path from 'path';
 import fs from 'fs-extra';
 import matter from './frontmatter.js';
+import { expandCodeImports, CODE_IMPORT_DETECT_RE } from './code-import.js';
 
 export const VAR_NAME_RE = /^[A-Z_][A-Z0-9_]*$/;
 const PASS_TOKEN_RE = /DOCSLIT_PASSBLOCK_(\d+)_END/g;
 const NEEDS_PREPROCESS_RE = /<wc-include\b|<wc-var\b[^>]*\bvalue\s*=|\{\{[^}]+\}\}|pass:\[/;
+const needsPreprocess = (body) => NEEDS_PREPROCESS_RE.test(body) || CODE_IMPORT_DETECT_RE.test(body);
 
 function parseAttrs(attrText = '') {
   const attrs = {};
@@ -102,8 +104,9 @@ export async function preprocessDoc({
   readFile = readFromFs,
   pathExists = existsInFs,
   strictFsSafety = true,
+  projectRoot = null,
 }) {
-  if (!NEEDS_PREPROCESS_RE.test(rawBody || '')) {
+  if (!needsPreprocess(rawBody || '')) {
     return {
       content: rawBody || '',
       passBlocks: [],
@@ -313,6 +316,18 @@ export async function preprocessDoc({
     return String(attrs[key]);
   });
   content = protectedContent.restore(protectedContent.safe);
+
+  // Code imports run last so imported source is never touched by variable/pass processing.
+  const imports = await expandCodeImports(content, {
+    projectRoot: projectRoot || (docsRoot ? path.dirname(path.resolve(docsRoot)) : process.cwd()),
+    pagePath,
+    readFile,
+    pathExists,
+    strictFsSafety: strictFsSafety && readFile === readFromFs,
+  });
+  content = imports.content;
+  diagnostics.errors.push(...imports.errors);
+  for (const dep of imports.dependencies) dependencies.add(dep);
 
   return {
     content,

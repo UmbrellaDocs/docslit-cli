@@ -242,8 +242,10 @@ class WcCodeGroup extends LitElement {
     @media(prefers-reduced-motion:reduce){.tab-btn{transition:none}}
   \`;
   constructor(){super();this._active=0;this._copied=false;this._menuOpen=false;}
+  _labels(){return Array.from(this.querySelectorAll('wc-code-tab')).map((t,i)=>t.label||t.getAttribute('label')||'Tab '+(i+1));}
   connectedCallback(){
     super.connectedCallback();
+    _tabSyncConnect(this,()=>this._labels());
     this._applyTheme();
     this._themeListener=()=>this._applyTheme();
     document.addEventListener('docslit-code-theme',this._themeListener);
@@ -253,6 +255,7 @@ class WcCodeGroup extends LitElement {
   }
   disconnectedCallback(){
     super.disconnectedCallback();
+    _tabSyncDisconnect(this);
     document.removeEventListener('docslit-code-theme',this._themeListener);
     document.removeEventListener('click',this._outsideClick);
     if(this._themeObs){this._themeObs.disconnect();this._themeObs=null;}
@@ -277,7 +280,7 @@ class WcCodeGroup extends LitElement {
     else if(e.key==='Home')next=0;
     else if(e.key==='End')next=total-1;
     else return;
-    e.preventDefault();this._active=next;
+    e.preventDefault();_tabSelect(this,next,()=>this._labels());
     this.updateComplete.then(()=>{const btn=this.shadowRoot.querySelectorAll('[role=tab]')[next];if(btn)btn.focus();});
   }
   render(){
@@ -287,7 +290,7 @@ class WcCodeGroup extends LitElement {
     const themeSvg=isLight
       ?html\`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>\`
       :html\`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>\`;
-    return html\`<div class="outer \${isLight?'light-theme':'dark-theme'}"><div class="tabbar"><div class="tabs" role="tablist">\${tabs.map((t,i)=>{const label=t.label||t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button class="tab-btn \${active?'active':''}" role="tab" aria-selected=\${active} tabindex=\${active?0:-1} @click=\${()=>this._active=i} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div><div class="actions"><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied':'Copy'}>\${this._copied?'\\u2713 Copied':'\\u29C9 Copy'}</button><div class="menu-wrap"><button class="menu-btn" @click=\${this._toggleMenu} title="More options" aria-label="More options">\\u22EE</button>\${this._menuOpen?html\`<div class="menu"><button class="menu-item" @click=\${this._switchTheme}>\${themeSvg} \${themeLabel}</button></div>\`:nothing}</div></div></div>\${tabs.map((t,i)=>{const inner=t.innerHTML.trim();const hl=inner.includes('<span');return html\`<div class="panel \${i===this._active?'active':''}" role="tabpanel"><pre>\${hl?unsafeHTML(inner):t.textContent}</pre></div>\`;})}</div>\`;
+    return html\`<div class="outer \${isLight?'light-theme':'dark-theme'}"><div class="tabbar"><div class="tabs" role="tablist">\${tabs.map((t,i)=>{const label=t.label||t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;return html\`<button class="tab-btn \${active?'active':''}" role="tab" aria-selected=\${active} tabindex=\${active?0:-1} @click=\${()=>_tabSelect(this,i,()=>this._labels())} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${label}</button>\`;})}</div><div class="actions"><button class="copy-btn \${this._copied?'copied':''}" @click=\${this._copyCode} title="Copy code" aria-label=\${this._copied?'Copied':'Copy'}>\${this._copied?'\\u2713 Copied':'\\u29C9 Copy'}</button><div class="menu-wrap"><button class="menu-btn" @click=\${this._toggleMenu} title="More options" aria-label="More options">\\u22EE</button>\${this._menuOpen?html\`<div class="menu"><button class="menu-item" @click=\${this._switchTheme}>\${themeSvg} \${themeLabel}</button></div>\`:nothing}</div></div></div>\${tabs.map((t,i)=>{const inner=t.innerHTML.trim();const hl=inner.includes('<span');return html\`<div class="panel \${i===this._active?'active':''}" role="tabpanel"><pre>\${hl?unsafeHTML(inner):t.textContent}</pre></div>\`;})}</div>\`;
   }
 }
 customElements.define('wc-code-group',WcCodeGroup);

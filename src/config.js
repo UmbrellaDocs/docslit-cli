@@ -2,6 +2,15 @@ import fs from 'fs-extra';
 import path from 'path';
 import git from 'isomorphic-git';
 import nodeFs from 'node:fs';
+import { expandAllSidebars, expandSidebarValue, createFileListSource, hasAutogenerate } from './auto-sidebar.js';
+
+const _warned = new Set();
+function warnOnce(msg) {
+  if (_warned.has(msg)) return;
+  _warned.add(msg);
+  console.warn(`  Warning: ${msg}`);
+}
+import { setMathConfig } from './math.js';
 
 export async function loadConfig(cwd) {
   const configPath = path.join(cwd, 'docslit.json');
@@ -19,7 +28,8 @@ export async function loadConfig(cwd) {
     if (!parsed.editUrl) {
       parsed.editUrl = await detectEditUrl(cwd);
     }
-    return parsed;
+    setMathConfig(parsed.math);
+    return await expandAllSidebars(parsed, cwd, { warn: warnOnce });
   } catch (e) {
     console.error(`  Error: docslit.json is not valid JSON.`);
     process.exit(1);
@@ -74,7 +84,7 @@ export function getVersionConfig(config) {
 export async function gitReadFile(branch, filePath, dir) {
   try {
     const oid = await git.resolveRef({ fs: nodeFs, dir, ref: branch });
-    const { blob } = await git.readBlob({ fs: nodeFs, dir, oid, filepath: filePath });
+    const { blob } = await git.readBlob({ fs: nodeFs, dir, oid, filepath: path.posix.normalize(filePath.replace(/\\/g, '/')) });
     return new TextDecoder().decode(blob);
   } catch {
     return null;
@@ -86,7 +96,15 @@ export async function getVersionSidebar(branch, dir) {
   if (!raw) return [];
   try {
     const config = JSON.parse(raw);
-    return config.sidebar || [];
+    const sidebar = config.sidebar || [];
+    if (!hasAutogenerate(sidebar)) return sidebar;
+    // Expand against the branch's git tree (docs/ at that ref).
+    const oid = await git.resolveRef({ fs: nodeFs, dir, ref: branch });
+    const files = (await git.listFiles({ fs: nodeFs, dir, ref: oid }))
+      .filter((f) => f.startsWith('docs/')).map((f) => f.slice('docs/'.length));
+    const source = createFileListSource(files, (rel) => gitReadFile(branch, `docs/${rel}`, dir));
+    const expanded = await expandSidebarValue(sidebar, source, { siteName: config.name, warn: warnOnce });
+    return Array.isArray(expanded) ? expanded : [];
   } catch {
     return [];
   }

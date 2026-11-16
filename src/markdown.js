@@ -22,6 +22,7 @@ export async function parseDoc(rawContent, opts = {}) {
     readFile: opts.readFile,
     pathExists: opts.pathExists,
     strictFsSafety: opts.strictFsSafety !== false,
+    projectRoot: opts.projectRoot || null,
   });
   assertNoPreprocessErrors(preprocess);
   await ensureLangs(preprocess.content);

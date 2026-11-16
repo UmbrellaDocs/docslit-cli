@@ -14,6 +14,7 @@ import rehypeDocslitVars from './plugins/rehype-docslit-vars.js';
 import rehypeDocslitLinkFix from './plugins/rehype-docslit-link-fix.js';
 import rehypeDocslitImages from './plugins/rehype-docslit-images.js';
 
+import rehypeDocslitMath, { getMathConfig, remarkMathPlugin, remarkDocslitMathDisplay } from './math.js';
 import { rewriteMdxTags } from './mdx-bridge.js';
 import { asciidocTableToHtml } from './asciidoc-table.js';
 
@@ -44,12 +45,15 @@ function getProcessor(meta = {}) {
   if (meta.docsDir) imageOpts.docsDir = meta.docsDir;
   if (meta.cwd) imageOpts.cwd = meta.cwd;
 
-  return unified()
-    .use(remarkParse)
-    .use(remarkGfm)
+  const mathPlugin = remarkMathPlugin(getMathConfig());
+  const proc = unified().use(remarkParse).use(remarkGfm);
+  if (mathPlugin) proc.use(...mathPlugin).use(remarkDocslitMathDisplay);
+
+  return proc
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeRaw)
     .use(rehypeSlug)
+    .use(rehypeDocslitMath)
     .use(rehypeDocslitWcPreserve)
     .use(rehypeDocslitAsciidocTable)
     .use(rehypeDocslitWcContent)

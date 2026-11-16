@@ -14,8 +14,11 @@ const help = `
   docslit v${pkg.version}
 
   Usage:
-    docslit init              Scaffold a new docs project
-    docslit new <page-id>     Create a new page and add to sidebar
+    docslit init [dir]        Scaffold a new docs project (also writes
+                              AGENTS.md; --no-agents to skip)
+    docslit new <page-id>     Create a new page and add to sidebar. Never
+                              prompts. Flags: --title, --group, --description,
+                              --json (prints { id, file, sidebarUpdated, group })
     docslit dev               Start the local dev server
     docslit build             Build a static site to ./dist
     docslit deploy            Write hosting recipe files (GitHub Pages,
@@ -28,12 +31,33 @@ const help = `
                               Exits 1 if any errors are found.
                               --external  Check external http(s) links
                               --format github  Print GitHub Actions annotations
+                              --format json    Print { ok, summary, issues[] } as
+                                               JSON only (for agents and CI)
     docslit openapi scaffold  Generate docs pages from an OpenAPI spec.
                               Usage: docslit openapi scaffold <spec.yaml>
                               [--overlay <overlay.yaml>] [--new-only]
     docslit theme init [file] Scaffold a brand theme JSON file (default:
                               brand-theme.json) and wire it in docslit.json
     docslit theme list          List built-in presets and theme variables
+
+  Agent & tooling:
+    docslit components [tag]  List the built-in wc-* components, or show one
+                              component's attributes and example.
+                              --json  Print the manifest (or one entry) as JSON
+    docslit schema [kind]     Print a JSON Schema: config (docslit.json,
+                              default) or frontmatter
+    docslit lint [dir]        Check docs quality (descriptions, headings, code
+                              languages, alt text, link text, page length).
+                              --format pretty|json|github, --strict
+                              Exits 1 on errors (or warnings with --strict)
+    docslit agents init       Write AI-agent instructions into this project:
+                              AGENTS.md plus Claude Code, Cursor, Copilot and
+                              Windsurf files and MCP config.
+                              --tool claude,cursor,copilot,windsurf,codex,
+                              gemini|all (default: AGENTS.md + detected tools),
+                              --force, --json
+    docslit agents print [x]  Print the author skill (default), the migrate
+                              skill, or the AGENTS.md block to stdout
 
   DocsLit Cloud:
     docslit login             Authenticate with DocsLit Cloud
@@ -62,7 +86,12 @@ const help = `
     --dry-run             (import only) Scan and report without writing files
     --strict              (validate only) Treat warnings as errors
     --external            (validate only) Check external http(s) links
-    --format <fmt>        (validate only) Output format: pretty (default), github
+    --format <fmt>        (validate, lint) Output format: pretty (default),
+                          github, json
+    --json                (components, new) Machine-readable JSON on stdout
+    --title <text>        (new only) Page title (default: derived from id)
+    --group <name>        (new only) Sidebar group to add the page to
+    --description <text>  (new only) Page description for frontmatter
 `;
 
 if (!command || command === '--help' || command === '-h') {
@@ -127,6 +156,18 @@ if (command === 'init') {
 } else if (command === 'delete') {
   const { deleteProject } = await import('../src/delete.js');
   await deleteProject(args.slice(1));
+} else if (command === 'components') {
+  const { components } = await import('../src/components-cmd.js');
+  await components(args.slice(1));
+} else if (command === 'lint') {
+  const { lint } = await import('../src/lint.js');
+  await lint(args.slice(1));
+} else if (command === 'agents') {
+  const { agents } = await import('../src/agents-cmd.js');
+  await agents(args.slice(1));
+} else if (command === 'schema') {
+  const { schema } = await import('../src/schema-cmd.js');
+  await schema(args.slice(1));
 } else if (command === 'theme') {
   const { theme } = await import('../src/theme-cmd.js');
   await theme(args.slice(1));

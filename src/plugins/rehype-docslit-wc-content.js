@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import remarkRehype from 'remark-rehype';
 import rehypeRaw from 'rehype-raw';
 import rehypeStringify from 'rehype-stringify';
+import rehypeDocslitMath, { getMathConfig, mayContainMath, remarkMathPlugin, remarkDocslitMathDisplay } from '../math.js';
 
 const CODE_TAGS = new Set([
   'wc-code-block',
@@ -16,15 +17,21 @@ const CODE_TAGS = new Set([
 const MD_SYNTAX_RE = /\*\*|__|\*[^*]|_[^_]|\[.*?\]\(|^#{1,6}\s|^[-*+]\s|^>\s|^```|^\|/m;
 
 let miniProcessor;
+let miniProcessorKey;
 
 function getMiniProcessor() {
-  if (!miniProcessor) {
-    miniProcessor = unified()
-      .use(remarkParse)
-      .use(remarkGfm)
+  const cfg = getMathConfig();
+  const key = `${cfg.enabled}:${cfg.singleDollar}`;
+  if (!miniProcessor || miniProcessorKey !== key) {
+    const mathPlugin = remarkMathPlugin(cfg);
+    const proc = unified().use(remarkParse).use(remarkGfm);
+    if (mathPlugin) proc.use(...mathPlugin).use(remarkDocslitMathDisplay);
+    miniProcessor = proc
       .use(remarkRehype, { allowDangerousHtml: true })
       .use(rehypeRaw)
+      .use(rehypeDocslitMath)
       .use(rehypeStringify);
+    miniProcessorKey = key;
   }
   return miniProcessor;
 }
@@ -105,7 +112,7 @@ export default function rehypeDocslitWcContent() {
         text = reconstructProseSource(node.children);
       }
       if (text === null) return;
-      if (!MD_SYNTAX_RE.test(text)) return;
+      if (!MD_SYNTAX_RE.test(text) && !mayContainMath(text)) return;
 
       const proc = getMiniProcessor();
       const result = proc.processSync(text);

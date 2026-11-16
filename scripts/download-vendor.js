@@ -23,7 +23,23 @@ const ENTRIES = [
   { entry: '@lit/reactive-element',        out: 'reactive-element.js' },
   { entry: 'lit-html',                     out: 'lit-html.js' },
   { entry: 'lit-element/lit-element.js',   out: 'lit-element.js' },
-  { entry: 'flexsearch', out: 'flexsearch.js' },
+  // FlexSearch's ESM build has BOTH a default export ({ Document, Index, ... })
+  // and the same names as named exports. `export *` alone drops the default,
+  // which the search runtime (template.js) relies on, so re-export both.
+  {
+    entry: 'flexsearch',
+    out: 'flexsearch.js',
+    stdin: `export * from 'flexsearch'; export { default } from 'flexsearch';`,
+  },
+  // Classic-script build for --offline sites: module imports are blocked on
+  // file:// (opaque origin), so offline pages load this with <script> and read
+  // window.FlexSearch.
+  {
+    entry: 'flexsearch',
+    out: 'flexsearch.iife.js',
+    format: 'iife',
+    stdin: `import FS from 'flexsearch'; globalThis.FlexSearch = FS;`,
+  },
 ];
 
 let ok = 0;
@@ -38,7 +54,7 @@ for (const item of ENTRIES) {
         resolveDir: ROOT,
       },
       bundle: true,
-      format: 'esm',
+      format: item.format || 'esm',
       write: false,
       minify: true,
       legalComments: 'none',

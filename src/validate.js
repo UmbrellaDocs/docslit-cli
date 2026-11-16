@@ -10,32 +10,15 @@ import rehypeRaw from 'rehype-raw';
 import { visit } from 'unist-util-visit';
 import { COMPONENT_MAP, pascalToWcKebab, rewriteMdxTags } from './mdx-bridge.js';
 import { VAR_NAME_RE } from './preprocess.js';
+import { listComponentTags } from './component-manifest.js';
+import { expandAllSidebars } from './auto-sidebar.js';
+import { expandCodeImports } from './code-import.js';
 import { isValidThemePreset, listThemePresets, parseThemeConfig, loadThemeFile } from './themes.js';
 
 // ─── Built-in component registry ──────────────────────────────────────────────
-// Mirrors the components actually registered by buildComponents() — keep this
-// set in sync with src/components/*.js. The cli.test.ts asserts on the same list.
-const BUILTIN_COMPONENTS = new Set([
-  // Text & callouts
-  'wc-callout', 'wc-alert', 'wc-banner', 'wc-badge', 'wc-tooltip', 'wc-update',
-  // Layout
-  'wc-columns', 'wc-frame', 'wc-panel', 'wc-expandable', 'wc-accordion', 'wc-accordion-group', 'wc-aside',
-  // Navigation
-  'wc-steps', 'wc-step', 'wc-tabs', 'wc-tab', 'wc-view', 'wc-view-panel',
-  // Code
-  'wc-var', 'wc-code-block', 'wc-code-group', 'wc-code-tab',
-  // Media & Files
-  'wc-icon', 'wc-file', 'wc-dir', 'wc-files', 'wc-tree', 'wc-tree-item', 'wc-download', 'wc-copy',
-  // Data & API
-  'wc-field', 'wc-fields', 'wc-response-fields', 'wc-color', 'wc-table', 'wc-asciidoc-table',
-  'wc-schema', 'wc-mermaid', 'wc-endpoint', 'wc-runnable-endpoint', 'wc-playground',
-  // Content
-  'wc-card', 'wc-tile', 'wc-tiles', 'wc-button', 'wc-prompt',
-  // Media
-  'wc-image',
-  // Utility
-  'wc-anchor', 'wc-indent', 'wc-visibility', 'wc-version', 'wc-versions', 'wc-page-meta',
-]);
+// Derived from the component manifest (src/component-manifest.js), which a test
+// keeps in sync with the components actually registered in src/components/*.js.
+const BUILTIN_COMPONENTS = new Set(listComponentTags());
 const AUTHORING_COMPONENTS = new Set([
   'wc-include',
 ]);
@@ -44,15 +27,89 @@ const AUTHORING_COMPONENTS = new Set([
 const VALID_FM_KEYS = new Set([
   'title', 'description', 'icon', 'tag', 'readtime', 'updated',
   'sidebar_title', 'component', 'draft', 'order', 'redirect', 'layout',
-  'date', 'ogImage',
+  'date', 'ogImage', 'attributes', 'published', 'desc', 'feedback',
+  'sidebar', 'sidebar_position',
 ]);
 
 // Recognised icon names (subset — just validates non-empty string)
 function isValidIcon(v) { return typeof v === 'string' && v.trim().length > 0; }
 
 // ─── Issue builder ─────────────────────────────────────────────────────────────
-function issue(level, file, line, message) {
-  return { level, file: file || null, line: line || null, message };
+// Every issue carries a stable kebab-case `code` (for machine consumers such as
+// `validate --format json`) and, when obvious, a short `fix` suggestion. Codes
+// are derived from the message in one place (ISSUE_RULES) so call sites stay
+// simple; pass `{ code, fix }` as a 5th argument to override.
+const ISSUE_RULES = [
+  [/^docslit\.json not found/, 'config-missing', () => 'Run `docslit init` or create docslit.json with a "sidebar" array'],
+  [/^JSON parse error/, 'config-invalid-json', () => 'Fix the JSON syntax error in docslit.json (check commas and quotes)'],
+  [/^Missing required field: "sidebar"/, 'config-missing-sidebar', () => 'Add a "sidebar" array of { "group", "pages" } objects to docslit.json'],
+  [/^Sidebar group is missing a "group" name/, 'sidebar-group-unnamed', () => 'Add a "group" name to the sidebar entry'],
+  [/^Group ".*" has no "pages" array/, 'sidebar-group-no-pages', () => 'Add a "pages" array of page slugs to the group'],
+  [/non-string page slug/, 'sidebar-invalid-page', () => 'Use page slug strings like "guides/setup" in sidebar pages'],
+  [/^Page slug ".*" contains unusual characters/, 'sidebar-slug-unusual', () => 'Use lowercase letters, digits, hyphens and slashes in page slugs'],
+  [/^Duplicate page slug in sidebar/, 'sidebar-duplicate-slug', () => 'List each page once in the sidebar'],
+  [/^OpenAPI spec file not found: (.+)$/, 'openapi-spec-missing', (m) => `Add the spec file at ${m[1]} or fix the "openapi" path in docslit.json`],
+  [/^openapi config is set but no spec file/, 'openapi-spec-unset', () => 'Set "openapi" to a spec path or { "spec": "openapi.yaml" }'],
+  [/^OpenAPI overlay file not found: (.+)$/, 'openapi-overlay-missing', (m) => `Add the overlay file at ${m[1]} or remove "openapi.overlay"`],
+  [/^"announcement/, 'announcement-invalid', () => 'Set "announcement": { "message": "..." } in docslit.json'],
+  [/announcement\.message must be a string/, 'announcement-invalid', () => 'Give the version announcement a string "message"'],
+  [/^Unknown theme preset/, 'theme-unknown-preset', () => 'Run `docslit theme list` and use a listed preset name'],
+  [/^theme\.\w+\.[^ ]+ must be a string/, 'theme-invalid-value', () => 'Theme values must be strings (e.g. "#0ea5e9")'],
+  [/^Theme file not found/, 'theme-file-missing', () => 'Create the theme file (`docslit theme init`) or fix the path'],
+  [/^"theme" must be/, 'theme-invalid-type', () => 'Use a preset name, a theme file path, or a theme config object'],
+  [/^docs\/ directory not found/, 'docs-dir-missing', () => 'Create a docs/ directory with Markdown pages'],
+  [/^Sidebar slug "(.+)" has no matching file/, 'sidebar-missing-file', (m) => `Create docs/${m[1]}.md or remove "${m[1]}" from the sidebar`],
+  [/^Frontmatter parse error/, 'frontmatter-parse-error', () => 'Fix the YAML between the --- delimiters (frontmatter must be a mapping)'],
+  [/^Missing frontmatter field: "title"/, 'frontmatter-missing-title', () => 'Add `title: ...` to the page frontmatter'],
+  [/^Unknown frontmatter key: "(.+?)"/, 'frontmatter-unknown-key', (m) => `Remove "${m[1]}" or check the spelling (see \`docslit schema frontmatter\`)`],
+  [/^"readtime" should be a string/, 'frontmatter-invalid-readtime', () => 'Quote the value, e.g. readtime: "5 min read"'],
+  [/^"icon" should be/, 'frontmatter-invalid-icon', () => 'Set icon to a non-empty icon name string'],
+  [/^"redirect" must be a string/, 'frontmatter-invalid-redirect', () => 'Set redirect to a path string like "/new-page"'],
+  [/^Page has redirect/, 'page-redirect', null],
+  [/^Broken internal link → "(.+?)"/, 'broken-link', (m) => `Fix the link target "${m[1]}" or create the missing page and add it to the sidebar`],
+  [/^Possible broken href → "(.+?)"/, 'broken-href', (m) => `Check that "${m[1]}" points to an existing page slug`],
+  [/^Missing asset: "(.+?)"/, 'missing-asset', (m) => `Add the file at "${m[1]}" or fix the path`],
+  [/^Unknown component <(.+?)>/, 'unknown-component', (m) => `Use a built-in tag (run \`docslit components\`) or add components/${m[1]}.js`],
+  [/which isn't registered/, 'component-mapping-unregistered', () => 'Add the matching file under components/'],
+  [/will render as <.+?>, which isn't a built-in/, 'unknown-component', () => 'Use a built-in wc-* tag (run `docslit components`) or add it under components/'],
+  [/^Invalid OpenAPI ref=/, 'openapi-invalid-ref', () => 'Use an operationId that exists in the OpenAPI spec'],
+  [/^Undocumented endpoint/, 'openapi-undocumented-endpoint', () => 'Run `docslit openapi scaffold <spec> --new-only`'],
+  [/^Failed to validate OpenAPI refs/, 'openapi-validation-failed', () => 'Check that the OpenAPI spec is valid'],
+  [/^wc-include must use self-closing/, 'include-not-self-closing', () => 'Write <wc-include src="..." />'],
+  [/^Reusable files in docs\/_reusables cannot contain wc-include/, 'include-in-reusable', () => 'Remove the nested wc-include from the reusable file'],
+  [/^wc-include requires a src/, 'include-missing-src', () => 'Add src="file.md" (a file under docs/_reusables)'],
+  [/^Invalid include path/, 'include-invalid-path', () => 'Point src at a file under docs/_reusables'],
+  [/^Include ".*" resolves outside/, 'include-outside-reusables', () => 'Keep included files under docs/_reusables'],
+  [/^Include ".*" must target a \.md file/, 'include-not-markdown', () => 'Included files must end in .md'],
+  [/^Include target not found: (.+)$/, 'include-target-missing', (m) => `Create ${m[1]}`],
+  [/^Nested include found/, 'include-nested', () => 'Reusable files cannot include other files'],
+  [/^Frontmatter in reusable file/, 'include-reusable-frontmatter', () => 'Remove the frontmatter from the reusable file'],
+  [/^Invalid wc-var declaration name/, 'var-invalid-name', () => 'Use letters, digits and underscores, starting with a letter or underscore'],
+  [/^Invalid variable placeholder/, 'var-invalid-placeholder', () => 'Use {{NAME}} with a valid variable name'],
+  [/^Undefined variable "\{\{(.+?)\}\}"/, 'var-undefined', (m) => `Define ${m[1]} in docslit.json "attributes", page frontmatter "attributes", or <wc-var name="${m[1]}" value="..." />`],
+  [/^Orphaned page/, 'orphan-page', (m, msg) => { const s = /slug: "(.+?)"/.exec(msg); return s ? `Add "${s[1]}" to a sidebar group in docslit.json` : undefined; }],
+  [/^External link returned/, 'external-link-status', () => 'Update or remove the dead link'],
+  [/^External link failed/, 'external-link-failed', () => 'Check the URL or your network connection'],
+];
+
+function classifyIssue(message) {
+  for (const [re, code, fixFn] of ISSUE_RULES) {
+    const m = re.exec(message);
+    if (m) return { code, fix: fixFn ? fixFn(m, message) : undefined };
+  }
+  return { code: 'other', fix: undefined };
+}
+
+function issue(level, file, line, message, opts = {}) {
+  const auto = classifyIssue(message);
+  return {
+    level,
+    code: opts.code || auto.code,
+    file: file || null,
+    line: line || null,
+    message,
+    fix: opts.fix || auto.fix,
+  };
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -163,6 +220,11 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
     const pageAttrs = (parsed.data?.attributes && typeof parsed.data.attributes === 'object') ? parsed.data.attributes : {};
     const body = parsed.content;
     const bodySafe = stripProtectedContent(body);
+    const bodyLineOffset = raw.split('\n').length - body.split('\n').length;
+    const codeImports = await expandCodeImports(body, { projectRoot: dir });
+    for (const e of codeImports.errors) {
+      issues.push(issue('error', rel, e.line + bodyLineOffset, e.message));
+    }
     const isReusable = file.startsWith(reusablesRoot + path.sep);
 
     const invalidIncludeRe = /<wc-include\b[^>]*>(?:[\s\S]*?)<\/wc-include>/g;
@@ -258,6 +320,18 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
   }
 }
 
+/** Flatten sidebar pages (strings, { id } items and nested { group, pages } subgroups) to slugs. */
+function flattenSidebarPages(pages, onInvalid) {
+  const out = [];
+  for (const p of pages || []) {
+    if (typeof p === 'string') out.push(p);
+    else if (p && typeof p === 'object' && typeof p.id === 'string') out.push(p.id);
+    else if (p && typeof p === 'object' && Array.isArray(p.pages)) out.push(...flattenSidebarPages(p.pages, onInvalid));
+    else onInvalid(p);
+  }
+  return out;
+}
+
 // ─── 1. Config check ───────────────────────────────────────────────────────────
 async function checkConfig(dir) {
   const issues = [];
@@ -277,6 +351,11 @@ async function checkConfig(dir) {
     return { issues, config: null, slugs: new Set() };
   }
 
+  // Expand autogenerate groups / "sidebar": "auto" into explicit pages.
+  config = await expandAllSidebars(config, dir, {
+    warn: (m) => issues.push(issue('warning', 'docslit.json', null, m)),
+  });
+
   if (!config.sidebar || !Array.isArray(config.sidebar)) {
     issues.push(issue('error', 'docslit.json', null,
       'Missing required field: "sidebar" (must be an array of groups)'));
@@ -295,12 +374,10 @@ async function checkConfig(dir) {
         `Group "${group.group}" has no "pages" array`));
       continue;
     }
-    for (const slug of group.pages) {
-      if (typeof slug !== 'string') {
-        issues.push(issue('error', 'docslit.json', null,
-          `Group "${group.group}" contains a non-string page slug: ${JSON.stringify(slug)}`));
-        continue;
-      }
+    for (const slug of flattenSidebarPages(group.pages, (bad) => {
+      issues.push(issue('error', 'docslit.json', null,
+        `Group "${group.group}" contains a non-string page slug: ${JSON.stringify(bad)}`));
+    })) {
       if (/[^a-z0-9_\-\/]/.test(slug)) {
         issues.push(issue('warning', 'docslit.json', null,
           `Page slug "${slug}" contains unusual characters — slugs should be lowercase with hyphens`));
@@ -312,8 +389,7 @@ async function checkConfig(dir) {
   // Check for duplicate slugs
   const seen = new Set();
   for (const group of config.sidebar) {
-    for (const slug of (group.pages || [])) {
-      if (typeof slug !== 'string') continue;
+    for (const slug of flattenSidebarPages(group.pages || [], () => {})) {
       if (seen.has(slug)) {
         issues.push(issue('warning', 'docslit.json', null,
           `Duplicate page slug in sidebar: "${slug}"`));
@@ -397,7 +473,7 @@ async function checkConfig(dir) {
           try {
             await loadThemeFile(parsed.file, dir);
           } catch (e) {
-            issues.push(issue('error', parsed.file, null, e.message));
+            issues.push(issue('error', parsed.file, null, e.message, { code: 'theme-file-invalid', fix: 'Fix the theme file contents (see `docslit theme init`)' }));
           }
         }
       }
@@ -412,7 +488,7 @@ async function checkConfig(dir) {
         try {
           await loadThemeFile(parsed.file, dir);
         } catch (e) {
-          issues.push(issue('error', parsed.file, null, e.message));
+          issues.push(issue('error', parsed.file, null, e.message, { code: 'theme-file-invalid', fix: 'Fix the theme file contents (see `docslit theme init`)' }));
         }
       }
     }
@@ -540,8 +616,15 @@ function parseHast(src) {
   return getHastProcessor().runSync(getHastProcessor().parse(src));
 }
 
-function posLine(node) {
-  return node?.position?.start?.line ?? null;
+function posLine(node, offset = 0) {
+  const l = node?.position?.start?.line;
+  return l == null ? null : l + offset;
+}
+
+// Lines between the top of the file and the first body line (frontmatter), so
+// body-relative AST positions can be reported as whole-file line numbers.
+function bodyOffset(raw, body) {
+  return raw.split('\n').length - body.split('\n').length;
 }
 
 // ─── 5. Internal link check ────────────────────────────────────────────────────
@@ -553,6 +636,7 @@ async function checkLinks(files, slugs, dir, issues) {
     const raw = await fs.readFile(file, 'utf8');
     const body = matter(raw).content;
     const currentSlug = toPosixFileSlug(file, docsDir);
+    const off = bodyOffset(raw, body);
     const tree = parseMdast(body);
 
     visit(tree, 'link', (node) => {
@@ -561,7 +645,7 @@ async function checkLinks(files, slugs, dir, issues) {
       if (isExternalish(target)) return;
       const resolved = resolveLinkSlug(target, currentSlug, slugs);
       if (!resolved.ok) {
-        issues.push(issue('error', rel, posLine(node),
+        issues.push(issue('error', rel, posLine(node, off),
           `Broken internal link → "${target}" (no page with slug "${resolved.slug}")`));
       }
     });
@@ -577,7 +661,7 @@ async function checkLinks(files, slugs, dir, issues) {
             target.startsWith('javascript') || target.startsWith('mailto')) return;
         const resolved = resolveLinkSlug(target, currentSlug, slugs);
         if (!resolved.ok) {
-          issues.push(issue('warning', rel, posLine(node),
+          issues.push(issue('warning', rel, posLine(node, off),
             `Possible broken href → "${target}"`));
         }
       }
@@ -596,6 +680,7 @@ async function checkAssets(files, dir, issues) {
     const raw = await fs.readFile(file, 'utf8');
     const body = matter(raw).content;
     const fileDir = path.dirname(file);
+    const off = bodyOffset(raw, body);
 
     const tree = parseMdast(body);
 
@@ -607,7 +692,7 @@ async function checkAssets(files, dir, issues) {
         ? path.join(dir, target)
         : path.resolve(fileDir, target);
       if (!fs.pathExistsSync(absTarget)) {
-        issues.push(issue('error', rel, posLine(node),
+        issues.push(issue('error', rel, posLine(node, off),
           `Missing asset: "${target}" (resolved to ${path.relative(dir, absTarget)})`));
       }
     });
@@ -623,7 +708,7 @@ async function checkAssets(files, dir, issues) {
         ? path.join(dir, target)
         : path.resolve(fileDir, target);
       if (!fs.pathExistsSync(absTarget)) {
-        issues.push(issue('error', rel, posLine(node),
+        issues.push(issue('error', rel, posLine(node, off),
           `Missing asset: "${target}" (resolved to ${path.relative(dir, absTarget)})`));
       }
     });
@@ -648,6 +733,7 @@ async function checkComponents(files, dir, issues) {
     const raw = await fs.readFile(file, 'utf8');
     const body = matter(raw).content;
 
+    const off = bodyOffset(raw, body);
     const rewritten = rewriteMdxTags(body);
     const hast = parseHast(rewritten);
 
@@ -661,7 +747,7 @@ async function checkComponents(files, dir, issues) {
       if (tag.startsWith('wc-') && !seenWc.has(tag)) {
         seenWc.add(tag);
         if (!BUILTIN_COMPONENTS.has(tag) && !AUTHORING_COMPONENTS.has(tag) && !customComponents.has(tag)) {
-          issues.push(issue('warning', rel, posLine(node),
+          issues.push(issue('warning', rel, posLine(node, off),
             `Unknown component <${tag}> — not a built-in and not found in components/`));
         }
       }
@@ -679,7 +765,7 @@ async function checkComponents(files, dir, issues) {
       if (cfg) {
         if (!cfg.tag) continue;
         if (!BUILTIN_COMPONENTS.has(cfg.tag) && !customComponents.has(cfg.tag)) {
-          issues.push(issue('warning', rel, lineOf(raw, m.index),
+          issues.push(issue('warning', rel, lineOf(body, m.index) + off,
             `<${name}> maps to <${cfg.tag}>, which isn't registered — components/${cfg.tag}.js missing?`));
         }
         continue;
@@ -687,7 +773,7 @@ async function checkComponents(files, dir, issues) {
 
       const fallback = pascalToWcKebab(name);
       if (!BUILTIN_COMPONENTS.has(fallback) && !customComponents.has(fallback)) {
-        issues.push(issue('warning', rel, lineOf(raw, m.index),
+        issues.push(issue('warning', rel, lineOf(body, m.index) + off,
           `<${name}> will render as <${fallback}>, which isn't a built-in and isn't in components/`));
       }
     }
@@ -757,6 +843,9 @@ async function checkOrphans(files, slugs, dir, issues) {
     const rel = path.relative(docsDir, file);
     const slug = rel.replace(/\.(md|mdx)$/, '').replace(/\\/g, '/');
     if (!slugs.has(slug)) {
+      try {
+        if (matter(await fs.readFile(file, 'utf8')).data?.sidebar === false) continue; // intentionally unlisted
+      } catch { /* frontmatter errors are reported elsewhere */ }
       issues.push(issue('info', path.relative(dir, file), null,
         `Orphaned page — not referenced in any sidebar group (slug: "${slug}")`));
     }
@@ -824,12 +913,13 @@ async function checkExternalLinks(files, dir, issues) {
     const rel = path.relative(dir, file);
     const raw = await fs.readFile(file, 'utf8');
     const body = matter(raw).content;
+    const off = bodyOffset(raw, body);
     const tree = parseMdast(body);
     visit(tree, 'link', (node) => {
       const target = (node.url || '').trim().split('#')[0];
       if (/^https?:\/\//i.test(target)) {
         if (!urls.has(target)) urls.set(target, []);
-        urls.get(target).push({ file: rel, line: posLine(node) });
+        urls.get(target).push({ file: rel, line: posLine(node, off) });
       }
     });
   }
@@ -882,23 +972,26 @@ function getValidateFlag(args, flag) {
   return i !== -1 ? args[i + 1] : null;
 }
 
-// ─── Entry point ───────────────────────────────────────────────────────────────
-export async function validate(args) {
-  const strict    = args.includes('--strict');
-  const external  = args.includes('--external');
-  const format    = getValidateFlag(args, '--format') || 'pretty';
-  const positional = args.filter(a => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--format');
-  const dir       = path.resolve(positional[0] || '.');
+// ─── Programmatic API ──────────────────────────────────────────────────────────
+/**
+ * Run every validation check without printing or exiting.
+ * @param {string} dir  Project root (contains docslit.json and docs/)
+ * @param {{ strict?: boolean, external?: boolean, onExternalStart?: () => void }} [options]
+ * @returns {Promise<{ ok: boolean, summary: { errors: number, warnings: number, infos: number, pages: number },
+ *   issues: Array<{ level: 'error'|'warning'|'info', code: string, message: string, file: string|null, line?: number, fix?: string }>,
+ *   elapsedMs: number }>}
+ */
+export async function runValidation(dir, { strict = false, external = false, onExternalStart } = {}) {
+  const t0 = Date.now();
+  dir = path.resolve(dir || '.');
+  const allIssues = [];
 
   if (!await fs.pathExists(dir)) {
-    console.error(pc.red(`  Error: Directory not found: ${dir}`));
-    process.exit(1);
+    allIssues.push(issue('error', null, null, `Directory not found: ${dir}`, {
+      code: 'directory-not-found', fix: 'Pass the path of a DocsLit project (a folder containing docslit.json)',
+    }));
+    return finishValidation(allIssues, 0, strict, t0);
   }
-
-  const t0 = Date.now();
-  console.log(pc.dim(`\n  Validating ${dir}…`));
-
-  const allIssues = [];
 
   // 1. Config
   const { issues: cfgIssues, config: loadedConfig, slugs } = await checkConfig(dir);
@@ -930,20 +1023,61 @@ export async function validate(args) {
 
   // 11. External link check (opt-in)
   if (external) {
-    console.log(pc.dim(`  Checking external links…`));
+    if (onExternalStart) onExternalStart();
     await checkExternalLinks(files, dir, allIssues);
   }
 
-  const elapsed = Date.now() - t0;
+  return finishValidation(allIssues, files.length, strict, t0);
+}
 
-  if (format === 'github') {
-    renderGithubFormat(allIssues);
-  } else {
-    renderReport(allIssues, files.length, elapsed);
+function finishValidation(allIssues, pages, strict, t0) {
+  const errors = allIssues.filter(i => i.level === 'error').length;
+  const warnings = allIssues.filter(i => i.level === 'warning').length;
+  const infos = allIssues.filter(i => i.level === 'info').length;
+  const issues = allIssues.map((i) => {
+    const out = { level: i.level, code: i.code, message: i.message, file: i.file };
+    if (i.line) out.line = i.line;
+    if (i.fix) out.fix = i.fix;
+    return out;
+  });
+  return {
+    ok: errors === 0 && !(strict && warnings > 0),
+    summary: { errors, warnings, infos, pages },
+    issues,
+    elapsedMs: Date.now() - t0,
+  };
+}
+
+// ─── Entry point ───────────────────────────────────────────────────────────────
+export async function validate(args) {
+  const strict    = args.includes('--strict');
+  const external  = args.includes('--external');
+  const format    = getValidateFlag(args, '--format') || 'pretty';
+  const positional = args.filter(a => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--format');
+  const dir       = path.resolve(positional[0] || '.');
+  const json      = format === 'json';
+
+  if (!json && !await fs.pathExists(dir)) {
+    console.error(pc.red(`  Error: Directory not found: ${dir}`));
+    process.exit(1);
   }
 
-  const hasErrors = allIssues.some(i => i.level === 'error') ||
-    (strict && allIssues.some(i => i.level === 'warning'));
+  if (!json) console.log(pc.dim(`\n  Validating ${dir}…`));
 
-  process.exit(hasErrors ? 1 : 0);
+  const result = await runValidation(dir, {
+    strict,
+    external,
+    onExternalStart: json ? undefined : () => console.log(pc.dim(`  Checking external links…`)),
+  });
+
+  if (json) {
+    const { elapsedMs, ...out } = result;
+    process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+  } else if (format === 'github') {
+    renderGithubFormat(result.issues);
+  } else {
+    renderReport(result.issues, result.summary.pages, result.elapsedMs);
+  }
+
+  process.exit(result.ok ? 0 : 1);
 }

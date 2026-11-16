@@ -116,6 +116,16 @@ export async function deploy(args = []) {
   if (targets.includes('cloudflare')) {
     await fs.writeFile(path.join(cwd, 'wrangler.toml'), wranglerToml());
     console.log(`  ${pc.green('✓')} Wrote wrangler.toml`);
+    // Cloudflare Pages reads Functions from <project>/functions; `docslit build`
+    // emits the middleware under the output dir, so install it here on request.
+    const built = path.join(cwd, 'dist', 'functions', '_middleware.js');
+    if (await fs.pathExists(built)) {
+      await fs.ensureDir(path.join(cwd, 'functions'));
+      await fs.copyFile(built, path.join(cwd, 'functions', '_middleware.js'));
+      console.log(`  ${pc.green('✓')} Wrote functions/_middleware.js (Accept: text/markdown negotiation for Cloudflare Pages)`);
+    } else {
+      console.log(`  ${pc.yellow('⚠')} Run ${pc.cyan('docslit build')} then re-run ${pc.cyan('docslit deploy --cloudflare')} to install functions/_middleware.js (Markdown negotiation)`);
+    }
   }
 
   console.log(`\n  Next: commit the recipe files, then push / connect your host.\n`);
