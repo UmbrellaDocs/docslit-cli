@@ -62,3 +62,19 @@ https://fontawesome.com
 Copyright 2024 Fonticons, Inc.
 Icons are licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
 See https://fontawesome.com/license/free
+
+-------------------------------------------------------------------------------
+
+Lucide icons (src/icons/lucide.json, generated from lucide-static)
+https://lucide.dev
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+Licensed under the ISC License.
+
+-------------------------------------------------------------------------------
+
+Font Awesome Free 6.7.2 icons (src/icons/fa.json, generated from @fortawesome/fontawesome-free)
+https://fontawesome.com
+Copyright 2024 Fonticons, Inc.
+Icons are licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); the SVG path data
+is modified only by repackaging into a JSON registry. Attribution: "Font Awesome Free by Fonticons, Inc.,
+https://fontawesome.com/license/free".

@@ -78,19 +78,7 @@ export default `
     // Icons are normally resolved at BUILD time (inline SVG child). This runtime lookup only serves
     // wc-icon elements created without one (JS-built DOM); it never fetches over file:// / offline.
     _hasBuilt(){return !!(this.querySelector(':scope > *')||(this.textContent||'').trim());}
-    _needsFetch(){if(location.protocol==='file:'||this._hasBuilt())return null;const r=_resolveIcon(this.name);return !!r.slug&&!!r.style&&!_faCache[r.key]?r:null;}
-    connectedCallback(){super.connectedCallback();const r=this._needsFetch();if(r)this._fetchFa(r);}
-    updated(changed){if(changed.has('name')){const r=this._needsFetch();if(r)this._fetchFa(r);}}
-    async _fetchFa(r){
-      const k=r.key;
-      if(_faPending[k]){_faPending[k].then(()=>this.requestUpdate());return;}
-      _faPending[k]=fetch('https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/svgs/'+r.style+'/'+r.slug+'.svg')
-        .then(res=>res.ok?res.text():null)
-        .then(svg=>{if(svg){_faCache[k]=svg;}delete _faPending[k];})
-        .catch(()=>{delete _faPending[k];});
-      await _faPending[k];
-      this.requestUpdate();
-    }
+    _hasBuilt(){return !!(this.querySelector(':scope > *')||(this.textContent||'').trim());}
     render(){
       const s=this.size||16;
       const c=this.color||'currentColor';

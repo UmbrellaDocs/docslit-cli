@@ -562,12 +562,12 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
   const searchClick = offline ? '' : ' onclick="openSearch()"';
   const themeClick = offline ? '' : ' onclick="toggleTheme()"';
   return `<a class="skip-link" href="#docs-content">Skip to content</a>
-<nav class="nav" aria-label="Primary" data-site-name="${escHtml(siteTitle)}">
+<nav class="nav">
   <div class="nav-left">
     <button class="nav-menu-btn" id="nav-menu-btn" aria-label="Open navigation" aria-expanded="false">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <a class="nav-logo" href="${escHtml(homeHref)}"${logoAttrs}>
+    <a class="nav-logo" href="${escHtml(homeHref)}" data-site-name="${escHtml(siteTitle)}"${logoAttrs}>
       ${logoImgs}
       ${logoText ? `<span class="nav-logo-text">${escHtml(logoText)}</span>` : ''}
     </a>
@@ -1223,8 +1223,10 @@ function _buildPrevNext(id) {
   var _pg = _docsPageEl();
   var _noNav = _pg && _pg.getAttribute('data-hide-nav') === 'true';
   // Pages outside the visible sidebar (hidden pages) have no neighbours; neither do pages that opt out.
-  const prev = !_noNav && idx > 0 ? all[idx-1] : null;
-  const next = !_noNav && idx >= 0 && idx < all.length-1 ? all[idx+1] : null;
+  // Neighbours expose a clean label (icons/badges excluded) through textContent.
+  const _nb = function(el){ return el ? { dataset: el.dataset, textContent: _itemLabel(el) } : null; };
+  const prev = !_noNav && idx > 0 ? _nb(all[idx-1]) : null;
+  const next = !_noNav && idx >= 0 && idx < all.length-1 ? _nb(all[idx+1]) : null;
   let h = _buildFeedback(id);
   var editBase = window.__DOCSLIT_EDIT_URL__;
   if (editBase) {
@@ -1236,13 +1238,13 @@ function _buildPrevNext(id) {
   if (prev) {
     const pid = _escHtml(prev.dataset.page);
     const phref = _escHtml(_OFFLINE ? prev.dataset.page : _docsBase() + prev.dataset.page);
-    const ptxt = _escHtml(_itemLabel(prev));
+    const ptxt = _escHtml(prev.textContent.trim());
     h += '<a class="page-nav-btn" href="' + phref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + pid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">← Previous</span><span class="page-nav-title">' + ptxt + '</span></a>';
   } else { h += '<span></span>'; }
   if (next) {
     const nid = _escHtml(next.dataset.page);
     const nhref = _escHtml(_OFFLINE ? next.dataset.page : _docsBase() + next.dataset.page);
-    const ntxt = _escHtml(_itemLabel(next));
+    const ntxt = _escHtml(next.textContent.trim());
     h += '<a class="page-nav-btn next" href="' + nhref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + nid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">Next →</span><span class="page-nav-title">' + ntxt + '</span></a>';
   } else { h += '<span></span>'; }
   h += '</nav>';
@@ -1505,7 +1507,7 @@ function _itemLabel(el) {
   return (l || el).textContent.trim();
 }
 function _siteName() {
-  var n = document.querySelector('.nav');
+  var n = document.querySelector('.nav-logo');
   var v = n && n.getAttribute('data-site-name');
   if (v) return v;
   var t = document.querySelector('.nav-logo-text');

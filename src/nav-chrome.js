@@ -600,7 +600,7 @@ summary.sidebar-group-title:has(> .sidebar-badge)::after, summary.sidebar-subgro
 
 /* mobile drawer extras (navbar links + CTA) */
 .sidebar-mobile-extras { display: none; flex-shrink: 0; padding: 10px 14px 12px; border-bottom: 1px solid var(--border); gap: 6px; flex-wrap: wrap; }
-.sidebar-mobile-extras .nav-ext-link { font-size: 13px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; }
+.sidebar-mobile-extras .nav-ext-link { color: var(--text2); font-size: 13px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; }
 .sidebar-mobile-extras .nav-btn { height: 32px; }
 
 /* ── footer socials ────────────────────────────────────────────────────── */

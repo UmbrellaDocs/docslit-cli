@@ -7,6 +7,7 @@
  * See NOTICES. Names from Mintlify (Lucide / Font Awesome) and Fern (Font Awesome
  * class strings such as "fa-regular fa-rocket") resolve through the alias table.
  */
+import { renderIconSvg } from './icons.js';
 
 const LUCIDE = {
   "activity": "<path d=\"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2\" />",
@@ -326,6 +327,8 @@ export function renderIcon(raw, { size = 16, className = 'nav-icon', resolveSrc 
     const [vb, d] = BRANDS[r.key];
     return `<svg class="${cls}" width="${size}" height="${size}" viewBox="${vb}" fill="currentColor" aria-hidden="true" focusable="false"><path d="${d}"/></svg>`;
   }
+  const full = renderIconSvg(name);
+  if (full) return full.replace('<svg ', `<svg class="${cls}" width="${size}" height="${size}" `);
   return `<wc-icon class="${cls}" name="${escAttr(name)}" size="${size}" style="width:${size}px;height:${size}px" aria-hidden="true"></wc-icon>`;
 }
 
