@@ -120,7 +120,7 @@ export function renderTabsBar(nav) {
   const items = nav.tabs.filter((t) => !t.hidden).map((t) => `<li>${tabLinkHtml(t, nav, 'nav-tab', nav.hidden)}</li>`).join('');
   if (!items) return '';
   const v = nav.layout;
-  return `<div class="nav-tabs-bar" id="nav-tabs-bar" data-style="${esc(v.tabsStyle || 'underline')}" data-align="${esc(v.tabsAlign || 'left')}"><nav class="nav-tabs" aria-label="Sections"><ul class="nav-tabs-list">${items}</ul></nav></div>`;
+  return `<div class="nav-tabs-bar" id="nav-tabs-bar" data-style="${esc(v.tabsStyle || 'underline')}"${v.tabsStyle ? ' data-style-set' : ''} data-align="${esc(v.tabsAlign || 'left')}"><nav class="nav-tabs" aria-label="Sections"><ul class="nav-tabs-list">${items}</ul></nav></div>`;
 }
 
 /** Tabs inside the sidebar: always for placement "sidebar", and as the mobile drawer list for "header". */
@@ -406,7 +406,7 @@ export const NAV_TOKENS_CSS = `
 html.light {
   --dropdown-shadow: 0 8px 24px rgba(0,0,0,.12);
   --btn-filled-hover-bg: var(--accent-light);
-  --badge-beta-fg: #b45309;  --badge-beta-bg: rgba(217,119,6,.12);
+  --badge-beta-fg: #92400e;  --badge-beta-bg: rgba(217,119,6,.12);
   --badge-dev-fg: #1d4ed8;   --badge-dev-bg: rgba(37,99,235,.1);
   --badge-deprecated-fg: #b91c1c; --badge-deprecated-bg: rgba(220,38,38,.09);
 }
@@ -524,7 +524,7 @@ wc-icon.nav-icon:not(:defined) { display: inline-block; }
 .sidebar-item-rich.active .sidebar-item-icon { color: var(--accent-light); }
 .sidebar-item-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-item-rich .sidebar-item-label { flex: 1 1 auto; }
-.sidebar-item-rich.is-deprecated .sidebar-item-label { text-decoration: line-through; text-decoration-thickness: 1px; opacity: .72; }
+.sidebar-item-rich.is-deprecated .sidebar-item-label { text-decoration: line-through; text-decoration-thickness: 1px; }
 .sidebar-link {
   padding: var(--sidebar-item-pad-y) var(--sidebar-pad-x) var(--sidebar-item-pad-y) var(--sb-item-pl);
   margin: 0 var(--sb-item-mx); border-radius: var(--sb-item-radius);
@@ -543,7 +543,7 @@ wc-icon.nav-icon:not(:defined) { display: inline-block; }
 summary.sidebar-group-title .sidebar-badge, summary.sidebar-subgroup-title .sidebar-badge { margin-left: auto; margin-right: 0; }
 summary.sidebar-group-title:has(> .sidebar-badge)::after, summary.sidebar-subgroup-title:has(> .sidebar-badge)::after { margin-left: 8px; }
 .sidebar-group-root, .sidebar-group-root.sidebar-item {
-  display: inline; padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; flex: 1; min-width: 0;
+  display: inline; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; font: inherit; line-height: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; flex: 1; min-width: 0;
 }
 .sidebar-group-root:hover, .sidebar-group-root.sidebar-item:hover { background: none; color: var(--text); }
 .sidebar-group-root.active, .sidebar-group-root.sidebar-item.active { background: none; color: var(--accent-light); font-weight: 700; }
@@ -711,6 +711,12 @@ function _applyPageInfo(info) {
   if (i.hideActions) page.setAttribute('data-hide-actions', 'true'); else page.removeAttribute('data-hide-actions');
   page.setAttribute('data-toc-depth', String(i.tocDepth || 3));
   if (i.tab) _navSetTab(i.tab);
+  // dev server only: static builds bake <meta name="robots"> into each page's own HTML
+  if (typeof i.noindex === 'boolean') {
+    var rb = document.head.querySelector('meta[name="robots"]');
+    if (i.noindex && !rb) { rb = document.createElement('meta'); rb.name = 'robots'; document.head.appendChild(rb); }
+    if (rb) { if (i.noindex) rb.setAttribute('content', 'noindex'); else rb.remove(); }
+  }
 }
 function _tabIdOfPageEl(el) {
   var pane = el && el.closest ? el.closest('.sidebar-pane') : null;

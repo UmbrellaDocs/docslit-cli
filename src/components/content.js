@@ -118,8 +118,8 @@ class WcButton extends LitElement {
     .lg{padding:13px 26px;font-size:15px}
     .rounded{border-radius:var(--r-pill,100px)}
     .mono{font-family:var(--font-mono,'JetBrains Mono',monospace);font-weight:500}
-    .primary,.success,.warning{background:var(--c);color:#fff}
-    .success,.warning{color:#fff}
+    .primary,.success,.warning{background:var(--c);color:var(--on-accent,#fff)}
+    .success{background:color-mix(in srgb,var(--c) 68%,#000);color:#fff}
     .primary:hover,.success:hover,.warning:hover{background:color-mix(in srgb,var(--c) 82%,var(--text,#f0f0f0))}
     .warning{color:#1a1203;background:var(--c)}
     .outline{background:transparent;color:var(--text,#f0f0f0);border-color:var(--border2,#3a3a3a)}

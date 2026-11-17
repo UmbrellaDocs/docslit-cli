@@ -2662,7 +2662,7 @@ ${themeFaces}
 :root {
   --bg: #0a0a0a; --surface: #111; --surface2: #1a1a1a; --surface3: #222;
   --border: #2a2a2a; --border2: #3a3a3a;
-  --text: #f0f0f0; --text2: #a0a0a0; --text3: #666;
+  --text: #f0f0f0; --text2: #a0a0a0; --text3: #8f8f8f;
   --accent: #01696f; --accent-light: #4f98a3;
   --accent-dim: rgba(1,105,111,.15); --accent-dim2: rgba(1,105,111,.25);
   --sidebar-bg: #0f0f0f; --code-bg: #161616; --code-text: #e2e8f0;
@@ -2676,7 +2676,7 @@ html.announcement-dismissed #announcement-banner { display: none; }
 html.light {
   --bg: #ffffff; --surface: #f8f8f8; --surface2: #f0f0f0; --surface3: #e8e8e8;
   --border: #e2e2e2; --border2: #d0d0d0;
-  --text: #0f0f0f; --text2: #555; --text3: #737373;
+  --text: #0f0f0f; --text2: #555; --text3: #6b6b6b;
   --accent-light: #015e63;
   --accent-dim: rgba(1,105,111,.08); --accent-dim2: rgba(1,105,111,.15);
   --sidebar-bg: #f5f5f5; --code-bg: #f6f8fa; --code-text: #24292f;
@@ -3262,7 +3262,7 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .search-trigger-kbd kbd {
   font-family: var(--font-sans); font-size: 11px; font-weight: 500;
   background: var(--surface3); border: 1px solid var(--border);
-  border-radius: 4px; padding: 1px 5px; color: var(--text3); line-height: 1.4;
+  border-radius: 4px; padding: 1px 5px; color: var(--text2); line-height: 1.4;
 }
 
 /* SEARCH OVERLAY */
@@ -3294,7 +3294,7 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .search-kbd kbd {
   font-family: var(--font-sans); font-size: 11px; font-weight: 500;
   background: var(--surface3); border: 1px solid var(--border);
-  border-radius: 4px; padding: 2px 6px; color: var(--text3);
+  border-radius: 4px; padding: 2px 6px; color: var(--text2);
 }
 .search-results {
   max-height: 440px; overflow-y: auto;
@@ -3366,9 +3366,9 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .search-hint kbd {
   font-family: var(--font-sans); font-size: 11px; font-weight: 500;
   background: var(--surface3); border: 1px solid var(--border);
-  border-radius: 3px; padding: 1px 5px; line-height: 1.4;
+  border-radius: 3px; padding: 1px 5px; line-height: 1.4; color: var(--text2);
 }
-mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-radius: 2px; padding: 0 1px; }
+mark.hl { background: var(--accent-dim2); color: var(--text); border-radius: 2px; padding: 0 1px; }
 
 /* API LAYOUT — three-column Stripe-style for API reference pages */
 .api-layout .docs-main { justify-content: flex-start; }
@@ -3430,6 +3430,10 @@ ${NAV_RULES_CSS}
   :root { --nav-h: 56px; }
   .nav { padding: 0 14px 0 8px; }
   .nav-logo-text { display: none; }
+  .page-meta .meta-sep { display: none; } /* a wrapped row would strand the divider at a line end */
+  /* wide wordmark logos + locale/version switchers: let the logo shrink instead of sliding under the controls */
+  .nav-left { flex: 1 1 0; }
+  .nav-logo-icon { flex-shrink: 1; min-width: 0; max-width: 100%; object-fit: contain; object-position: left center; }
   .search-trigger-text, .search-trigger-kbd { display: none; }
   .search-trigger { padding: 0 8px; }
   .search-modal { margin: 0 12px; }
@@ -3537,7 +3541,7 @@ html.a11y-underline .docs-content a { text-decoration: underline !important; tex
 /* SKIP LINK */
 .skip-link {
   position: fixed; top: -100px; left: 16px; z-index: 9999;
-  padding: 8px 16px; background: var(--accent); color: #fff;
+  padding: 8px 16px; background: var(--accent); color: var(--on-accent, #fff);
   font-family: var(--font-sans); font-size: 14px; font-weight: 600;
   border-radius: 0 0 var(--radius) var(--radius);
   text-decoration: none; transition: top .15s;

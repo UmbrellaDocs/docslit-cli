@@ -16,20 +16,20 @@ class WcField extends LitElement {
     .type-label{font-family:'Inter',sans-serif;font-size:12px;color:var(--text3,#666)}
     .in-badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:1px 6px;border-radius:var(--r-xs,3px);background:var(--surface2,#1a1a1a);color:var(--text3,#666);border:1px solid var(--border,#2a2a2a);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
     .lbl{font-family:var(--font-sans,'Inter',sans-serif);font-size:10px;font-weight:600;padding:1px 6px;border-radius:var(--r-xs,3px);background:var(--accent-dim,rgba(1,105,111,.15));color:var(--accent-light,#4f98a3);border:1px solid var(--accent-dim2,rgba(1,105,111,.25));white-space:nowrap}
-    .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-xs,3px);background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+    .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-xs,3px);background:rgba(239,68,68,.15);color:color-mix(in srgb,#ef4444 58%,var(--text,#f0f0f0));border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
     .desc{color:var(--text2,#a0a0a0);line-height:1.6;font-size:13px;margin-top:6px}
-    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:#4f98a3}
-    .desc a{color:#4f98a3;text-decoration:none}
+    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:var(--accent-light,#4f98a3)}
+    .desc a{color:var(--accent-light,#4f98a3);text-decoration:none}
     .desc a:hover{text-decoration:underline}
     .constraint{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .default-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .example-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
-    .example-val code{font-size:11px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:#4f98a3}
+    .example-val code{font-size:11px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:var(--accent-light,#4f98a3)}
     .enum-box{margin-top:10px;border:1px solid var(--border,#2a2a2a);border-radius:var(--r-md,8px);overflow:hidden}
     .enum-title{font-size:12px;font-weight:600;color:var(--text,#f0f0f0);padding:10px 14px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a)}
     .enum-item{padding:10px 14px;border-bottom:1px solid var(--border,#2a2a2a)}
     .enum-item:last-child{border-bottom:none}
-    .enum-val{font-family:'JetBrains Mono',monospace;font-size:12px;padding:2px 8px;border-radius:var(--r-xs,4px);background:rgba(1,105,111,.1);color:#4f98a3;display:inline-block}
+    .enum-val{font-family:'JetBrains Mono',monospace;font-size:12px;padding:2px 8px;border-radius:var(--r-xs,4px);background:rgba(1,105,111,.1);color:var(--accent-light,#4f98a3);display:inline-block}
     .toggle-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 14px;border:1px solid var(--border,#2a2a2a);border-radius:20px;background:transparent;font-family:'Inter',sans-serif;font-size:12px;color:var(--text2,#a0a0a0);cursor:pointer;transition:all .15s;user-select:none}
     .toggle-btn:hover{border-color:var(--text3,#666);color:var(--text,#f0f0f0)}
     .toggle-icon{font-size:10px;line-height:1}
@@ -117,10 +117,10 @@ class WcResponse extends LitElement {
     .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:13px}
     .row:last-child{border-bottom:none}
     .code{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:2px 8px;border-radius:var(--r-xs,4px);white-space:nowrap}
-    .c2{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
-    .c3{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
-    .c4{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
-    .c5{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+    .c2{background:rgba(16,185,129,.15);color:color-mix(in srgb,#10b981 58%,var(--text,#f0f0f0));border:1px solid rgba(16,185,129,.3)}
+    .c3{background:rgba(59,130,246,.15);color:color-mix(in srgb,#3b82f6 58%,var(--text,#f0f0f0));border:1px solid rgba(59,130,246,.3)}
+    .c4{background:rgba(245,158,11,.15);color:color-mix(in srgb,#f59e0b 58%,var(--text,#f0f0f0));border:1px solid rgba(245,158,11,.3)}
+    .c5{background:rgba(239,68,68,.15);color:color-mix(in srgb,#ef4444 58%,var(--text,#f0f0f0));border:1px solid rgba(239,68,68,.3)}
     .desc{color:var(--text2,#a0a0a0)}
     .ct{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-left:auto}
   \`;
@@ -293,14 +293,16 @@ customElements.define('wc-schema',WcSchema);
 
 // ── WC-MERMAID ─────────────────────────────────────────────────────────────
 class WcMermaid extends LitElement {
-  static properties={_svg:{type:String,state:true},_error:{type:String,state:true},_expanded:{type:Boolean,state:true}};
+  static properties={_svg:{type:String,state:true},_error:{type:String,state:true},_offline:{type:Boolean,state:true},_expanded:{type:Boolean,state:true}};
   static styles=css\`
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--text3:#666}
     :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--text3:#737373}
     .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);padding:24px;overflow-x:auto;text-align:center;position:relative}
-    .loading{color:#555;font-family:'Inter',sans-serif;font-size:13px}
+    .loading{color:var(--text3,#777);font-family:'Inter',sans-serif;font-size:13px}
     .error{color:#f87171;font-family:'JetBrains Mono',monospace;font-size:12px;white-space:pre-wrap;text-align:left}
+    .offline{color:var(--text3,#666);font-family:'Inter',sans-serif;font-size:12px;text-align:left;margin-bottom:8px}
+    .src{margin:0;text-align:left;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.55;color:var(--text2,#999);white-space:pre;overflow-x:auto}
     .diagram{display:inline-block;max-width:100%}
     .diagram svg{max-width:100%;height:auto}
     .expand-btn{position:absolute;top:10px;right:10px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-sm,6px);padding:5px 8px;cursor:pointer;color:var(--text3,#666);font-size:14px;line-height:1;display:flex;align-items:center;gap:4px;font-family:'Inter',sans-serif;font-size:11px;transition:color .15s,border-color .15s;z-index:1}
@@ -315,22 +317,34 @@ class WcMermaid extends LitElement {
   constructor(){super();this._expanded=false;}
   connectedCallback(){super.connectedCallback();this._code=this.textContent.trim();}
   async firstUpdated(){await this._renderDiagram();}
+  disconnectedCallback(){super.disconnectedCallback();if(this._mo){this._mo.disconnect();this._mo=null;}}
+  _isLight(){return document.documentElement.classList.contains('light');}
   async _renderDiagram(){
     if(!this._code)return;
     try{
+      // Mermaid is large (and ESM-only), so it is loaded lazily from a CDN the first time a diagram appears.
+      // Offline or blocked networks fall back to showing the diagram source (see render()).
       if(!window.__mermaid__){
-        const mod=await import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs');
-        window.__mermaid__=mod.default;
-        window.__mermaid__.initialize({startOnLoad:false,theme:'dark',themeVariables:{background:'#111',primaryColor:'#01696f',primaryTextColor:'#e2e8f0',lineColor:'#444',edgeLabelBackground:'#111'}});
+        window.__mermaid__=(await import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs')).default;
       }
+      const light=this._isLight();
+      window.__mermaid__.initialize(light
+        ?{startOnLoad:false,theme:'base',themeVariables:{background:'#f8f8f8',primaryColor:'#e6f4f1',primaryBorderColor:'#01696f',primaryTextColor:'#1a1a1a',lineColor:'#6b7280',edgeLabelBackground:'#f8f8f8'}}
+        :{startOnLoad:false,theme:'dark',themeVariables:{background:'#111',primaryColor:'#01696f',primaryTextColor:'#e2e8f0',lineColor:'#444',edgeLabelBackground:'#111'}});
       const id='mermaid-'+Math.random().toString(36).slice(2);
       const{svg}=await window.__mermaid__.render(id,this._code);
-      this._svg=svg;
-    }catch(e){this._error=e.message;}
+      this._svg=svg;this._error=null;this._offline=false;
+      if(!this._mo){this._mo=new MutationObserver(()=>{if(this._lastLight!==this._isLight())this._renderDiagram();});this._mo.observe(document.documentElement,{attributes:true,attributeFilter:['class']});}
+      this._lastLight=light;
+    }catch(e){
+      // a failed import (offline, CSP, CDN down) is not a syntax error: keep the source readable
+      if(!window.__mermaid__){this._offline=true;this._error=null;}else this._error=e.message;
+    }
   }
   _open(){this._expanded=true;}
   _close(e){if(e.target===e.currentTarget||e.target.classList.contains('close-btn'))this._expanded=false;}
   render(){
+    if(this._offline)return html\`<div class="wrap"><div class="offline">Diagram unavailable: the Mermaid renderer could not be loaded (offline or blocked network). Source:</div><pre class="src">\${this._code}</pre></div>\`;
     if(this._error)return html\`<div class="wrap"><pre class="error">\${this._error}</pre></div>\`;
     if(!this._svg)return html\`<div class="wrap"><div class="loading">Rendering diagram…</div></div>\`;
     return html\`<div class="wrap"><button class="expand-btn" @click=\${this._open} title="Expand diagram">\u{2922} Expand</button><div class="diagram" .innerHTML=\${this._svg}></div></div>\${this._expanded?html\`<div class="overlay" @click=\${this._close}><div class="modal"><button class="close-btn" @click=\${this._close}>✕ Close</button><div class="modal-diagram" .innerHTML=\${this._svg}></div></div></div>\`:nothing}\`;
@@ -348,24 +362,24 @@ class WcEndpoint extends LitElement {
     .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);overflow:hidden}
     .url-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);flex-wrap:wrap;gap:8px}
     .method{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:3px 10px;border-radius:var(--r-xs,4px);flex-shrink:0;text-transform:uppercase}
-    .GET{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
-    .POST{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
-    .PUT,.PATCH{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
-    .DELETE{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+    .GET{background:rgba(16,185,129,.15);color:color-mix(in srgb,#10b981 58%,var(--text,#f0f0f0));border:1px solid rgba(16,185,129,.3)}
+    .POST{background:rgba(59,130,246,.15);color:color-mix(in srgb,#3b82f6 58%,var(--text,#f0f0f0));border:1px solid rgba(59,130,246,.3)}
+    .PUT,.PATCH{background:rgba(245,158,11,.15);color:color-mix(in srgb,#f59e0b 58%,var(--text,#f0f0f0));border:1px solid rgba(245,158,11,.3)}
+    .DELETE{background:rgba(239,68,68,.15);color:color-mix(in srgb,#ef4444 58%,var(--text,#f0f0f0));border:1px solid rgba(239,68,68,.3)}
     .url{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text,#f0f0f0);word-break:break-all}
     .security{display:flex;gap:6px;padding:8px 16px;border-bottom:1px solid var(--border,#2a2a2a);flex-wrap:wrap;align-items:center;font-family:'Inter',sans-serif;font-size:11px}
     .security-label{color:var(--text3,#666);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-right:2px}
-    .security-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:var(--r-xs,4px);background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
-    .security-badge.open{background:rgba(16,185,129,.12);color:#34d399;border-color:rgba(16,185,129,.25)}
+    .security-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:var(--r-xs,4px);background:rgba(245,158,11,.12);color:color-mix(in srgb,#f59e0b 58%,var(--text,#f0f0f0));border:1px solid rgba(245,158,11,.25)}
+    .security-badge.open{background:rgba(16,185,129,.12);color:color-mix(in srgb,#10b981 58%,var(--text,#f0f0f0));border-color:rgba(16,185,129,.25)}
     .summary{padding:10px 16px 4px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;color:var(--text,#f0f0f0)}
     .summary+.desc{padding-top:4px}
     .desc{padding:10px 16px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text2,#a0a0a0);border-bottom:1px solid var(--border,#2a2a2a);line-height:1.6}
-    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:#4f98a3}
-    .desc a{color:#4f98a3;text-decoration:none}
+    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:var(--accent-light,#4f98a3)}
+    .desc a{color:var(--accent-light,#4f98a3);text-decoration:none}
     .desc a:hover{text-decoration:underline}
     .tabbar{display:flex;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);overflow-x:auto}
     button{background:none;border:none;border-bottom:2px solid transparent;padding:8px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3,#666);cursor:pointer;white-space:nowrap;flex-shrink:0;margin-bottom:-1px;transition:all .15s}
-    button.active{color:#4f98a3;border-bottom-color:#01696f}
+    button.active{color:var(--accent-light,#4f98a3);border-bottom-color:#01696f}
     button:hover{color:#a0a0a0}
     .panel{display:none}.panel.active{display:block}
     pre{margin:0;padding:16px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;color:var(--code-text,#e2e8f0)}
@@ -568,20 +582,20 @@ class WcPlayground extends LitElement {
   };
   static styles=css\`
     :host{display:block;margin:0 0 20px}
-    .wrap{border:1px solid var(--dl-border,rgba(255,255,255,.08));border-radius:var(--r-lg,10px);overflow:hidden;background:var(--dl-surface,#111)}
-    .head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--dl-border,rgba(255,255,255,.08));flex-wrap:wrap}
-    .method{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;padding:3px 8px;border-radius:var(--r-xs,4px);background:rgba(16,185,129,.15);color:#34d399}
+    .wrap{border:1px solid var(--dl-border,var(--border,rgba(255,255,255,.08)));border-radius:var(--r-lg,10px);overflow:hidden;background:var(--dl-surface,var(--surface,#111));color:var(--text,#f0f0f0)}
+    .head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--dl-border,var(--border,rgba(255,255,255,.08)));flex-wrap:wrap}
+    .method{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;padding:3px 8px;border-radius:var(--r-xs,4px);background:rgba(16,185,129,.15);color:color-mix(in srgb,#10b981 58%,var(--text,#f0f0f0))}
     .path{font-family:ui-monospace,monospace;font-size:13px;flex:1;min-width:160px}
     button.go{background:var(--dl-accent,#01696f);color:#fff;border:none;border-radius:var(--r-sm,6px);padding:7px 16px;font-weight:600;cursor:pointer}
     button.go:disabled{opacity:.5;cursor:not-allowed}
     .body{padding:12px 14px;display:grid;gap:10px}
     label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.7;display:block;margin-bottom:4px}
-    input,textarea{width:100%;box-sizing:border-box;border-radius:var(--r-sm,6px);border:1px solid var(--dl-border,rgba(255,255,255,.12));background:transparent;color:inherit;padding:8px 10px;font-family:ui-monospace,monospace;font-size:12px}
+    input,textarea{width:100%;box-sizing:border-box;border-radius:var(--r-sm,6px);border:1px solid var(--dl-border,var(--border2,rgba(255,255,255,.12)));background:transparent;color:inherit;padding:8px 10px;font-family:ui-monospace,monospace;font-size:12px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media(max-width:700px){.grid{grid-template-columns:1fr}}
-    pre{margin:0;padding:12px;border-radius:var(--r-md,8px);background:rgba(0,0,0,.25);overflow:auto;max-height:360px;font-size:12px;white-space:pre-wrap}
+    pre{margin:0;padding:12px;border-radius:var(--r-md,8px);background:var(--surface2,rgba(0,0,0,.25));overflow:auto;max-height:360px;font-size:12px;white-space:pre-wrap}
     .note{font-size:12px;opacity:.7;padding:0 14px 12px}
-    .err{color:#f87171}
+    .err{color:color-mix(in srgb,#ef4444 58%,var(--text,#f0f0f0))}
   \`;
   constructor(){
     super();this.method='GET';this.url='/';this.server='';this.proxy='';

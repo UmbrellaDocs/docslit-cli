@@ -73,17 +73,16 @@ export const THEMES = {
       '--shadow-modal': '0 24px 70px -12px rgba(8,20,14,.35)',
       '--control-radius': '999px', '--btn-filled-hover-bg': 'color-mix(in srgb, var(--accent) 88%, var(--text))',
       '--badge-radius': '999px',
-      '--page-bg-image': 'radial-gradient(900px 340px at 50% -120px, color-mix(in srgb, var(--accent) 9%, transparent), transparent 72%)',
       '--focus-w': '2px',
     },
     css: `
 & .search-trigger, & .theme-btn, & .a11y-btn, & .version-select, & .locale-switcher, & .nav-btn { border-radius: 999px; }
 & .search-trigger { background: color-mix(in srgb, var(--surface2) 60%, transparent); padding: 0 14px; }
-& .nav-tabs-list { align-items: center; gap: 4px; }
-& .nav-tab { height: calc(var(--tabs-bar-h) - 12px); padding: 0 14px; border-radius: 999px; }
-& .nav-tab::after { display: none; }
-& .nav-tab:hover { background: var(--surface2); }
-& .nav-tab.active { background: var(--accent-dim); color: var(--accent-light); }
+& .nav-tabs-bar:not([data-style-set]) .nav-tabs-list { align-items: center; gap: 4px; }
+& .nav-tabs-bar:not([data-style-set]) .nav-tab { height: calc(var(--tabs-bar-h) - 12px); padding: 0 14px; border-radius: 999px; }
+& .nav-tabs-bar:not([data-style-set]) .nav-tab::after { display: none; }
+& .nav-tabs-bar:not([data-style-set]) .nav-tab:hover { background: var(--surface2); }
+& .nav-tabs-bar:not([data-style-set]) .nav-tab.active { background: var(--accent-dim); color: var(--accent-light); }
 & .nav-tabs-bar { border-bottom-color: color-mix(in srgb, var(--border) 65%, transparent); }
 & .docs-nav-top { border-bottom-color: transparent; box-shadow: 100vw 0 0 0 var(--bg); }
 & .docs-sidebar { box-shadow: none; }

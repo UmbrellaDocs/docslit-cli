@@ -54,7 +54,7 @@ class WcVar extends LitElement {
   static properties={name:{type:String},default:{type:String},readonly:{type:Boolean},_editing:{type:Boolean,state:true},_value:{type:String,state:true}};
   static styles=css\`
     :host{display:inline;vertical-align:baseline}
-    .badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:var(--r-xs,4px);background:rgba(1,105,111,.1);border:1px solid rgba(1,105,111,.3);font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;font-style:italic;color:#3d7a83;cursor:pointer;transition:background .15s,border-color .15s;vertical-align:baseline;line-height:inherit}
+    .badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:var(--r-xs,4px);background:rgba(1,105,111,.1);border:1px solid rgba(1,105,111,.3);font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;font-style:italic;color:var(--accent-light,#3d7a83);cursor:pointer;transition:background .15s,border-color .15s;vertical-align:baseline;line-height:inherit}
     .badge:hover{background:rgba(1,105,111,.18);border-color:rgba(1,105,111,.5)}
     .pencil{font-style:normal;font-size:.8em;opacity:.6}
     .edit-wrap{display:inline-flex;align-items:center;gap:4px;vertical-align:baseline}
@@ -293,6 +293,12 @@ const _cbSharedStyles=css\`
   .dl-var:hover,.dl-var:focus-visible{background:rgba(79,152,163,.2);outline:none}
   .dl-var:focus-visible{box-shadow:0 0 0 2px var(--_hov)}
   :host(.light-shiki) .line span,:host([theme="light"]) .line span{color:var(--shiki-light) !important}
+  /* github-light's keyword / parameter / comment colours are below 4.5:1 on tinted code backgrounds: nudge them to AA */
+  :host(.light-shiki) .line span[style*="D73A49" i],:host([theme="light"]) .line span[style*="D73A49" i]{color:#cf222e !important}
+  :host(.light-shiki) .line span[style*="E36209" i],:host([theme="light"]) .line span[style*="E36209" i]{color:#bc4c00 !important}
+  :host(.light-shiki) .line span[style*="6A737D" i],:host([theme="light"]) .line span[style*="6A737D" i]{color:#57606a !important}
+  :host(.light-shiki) .line span[style*="22863A" i],:host([theme="light"]) .line span[style*="22863A" i]{color:#1a7f37 !important}
+  :host(:not(.light-shiki):not([theme="light"])) .line span[style*="6A737D" i]{color:#8b949e !important}
   :host(.light-shiki) .line span.dl-var,:host([theme="light"]) .line span.dl-var,.line span.dl-var{color:var(--_hov) !important}
   .fade{position:absolute;left:0;right:0;bottom:0;height:56px;pointer-events:none;background:linear-gradient(to bottom,transparent,var(--_bg))}
   .more{appearance:none;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:33px;margin:0;padding:0 12px;background:var(--_bar);border:0;border-top:1px solid var(--_bd);border-radius:0 0 calc(var(--cb-r) - 1px) calc(var(--cb-r) - 1px);color:var(--_mut);font:500 12px/1 var(--font-sans,'Inter',system-ui,sans-serif);cursor:pointer}

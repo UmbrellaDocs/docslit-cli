@@ -7,7 +7,7 @@ import { WebSocketServer } from 'ws';
 import chokidar from 'chokidar';
 import pc from 'picocolors';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, gitReadFile, getVersionNavigation } from './config.js';
-import { pageNavMeta, walkPages, isSearchableMeta, collectHiddenIds } from './navigation.js';
+import { pageNavMeta, walkPages, isSearchableMeta, collectHiddenIds, isNoindexMeta } from './navigation.js';
 import { pageClientInfo, withApiTab } from './nav-chrome.js';
 import { parseDoc } from './markdown.js';
 import { sidebarLabel } from './sidebar.js';
@@ -229,7 +229,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
             globalAttributes: getRuntimeAttributes(config, entry.version, entry.branch),
           });
           if (specData) html = resolveSpecRefs(html, specData);
-          return res.json({ id, meta, html, nav: pageClientInfo(navConfig(), id, meta) });
+          return res.json({ id, meta, html, nav: { ...pageClientInfo(navConfig(), id, meta), noindex: isNoindexMeta(meta) } });
         }
         const readFromVersion = async (absPath) => {
           const relFromDocs = path.relative(path.join(cwd, 'docs'), absPath).replace(/\\/g, '/');
@@ -255,7 +255,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
             strictFsSafety: false,
           });
           if (specData) html = resolveSpecRefs(html, specData);
-          return res.json({ id, meta, html, nav: pageClientInfo(navConfig(), id, meta) });
+          return res.json({ id, meta, html, nav: { ...pageClientInfo(navConfig(), id, meta), noindex: isNoindexMeta(meta) } });
         }
         return res.status(404).json({ error: `Page "${id}" not found in version ${version}` });
       }
@@ -277,7 +277,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
         globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultEntry?.branch || null),
       });
       if (specData) html = resolveSpecRefs(html, specData);
-      res.json({ id, meta, html, nav: pageClientInfo(navConfig(), id, meta) });
+      res.json({ id, meta, html, nav: { ...pageClientInfo(navConfig(), id, meta), noindex: isNoindexMeta(meta) } });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }

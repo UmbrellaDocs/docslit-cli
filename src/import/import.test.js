@@ -216,3 +216,21 @@ describe('unlisted pages and generic folders', () => {
     expect(r.validation.errors).toBe(0);
   });
 });
+
+describe('nested index pages are kept (not renamed to overview)', () => {
+  it('imports guides/index.mdx as guides/index and validates with zero errors', async () => {
+    const src = path.join(tmp, 'idx-src');
+    await fs.outputFile(path.join(src, 'docs.json'), JSON.stringify({ name: 'Idx', navigation: { groups: [{ group: 'G', pages: ['index', 'guides/index', 'guides/setup'] }] } }));
+    await fs.outputFile(path.join(src, 'index.mdx'), '---\ntitle: Home\n---\n\nSee [guides](/guides) and [setup](/guides/setup).\n');
+    await fs.outputFile(path.join(src, 'guides', 'index.mdx'), '---\ntitle: Guides\n---\n\nBack to [home](/) or [setup](setup).\n');
+    await fs.outputFile(path.join(src, 'guides', 'setup.mdx'), '---\ntitle: Setup\n---\n\nUp: [guides](/guides/index).\n');
+    const out = path.join(tmp, 'idx-out');
+    const r = await runImport({ sourceDir: src, outDir: out, fetchText: null });
+    expect(await fs.pathExists(path.join(out, 'docs', 'guides', 'index.md'))).toBe(true);
+    expect(await fs.pathExists(path.join(out, 'docs', 'guides', 'overview.md'))).toBe(false);
+    expect(r.items.some((i) => i.code === 'index-renamed')).toBe(false);
+    const cfg = await fs.readJson(path.join(out, 'docslit.json'));
+    expect(JSON.stringify(cfg.sidebar)).toContain('guides/index');
+    expect(r.validation?.summary?.errors ?? 0).toBe(0);
+  });
+});

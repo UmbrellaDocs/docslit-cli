@@ -468,6 +468,8 @@ const LAYOUT_ALIASES = {
   frame: 'frame',
   full: 'full', custom: 'full', landing: 'full',
   api: 'api',
+  // feed layouts (src/feeds.js): rendered as a normal guide page and included in the RSS/Atom feeds
+  changelog: 'guide', blog: 'guide', post: 'guide',
 };
 
 export function resolveLayoutName(value) {

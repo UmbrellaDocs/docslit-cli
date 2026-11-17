@@ -185,8 +185,15 @@ function normalizeSlugCandidate(input) {
   slug = slug.replace(/\/+$/, '');
   slug = path.posix.normalize(slug);
   if (slug === '.' || !slug) return '';
-  if (slug.endsWith('/index')) slug = slug.slice(0, -('/index'.length));
   return slug;
+}
+
+/** Slugs a link candidate can address: the page itself, a folder's index page (`foo` -> `foo/index`) or, for `foo/index`, the legacy bare `foo`. */
+function slugMatches(candidate, slugs) {
+  if (slugs.has(candidate)) return candidate;
+  if (candidate && slugs.has(`${candidate}/index`)) return `${candidate}/index`;
+  if (candidate.endsWith('/index') && slugs.has(candidate.slice(0, -'/index'.length))) return candidate.slice(0, -'/index'.length);
+  return null;
 }
 
 function resolveLinkSlug(target, currentSlug, slugs) {
@@ -208,8 +215,10 @@ function resolveLinkSlug(target, currentSlug, slugs) {
     addCandidate(path.posix.join(baseDir, target));
   }
 
-  for (const slug of candidates) {
-    if (slugs.has(slug)) return { ok: true, slug, candidates };
+  if (!candidates.length && /^\/?(?:index(?:\.(?:md|mdx))?)?\/?$/.test(target) && slugs.has('index')) return { ok: true, slug: 'index', candidates: ['index'] };
+  for (const c of candidates) {
+    const hit = slugMatches(c, slugs);
+    if (hit) return { ok: true, slug: hit, candidates };
   }
   return { ok: false, slug: candidates[0] || normalizeSlugCandidate(target), candidates };
 }

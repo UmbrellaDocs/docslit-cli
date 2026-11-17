@@ -20,6 +20,10 @@ wc-step:not(:defined)::before { content: ''; position: absolute; left: 0; top: 0
 
 /* host spacing: the global reset (margin/padding 0) beats :host rules, so spacing lives here */
 wc-tiles, wc-accordion-group, wc-update { margin-bottom: 20px; }
+wc-update > :first-child { margin-top: 0 !important; }
+wc-image { display: block; margin: 1rem 0; }
+wc-responses, wc-playground { display: block; margin-bottom: 20px; }
+wc-api-examples { display: block; margin-bottom: 24px; }
 wc-color:not([data-v]) { margin: 8px 8px 8px 0; }
 wc-aside { margin: 0 0 20px 28px; }
 @media (max-width: 900px) { wc-aside { margin: 16px 0; } }

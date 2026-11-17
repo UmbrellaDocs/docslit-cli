@@ -313,3 +313,23 @@ describe('validate: component markup, assets, vars, code imports, math, CLI', ()
     expect(fmt.stderr).toMatch(/Unknown format: xml/);
   });
 });
+
+describe('runValidation: folder index pages', () => {
+  it('resolves links to <dir>/index pages in every spelling, and "/" to the root index', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'docslit-validate-idx-'));
+    try {
+      await fs.ensureDir(path.join(dir, 'docs', 'guides'));
+      await fs.writeJson(path.join(dir, 'docslit.json'), {
+        name: 'Idx',
+        sidebar: [{ group: 'G', pages: ['index', 'guides/index', 'guides/setup'] }],
+      });
+      await fs.writeFile(path.join(dir, 'docs', 'index.md'),
+        '---\ntitle: Home\n---\n\n# Home\n\n[a](guides) [b](/guides/) [c](guides/index) [d](/guides/index) [e](./guides/index.md)\n');
+      await fs.writeFile(path.join(dir, 'docs', 'guides', 'index.md'), '---\ntitle: Guides\n---\n\n# Guides\n\n[home](/) [up](../index) [s](setup) [s2](./setup)\n');
+      await fs.writeFile(path.join(dir, 'docs', 'guides', 'setup.md'), '---\ntitle: Setup\n---\n\n# Setup\n\n[idx](index) [x](./) [nope](guides/missing)\n');
+      const r = await runValidation(dir);
+      const broken = r.issues.filter((i) => i.code === 'broken-link');
+      expect(broken.map((i) => i.message)).toEqual([expect.stringContaining('guides/missing')]);
+    } finally { await fs.remove(dir); }
+  });
+});

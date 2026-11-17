@@ -125,7 +125,7 @@ class WcWalkthroughStep extends LitElement {
     :host{display:block;padding:0 0 36px;transition:opacity .25s}
     .row{display:flex;gap:14px;align-items:flex-start}
     .mark{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--accent-dim,rgba(1,105,111,.15));border:1px solid var(--accent,#01696f);color:var(--accent-light,#4f98a3);font:700 13px/1 var(--font-sans,'Inter',sans-serif)}
-    :host([active]) .mark,:host([has-active]) .mark{background:var(--accent,#01696f);color:#fff}
+    :host([active]) .mark,:host([has-active]) .mark{background:var(--accent,#01696f);color:var(--on-accent,#fff)}
     .c{flex:1;min-width:0;font-family:var(--font-sans,'Inter',sans-serif);font-size:14px;line-height:1.7;color:var(--text2,#a0a0a0)}
     .t{font-size:16px;font-weight:700;color:var(--text,#f0f0f0);line-height:1.4;margin:3px 0 4px}
     .d{margin:0 0 6px;color:var(--text3,#737373)}

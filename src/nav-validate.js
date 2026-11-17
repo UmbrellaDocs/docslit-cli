@@ -135,7 +135,7 @@ export function checkPageNavigation(data, config) {
   const layout = fmGet(data, 'layout', 'mode');
   if (layout !== undefined && typeof layout === 'string' && !resolveLayoutName(layout)) {
     out.push(d('warning', 'frontmatter-invalid-layout', `Unknown page layout "${layout}"`,
-      `Use one of: ${PAGE_LAYOUTS.join(', ')} (aliases: default, reference, page, custom)`));
+      `Use one of: ${PAGE_LAYOUTS.join(', ')} (aliases: default, reference, page / centre, custom / landing; feed layouts: changelog, blog, post)`));
   }
   const depth = fmGet(data, 'toc_depth', 'max_toc_depth');
   if (depth !== undefined && !(Number.isInteger(depth) && depth >= 2 && depth <= 6)) {

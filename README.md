@@ -1,6 +1,6 @@
 # docslit
 
-The best documentation platform for AI tools to generate docs with.
+The best open-source docs platform, built for AI agents, and the easiest place to move to from Mintlify or Fern.
 
 Write Markdown. Drop in web components. Self-host anywhere. Open source (Apache-2.0).
 
@@ -51,19 +51,19 @@ Or run it without installing: `npx docslit init my-docs`. Requires Node.js 20.19
 
 | Command | Description |
 |---------|-------------|
-| `docslit init [dir]` | Scaffold a new docs project (also writes `AGENTS.md`; `--no-agents` to skip) |
+| `docslit init [dir]` | Scaffold a new docs project (also writes `AGENTS.md`; `--no-agents` to skip; `--theme <name>`) |
 | `docslit new <page-id>` | Create a page and add it to the sidebar. `--title`, `--group`, `--description`, `--position`, `--json` |
-| `docslit dev` | Start the local dev server with hot reload (`--port`, default 3000) |
+| `docslit dev` | Start the local dev server with hot reload (`--port`, default 3000; `--theme-picker` to try every theme live) |
 | `docslit build` | Build a static site to `./dist` (`--out`, `--offline`, `--no-minify`, `--pdf`, `--no-pdf`, `--pdf-dir`) |
 | `docslit deploy` | Write hosting recipes: `--github-pages`, `--netlify`, `--cloudflare`, `--out <dir>` |
-| `docslit import <dir>` | Migrate Mintlify, Fern, GitBook, Docusaurus, MkDocs and more (`--out`, `--dry-run`) |
+| `docslit import <dir>` | Migrate a Mintlify, Fern or GitBook project (`--out`, `--from`, `--dry-run`, `--theme`, `--no-theme`, `--versions`, `--force`, `--json`) |
 | `docslit validate [dir]` | Check for broken links, missing assets, frontmatter errors, unknown components. `--strict`, `--external`, `--format pretty\|github\|json` |
 | `docslit lint [dir]` | Check docs quality: descriptions, headings, code languages, alt text, link text, page length. `--strict`, `--format pretty\|github\|json` |
 | `docslit components [tag]` | List the built-in `wc-*` components, or show one's attributes and example (`--json`) |
 | `docslit schema [config\|frontmatter]` | Print the JSON Schema for `docslit.json` or page frontmatter |
 | `docslit agents init\|print` | Write AI-agent instruction files and MCP config, or print the skills (`--tool`, `--force`, `--json`) |
 | `docslit mcp [url]` | MCP server over stdio: authoring tools in a project (`--dir`), or read and search a published site. `--print-config` |
-| `docslit theme init\|list` | Scaffold a brand theme file, or list built-in presets |
+| `docslit theme list\|use\|tokens\|init` | List themes and palettes, switch the theme, print the design tokens, or scaffold a brand theme file |
 | `docslit openapi scaffold <spec>` | Generate API reference pages from an OpenAPI spec (`--overlay`, `--new-only`) |
 | `docslit login` | Log in to DocsLit Cloud with email and password, or `--token <token>`. In CI set `DOCSLIT_TOKEN` |
 | `docslit logout` | Remove stored credentials and revoke the token |
@@ -79,8 +79,39 @@ Run `docslit --help` for every option, or `docslit <command> --help` for one com
 
 `docslit build` writes `llms.txt`, `llms-full.txt`, a `.md` file for every page, `.well-known/agent.json`, `search-index.json` and a standalone `mcp-server.js` (version-aware on versioned sites). Sites on DocsLit Cloud also get a hosted MCP endpoint at `/mcp` and `Accept: text/markdown` negotiation.
 
+## Themes
+
+Six prebuilt looks, thirteen palettes, one line of config. A **theme** sets layout, type and shape; a **palette** sets colours; any theme works with any palette and your own brand colours.
+
+```json
+{ "theme": "peppermint" }
+{ "theme": { "name": "tonal", "palette": "ocean", "colors": { "accent": "#e11d48" }, "radius": "lg" } }
+```
+
+| Theme | Look |
+|-------|------|
+| `default` | The classic DocsLit look, unchanged |
+| `peppermint` | Clean, airy product docs (a familiar look for teams coming from Mintlify) |
+| `frond` | Crisp and technical (a familiar look for teams coming from Fern) |
+| `tonal` | Material 3 inspired, everything derived from one seed colour |
+| `folio` | Book and knowledge base: narrow column, serif headings |
+| `ledger` | Dense API-reference look with a wide column |
+
+```bash
+docslit theme list                    # themes and palettes (--json for agents)
+docslit theme use tonal --palette ocean
+docslit theme tokens --json           # every design token
+docslit dev --theme-picker            # try every combination on your own content
+```
+
+Existing configs (`"theme": "ocean"`, theme objects and files) render exactly as before. Colours DocsLit derives meet WCAG AA in the new themes, and `docslit validate` warns about explicit low-contrast colours. Set `"themePicker": true` to ship the live picker in a built site (for galleries and demos).
+
 ## Writing features
 
+- **Mintlify and Fern parity:** every component either platform has, plus new `wc-embed`, `wc-github-repo`, `wc-walkthrough`, `wc-colors` and `wc-if` (build-time conditions by version, locale, variable or audience: `for="agents"` content shows only in the Markdown agents read).
+- **Icons at build time:** Lucide and Font Awesome Free names, `fa-solid fa-gear`, `lucide:zap`, emoji, images and inline SVG resolve to inline SVG, so they work offline. `docslit validate` flags unknown names.
+- **Code blocks:** highlighted, focused and diffed lines, line numbers, collapsing, wrapping and dropdown groups, with Mintlify and Fern fence options understood as they are.
+- **Navigation:** top-level `tabs` (header or sidebar), `anchors`, sidebar icons, badges, availability and hidden pages, navbar dropdowns, buttons and GitHub stars, light and dark logos, footer columns and socials, seven page layouts and a configurable "Copy page" contextual menu.
 - **Autogenerated sidebars:** `"sidebar": "auto"` or `autogenerate` on a group, with `sidebar_position` and `_category.json`; groups can be `collapsed`.
 - **Code import:** pull code from real files with fence meta: ` ```js file="examples/server.js" region="routes" `.
 - **Math:** `$$a^2 + b^2 = c^2$$` and `math` fences, rendered with KaTeX at build time.
@@ -106,21 +137,26 @@ docslit lint --strict       # quality findings fail too
 | Component attributes, enum values, required attributes and nesting are valid | warning |
 | No unclosed, stray or malformed component tags | error |
 | Math parses in KaTeX | warning |
+| Theme names, appearance and colour contrast; navigation (tabs, anchors, navbar, layout); icon names | error or warning |
 | No duplicate sidebar slugs | warning |
 | Unknown frontmatter keys, orphaned pages | info |
 
 `validate` checks component attributes and nesting against the built-in manifest (the `check_markup` MCP tool runs the same checks on a snippet). Look up one component with `docslit components <tag> --json`. Every issue in `--format json` has a stable `code`, a `line` and a `fix`.
 
-## Migrating from Mintlify, Fern or GitBook
+## Switch from Mintlify or Fern
 
 ```bash
 docslit import ./my-docs --out ./my-docs-site        # auto-detects Mintlify (docs.json or mint.json), Fern or GitBook
 docslit import ./my-docs --dry-run --json            # report only, machine-readable
 ```
 
-The importer converts every page (MDX components, code blocks, snippets, links, assets), the navigation and the site config (branding, redirects, analytics, OpenAPI), validates the result and writes `MIGRATION.md`: every item that needs a human, grouped by severity with `file:line`, what was done instead and how to fix it. Nothing is silently dropped; custom React components are kept inside a marked placeholder callout. Flags: `--from`, `--out`, `--dry-run`, `--theme <name>` / `--no-theme`, `--versions tabs|latest`, `--force`, `--json`. The source folder is never modified.
+One command converts every page (MDX components, code blocks, snippets, links, assets), the navigation and the site config (branding, redirects, analytics, OpenAPI), picks a matching theme (`peppermint` for Mintlify, `frond` for Fern, `folio` for GitBook) with your brand colours on top, validates the result and writes `MIGRATION.md`: every item that needs a human, grouped by severity with `file:line`, what was done instead and how to fix it. Nothing is silently dropped; custom React components are kept inside a marked placeholder callout. The source folder is never modified.
 
-### Component mapping (short version)
+Flags: `--from mintlify|fern|gitbook`, `--out`, `--dry-run`, `--theme <name>` / `--no-theme`, `--versions tabs|latest`, `--force`, `--json`. Known limits (each is reported with a fix): versions become tabs, only the first language is converted, wildcard redirects are skipped, custom JavaScript and React components are not converted.
+
+Agents can migrate page by page with the MCP tool `convert_mdx`, which converts one Mintlify, Fern or GitBook page without writing anything and returns the issues to fix. Run `docslit agents print migrate` for the migration skill.
+
+Full guides and a table of every component conversion are in the [DocsLit documentation](https://docs.docslit.com). The short version:
 
 | Mintlify / Fern | DocsLit |
 |----------|---------|
@@ -133,9 +169,10 @@ The importer converts every page (MDX components, code blocks, snippets, links, 
 | `<ParamField>` / `<ResponseField>` | `<wc-field>` in `<wc-fields>` / `<wc-response-fields>` |
 | `<Frame>` `<Badge>` `<Button>` `<Tooltip>` `<Icon>` `<Update>` `<View>` `<Tree>` `<Files>` `<Prompt>` `<Color>` | `wc-frame` `wc-badge` `wc-button` `wc-tooltip` `wc-icon` `wc-update` `wc-view` `wc-files` `wc-files` `wc-prompt` `wc-colors` |
 | `<iframe>` / `<video>` | `<wc-embed>` |
+| `<Visibility for="agents">` / Fern `<llms-only>` | `<wc-if for="agents">` |
 | `import X from '/snippets/x.mdx'` | `docs/_reusables/x.md` + `<wc-include src="x.md" />` |
 
-See `skills/docslit-migrate.md` (or the docs site) for the full table, every attribute mapping and how to fix each kind of manual item. Other Markdown/MDX sites (Docusaurus, MkDocs, Sphinx, VitePress, Starlight, Nextra) import as plain folders with an auto-generated sidebar.
+Other Markdown or MDX folders (Docusaurus, MkDocs, Sphinx, VitePress, Starlight, Nextra) import as plain folders with an automatic sidebar.
 
 ## docslit.json
 

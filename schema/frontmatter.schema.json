@@ -72,7 +72,7 @@
     },
     "layout": {
       "type": "string",
-      "description": "Page layout: guide (default), overview (wider + TOC), wide (no TOC, wider; alias reference), center (no sidebar/TOC; alias page), frame (sidebar, full-width), full (landing page: no sidebar/TOC/chrome; alias custom), api.",
+      "description": "Page layout: guide (default), overview (wider + TOC), wide (no TOC, wider; alias reference), center (no sidebar/TOC; alias page), frame (sidebar, full-width), full (landing page: no sidebar/TOC/chrome; aliases custom, landing), api. changelog, blog and post render like guide and add the page to the RSS/Atom feeds (alias centre = center).",
       "enum": [
         "guide",
         "default",
@@ -84,6 +84,11 @@
         "frame",
         "full",
         "custom",
+        "centre",
+        "landing",
+        "changelog",
+        "blog",
+        "post",
         "api"
       ]
     },

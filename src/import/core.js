@@ -44,12 +44,7 @@ export class Importer {
 
   // ── registration ───────────────────────────────────────────────────────────
   registerPage(srcRel, slugIn, extra = {}) {
-    let slug = slugIn;
-    // validate (and links) cannot address "<dir>/index" pages, so non-root index pages become "<dir>/overview"
-    if (/\/index$/.test(slug)) {
-      const alt = slug.replace(/\/index$/, '/overview');
-      if (!this.slugs.has(alt)) { slug = alt; this.redirects['/' + slug.replace(/\/overview$/, '')] = '/' + slug; this.report('info', 'index-renamed', `Index page ${slugIn} was renamed to ${slug} (a redirect from the old URL was added).`, { file: srcRel }); }
-    }
+    const slug = slugIn;
     this.pages.set(srcRel, { slug, ...extra });
     this.slugs.add(slug);
     this.slugBySrc.set(stripExt(srcRel), slug);

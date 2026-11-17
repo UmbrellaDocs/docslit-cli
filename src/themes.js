@@ -700,6 +700,12 @@ const COMMON_THEME_CSS = `
 html[data-theme-name] .nav-ext-link { color: var(--text2); }
 html[data-theme-name] .nav-ext-link:hover { color: var(--text); background: var(--surface2); }
 html[data-theme-name] .locale-switcher { border-color: var(--border2); color: var(--text2); }
+:where(html[data-theme-name]) .locale-switcher {
+  height: 34px; padding: 0 28px 0 10px; background-color: var(--surface2); border-radius: var(--radius); font-family: var(--font-sans); font-size: 13px; font-weight: 500; cursor: pointer;
+  appearance: none; -webkit-appearance: none; background-repeat: no-repeat; background-position: right 10px center;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+html[data-theme-name] .locale-switcher:hover { background-color: var(--surface3); }
 html[data-theme-name] .sidebar-mobile-extras .nav-ext-link { border-color: var(--border2); }
 html[data-theme-name] .docs-content a:not(.heading-anchor) { text-decoration-thickness: 1px; }
 html[data-theme-name] .sidebar-item:focus-visible, html[data-theme-name] .sidebar-link:focus-visible { border-radius: var(--sb-item-radius); outline-offset: -2px; }
