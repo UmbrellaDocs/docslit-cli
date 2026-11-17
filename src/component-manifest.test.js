@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COMPONENTS_DIR = path.join(__dirname, 'components');
 
 // Compile-time tags handled by the preprocessor rather than a custom element.
-const COMPILE_TIME_TAGS = ['wc-include'];
+const COMPILE_TIME_TAGS = ['wc-include', 'wc-if'];
 
 function readComponentSources() {
   return fs.readdirSync(COMPONENTS_DIR)

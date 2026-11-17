@@ -34,6 +34,7 @@ const PREVIEW_CONFIG = {
     { group: 'Data & API',      pages: ['data'] },
     { group: 'Content',         pages: ['content'] },
     { group: 'Utility',         pages: ['utility'] },
+    { group: 'Parity',          pages: ['parity'] },
   ],
 };
 

@@ -12,6 +12,7 @@
  *          summary: { errors, warnings }, componentsUsed: { tag: count } }
  */
 import { getComponentManifest } from './component-manifest.js';
+import { resolveIcon } from './icons.js';
 
 const MANIFEST = new Map(getComponentManifest().map((c) => [c.tag, c]));
 const RAW_CONTENT = new Set(['code', 'mermaid', 'asciidoc']);
@@ -20,14 +21,14 @@ const GLOBAL_ATTRS = new Set(['id', 'class', 'style', 'slot', 'hidden', 'lang', 
 // Common mistakes: tag -> { wrongAttr: rightAttr }
 const ATTR_HINTS = {
   'wc-tab': { title: 'label', name: 'label' },
-  'wc-code-tab': { title: 'label', name: 'label', language: 'label' },
+  'wc-code-tab': { title: 'label', name: 'label' },
   'wc-view-panel': { title: 'label', name: 'label' },
   'wc-accordion': { label: 'title', name: 'title' },
   'wc-step': { label: 'title', name: 'title' },
   'wc-card': { icon_name: 'icon-name', iconname: 'icon-name' },
   'wc-callout': { variant: 'type', kind: 'type' },
   'wc-alert': { variant: 'type', kind: 'type' },
-  'wc-code-block': { lang: 'language', file: 'filename', name: 'filename' },
+  'wc-code-block': { lang: 'language', file: 'filename', name: 'filename', title: 'filename', lines: 'linenumbers', startline: 'start-line', maxlines: 'max-lines', wordwrap: 'wrap' },
   'wc-field': { optional: 'required' },
   'wc-version': { label: 'name', title: 'name' },
 };
@@ -238,6 +239,7 @@ export function checkMarkup(markdown, { customTags = [], lineOffset = 0 } = {}) 
       seen.add(name);
       if (name.startsWith('data-') || name.startsWith('aria-') || GLOBAL_ATTRS.has(name)) continue;
       if (name.startsWith(':') || name.startsWith('@') || name.startsWith('.')) continue;
+      if (tag === 'wc-include' && name !== 'src') continue; // snippet props fill {{name}} placeholders
       const spec = known.get(name);
       if (!spec) {
         const hint = ATTR_HINTS[tag]?.[name];
@@ -247,6 +249,16 @@ export function checkMarkup(markdown, { customTags = [], lineOffset = 0 } = {}) 
           fix: near ? `Rename "${attr.name}" to "${near}".` : `Remove "${attr.name}"${known.size ? ` or use one of: ${[...known.keys()].join(', ')}` : ''}.`,
         });
         continue;
+      }
+      if ((name === 'icon' || name === 'icon-name' || name === 'right-icon' || (tag === 'wc-icon' && name === 'name')) && attr.value && !/\{/.test(attr.value)) {
+        const iconType = parsed.attrs.find((x) => x.name.toLowerCase() === 'icon-type')?.value || undefined;
+        const r = resolveIcon(attr.value, { iconType });
+        if (r.kind === 'unknown') {
+          add('warning', 'unknown-icon', `<${tag} ${attr.name}="${attr.value}">: unknown icon.${r.suggestion ? ` Did you mean "${r.suggestion}"?` : ''}`, attr.index, {
+            tag, attribute: attr.name, ...(r.suggestion ? { suggestion: r.suggestion } : {}),
+            fix: r.suggestion ? `Use ${attr.name}="${r.suggestion}".` : 'Use a Lucide or Font Awesome Free icon name, an emoji, an image URL or inline <svg>.',
+          });
+        }
       }
       if (spec.values && attr.value !== null && !/\{\{|\{/.test(attr.value)) {
         if (!spec.values.includes(attr.value)) {

@@ -65,21 +65,31 @@ function def(tag, category, description, attributes, content, contentDescription
 const MANIFEST = [
   // ── Callouts & text ──────────────────────────────────────────────────────
   def('wc-callout', 'callouts',
-    'Highlighted block for tips, warnings, notes and other asides. Body supports full Markdown.',
+    'Highlighted block for tips, warnings, notes and other asides, with a default icon per type. Pass icon and color for a custom callout. Body supports full Markdown.',
     [
-      attr('type', 'string', 'Visual style of the callout.', { values: ['info', 'tip', 'warning', 'error', 'success', 'note'], default: 'info' }),
-      attr('title', 'string', 'Heading shown at the top of the callout. Omit for body-only.'),
+      attr('type', 'string', 'Visual style (and default icon).', { values: ['info', 'tip', 'warning', 'error', 'danger', 'success', 'check', 'note', 'launch'], default: 'info' }),
+      attr('title', 'string', 'Heading shown at the top of the callout (inline Markdown). Omit for body-only.'),
+      attr('icon', 'string', 'Custom icon (replaces the type icon; "none" hides it): a Lucide or Font Awesome Free name (rocket, fa-solid fa-gear, lucide:zap), an emoji, an image URL/path, or inline <svg>. Resolved at build time to inline SVG (no CDN request, works offline).'),
+      attr('icon-type', 'string', 'Font Awesome style for the icon.', { values: ['solid', 'regular', 'brands'] }),
+      attr('color', 'string', 'Custom accent colour (hex or any CSS colour) for the border, tint, icon and title.'),
     ],
     'markdown', 'Callout body. Leave a blank line after the opening tag to use block Markdown (lists, code).',
     `<wc-callout type="warning" title="Heads up">
 Back up your \`docslit.json\` before running a migration.
+</wc-callout>
+
+<wc-callout icon="rocket" color="#8b5cf6" title="Launch day">
+A custom icon and colour.
 </wc-callout>`),
 
   def('wc-alert', 'callouts',
     'Alias of wc-callout (same attributes and behavior).',
     [
-      attr('type', 'string', 'Visual style.', { values: ['info', 'tip', 'warning', 'error', 'success', 'note'] }),
+      attr('type', 'string', 'Visual style (and default icon).', { values: ['info', 'tip', 'warning', 'error', 'danger', 'success', 'check', 'note', 'launch'] }),
       attr('title', 'string', 'Heading shown at the top.'),
+      attr('icon', 'string', 'Custom icon (see wc-callout).'),
+      attr('icon-type', 'string', 'Font Awesome style for the icon.', { values: ['solid', 'regular', 'brands'] }),
+      attr('color', 'string', 'Custom accent colour.'),
     ],
     'markdown', 'Alert body.',
     `<wc-alert type="error" title="Breaking change">
@@ -87,10 +97,13 @@ The \`--legacy\` flag was removed.
 </wc-alert>`),
 
   def('wc-banner', 'callouts',
-    'Full-width notice strip, optionally dismissible. Good for announcements inside a page.',
+    'Full-width notice strip, optionally dismissible (the dismissal is remembered per message). Good for announcements inside a page.',
     [
-      attr('type', 'string', 'Visual style.', { values: ['info', 'warning', 'error', 'success', 'neutral'], default: 'neutral' }),
-      attr('dismissible', 'boolean', 'Show a close button so readers can dismiss the banner.'),
+      attr('type', 'string', 'Visual style.', { values: ['info', 'warning', 'error', 'critical', 'success', 'neutral'], default: 'neutral' }),
+      attr('dismissible', 'boolean', 'Show a close button so readers can dismiss the banner; stays hidden until the banner text changes.'),
+      attr('color', 'string', 'Solid background colour (white text) in light mode, and in dark mode unless dark-color is set.'),
+      attr('dark-color', 'string', 'Solid background colour used in dark mode.'),
+      attr('icon', 'string', 'Optional leading icon (see wc-icon for accepted values).'),
     ],
     'markdown', 'Banner message.',
     `<wc-banner type="info" dismissible>
@@ -98,32 +111,45 @@ Version 2.0 is now available.
 </wc-banner>`),
 
   def('wc-badge', 'callouts',
-    'Small inline pill for status or category labels (Stable, Beta, Deprecated...).',
+    'Small inline pill for status or category labels (Stable, Beta, Deprecated...). Supports sizes, shapes, icons and outlined / minimal styles.',
     [
-      attr('variant', 'string', 'Color scheme.', { values: ['default', 'success', 'warning', 'danger', 'info', 'neutral', 'purple'], default: 'default' }),
+      attr('variant', 'string', 'Colour.', { values: ['default', 'success', 'warning', 'orange', 'danger', 'error', 'info', 'neutral', 'purple', 'note', 'tip', 'launch', 'check', 'white', 'surface'], default: 'default' }),
       attr('label', 'string', 'Badge text. If omitted, the element body is used.'),
+      attr('size', 'string', 'Badge size.', { values: ['xs', 'sm', 'md', 'lg'], default: 'md' }),
+      attr('shape', 'string', 'Badge shape.', { values: ['rounded', 'pill'], default: 'rounded' }),
+      attr('icon', 'string', 'Leading icon (see wc-icon for accepted values).'),
+      attr('outlined', 'boolean', 'Transparent background with a border.'),
+      attr('minimal', 'boolean', 'Very subtle background, no border.'),
+      attr('disabled', 'boolean', 'Reduced-opacity disabled look.'),
     ],
     'text', 'Badge text (alternative to the label attribute).',
-    `<wc-badge variant="success">Stable</wc-badge>`),
+    `<wc-badge variant="success" icon="check" shape="pill">Stable</wc-badge>`),
 
   def('wc-tooltip', 'callouts',
-    'Inline text with a hover tooltip.',
+    'Inline text with a hover / focus tooltip. Keyboard accessible (the text is focusable, Escape closes), flips to stay on screen, and supports a headline and a call-to-action link.',
     [
-      attr('text', 'string', 'Tooltip content shown on hover.', { required: true }),
-      attr('position', 'string', 'Where the tooltip appears.', { values: ['top', 'bottom'], default: 'top' }),
+      attr('tip', 'string', 'Tooltip content (inline Markdown). Alias: text.', { required: true }),
+      attr('text', 'string', 'Legacy alias of tip.'),
+      attr('headline', 'string', 'Bold line shown before the tip text.'),
+      attr('cta', 'string', 'Call-to-action link text (needs href).'),
+      attr('href', 'string', 'URL for the call-to-action link.'),
+      attr('position', 'string', 'Preferred side; flips automatically when there is no room.', { values: ['top', 'bottom', 'left', 'right'], default: 'top' }),
     ],
     'text', 'The inline text the tooltip is attached to.',
-    `DocsLit uses <wc-tooltip text="A library for building web components">Lit</wc-tooltip> under the hood.`),
+    `DocsLit uses <wc-tooltip tip="A library for building web components" headline="Lit" cta="Learn more" href="https://lit.dev">Lit</wc-tooltip> under the hood.`),
 
   def('wc-update', 'callouts',
-    'Changelog entry with a version, date and change-type badge.',
+    'Changelog entry. Use label (+ description, tags) for the timeline layout with an anchor link on the label, or version / date / type for the compact boxed layout.',
     [
-      attr('version', 'string', 'Version number for this change.', { required: true }),
-      attr('type', 'string', 'Change type badge.', { values: ['added', 'changed', 'fixed', 'removed', 'deprecated', 'security'] }),
-      attr('date', 'string', 'Release date (free-form text).'),
+      attr('label', 'string', 'Entry label, usually a date or version. Also the anchor: label="2026-10-29" links as #2026-10-29.'),
+      attr('description', 'string', 'Text shown under the label (e.g. a version).'),
+      attr('tags', 'string', 'Comma-separated tags shown as chips under the label.'),
+      attr('version', 'string', 'Version number for this change.'),
+      attr('type', 'string', 'Change type badge (boxed layout).', { values: ['added', 'changed', 'fixed', 'removed', 'deprecated', 'security'] }),
+      attr('date', 'string', 'Release date (free-form text, boxed layout).'),
     ],
     'markdown', 'Description of the change.',
-    `<wc-update version="1.2.0" date="May 2026" type="added">
+    `<wc-update label="2026-10-29" description="v1.2.0" tags="Feature, Fix">
 New \`--json\` flag for the \`validate\` command.
 </wc-update>`),
 
@@ -153,13 +179,15 @@ One command.
 </wc-columns>`),
 
   def('wc-frame', 'layout',
-    'Bordered frame around an image or other content, with an optional caption.',
+    'Frame around an image, embed or other content, with an optional caption and hint.',
     [
-      attr('caption', 'string', 'Caption displayed below the content.'),
+      attr('caption', 'string', 'Caption displayed below the content (inline Markdown).'),
+      attr('hint', 'string', 'Text shown above the frame.'),
       attr('border', 'boolean', 'Draw a border around the framed content.'),
+      attr('background', 'string', 'Frame background.', { values: ['default', 'subtle'], default: 'default' }),
     ],
     'markdown', 'Framed content, typically an image.',
-    `<wc-frame caption="The dashboard overview">
+    `<wc-frame caption="The dashboard overview" hint="Click to enlarge" border background="subtle">
 
 ![Dashboard](https://example.com/dashboard.png)
 
@@ -180,9 +208,11 @@ One command.
 </wc-panel>`),
 
   def('wc-expandable', 'layout',
-    'Lightweight collapsible section.',
+    'Lightweight collapsible section (same behaviour as wc-accordion; use it for nested object properties).',
     [
-      attr('title', 'string', 'Clickable heading that toggles the section.'),
+      attr('title', 'string', 'Clickable heading that toggles the section (inline Markdown).'),
+      attr('description', 'string', 'Smaller text under the title.'),
+      attr('icon', 'string', 'Leading icon (see wc-icon for accepted values).'),
       attr('open', 'boolean', 'Expand the section by default.'),
     ],
     'markdown', 'Hidden content revealed on expand.',
@@ -191,12 +221,15 @@ Set \`DEBUG=1\` to enable verbose logs.
 </wc-expandable>`),
 
   def('wc-accordion', 'layout',
-    'Collapsible FAQ-style item. Usually placed inside wc-accordion-group.',
+    'Collapsible FAQ-style item (a real button with aria-expanded; opens when the URL hash matches its id or title slug; findable by in-page search). Usually placed inside wc-accordion-group.',
     [
-      attr('title', 'string', 'Clickable heading text that toggles the item.', { required: true }),
+      attr('title', 'string', 'Clickable heading text that toggles the item (inline Markdown).', { required: true }),
+      attr('description', 'string', 'Smaller text under the title.'),
+      attr('icon', 'string', 'Leading icon (see wc-icon for accepted values).'),
+      attr('open', 'boolean', 'Expand the item by default.'),
     ],
     'markdown', 'Answer or detail content.',
-    `<wc-accordion title="Which Node.js version do I need?">
+    `<wc-accordion title="Which Node.js version do I need?" description="Short answer: 20.19 or later" icon="circle-help">
 Node.js 20.19 or later.
 </wc-accordion>`,
     { parents: ['wc-accordion-group'] }),
@@ -216,17 +249,22 @@ Yes, it is Apache-2.0 licensed.
     { children: ['wc-accordion'] }),
 
   def('wc-aside', 'layout',
-    'Side note or related-links box set apart from the main flow.',
-    [attr('title', 'string', 'Aside heading.')],
+    'Side note or related-content box that floats to the right of the text; sticky keeps it in view while the reader scrolls (inline on small screens).',
+    [
+      attr('title', 'string', 'Aside heading.'),
+      attr('sticky', 'boolean', 'Stay pinned below the header while scrolling.'),
+    ],
     'markdown', 'Aside content.',
-    `<wc-aside title="Related">
+    `<wc-aside title="Related" sticky>
 See also the [quickstart](quickstart).
 </wc-aside>`),
 
   // ── Steps & tabs ─────────────────────────────────────────────────────────
   def('wc-steps', 'navigation',
-    'Numbered step-by-step procedure. Steps are numbered automatically.',
-    [],
+    'Numbered step-by-step procedure with a connecting rail. Steps are numbered automatically.',
+    [
+      attr('title-size', 'string', 'Step title level; h2-h4 make real headings that appear in the page table of contents.', { values: ['p', 'h2', 'h3', 'h4'], default: 'p' }),
+    ],
     'children', 'One or more wc-step elements.',
     `<wc-steps>
 <wc-step title="Install">
@@ -239,25 +277,34 @@ Run \`docslit init my-docs\`.
     { children: ['wc-step'] }),
 
   def('wc-step', 'navigation',
-    'A single step inside wc-steps.',
+    'A single step inside wc-steps. The title is rendered as light-DOM text at build time (readable without JS) and gets an anchor id.',
     [
-      attr('title', 'string', 'Step heading shown next to the step number.', { required: true }),
+      attr('title', 'string', 'Step heading shown next to the step marker (inline Markdown).', { required: true }),
       attr('n', 'number', 'Override the auto-generated step number.'),
+      attr('icon', 'string', 'Icon shown in the marker instead of the number (see wc-icon for accepted values).'),
+      attr('title-size', 'string', 'Title level for this step (overrides wc-steps).', { values: ['p', 'h2', 'h3', 'h4'] }),
+      attr('no-anchor', 'boolean', 'Hide the hover anchor link on a plain-text (p) title.'),
+      attr('data-anchor', 'string', 'Set by the build step: the heading id when title-size is h2-h4.'),
+      attr('data-title-level', 'string', 'Set by the build step: h2, h3 or h4 when the title is a heading.'),
     ],
     'markdown', 'Step instructions (full Markdown including code blocks).',
     `<wc-steps>
-<wc-step title="Build">
+<wc-step title="Build" icon="hammer">
 Run \`docslit build\`.
 </wc-step>
 </wc-steps>`,
     { parents: ['wc-steps'] }),
 
   def('wc-tabs', 'navigation',
-    'Tabbed content switcher for alternative instructions.',
-    [SYNC_ATTR],
+    'Tabbed content switcher for alternative instructions. Arrow keys, Home and End move between tabs; #tab-id in the URL opens a tab.',
+    [
+      SYNC_ATTR,
+      attr('default-tab', 'number', 'Zero-based index of the tab shown first.', { default: '0' }),
+      attr('border-bottom', 'boolean', 'Add a bottom border and padding below the tabs to separate them from following content.'),
+    ],
     'children', 'One or more wc-tab elements.',
     `<wc-tabs>
-<wc-tab label="npm">
+<wc-tab label="npm" icon="box">
 
 \`\`\`bash
 npm install docslit
@@ -276,21 +323,24 @@ pnpm add docslit
 
   def('wc-tab', 'navigation',
     'A single tab panel inside wc-tabs.',
-    [attr('label', 'string', 'Text of the tab button.', { required: true })],
+    [
+      attr('label', 'string', 'Text of the tab button (inline Markdown). Also the deep-link id (slug of the label) unless id is set.', { required: true }),
+      attr('icon', 'string', 'Icon shown before the label (see wc-icon for accepted values).'),
+    ],
     'markdown', 'Tab content (full Markdown). Leave blank lines around fenced code blocks.',
     `<wc-tabs>
-<wc-tab label="macOS">
+<wc-tab label="macOS" icon="apple">
 Use Homebrew.
 </wc-tab>
 </wc-tabs>`,
     { parents: ['wc-tabs'] }),
 
   def('wc-view', 'navigation',
-    'Toggle between alternative views (for example a language or platform switcher) of the same content.',
-    [],
+    'Toggle between alternative views (for example a language or platform switcher) of the same content. Add sync to switch every view group with the same labels together.',
+    [SYNC_ATTR],
     'children', 'One or more wc-view-panel elements.',
     `<wc-view>
-<wc-view-panel label="REST">
+<wc-view-panel label="REST" icon="globe">
 Call the HTTP API directly.
 </wc-view-panel>
 <wc-view-panel label="SDK">
@@ -301,7 +351,10 @@ Use the client library.
 
   def('wc-view-panel', 'navigation',
     'A single panel inside wc-view.',
-    [attr('label', 'string', 'Text of the toggle button for this panel.', { required: true })],
+    [
+      attr('label', 'string', 'Text of the toggle button for this panel.', { required: true }),
+      attr('icon', 'string', 'Icon shown before the label (see wc-icon for accepted values).'),
+    ],
     'markdown', 'Panel content.',
     `<wc-view>
 <wc-view-panel label="Overview">
@@ -328,15 +381,24 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
     { selfClosing: false, selfClosingWith: 'value' }),
 
   def('wc-code-block', 'code',
-    'Syntax-highlighted code with copy button, optional filename header and line numbers. Plain fenced code blocks (```lang) are usually preferred; use this tag when you need attributes like filename.',
+    'Syntax-highlighted code with copy button, optional filename header, icon, line numbers, line highlight / focus / diff marks, wrapping and a collapse toggle. Plain fenced code blocks (```lang) are usually preferred and take the same options in the fence meta (```js title="app.js" {1,3-5} lines wrap); use this tag when you want attributes. Shiki notation comments (// [!code ++], [!code --], [!code highlight], [!code focus], [!code error], [!code warning]) are stripped from the display and from Copy.',
     [
-      attr('language', 'string', 'Highlighting language, e.g. javascript, python, bash, json, html, css.'),
-      attr('filename', 'string', 'Filename displayed in the header bar.'),
+      attr('language', 'string', 'Highlighting language, e.g. javascript, python, bash, json, html, css. Shown as a label in the header.'),
+      attr('filename', 'string', 'Filename or title displayed in the header bar.'),
+      attr('icon', 'string', 'Icon shown before the filename (a wc-icon name: built-in or Font Awesome).'),
       attr('linenumbers', 'string', 'Set to "true" to show line numbers.', { values: ['true', 'false'] }),
+      attr('start-line', 'number', 'Number of the first line when line numbers are shown (default 1).'),
+      attr('highlight', 'string', 'Lines to highlight, e.g. "1,3-5". In a fence: {1,3-5} or highlight={1,3-5}.'),
+      attr('focus', 'string', 'Lines to focus (all other lines are dimmed until the reader hovers or focuses the block), e.g. "2-4".'),
+      attr('wrap', 'boolean', 'Wrap long lines instead of scrolling horizontally.'),
+      attr('expandable', 'boolean', 'Collapse long blocks (default 10 lines) behind an accessible "Show more" toggle.'),
+      attr('max-lines', 'number', 'Collapse after this many lines and add a "Show more" toggle (implies expandable). 0 disables.'),
+      attr('nocopy', 'boolean', 'Hide the copy button.'),
+      attr('for', 'string', 'Sync token inside a wc-code-group (e.g. "npm"): groups whose tabs share a token switch together. Defaults to the language.'),
       attr('highlighted', 'boolean', 'Content is already syntax highlighted HTML (set by the build; rarely written by hand).'),
     ],
     'code', 'Raw code, shown verbatim (not parsed as Markdown).',
-    `<wc-code-block language="json" filename="package.json" linenumbers="true">
+    `<wc-code-block language="json" filename="package.json" linenumbers="true" highlight="2">
 {
   "name": "my-docs",
   "private": true
@@ -344,34 +406,45 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
 </wc-code-block>`),
 
   def('wc-code-group', 'code',
-    'Tabbed group of code snippets (e.g. one per package manager or language).',
-    [{ ...SYNC_ATTR }],
-    'children', 'One or more wc-code-tab elements.',
+    'Tabbed group of code snippets (e.g. one per package manager or language). Children are wc-code-tab elements or, Mintlify style, fenced code blocks whose title becomes the tab label. Groups sync with each other by language / label by default (sync="off" disables).',
+    [
+      { ...SYNC_ATTR, description: 'Sync key (default "code"). Code groups on the page (and wc-tabs with the same sync key) switch together when the reader picks a tab; tabs match by for= token, label or language (js = javascript), and the choice is remembered in localStorage. Use sync="off" to opt out.' },
+      attr('dropdown', 'boolean', 'Replace the tab bar with a language dropdown.'),
+      attr('nocopy', 'boolean', 'Hide the copy button for every tab.'),
+    ],
+    'children', 'One or more wc-code-tab elements, or fenced code blocks.',
     `<wc-code-group>
-<wc-code-tab label="npm">npm install docslit</wc-code-tab>
-<wc-code-tab label="pnpm">pnpm add docslit</wc-code-tab>
+<wc-code-tab label="npm" language="bash">npm install docslit</wc-code-tab>
+<wc-code-tab label="pnpm" language="bash">pnpm add docslit</wc-code-tab>
 </wc-code-group>`,
-    { children: ['wc-code-tab'] }),
+    { children: ['wc-code-tab', 'wc-code-block'] }),
 
   def('wc-code-tab', 'code',
-    'A single labelled snippet inside wc-code-group (or wc-endpoint). Content is raw text, not Markdown.',
-    [attr('label', 'string', 'Tab label.', { required: true })],
+    'A single labelled snippet inside wc-code-group (or wc-endpoint). Content is raw text, not Markdown; with language it is highlighted at build time.',
+    [
+      attr('label', 'string', 'Tab label.', { required: true }),
+      attr('language', 'string', 'Highlighting language for the snippet (also used for language sync between groups).'),
+      attr('icon', 'string', 'Icon shown in the tab.'),
+    ],
     'code', 'Raw code or command text (not parsed as Markdown).',
     `<wc-code-group>
-<wc-code-tab label="yarn">yarn add docslit</wc-code-tab>
+<wc-code-tab label="yarn" language="bash">yarn add docslit</wc-code-tab>
 </wc-code-group>`,
     { parents: ['wc-code-group', 'wc-endpoint'] }),
 
   // ── Media & files ────────────────────────────────────────────────────────
   def('wc-icon', 'media',
-    'Inline icon: one of 33 built-in SVG icons, or any free Font Awesome 6 icon (fetched from the jsDelivr CDN when the page is viewed, so it needs a network connection and will not render offline).',
+    'Inline icon. Names are resolved at BUILD time to inline SVG from Lucide (ISC) and Font Awesome Free 6 (CC BY 4.0): no CDN request, works offline, and unknown names are flagged by validate with a suggestion. Also accepts an emoji, an image URL/path or inline <svg>.',
     [
-      attr('name', 'string', 'Built-in icon name (e.g. check, x, warning, info, error, arrow-right, chevron-down, external-link, link, copy, download, code, terminal, file, folder, search, star, zap, book, settings, user, home, grid, list, eye, lock, package, globe, cpu), or a Font Awesome icon as a bare name ("github", "gear") or class string ("fa-brands fa-github", "fa-solid fa-gear", "far fa-star"; fa-solid/fas, fa-regular/far and fa-brands/fab are understood, size and animation modifiers such as fa-lg are ignored). A bare name picks the brands set for well-known brands (github, docker, npm, slack…), otherwise solid.', { required: true }),
-      attr('size', 'number', 'Icon size in pixels.'),
+      attr('name', 'string', 'Icon name: rocket, fa-solid fa-gear, fa-brands fa-github, lucide:zap, an emoji, an image URL/path, or inline <svg>. Bare names use the order set by docslit.json icons.library (auto | fontawesome | lucide).', { required: true }),
+      attr('icon-type', 'string', 'Font Awesome style when the name is bare.', { values: ['solid', 'regular', 'brands'] }),
+      attr('size', 'number', 'Icon size in pixels.', { default: '16' }),
       attr('color', 'string', 'Icon color (any CSS color).'),
+      attr('src', 'string', 'Image URL/path to use as the icon instead of a named one.'),
+      attr('label', 'string', 'Accessible name. Icons are decorative (aria-hidden) unless you set this.'),
     ],
     'none', 'No content.',
-    `<wc-icon name="zap" size="20" color="#ff6600"></wc-icon>`),
+    `<wc-icon name="rocket" size="20" color="#ff6600"></wc-icon> <wc-icon name="fa-brands fa-github" size="20"></wc-icon>`),
 
   def('wc-files', 'media',
     'Container for a file/directory tree (wc-dir and wc-file).',
@@ -388,29 +461,38 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
     { children: ['wc-dir', 'wc-file'] }),
 
   def('wc-dir', 'media',
-    'A directory node in a wc-files tree; may contain wc-dir and wc-file.',
+    'A directory node in a wc-files tree; may contain wc-dir and wc-file. A button toggles it (keyboard accessible).',
     [
       attr('name', 'string', 'Directory name.', { required: true }),
-      attr('open', 'boolean', 'Expand the directory by default.', { default: 'false' }),
+      attr('open', 'boolean', 'Expand the directory (the default).', { default: 'true' }),
+      attr('collapsed', 'boolean', 'Start collapsed (use this to make a directory closed by default).'),
+      attr('href', 'string', 'Make the directory name a link.'),
+      attr('comment', 'string', 'Short comment displayed after the name.'),
+      attr('highlight', 'boolean', 'Highlight the directory row.'),
+      attr('openable', 'string', 'Set to "false" for a non-interactive, always-open folder.', { values: ['true', 'false'], default: 'true' }),
     ],
     'children', 'Nested wc-dir and wc-file elements.',
     `<wc-files>
-<wc-dir name="src" open>
+<wc-dir name="src" comment="sources" highlight>
 <wc-file name="index.js"></wc-file>
+<wc-dir name="old" collapsed>
+<wc-file name="legacy.js"></wc-file>
+</wc-dir>
 </wc-dir>
 </wc-files>`,
     { parents: ['wc-files', 'wc-dir'], children: ['wc-dir', 'wc-file'] }),
 
   def('wc-file', 'media',
-    'A file node in a wc-files tree.',
+    'A file node in a wc-files tree. The icon follows the file type.',
     [
       attr('name', 'string', 'File name.', { required: true }),
       attr('highlight', 'boolean', 'Highlight this file to draw attention.', { default: 'false' }),
       attr('comment', 'string', 'Short comment displayed after the file name.'),
+      attr('href', 'string', 'Make the file name a link.'),
     ],
     'none', 'No content.',
     `<wc-files>
-<wc-file name="docslit.json" highlight comment="site config"></wc-file>
+<wc-file name="docslit.json" highlight comment="site config" href="/configuration"></wc-file>
 </wc-files>`,
     { parents: ['wc-files', 'wc-dir'] }),
 
@@ -443,36 +525,39 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
     { parents: ['wc-tree', 'wc-tree-item'], children: ['wc-tree-item'] }),
 
   def('wc-download', 'media',
-    'Download link styled as a button.',
+    'Download link styled as a button. With sources it bundles several files into one ZIP in the browser (no dependency; files must be CORS-readable).',
     [
       attr('href', 'string', 'URL or path of the file to download.', { required: true }),
-      attr('filename', 'string', 'Suggested filename for the download.'),
-      attr('label', 'string', 'Link text. Defaults to the filename, then "Download".'),
+      attr('filename', 'string', 'Suggested filename (for sources: the ZIP name, default download.zip).'),
+      attr('label', 'string', 'Link text. Defaults to the element body, then the filename, then "Download".'),
       attr('size', 'string', 'File size text shown in parentheses, e.g. "2.4 MB".'),
+      attr('sources', 'string', 'Comma-, space- or JSON-array-separated URLs to bundle into one ZIP download (instead of href).'),
     ],
-    'none', 'No content (use the label attribute).',
+    'text', 'Optional link text (alternative to label).',
     `<wc-download href="/files/report.pdf" filename="report.pdf" label="Download report" size="2.4 MB"></wc-download>`),
 
   def('wc-copy', 'media',
-    'Click-to-copy button that copies a string to the clipboard.',
+    'Click-to-copy chip that copies a string to the clipboard. Use it inline for versions, commands and keys.',
     [
-      attr('text', 'string', 'The text copied to the clipboard.', { required: true }),
-      attr('label', 'string', 'Button label. Defaults to the text.'),
+      attr('text', 'string', 'The text copied to the clipboard (default: the shown text).'),
+      attr('label', 'string', 'Displayed text. Defaults to the element body, then the text.'),
+      attr('clipboard', 'string', 'Copy this value instead of the displayed text.'),
     ],
-    'none', 'No content (use the label attribute).',
-    `<wc-copy text="npm install -g docslit" label="Copy install command"></wc-copy>`),
+    'text', 'Displayed text (alternative to label).',
+    `<wc-copy clipboard="npm install -g docslit">npm install</wc-copy>`),
 
   def('wc-image', 'media',
-    'Lazy-loaded image with click-to-zoom lightbox and optional dark-mode variant.',
+    'Lazy-loaded image with click-to-zoom lightbox (keyboard accessible, Escape closes) and optional dark-mode variant. Plain Markdown images use it automatically; images inside links or with noZoom do not zoom.',
     [
       attr('src', 'string', 'Image URL or path.', { required: true }),
       attr('alt', 'string', 'Alternative text (always provide it).'),
       attr('dark-src', 'string', 'Image to show instead when the dark theme is active.'),
       attr('width', 'number', 'Width in pixels.'),
       attr('height', 'number', 'Height in pixels.'),
+      attr('no-zoom', 'boolean', 'Disable the click-to-zoom lightbox.'),
     ],
     'none', 'No content.',
-    `<wc-image src="/images/architecture.png" dark-src="/images/architecture-dark.png" alt="System architecture" width="800"></wc-image>`),
+    `<wc-image src="/images/architecture.png" dark-src="/images/architecture-dark.png" alt="System architecture" width="800" no-zoom></wc-image>`),
 
   // ── Data & API reference ─────────────────────────────────────────────────
   def('wc-fields', 'data',
@@ -511,6 +596,9 @@ The user's role.
       attr('maxlength', 'string', 'Maximum string length.'),
       attr('example', 'string', 'Example value.'),
       attr('collapsible', 'boolean', 'Render nested wc-field children as a collapsible section.'),
+      attr('pre', 'string', 'Comma-separated labels shown before the field name.'),
+      attr('post', 'string', 'Comma-separated labels shown after the field name and flags.'),
+      attr('placeholder', 'string', 'Placeholder / example input text shown under the description.'),
     ],
     'markdown', 'Field description (inline Markdown). May also contain nested wc-field elements.',
     `<wc-fields title="Parameters">
@@ -625,13 +713,24 @@ curl -X POST https://api.example.com/api/v1/users -d '{"email":"a@b.co"}'
     { children: ['wc-field'] }),
 
   def('wc-table', 'data',
-    'Table rendered from JSON passed in attributes (the component reads only the headers/rows attributes; the docs site shows a JSON-body form that the component source does not implement). For ordinary tables prefer GFM Markdown tables.',
+    'Table helper. Wrap an ordinary Markdown table to add a sticky header and/or a live search box; or build a table from JSON in the headers/rows attributes.',
     [
       attr('headers', 'string', 'JSON array of header strings, e.g. ["Name","Type"]. Use single quotes around the attribute value.'),
       attr('rows', 'string', 'JSON array of row arrays, e.g. [["a","b"]]. Use single quotes around the attribute value.'),
+      attr('sticky', 'boolean', 'Keep the header row visible while the table body scrolls (scroll area height: max-height).'),
+      attr('searchable', 'boolean', 'Show a search box that filters rows as you type (case-insensitive substring).'),
+      attr('placeholder', 'string', 'Placeholder / label for the search box.', { default: 'Filter rows…' }),
+      attr('max-height', 'string', 'Maximum height of the scroll area (any CSS length).', { default: '70vh with sticky' }),
     ],
-    'none', 'No content; data comes from the headers and rows attributes.',
-    `<wc-table headers='["Command","Description"]' rows='[["init","Scaffold a project"],["build","Build the static site"]]'></wc-table>`),
+    'markdown', 'A Markdown table (optional; otherwise use headers and rows).',
+    `<wc-table sticky searchable placeholder="Filter plants">
+
+| Plant | Light | Water |
+| --- | --- | --- |
+| Fern | Partial shade | Weekly |
+| Monstera | Bright indirect | Weekly |
+
+</wc-table>`),
 
   def('wc-asciidoc-table', 'data',
     'Table written in AsciiDoc syntax (|=== blocks): cell spans, column specs, multi-line cells, CSV/DSV/TSV input. Rendered to a real table at build time.',
@@ -656,14 +755,40 @@ curl -X POST https://api.example.com/api/v1/users -d '{"email":"a@b.co"}'
 </wc-asciidoc-table>`),
 
   def('wc-color', 'data',
-    'Color swatch; click to copy the hex value. Useful for design-system docs.',
+    'Color swatch; click (or press Enter) to copy the value. Supports any CSS colour and separate light / dark values.',
     [
-      attr('hex', 'string', 'Color in hex, e.g. #3b82f6.', { required: true }),
+      attr('value', 'string', 'Colour in any CSS format (hex, rgb, hsl, oklch...). Alias: hex.'),
+      attr('hex', 'string', 'Colour in hex, e.g. #3b82f6 (legacy alias of value).'),
+      attr('light', 'string', 'Colour shown (and copied) in light mode.'),
+      attr('dark', 'string', 'Colour shown (and copied) in dark mode.'),
       attr('name', 'string', 'Display name of the color.'),
-      attr('variable', 'string', 'CSS custom property name for this color.'),
+      attr('variable', 'string', 'CSS custom property name for this color (copied instead of the value).'),
     ],
     'none', 'No content.',
-    `<wc-color hex="#3b82f6" name="Primary" variable="--color-primary"></wc-color>`),
+    `<wc-color value="#3b82f6" name="Primary" variable="--color-primary"></wc-color>`,
+    { parents: ['wc-colors', 'wc-color-row'] }),
+
+  def('wc-colors', 'data',
+    'Palette container: compact swatch grid, or table with titled rows (wc-color-row).',
+    [attr('variant', 'string', 'Layout.', { values: ['compact', 'table'], default: 'compact' })],
+    'children', 'wc-color or wc-color-row elements.',
+    `<wc-colors variant="compact">
+<wc-color name="primary" value="#16a34a"></wc-color>
+<wc-color name="surface" light="#ffffff" dark="#0b0b0b"></wc-color>
+</wc-colors>`,
+    { children: ['wc-color', 'wc-color-row'] }),
+
+  def('wc-color-row', 'data',
+    'A titled row of swatches in a table-variant wc-colors.',
+    [attr('title', 'string', "The row's label (inline Markdown).")],
+    'children', 'wc-color elements.',
+    `<wc-colors variant="table">
+<wc-color-row title="Brand">
+<wc-color name="brand-500" value="#0ea5e9"></wc-color>
+<wc-color name="brand-700" value="#0369a1"></wc-color>
+</wc-color-row>
+</wc-colors>`,
+    { parents: ['wc-colors'], children: ['wc-color'] }),
 
   def('wc-mermaid', 'data',
     'Renders a Mermaid diagram (flowchart, sequence, class, ...) with an expand-to-modal control.',
@@ -677,15 +802,25 @@ graph LR
 
   // ── Cards & buttons ──────────────────────────────────────────────────────
   def('wc-card', 'content',
-    'Clickable content card with optional icon and title.',
+    'Content card with optional icon, image, call-to-action and callout theme. Links when href is set; a plain box otherwise.',
     [
-      attr('title', 'string', 'Card heading.'),
-      attr('href', 'string', 'Link destination (page slug or external URL).'),
-      attr('icon-name', 'string', 'Built-in icon name displayed on the card.'),
-      attr('icon', 'string', 'Emoji or text icon (use icon-name for named icons).'),
+      attr('title', 'string', 'Card heading (inline Markdown).'),
+      attr('href', 'string', 'Link destination (page slug or external URL). External links open in a new tab.'),
+      attr('icon', 'string', 'Icon: Lucide / Font Awesome name, emoji, image URL or inline <svg> (see wc-icon).'),
+      attr('icon-name', 'string', 'Legacy alias of icon for named icons.'),
+      attr('icon-color', 'string', 'Icon colour (any CSS colour).'),
+      attr('icon-color-dark', 'string', 'Icon colour used in dark mode (icon-color is then the light-mode colour).'),
+      attr('icon-size', 'number', 'Icon box size in pixels.', { default: '36' }),
+      attr('icon-position', 'string', 'Where the icon sits relative to the text.', { values: ['top', 'left'], default: 'top' }),
+      attr('horizontal', 'boolean', 'Compact horizontal layout (icon on the left).'),
+      attr('img', 'string', 'Image URL/path shown on the card.'),
+      attr('img-position', 'string', 'Where the image sits.', { values: ['top', 'left', 'right', 'bottom'], default: 'top' }),
+      attr('cta', 'string', 'Call-to-action text shown at the bottom (with an arrow).'),
+      attr('arrow', 'string', 'Show ("true") or hide ("false") the corner arrow. Default: shown for external links only.', { values: ['true', 'false'] }),
+      attr('type', 'string', 'Callout-style colour theme for the card.', { values: ['info', 'warning', 'note', 'tip', 'check', 'danger'] }),
     ],
     'markdown', 'Card body text.',
-    `<wc-card title="Quickstart" href="quickstart" icon-name="zap">
+    `<wc-card title="Quickstart" href="quickstart" icon="rocket" cta="Start now">
 Go from zero to a live site in minutes.
 </wc-card>`),
 
@@ -700,36 +835,164 @@ Go from zero to a live site in minutes.
     { children: ['wc-tile', 'wc-card'] }),
 
   def('wc-tile', 'content',
-    'Compact link tile with icon, title and description.',
+    'Link tile. Compact (icon, title, description) by default; put an image or SVG inside to get a larger visual preview above the title.',
     [
-      attr('title', 'string', 'Tile heading.', { required: true }),
+      attr('title', 'string', 'Tile heading (inline Markdown).', { required: true }),
       attr('description', 'string', 'Short description under the title.'),
       attr('href', 'string', 'Link destination.'),
-      attr('icon-name', 'string', 'Built-in icon name shown above the title.'),
-      attr('icon', 'string', 'Emoji or text icon.'),
+      attr('icon', 'string', 'Icon: Lucide / Font Awesome name, emoji, image URL (see wc-icon).'),
+      attr('icon-name', 'string', 'Legacy alias of icon for named icons.'),
     ],
-    'none', 'No content (use the description attribute).',
-    `<wc-tile title="API reference" description="Every endpoint." href="api/overview" icon-name="book"></wc-tile>`,
+    'markdown', 'Optional preview content (an image or SVG). Omit for the compact icon layout.',
+    `<wc-tile title="API reference" description="Every endpoint." href="api/overview" icon="book"></wc-tile>
+
+<wc-tile title="Dashboard" description="With a preview." href="dashboard">
+
+![Dashboard](https://example.com/dashboard.png)
+
+</wc-tile>`,
     { parents: ['wc-tiles'] }),
 
   def('wc-button', 'content',
-    'Call-to-action button/link.',
+    'Call-to-action button/link with variants, icons and state flags.',
     [
-      attr('label', 'string', 'Button text.', { required: true }),
-      attr('href', 'string', 'Link destination.'),
-      attr('variant', 'string', 'Visual style.', { values: ['primary', 'outline', 'ghost', 'danger'], default: 'primary' }),
+      attr('label', 'string', 'Button text. Defaults to the element body.'),
+      attr('href', 'string', 'Link destination (renders an <a>).'),
+      attr('variant', 'string', 'Visual style (colour intent).', { values: ['primary', 'outline', 'ghost', 'danger', 'success', 'warning', 'none'], default: 'primary' }),
       attr('size', 'string', 'Button size.', { values: ['sm', 'md', 'lg'], default: 'md' }),
+      attr('target', 'string', 'Link target (_blank adds rel=noopener noreferrer).'),
+      attr('outlined', 'boolean', 'Transparent background with a coloured border.'),
+      attr('minimal', 'boolean', 'Subtle tinted background, no border.'),
+      attr('full', 'boolean', 'Full-width button.'),
+      attr('rounded', 'boolean', 'Pill-shaped corners.'),
+      attr('mono', 'boolean', 'Monospace label.'),
+      attr('active', 'boolean', 'Show the active (pressed) ring.'),
+      attr('disabled', 'boolean', 'Disable the button.'),
+      attr('icon', 'string', 'Icon before the label (see wc-icon for accepted values).'),
+      attr('right-icon', 'string', 'Icon after the label.'),
     ],
-    'none', 'No content (use the label attribute).',
-    `<wc-button label="Get started" href="quickstart" variant="primary" size="md"></wc-button>`),
+    'text', 'Button text (alternative to the label attribute).',
+    `<wc-button href="quickstart" variant="success" icon="rocket" right-icon="arrow-right" rounded>Get started</wc-button>`),
 
   def('wc-prompt', 'content',
-    'Copyable AI-prompt block with a Copy button. Use it to give readers a ready-made prompt for an AI assistant.',
-    [attr('title', 'string', 'Header label.', { default: 'AI Prompt' })],
-    'text', 'The prompt text; the Copy button copies the element text.',
-    `<wc-prompt title="Ask your assistant">
+    'Copyable AI-prompt card with a Copy button and optional open-in-assistant actions.',
+    [
+      attr('title', 'string', 'Header label.', { default: 'AI Prompt' }),
+      attr('description', 'string', 'Text displayed in the card (inline Markdown). When set, the element body is NOT shown but is what gets copied / sent.'),
+      attr('icon', 'string', 'Icon before the title (see wc-icon for accepted values). Default: a sparkle.'),
+      attr('actions', 'string', 'Open-in buttons: comma-separated cursor, claude, chatgpt, or a JSON array that may include custom { "label", "url", "icon" } objects ({prompt} in url is replaced by the URL-encoded prompt). The Copy button is always present.'),
+      attr('single-line', 'boolean', 'Truncate the preview to one line.'),
+      attr('hide-prompt', 'boolean', 'Hide the prompt body; show only the header with its actions.'),
+    ],
+    'text', 'The prompt text; the Copy button copies it.',
+    `<wc-prompt title="Ask your assistant" actions="claude,chatgpt">
 Write a quickstart page for my project using DocsLit components.
 </wc-prompt>`),
+
+  def('wc-embed', 'media',
+    'Responsive embed for video and iframes: fixed aspect ratio (no layout shift), lazy loading, and a privacy-friendly facade for YouTube / Vimeo / Loom (nothing is requested from the provider until the reader presses play). Also plays self-hosted video files.',
+    [
+      attr('src', 'string', 'Embed URL (YouTube, Vimeo, Loom, any iframe URL) or a video file (.mp4, .webm...).', { required: true }),
+      attr('title', 'string', 'Accessible title of the embed (also shown on the facade).'),
+      attr('ratio', 'string', 'Aspect ratio, e.g. 16/9, 4/3, 1/1, 21/9.', { default: '16/9' }),
+      attr('height', 'string', 'Fixed height (px or any CSS length) instead of an aspect ratio.'),
+      attr('poster', 'string', 'Poster image: shown behind the facade / as the video poster (a local image keeps the facade request-free).'),
+      attr('allow', 'string', 'iframe allow attribute (permissions policy).'),
+      attr('autoplay', 'boolean', 'Video files only: autoplay (needs muted; ignored when the reader prefers reduced motion).'),
+      attr('muted', 'boolean', 'Video files only: start muted.'),
+      attr('loop', 'boolean', 'Video files only: loop.'),
+      attr('controls', 'string', 'Video files only: set to "false" to hide controls.', { values: ['true', 'false'] }),
+    ],
+    'none', 'No content.',
+    `<wc-embed src="https://www.youtube.com/embed/4KzFe50RQkQ" title="Product tour" ratio="16/9"></wc-embed>`),
+
+  def('wc-github-repo', 'media',
+    'GitHub repository card. Renders instantly from attributes; unless live="false" it then fetches stars, forks, language and description from the public GitHub API (cached for an hour, fails silently offline, space is reserved so nothing shifts).',
+    [
+      attr('repo', 'string', 'owner/name or a full github.com URL.', { required: true }),
+      attr('variant', 'string', 'Card style.', { values: ['inset', 'flat'], default: 'inset' }),
+      attr('description', 'string', 'Static description (overrides the fetched one).'),
+      attr('stars', 'string', 'Static star count (overrides the fetched one).'),
+      attr('forks', 'string', 'Static fork count.'),
+      attr('language', 'string', 'Static primary language.'),
+      attr('live', 'string', 'Set to "false" to never contact the GitHub API (privacy / offline docs).', { values: ['true', 'false'], default: 'true' }),
+    ],
+    'none', 'No content.',
+    `<wc-github-repo repo="UmbrellaDocs/docslit-cli" description="Static docs generator" stars="120" live="false"></wc-github-repo>`),
+
+  def('wc-walkthrough', 'navigation',
+    'Scroll walkthrough: prose steps beside a sticky code panel that follows the reader\'s scroll. Each step names a file and the lines to focus (dim the rest) or highlight. Fenced code blocks inside the element are the files (give each a title). On narrow screens each step shows its own code inline; the panel respects reduced motion and the prose reads fine without JavaScript.',
+    [
+      attr('layout', 'string', 'Column split; wide gives the code panel more room.', { values: ['default', 'wide'], default: 'default' }),
+      attr('panel-height', 'string', 'Height of the code panel (any CSS length).', { default: 'min(70vh, 34rem)' }),
+      attr('dim', 'string', 'Fade inactive steps; set "false" to keep them fully visible.', { values: ['true', 'false'], default: 'true' }),
+      attr('data-name', 'string', 'Set by the build step on each file panel: the file title.'),
+    ],
+    'children', 'wc-walkthrough-step elements followed by one fenced code block per file (title="name").',
+    `<wc-walkthrough>
+<wc-walkthrough-step title="Create the client" file="client.js" focus="1-3">
+Import the SDK and construct a client.
+</wc-walkthrough-step>
+<wc-walkthrough-step title="Send a request" file="client.js" highlight="5-7">
+Call the API.
+</wc-walkthrough-step>
+
+\`\`\`js title="client.js"
+import { Client } from 'sdk';
+const client = new Client({ key: 'KEY' });
+export default client;
+
+const res = await client.get('/plants');
+console.log(res.data);
+\`\`\`
+</wc-walkthrough>`,
+    { children: ['wc-walkthrough-step', 'wc-walkthrough-substep'] }),
+
+  def('wc-walkthrough-step', 'navigation',
+    'A step in a wc-walkthrough: prose plus the file and lines it targets while it is in view.',
+    [
+      attr('title', 'string', 'Step heading (inline Markdown).'),
+      attr('description', 'string', 'Short summary under the title.'),
+      attr('file', 'string', 'Target file: a file title or its 0-based index. Omitted: keeps the previous step\'s file.'),
+      attr('focus', 'string', 'Lines to focus, dimming the rest: "1-5,8".'),
+      attr('highlight', 'string', 'Lines to highlight with an accent background, e.g. "3,5-6".'),
+      attr('start-line', 'string', 'Line the panel scrolls to (default: the first focused / highlighted line).'),
+    ],
+    'markdown', 'Step prose; may contain wc-walkthrough-substep elements.',
+    `<wc-walkthrough>
+<wc-walkthrough-step title="Intro" focus="1">
+Start here.
+</wc-walkthrough-step>
+
+\`\`\`js title="a.js"
+console.log('hi');
+\`\`\`
+</wc-walkthrough>`,
+    { parents: ['wc-walkthrough'], children: ['wc-walkthrough-substep'] }),
+
+  def('wc-walkthrough-substep', 'navigation',
+    'A finer-grained target inside a wc-walkthrough-step; it takes over the code panel while it is in view.',
+    [
+      attr('title', 'string', 'Short heading above the substep prose.'),
+      attr('file', 'string', 'Target file (default: the parent step\'s file).'),
+      attr('focus', 'string', 'Lines to focus: "1-5,8".'),
+      attr('highlight', 'string', 'Lines to highlight.'),
+      attr('start-line', 'string', 'Line the panel scrolls to.'),
+    ],
+    'markdown', 'Substep prose.',
+    `<wc-walkthrough>
+<wc-walkthrough-step title="Config" file="a.js">
+Two settings:
+<wc-walkthrough-substep focus="1">The key.</wc-walkthrough-substep>
+<wc-walkthrough-substep focus="2">The region.</wc-walkthrough-substep>
+</wc-walkthrough-step>
+
+\`\`\`js title="a.js"
+const key = 'k';
+const region = 'eu';
+\`\`\`
+</wc-walkthrough>`,
+    { parents: ['wc-walkthrough-step'] }),
 
   // ── Utility ──────────────────────────────────────────────────────────────
   def('wc-anchor', 'utility',
@@ -792,10 +1055,30 @@ Nested explanation text.
   // ── Authoring (compile-time) ─────────────────────────────────────────────
   def('wc-include', 'authoring',
     'Compile-time include of a reusable Markdown snippet from docs/_reusables. Must be self-closing; the included file cannot itself contain wc-include and its frontmatter is ignored.',
-    [attr('src', 'string', 'Path of the snippet. Resolved under docs/_reusables (e.g. "snippet.md" or "_reusables/snippet.md").', { required: true })],
+    [attr('src', 'string', 'Path of the snippet. Resolved under docs/_reusables (e.g. "snippet.md" or "_reusables/snippet.md"). Any other attribute is a snippet prop: it fills the matching {{name}} placeholder inside the snippet (<wc-include src="water.md" plant="fern" />).', { required: true })],
     'none', 'None. Write it self-closing: <wc-include src="..." />',
     `<wc-include src="snippet.md" />`,
     { selfClosing: true }),
+
+  def('wc-if', 'authoring',
+    'Compile-time conditional content. Evaluated at build time: excluded content never reaches the HTML, the search index or the generated .md / llms output. Conditions: version (versioned builds), locale, an attributes variable, and audience (humans vs AI agents). All given conditions must hold.',
+    [
+      attr('version', 'string', 'Comma-separated versions; true when the build is for one of them.'),
+      attr('locale', 'string', 'Comma-separated locales; true for pages under docs.<locale>/ (default locale: en).'),
+      attr('attr', 'string', 'Name of an attributes variable (docslit.json attributes or page frontmatter). Alone: true when set and not empty / false / 0.'),
+      attr('equals', 'string', 'With attr: comma-separated values the variable must equal.'),
+      attr('not-equals', 'string', 'With attr: values the variable must not equal.'),
+      attr('not', 'boolean', 'Invert the version / locale / attr condition.'),
+      attr('for', 'string', 'Audience: humans = HTML only (dropped from the agent Markdown); agents = agent Markdown only (hidden on the web).', { values: ['humans', 'agents'] }),
+    ],
+    'markdown', 'Content to include when the condition holds. Leave blank lines around block Markdown.',
+    `<wc-if version="2.0">
+Only in the 2.0 docs.
+</wc-if>
+
+<wc-if for="agents">
+Machine-readable hint that only appears in the generated Markdown.
+</wc-if>`),
 ];
 
 export function getComponentManifest() {

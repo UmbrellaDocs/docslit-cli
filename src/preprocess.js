@@ -3,10 +3,11 @@ import fs from 'fs-extra';
 import matter from './frontmatter.js';
 import { getMathConfig } from './math.js';
 import { expandCodeImports, CODE_IMPORT_DETECT_RE } from './code-import.js';
+import { evaluateConditionals, localeOf } from './conditional.js';
 
 export const VAR_NAME_RE = /^[A-Z_][A-Z0-9_]*$/;
 const PASS_TOKEN_RE = /DOCSLIT_PASSBLOCK_(\d+)_END/g;
-const NEEDS_PREPROCESS_RE = /<wc-include\b|<wc-var\b[^>]*\bvalue\s*=|\{\{[^}]+\}\}|pass:\[/;
+const NEEDS_PREPROCESS_RE = /<wc-include\b|<wc-if\b|<wc-var\b[^>]*\bvalue\s*=|\{\{[^}]+\}\}|pass:\[/;
 const needsPreprocess = (body) => NEEDS_PREPROCESS_RE.test(body) || CODE_IMPORT_DETECT_RE.test(body);
 
 function parseAttrs(attrText = '') {
@@ -298,7 +299,13 @@ export async function preprocessDoc({
         });
       }
 
-      const includeText = parsed.content.replace(/\s+$/, '');
+      let includeText = parsed.content.replace(/\s+$/, '');
+      // Snippet props: every attribute besides src fills a {{name}} placeholder inside the snippet.
+      const props = Object.entries(attrs).filter(([k]) => k !== 'src');
+      if (props.length) {
+        const map = new Map(props);
+        includeText = includeText.replace(/\{\{\s*([A-Za-z_][\w-]*)\s*\}\}/g, (full, k) => (map.has(k) ? map.get(k) : full));
+      }
       const sourcePath = `docs/${normalized}`;
       const padded = `\n<!-- BEGIN: Content from file ${sourcePath} -->\n${includeText}\n<!-- END: Content from file ${sourcePath} -->\n`;
       includeOps.push({ start, end, replacement: padded });
@@ -311,6 +318,8 @@ export async function preprocessDoc({
   protectedContent.safe = protectedContent.safe.replace(/\{\{([^}]+)\}\}/g, (full, keyRaw) => {
     const key = keyRaw.trim();
     if (!VAR_NAME_RE.test(key)) {
+      // Reusable snippets use lower-case {{prop}} placeholders that the including page fills in.
+      if (pagePath && /[\\/]_reusables[\\/]/.test(String(pagePath)) && /^[A-Za-z_][\w-]*$/.test(key)) return full;
       diagnostics.warnings.push({
         file: pagePath,
         line: null,
@@ -342,8 +351,20 @@ export async function preprocessDoc({
   diagnostics.errors.push(...imports.errors);
   for (const dep of imports.dependencies) dependencies.add(dep);
 
+  // Build-time conditional content (<wc-if>): the HTML build and the agent Markdown can differ (for="agents|humans").
+  let agentContent;
+  if (/<wc-if\b/i.test(content)) {
+    const ctx = { version: attrs.DOCSLIT_VERSION, locale: localeOf(pagePath, attrs), attributes: attrs };
+    const html = evaluateConditionals(content, ctx, 'html');
+    const agent = evaluateConditionals(content, ctx, 'agent');
+    for (const w of html.warnings) diagnostics.warnings.push({ file: pagePath, line: w.line, message: w.message });
+    content = html.content;
+    if (agent.content !== html.content) agentContent = agent.content;
+  }
+
   return {
     content,
+    ...(agentContent !== undefined ? { agentContent } : {}),
     passBlocks,
     dependencies: [...dependencies],
     diagnostics,

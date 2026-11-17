@@ -9,10 +9,11 @@ import rehypeStringify from 'rehype-stringify';
 import rehypeDocslitWcPreserve from './plugins/rehype-docslit-wc-preserve.js';
 import rehypeDocslitAsciidocTable from './plugins/rehype-docslit-asciidoc-table.js';
 import rehypeDocslitWcContent from './plugins/rehype-docslit-wc-content.js';
-import rehypeDocslitCode, { rehypeDocslitCodeMeta } from './plugins/rehype-docslit-code.js';
+import rehypeDocslitCode, { rehypeDocslitCodeMeta, renderHandWrittenCodeBlock } from './plugins/rehype-docslit-code.js';
 import rehypeDocslitVars from './plugins/rehype-docslit-vars.js';
 import rehypeDocslitLinkFix from './plugins/rehype-docslit-link-fix.js';
 import rehypeDocslitImages from './plugins/rehype-docslit-images.js';
+import rehypeDocslitIcons from './plugins/rehype-docslit-icons.js';
 
 import rehypeDocslitMath, { getMathConfig, remarkMathPlugin, remarkDocslitMathDisplay } from './math.js';
 import { rewriteMdxTags } from './mdx-bridge.js';
@@ -58,6 +59,7 @@ function getProcessor(meta = {}) {
     .use(rehypeDocslitWcPreserve)
     .use(rehypeDocslitAsciidocTable)
     .use(rehypeDocslitWcContent)
+    .use(rehypeDocslitIcons)
     .use(rehypeDocslitCode)
     .use(rehypeDocslitVars)
     .use(rehypeDocslitImages, imageOpts)
@@ -150,7 +152,7 @@ export async function renderMarkdown(src, passBlocks = [], meta = {}) {
     /(?:<p>)?DOCSLIT_WCCODE_(\d+)_END(?:<\/p>)?/g,
     (_, i) => {
       const { attrs, content } = codeBlocks[Number(i)];
-      return `<wc-code-block${attrs}>${content}</wc-code-block>`;
+      return renderHandWrittenCodeBlock(attrs, content);
     },
   );
 

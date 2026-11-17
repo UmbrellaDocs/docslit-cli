@@ -3,6 +3,7 @@ import { preprocessDoc, assertNoPreprocessErrors } from './preprocess.js';
 import { renderMarkdown } from './unified.js';
 import { ensureLangs } from './highlighter.js';
 import { findMathErrors } from './math.js';
+import { cleanNotationForMarkdown } from './code-meta.js';
 
 function getVersionSlug(meta, opts) {
   if (meta?.versionSlug) return String(meta.versionSlug);
@@ -42,8 +43,9 @@ export async function parseDoc(rawContent, opts = {}) {
     ...(versionSlug ? { versionSlug } : {}),
   };
   const html = await renderMarkdown(preprocess.content, preprocess.passBlocks || [], renderMeta);
+  const mdSource = cleanNotationForMarkdown(preprocess.agentContent ?? preprocess.content);
   const preprocessedMarkdown = Object.keys(meta || {}).length
-    ? matter.stringify(preprocess.content, meta)
-    : preprocess.content;
+    ? matter.stringify(mdSource, meta)
+    : mdSource;
   return { meta, html, preprocess, preprocessedMarkdown };
 }

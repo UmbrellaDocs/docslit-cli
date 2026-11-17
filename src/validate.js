@@ -322,6 +322,8 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
     while ((placeholder = placeholderRe.exec(bodySafe)) !== null) {
       const key = placeholder[1].trim();
       if (!VAR_NAME_RE.test(key)) {
+        // lower-case {{prop}} placeholders in reusable snippets are filled by the including <wc-include>
+        if (/(?:^|[\\/])_reusables[\\/]/.test(rel) && /^[A-Za-z_][\w-]*$/.test(key)) continue;
         issues.push(issue('warning', rel, lineOf(body, placeholder.index) + bodyLineOffset,
           `Invalid variable placeholder "{{${key}}}"`));
         continue;

@@ -83,7 +83,7 @@ export const COMPONENT_MAP = {
   Steps: { tag: 'wc-steps' },
   Step:  { tag: 'wc-step', passAttrs: ['title'], autoNumber: true },
   // ── Code ─────────────────────────────────────────────────────────────────────
-  CodeGroup: { tag: 'wc-code-group' },
+  CodeGroup: { tag: 'wc-code-group', passAttrs: ['dropdown'] },
   // ── Layout / media ───────────────────────────────────────────────────────────
   Frame:   { tag: 'wc-frame',   passAttrs: ['caption'] },
   Columns: { tag: 'wc-columns' },

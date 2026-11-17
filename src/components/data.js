@@ -3,7 +3,7 @@
 export default `
 // ── WC-FIELD / WC-FIELDS ───────────────────────────────────────────────────
 class WcField extends LitElement {
-  static properties={name:{type:String},type:{type:String},required:{type:Boolean},description:{type:String},default:{type:String},deprecated:{type:Boolean},in:{type:String},enum:{type:String},format:{type:String},pattern:{type:String},minimum:{type:String},maximum:{type:String},maxlength:{type:String},minlength:{type:String},example:{type:String},collapsible:{type:Boolean},_expanded:{type:Boolean,state:true}};
+  static properties={name:{type:String},type:{type:String},required:{type:Boolean},description:{type:String},default:{type:String},deprecated:{type:Boolean},in:{type:String},enum:{type:String},format:{type:String},pattern:{type:String},minimum:{type:String},maximum:{type:String},maxlength:{type:String},minlength:{type:String},example:{type:String},collapsible:{type:Boolean},pre:{type:String},post:{type:String},placeholder:{type:String},_expanded:{type:Boolean,state:true}};
   static styles=css\`
     :host{display:block}
     :host([theme="dark"]){--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666;--surface2:#1a1a1a}
@@ -15,6 +15,7 @@ class WcField extends LitElement {
     :host([deprecated]) .name{text-decoration:line-through;opacity:.6}
     .type-label{font-family:'Inter',sans-serif;font-size:12px;color:var(--text3,#666)}
     .in-badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface2,#1a1a1a);color:var(--text3,#666);border:1px solid var(--border,#2a2a2a);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+    .lbl{font-family:var(--font-sans,'Inter',sans-serif);font-size:10px;font-weight:600;padding:1px 6px;border-radius:3px;background:var(--accent-dim,rgba(1,105,111,.15));color:var(--accent-light,#4f98a3);border:1px solid var(--accent-dim2,rgba(1,105,111,.25));white-space:nowrap}
     .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
     .desc{color:var(--text2,#a0a0a0);line-height:1.6;font-size:13px;margin-top:6px}
     .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:3px;color:#4f98a3}
@@ -53,14 +54,17 @@ class WcField extends LitElement {
     if(this.minlength)constraints.push('≥ '+this.minlength+' characters');
     return html\`<div class="row">
       <div class="name-line">
+        \${(this.pre||'').split(',').map(x=>x.trim()).filter(Boolean).map(x=>html\`<span class="lbl">\${x}</span>\`)}
         <span class="name">\${this.name}</span>
         \${this.in?html\`<span class="in-badge">\${this.in}</span>\`:nothing}
         \${typeLabel?html\`<span class="type-label">\${typeLabel}</span>\`:nothing}
         \${this.required?html\`<span class="req">required</span>\`:nothing}
+        \${(this.post||'').split(',').map(x=>x.trim()).filter(Boolean).map(x=>html\`<span class="lbl">\${x}</span>\`)}
       </div>
       \${this.description?html\`<div class="desc"><span .innerHTML=\${_inlineMd(this.description)}></span></div>\`:nothing}
       \${constraints.length?html\`<div class="constraint">\${constraints.join(' · ')}</div>\`:nothing}
       \${this.default!==undefined&&this.default!==null?html\`<div class="default-val">Default: \${this.default}</div>\`:nothing}
+      \${this.placeholder?html\`<div class="example-val">Placeholder: <code>\${this.placeholder}</code></div>\`:nothing}
       \${this.example!==undefined&&this.example!==null?html\`<div class="example-val">Example: <code>\${this.example}</code></div>\`:nothing}
       \${enumValues.length?html\`<div class="enum-box"><div class="enum-title">Possible enum values</div>\${enumValues.map(v=>html\`<div class="enum-item"><span class="enum-val">\${v}</span></div>\`)}</div>\`:nothing}
       \${this.collapsible?html\`
@@ -143,49 +147,106 @@ customElements.define('wc-responses',WcResponses);
 
 // ── WC-COLOR ───────────────────────────────────────────────────────────────
 class WcColor extends LitElement {
-  static properties={hex:{type:String},name:{type:String},variable:{type:String},_copied:{type:Boolean,state:true}};
+  static properties={hex:{type:String},value:{type:String},light:{type:String},dark:{type:String},name:{type:String},variable:{type:String},_copied:{type:Boolean,state:true}};
   static styles=css\`
-    :host{display:inline-block;margin:8px 8px 8px 0}
-    :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--border2:#3a3a3a;--text:#f0f0f0;--text3:#666}
-    :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--border2:#d0d0d0;--text:#0f0f0f;--text3:#737373}
-    .wrap{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;cursor:pointer;transition:border-color .15s;font-family:'Inter',sans-serif}
+    :host{display:inline-block;margin:8px 8px 8px 0;min-width:0}
+    :host([data-v]){display:block;margin:0}
+    .wrap{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--radius-lg,10px);cursor:pointer;transition:border-color .15s;font-family:var(--font-sans,'Inter',sans-serif);text-align:left;width:100%;box-sizing:border-box}
     .wrap:hover{border-color:var(--border2,#3a3a3a)}
-    .wrap.copied{border-color:rgba(16,185,129,.4)}
-    .swatch{width:40px;height:40px;border-radius:8px;flex-shrink:0;border:1px solid rgba(128,128,128,.2)}
-    .info{display:flex;flex-direction:column;gap:2px}
-    .color-name{font-size:14px;font-weight:600;color:var(--text,#f0f0f0)}
-    .hex{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3,#666)}
-    .var{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666)}
-    .check{font-size:12px;color:#34d399;margin-left:4px}
+    .wrap:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:2px}
+    .wrap.copied{border-color:rgba(16,185,129,.5)}
+    .swatch{width:40px;height:40px;border-radius:var(--radius,8px);flex-shrink:0;border:1px solid rgba(128,128,128,.3)}
+    :host([data-v="compact"]) .wrap{flex-direction:column;align-items:stretch;gap:10px;padding:10px}
+    :host([data-v="compact"]) .swatch{width:100%;height:56px}
+    :host([data-v="table"]) .wrap{border:none;background:none;padding:6px 0;gap:10px;width:auto}
+    :host([data-v="table"]) .swatch{width:48px;height:48px}
+    .info{display:flex;flex-direction:column;gap:2px;min-width:0}
+    .color-name{font-size:14px;font-weight:600;color:var(--text,#f0f0f0);overflow-wrap:anywhere}
+    .hex{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:12px;color:var(--text3,#737373);overflow-wrap:anywhere}
+    .var{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:11px;color:var(--text3,#737373)}
+    .check{font-size:12px;color:#10b981;margin-left:4px}
+    @media(prefers-reduced-motion:reduce){.wrap{transition:none}}
   \`;
   constructor(){super();this._copied=false;}
+  connectedCallback(){super.connectedCallback();if(this.light||this.dark)_watchTheme(this);}
+  disconnectedCallback(){super.disconnectedCallback();_unwatchTheme(this);}
+  _val(){const base=this.value||this.hex||'';if(!this.light&&!this.dark)return base;return _isLight()?(this.light||this.dark||base):(this.dark||this.light||base);}
   async _copy(){
-    const val=this.variable||this.hex||'';
+    const val=this.variable||this._val()||'';
     try{await navigator.clipboard.writeText(val);this._copied=true;setTimeout(()=>this._copied=false,2000);}catch(e){}
   }
-  render(){return html\`<div class="wrap \${this._copied?'copied':''}" @click=\${this._copy.bind(this)} role="button" tabindex="0" title="Click to copy"><div class="swatch" style="background:\${this.hex||'#888'}"></div><div class="info"><div class="color-name">\${this.name||this.hex}\${this._copied?html\`<span class="check">✓</span>\`:nothing}</div>\${this.hex?html\`<div class="hex">\${this.hex}</div>\`:nothing}\${this.variable?html\`<div class="var">\${this.variable}</div>\`:nothing}</div></div>\`;}
+  _onKey(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this._copy();}}
+  render(){
+    const v=this._val();
+    return html\`<div class="wrap \${this._copied?'copied':''}" @click=\${this._copy.bind(this)} @keydown=\${this._onKey} role="button" tabindex="0" aria-label=\${'Copy '+(this.variable||v)+(this.name?' ('+this.name+')':'')}><div class="swatch" style="background:\${v||'#888'}"></div><div class="info"><div class="color-name">\${this.name||v}\${this._copied?html\`<span class="check" role="status">Copied</span>\`:nothing}</div>\${this.name?html\`<div class="hex">\${v}</div>\`:nothing}\${this.variable?html\`<div class="var">\${this.variable}</div>\`:nothing}</div></div>\`;
+  }
 }
 customElements.define('wc-color',WcColor);
 
-// ── WC-TABLE ───────────────────────────────────────────────────────────────
-class WcTable extends LitElement {
-  static properties={headers:{type:String},rows:{type:String}};
+// ── WC-COLORS / WC-COLOR-ROW ───────────────────────────────────────────────
+class WcColors extends LitElement {
+  static properties={variant:{type:String}};
   static styles=css\`
     :host{display:block;margin:0 0 16px}
-    :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text2:#a0a0a0;--text3:#666}
-    :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text2:#555;--text3:#737373}
-    .wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border,#2a2a2a);border-radius:10px;background:var(--surface,#111)}
-    table{width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;font-size:14px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+    .table{display:flex;flex-direction:column;border:1px solid var(--border,#2a2a2a);border-radius:var(--radius-lg,10px);overflow:hidden;background:var(--surface,#111)}
+  \`;
+  _sync(){const v=this.variant==='table'?'table':'compact';this.querySelectorAll('wc-color').forEach(c=>c.setAttribute('data-v',v));this.querySelectorAll('wc-color-row').forEach(c=>c.setAttribute('data-v',v));}
+  render(){return html\`<div class="\${this.variant==='table'?'table':'grid'}" role="group"><slot @slotchange=\${()=>this._sync()}></slot></div>\`;}
+  updated(){this._sync();}
+}
+customElements.define('wc-colors',WcColors);
+
+class WcColorRow extends LitElement {
+  static properties={title:{type:String}};
+  static styles=css\`
+    :host{display:flex;gap:16px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border,#2a2a2a);flex-wrap:wrap}
+    :host(:last-child){border-bottom:none}
+    .t{flex:0 0 140px;font-family:var(--font-sans,'Inter',sans-serif);font-size:13px;font-weight:700;color:var(--text,#f0f0f0);min-width:0}
+    .items{display:flex;flex-wrap:wrap;gap:8px 20px;flex:1;min-width:0}
+    @media(max-width:640px){.t{flex-basis:100%}}
+  \`;
+  render(){return html\`<div class="t">\${unsafeHTML(_titleMd(this.title))}</div><div class="items"><slot></slot></div>\`;}
+  updated(){this.querySelectorAll('wc-color').forEach(c=>c.setAttribute('data-v','table'));}
+}
+customElements.define('wc-color-row',WcColorRow);
+
+// ── WC-TABLE ───────────────────────────────────────────────────────────────
+class WcTable extends LitElement {
+  static properties={headers:{type:String},rows:{type:String},sticky:{type:Boolean},searchable:{type:Boolean},placeholder:{type:String},maxHeight:{type:String,attribute:'max-height'},_q:{type:String,state:true},_shown:{type:Number,state:true}};
+  static styles=css\`
+    :host{display:block;margin:0 0 16px}
+    .wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border,#2a2a2a);border-radius:var(--radius-lg,10px);background:var(--surface,#111)}
+    .scroll{overflow:auto;max-height:var(--tbl-h,none)}
+    :host([sticky]) .scroll{max-height:var(--tbl-h,70vh)}
+    table{width:100%;border-collapse:collapse;font-family:var(--font-sans,'Inter',sans-serif);font-size:14px}
     thead{position:sticky;top:0;z-index:1}
-    th{text-align:left;padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);border-right:1px solid var(--border,#2a2a2a);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666);white-space:nowrap}
+    th{text-align:left;padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);border-right:1px solid var(--border,#2a2a2a);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#737373);white-space:nowrap}
     td{padding:10px 16px;border-bottom:1px solid var(--border,#2a2a2a);border-right:1px solid var(--border,#2a2a2a);color:var(--text2,#a0a0a0);vertical-align:top;line-height:1.6}
     th:last-child,td:last-child{border-right:none}
     tr:last-child td{border-bottom:none}
     tr:hover td{background:rgba(128,128,128,.04)}
-    code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 6px;border-radius:3px;color:#4f98a3}
+    code{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:12px;background:var(--accent-dim,rgba(1,105,111,.1));padding:1px 6px;border-radius:3px;color:var(--accent-light,#4f98a3)}
+    .bar{display:flex;align-items:center;gap:12px;margin:0 0 10px}
+    input{flex:1;max-width:380px;box-sizing:border-box;padding:8px 12px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--radius,8px);color:var(--text,#f0f0f0);font-family:var(--font-sans,'Inter',sans-serif);font-size:14px}
+    input:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:1px}
+    .count{font-size:12px;color:var(--text3,#737373);font-family:var(--font-sans,'Inter',sans-serif)}
     @media(max-width:640px){th,td{padding:8px 12px;font-size:13px}}
   \`;
+  constructor(){super();this._q='';this._shown=-1;}
+  _native(){return this.querySelector(':scope > table');}
+  _filter(e){
+    this._q=e.target.value;const q=this._q.trim().toLowerCase();const t=this._native();if(!t)return;
+    let n=0;t.querySelectorAll('tbody tr').forEach(tr=>{const hit=!q||tr.textContent.toLowerCase().indexOf(q)>=0;tr.hidden=!hit;if(hit)n++;});
+    this._shown=n;
+  }
+  updated(){const t=this._native();if(t&&this.maxHeight)this.style.setProperty('--tbl-h',this.maxHeight);}
   render(){
+    const t=this._native();
+    if(t){
+      const total=t.querySelectorAll('tbody tr').length;
+      return html\`\${this.searchable?html\`<div class="bar"><input type="search" .value=\${this._q} placeholder=\${this.placeholder||'Filter rows…'} aria-label=\${this.placeholder||'Filter table rows'} @input=\${this._filter.bind(this)}><span class="count" role="status" aria-live="polite">\${this._q?(this._shown<0?total:this._shown)+' of '+total+' rows':''}</span></div>\`:nothing}<div class="wrap"><div class="scroll"><slot></slot></div></div>\`;
+    }
     let headers=[],rows=[];
     try{headers=JSON.parse(this.headers||'[]');}catch(e){}
     try{rows=JSON.parse(this.rows||'[]');}catch(e){}

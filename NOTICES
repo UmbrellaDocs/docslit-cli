@@ -46,3 +46,19 @@ https://katex.org
 Copyright (c) 2013-2020 Khan Academy and other contributors
 Licensed under the MIT License. KaTeX fonts are distributed under the SIL Open
 Font License 1.1 / MIT as described in the KaTeX repository.
+
+-------------------------------------------------------------------------------
+
+Lucide icons (navigation icons, src/nav-icons.js)
+https://lucide.dev
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of
+Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors
+2022. Licensed under the ISC License.
+
+-------------------------------------------------------------------------------
+
+Font Awesome Free brand icons (footer / navbar social icons, src/nav-icons.js)
+https://fontawesome.com
+Copyright 2024 Fonticons, Inc.
+Icons are licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+See https://fontawesome.com/license/free

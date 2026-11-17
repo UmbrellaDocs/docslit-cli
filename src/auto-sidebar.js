@@ -12,6 +12,7 @@
 import path from 'path';
 import fs from 'fs-extra';
 import { parseFrontmatter } from './frontmatter.js';
+import { applyNavigation, normalizeDir, isHiddenMeta } from './navigation.js';
 
 const PRIORITY_NAMES = new Set(['index', 'introduction', 'overview']);
 
@@ -28,6 +29,13 @@ export function hasAutogenerate(sidebar) {
     it.autogenerate !== undefined || (Array.isArray(it.pages) && walk(it.pages))
   ));
   return walk(sidebar);
+}
+
+/** True if any tab needs expansion ("sidebar": "auto", a path-only tab, or autogenerate groups). */
+export function hasTabAutogenerate(tabs) {
+  if (!Array.isArray(tabs)) return false;
+  return tabs.some((t) => t && typeof t === 'object' && !t.href
+    && (t.sidebar === 'auto' || (t.sidebar === undefined && typeof t.path === 'string' && t.path.trim() !== '') || hasAutogenerate(t.sidebar)));
 }
 
 // ─── Sources ──────────────────────────────────────────────────────────────────
@@ -127,7 +135,9 @@ async function scanDir(source, relDir, ctx) {
         name: e.name,
         position: toNumber(cat.position),
         label: typeof cat.label === 'string' && cat.label.trim() ? cat.label : titleCase(e.name),
-        collapsed: typeof cat.collapsed === 'boolean' ? cat.collapsed : undefined,
+        collapsed: typeof cat.collapsed === 'boolean' ? cat.collapsed
+          : typeof cat.expanded === 'boolean' ? !cat.expanded : undefined,
+        extras: categoryExtras(cat),
         children,
       });
       return;
@@ -139,16 +149,26 @@ async function scanDir(source, relDir, ctx) {
     let fm = {};
     try { fm = parseFrontmatter(await source.read(join(e.name)) || '').data || {}; } catch { /* validate reports */ }
     if (fm.sidebar === false) return;
-    nodes.push({ kind: 'page', name: base, id, position: toNumber(fm.sidebar_position) });
+    nodes.push({ kind: 'page', name: base, id, position: toNumber(fm.sidebar_position), hidden: isHiddenMeta(fm) });
   }));
 
   return nodes.sort(compareNodes);
 }
 
+/** Group metadata a _category.json may carry besides label/position/collapsed. */
+function categoryExtras(cat) {
+  const out = {};
+  for (const k of ['icon', 'tag', 'availability']) {
+    if (typeof cat[k] === 'string' && cat[k].trim()) out[k] = cat[k].trim();
+  }
+  if (cat.hidden === true) out.hidden = true;
+  return out;
+}
+
 function nodesToPages(nodes, ctx, collapsed) {
   return nodes.map((n) => {
-    if (n.kind === 'page') return n.id;
-    const g = { group: n.label, pages: nodesToPages(n.children, ctx, collapsed) };
+    if (n.kind === 'page') return n.hidden ? { id: n.id, hidden: true } : n.id;
+    const g = { group: n.label, ...(n.extras || {}), pages: nodesToPages(n.children, ctx, collapsed) };
     const c = n.collapsed ?? collapsed;
     if (typeof c === 'boolean') g.collapsed = c;
     return g;
@@ -199,13 +219,13 @@ async function expandPages(pages, source, ctx) {
   return out;
 }
 
-async function expandAuto(source, ctx, siteName) {
-  const nodes = await scanDir(source, '', ctx);
+async function expandAuto(source, ctx, siteName, rootDir = '') {
+  const nodes = await scanDir(source, rootDir, ctx);
   const groups = [];
   const rootPages = nodes.filter((n) => n.kind === 'page');
   if (rootPages.length) groups.push({ group: siteName || 'Docs', pages: nodesToPages(rootPages, ctx) });
   for (const n of nodes.filter((x) => x.kind === 'group')) {
-    const g = { group: n.label, pages: nodesToPages(n.children, ctx) };
+    const g = { group: n.label, ...(n.extras || {}), pages: nodesToPages(n.children, ctx) };
     if (typeof n.collapsed === 'boolean') g.collapsed = n.collapsed;
     groups.push(g);
   }
@@ -223,6 +243,36 @@ export async function expandSidebarValue(sidebar, source, { siteName = null, war
   if (sidebar === 'auto') return expandAuto(source, ctx, siteName);
   ctx.exclude = collectExplicitIds(sidebar);
   return expandPages(sidebar, source, ctx);
+}
+
+/**
+ * Expand the sidebar of every tab: "auto" (optionally scoped to the tab's `path`), a tab with
+ * only a `path`, or explicit sidebars containing autogenerate groups. Returns a new array.
+ */
+export async function expandTabsValue(tabs, source, { siteName = null, warn = () => {} } = {}) {
+  if (!Array.isArray(tabs)) return tabs;
+  const explicit = new Set();
+  for (const t of tabs) {
+    if (t && Array.isArray(t.sidebar)) collectExplicitIds(t.sidebar, explicit);
+  }
+  const out = [];
+  for (const t of tabs) {
+    if (!t || typeof t !== 'object' || t.href) { out.push(t); continue; }
+    const ctx = { warn, exclude: explicit };
+    const label = String(t.tab ?? t.label ?? t.title ?? t.name ?? '');
+    if (t.sidebar === 'auto' || (t.sidebar === undefined && typeof t.path === 'string' && t.path.trim())) {
+      const dir = normalizeDir(t.path);
+      if (typeof t.path === 'string' && t.path.trim() && !dir) warn(`Tab "${label}": invalid path ${JSON.stringify(t.path)}`);
+      const groups = await expandAuto(source, ctx, label || siteName, dir);
+      if (!groups.length) warn(`Tab "${label}": autogenerate found no pages${dir ? ` in docs/${dir}` : ''}`);
+      out.push({ ...t, sidebar: groups });
+    } else if (hasAutogenerate(t.sidebar)) {
+      out.push({ ...t, sidebar: await expandPages(t.sidebar, source, ctx) });
+    } else {
+      out.push(t);
+    }
+  }
+  return out;
 }
 
 /**
@@ -255,6 +305,13 @@ export async function expandAllSidebars(config, cwd, opts = {}) {
       const source = createFsSource(path.join(cwd, `docs.${locale}`));
       out = { ...out, sidebars: { ...out.sidebars, [locale]: await expandSidebarValue(value, source, { siteName: config.name, ...opts }) } };
     }
+  }
+  if (Array.isArray(config?.tabs) && config.tabs.length) {
+    if (hasTabAutogenerate(config.tabs)) {
+      const source = createFsSource(path.join(cwd, 'docs'));
+      out = { ...out, tabs: await expandTabsValue(config.tabs, source, { siteName: config.name, ...opts }) };
+    }
+    out = applyNavigation(out, opts);
   }
   return out;
 }

@@ -109,16 +109,23 @@ Generated from the manifest. "Body" says what goes between the tags.
 
 #### `wc-callout`
 
-Highlighted block for tips, warnings, notes and other asides. Body supports full Markdown.
+Highlighted block for tips, warnings, notes and other asides, with a default icon per type. Pass icon and color for a custom callout. Body supports full Markdown.
 
 - Body: markdown. Callout body. Leave a blank line after the opening tag to use block Markdown (lists, code).
 - Attributes:
-  - `type` (info | tip | warning | error | success | note, default `info`): Visual style of the callout.
-  - `title` (string): Heading shown at the top of the callout. Omit for body-only.
+  - `type` (info | tip | warning | error | danger | success | check | note | launch, default `info`): Visual style (and default icon).
+  - `title` (string): Heading shown at the top of the callout (inline Markdown). Omit for body-only.
+  - `icon` (string): Custom icon (replaces the type icon; "none" hides it): a Lucide or Font Awesome Free name (rocket, fa-solid fa-gear, lucide:zap), an emoji, an image URL/path, or inline <svg>. Resolved at build time to inline SVG (no CDN request, works offline).
+  - `icon-type` (solid | regular | brands): Font Awesome style for the icon.
+  - `color` (string): Custom accent colour (hex or any CSS colour) for the border, tint, icon and title.
 
 ```markdown
 <wc-callout type="warning" title="Heads up">
 Back up your `docslit.json` before running a migration.
+</wc-callout>
+
+<wc-callout icon="rocket" color="#8b5cf6" title="Launch day">
+A custom icon and colour.
 </wc-callout>
 ```
 
@@ -128,8 +135,11 @@ Alias of wc-callout (same attributes and behavior).
 
 - Body: markdown. Alert body.
 - Attributes:
-  - `type` (info | tip | warning | error | success | note): Visual style.
+  - `type` (info | tip | warning | error | danger | success | check | note | launch): Visual style (and default icon).
   - `title` (string): Heading shown at the top.
+  - `icon` (string): Custom icon (see wc-callout).
+  - `icon-type` (solid | regular | brands): Font Awesome style for the icon.
+  - `color` (string): Custom accent colour.
 
 ```markdown
 <wc-alert type="error" title="Breaking change">
@@ -139,12 +149,15 @@ The `--legacy` flag was removed.
 
 #### `wc-banner`
 
-Full-width notice strip, optionally dismissible. Good for announcements inside a page.
+Full-width notice strip, optionally dismissible (the dismissal is remembered per message). Good for announcements inside a page.
 
 - Body: markdown. Banner message.
 - Attributes:
-  - `type` (info | warning | error | success | neutral, default `neutral`): Visual style.
-  - `dismissible` (boolean): Show a close button so readers can dismiss the banner.
+  - `type` (info | warning | error | critical | success | neutral, default `neutral`): Visual style.
+  - `dismissible` (boolean): Show a close button so readers can dismiss the banner; stays hidden until the banner text changes.
+  - `color` (string): Solid background colour (white text) in light mode, and in dark mode unless dark-color is set.
+  - `dark-color` (string): Solid background colour used in dark mode.
+  - `icon` (string): Optional leading icon (see wc-icon for accepted values).
 
 ```markdown
 <wc-banner type="info" dismissible>
@@ -154,42 +167,55 @@ Version 2.0 is now available.
 
 #### `wc-badge`
 
-Small inline pill for status or category labels (Stable, Beta, Deprecated...).
+Small inline pill for status or category labels (Stable, Beta, Deprecated...). Supports sizes, shapes, icons and outlined / minimal styles.
 
 - Body: text. Badge text (alternative to the label attribute).
 - Attributes:
-  - `variant` (default | success | warning | danger | info | neutral | purple, default `default`): Color scheme.
+  - `variant` (default | success | warning | orange | danger | error | info | neutral | purple | note | tip | launch | check | white | surface, default `default`): Colour.
   - `label` (string): Badge text. If omitted, the element body is used.
+  - `size` (xs | sm | md | lg, default `md`): Badge size.
+  - `shape` (rounded | pill, default `rounded`): Badge shape.
+  - `icon` (string): Leading icon (see wc-icon for accepted values).
+  - `outlined` (boolean): Transparent background with a border.
+  - `minimal` (boolean): Very subtle background, no border.
+  - `disabled` (boolean): Reduced-opacity disabled look.
 
 ```markdown
-<wc-badge variant="success">Stable</wc-badge>
+<wc-badge variant="success" icon="check" shape="pill">Stable</wc-badge>
 ```
 
 #### `wc-tooltip`
 
-Inline text with a hover tooltip.
+Inline text with a hover / focus tooltip. Keyboard accessible (the text is focusable, Escape closes), flips to stay on screen, and supports a headline and a call-to-action link.
 
 - Body: text. The inline text the tooltip is attached to.
 - Attributes:
-  - `text` (string, required): Tooltip content shown on hover.
-  - `position` (top | bottom, default `top`): Where the tooltip appears.
+  - `tip` (string, required): Tooltip content (inline Markdown). Alias: text.
+  - `text` (string): Legacy alias of tip.
+  - `headline` (string): Bold line shown before the tip text.
+  - `cta` (string): Call-to-action link text (needs href).
+  - `href` (string): URL for the call-to-action link.
+  - `position` (top | bottom | left | right, default `top`): Preferred side; flips automatically when there is no room.
 
 ```markdown
-DocsLit uses <wc-tooltip text="A library for building web components">Lit</wc-tooltip> under the hood.
+DocsLit uses <wc-tooltip tip="A library for building web components" headline="Lit" cta="Learn more" href="https://lit.dev">Lit</wc-tooltip> under the hood.
 ```
 
 #### `wc-update`
 
-Changelog entry with a version, date and change-type badge.
+Changelog entry. Use label (+ description, tags) for the timeline layout with an anchor link on the label, or version / date / type for the compact boxed layout.
 
 - Body: markdown. Description of the change.
 - Attributes:
-  - `version` (string, required): Version number for this change.
-  - `type` (added | changed | fixed | removed | deprecated | security): Change type badge.
-  - `date` (string): Release date (free-form text).
+  - `label` (string): Entry label, usually a date or version. Also the anchor: label="2026-10-29" links as #2026-10-29.
+  - `description` (string): Text shown under the label (e.g. a version).
+  - `tags` (string): Comma-separated tags shown as chips under the label.
+  - `version` (string): Version number for this change.
+  - `type` (added | changed | fixed | removed | deprecated | security): Change type badge (boxed layout).
+  - `date` (string): Release date (free-form text, boxed layout).
 
 ```markdown
-<wc-update version="1.2.0" date="May 2026" type="added">
+<wc-update label="2026-10-29" description="v1.2.0" tags="Feature, Fix">
 New `--json` flag for the `validate` command.
 </wc-update>
 ```
@@ -226,15 +252,17 @@ One command.
 
 #### `wc-frame`
 
-Bordered frame around an image or other content, with an optional caption.
+Frame around an image, embed or other content, with an optional caption and hint.
 
 - Body: markdown. Framed content, typically an image.
 - Attributes:
-  - `caption` (string): Caption displayed below the content.
+  - `caption` (string): Caption displayed below the content (inline Markdown).
+  - `hint` (string): Text shown above the frame.
   - `border` (boolean): Draw a border around the framed content.
+  - `background` (default | subtle, default `default`): Frame background.
 
 ```markdown
-<wc-frame caption="The dashboard overview">
+<wc-frame caption="The dashboard overview" hint="Click to enlarge" border background="subtle">
 
 ![Dashboard](https://example.com/dashboard.png)
 
@@ -261,11 +289,13 @@ Titled box that groups related content.
 
 #### `wc-expandable`
 
-Lightweight collapsible section.
+Lightweight collapsible section (same behaviour as wc-accordion; use it for nested object properties).
 
 - Body: markdown. Hidden content revealed on expand.
 - Attributes:
-  - `title` (string): Clickable heading that toggles the section.
+  - `title` (string): Clickable heading that toggles the section (inline Markdown).
+  - `description` (string): Smaller text under the title.
+  - `icon` (string): Leading icon (see wc-icon for accepted values).
   - `open` (boolean): Expand the section by default.
 
 ```markdown
@@ -276,15 +306,18 @@ Set `DEBUG=1` to enable verbose logs.
 
 #### `wc-accordion`
 
-Collapsible FAQ-style item. Usually placed inside wc-accordion-group.
+Collapsible FAQ-style item (a real button with aria-expanded; opens when the URL hash matches its id or title slug; findable by in-page search). Usually placed inside wc-accordion-group.
 
 - Body: markdown. Answer or detail content.
 - Parent: `wc-accordion-group`
 - Attributes:
-  - `title` (string, required): Clickable heading text that toggles the item.
+  - `title` (string, required): Clickable heading text that toggles the item (inline Markdown).
+  - `description` (string): Smaller text under the title.
+  - `icon` (string): Leading icon (see wc-icon for accepted values).
+  - `open` (boolean): Expand the item by default.
 
 ```markdown
-<wc-accordion title="Which Node.js version do I need?">
+<wc-accordion title="Which Node.js version do I need?" description="Short answer: 20.19 or later" icon="circle-help">
 Node.js 20.19 or later.
 </wc-accordion>
 ```
@@ -310,14 +343,15 @@ Yes, it is Apache-2.0 licensed.
 
 #### `wc-aside`
 
-Side note or related-links box set apart from the main flow.
+Side note or related-content box that floats to the right of the text; sticky keeps it in view while the reader scrolls (inline on small screens).
 
 - Body: markdown. Aside content.
 - Attributes:
   - `title` (string): Aside heading.
+  - `sticky` (boolean): Stay pinned below the header while scrolling.
 
 ```markdown
-<wc-aside title="Related">
+<wc-aside title="Related" sticky>
 See also the [quickstart](quickstart).
 </wc-aside>
 ```
@@ -326,11 +360,12 @@ See also the [quickstart](quickstart).
 
 #### `wc-steps`
 
-Numbered step-by-step procedure. Steps are numbered automatically.
+Numbered step-by-step procedure with a connecting rail. Steps are numbered automatically.
 
 - Body: children. One or more wc-step elements.
 - Children: `wc-step`
-- Attributes: none
+- Attributes:
+  - `title-size` (p | h2 | h3 | h4, default `p`): Step title level; h2-h4 make real headings that appear in the page table of contents.
 
 ```markdown
 <wc-steps>
@@ -345,17 +380,22 @@ Run `docslit init my-docs`.
 
 #### `wc-step`
 
-A single step inside wc-steps.
+A single step inside wc-steps. The title is rendered as light-DOM text at build time (readable without JS) and gets an anchor id.
 
 - Body: markdown. Step instructions (full Markdown including code blocks).
 - Parent: `wc-steps`
 - Attributes:
-  - `title` (string, required): Step heading shown next to the step number.
+  - `title` (string, required): Step heading shown next to the step marker (inline Markdown).
   - `n` (number): Override the auto-generated step number.
+  - `icon` (string): Icon shown in the marker instead of the number (see wc-icon for accepted values).
+  - `title-size` (p | h2 | h3 | h4): Title level for this step (overrides wc-steps).
+  - `no-anchor` (boolean): Hide the hover anchor link on a plain-text (p) title.
+  - `data-anchor` (string): Set by the build step: the heading id when title-size is h2-h4.
+  - `data-title-level` (string): Set by the build step: h2, h3 or h4 when the title is a heading.
 
 ```markdown
 <wc-steps>
-<wc-step title="Build">
+<wc-step title="Build" icon="hammer">
 Run `docslit build`.
 </wc-step>
 </wc-steps>
@@ -363,16 +403,18 @@ Run `docslit build`.
 
 #### `wc-tabs`
 
-Tabbed content switcher for alternative instructions.
+Tabbed content switcher for alternative instructions. Arrow keys, Home and End move between tabs; #tab-id in the URL opens a tab.
 
 - Body: children. One or more wc-tab elements.
 - Children: `wc-tab`
 - Attributes:
   - `sync` (string): Sync key. Tab groups on the same page (wc-tabs and wc-code-group) that share a sync value switch together when the reader picks a tab label, and the choice is remembered in localStorage. Tab labels must match across groups.
+  - `default-tab` (number, default `0`): Zero-based index of the tab shown first.
+  - `border-bottom` (boolean): Add a bottom border and padding below the tabs to separate them from following content.
 
 ````markdown
 <wc-tabs>
-<wc-tab label="npm">
+<wc-tab label="npm" icon="box">
 
 ```bash
 npm install docslit
@@ -396,11 +438,12 @@ A single tab panel inside wc-tabs.
 - Body: markdown. Tab content (full Markdown). Leave blank lines around fenced code blocks.
 - Parent: `wc-tabs`
 - Attributes:
-  - `label` (string, required): Text of the tab button.
+  - `label` (string, required): Text of the tab button (inline Markdown). Also the deep-link id (slug of the label) unless id is set.
+  - `icon` (string): Icon shown before the label (see wc-icon for accepted values).
 
 ```markdown
 <wc-tabs>
-<wc-tab label="macOS">
+<wc-tab label="macOS" icon="apple">
 Use Homebrew.
 </wc-tab>
 </wc-tabs>
@@ -408,15 +451,16 @@ Use Homebrew.
 
 #### `wc-view`
 
-Toggle between alternative views (for example a language or platform switcher) of the same content.
+Toggle between alternative views (for example a language or platform switcher) of the same content. Add sync to switch every view group with the same labels together.
 
 - Body: children. One or more wc-view-panel elements.
 - Children: `wc-view-panel`
-- Attributes: none
+- Attributes:
+  - `sync` (string): Sync key. Tab groups on the same page (wc-tabs and wc-code-group) that share a sync value switch together when the reader picks a tab label, and the choice is remembered in localStorage. Tab labels must match across groups.
 
 ```markdown
 <wc-view>
-<wc-view-panel label="REST">
+<wc-view-panel label="REST" icon="globe">
 Call the HTTP API directly.
 </wc-view-panel>
 <wc-view-panel label="SDK">
@@ -433,6 +477,7 @@ A single panel inside wc-view.
 - Parent: `wc-view`
 - Attributes:
   - `label` (string, required): Text of the toggle button for this panel.
+  - `icon` (string): Icon shown before the label (see wc-icon for accepted values).
 
 ```markdown
 <wc-view>
@@ -441,6 +486,93 @@ Summary content.
 </wc-view-panel>
 </wc-view>
 ```
+
+#### `wc-walkthrough`
+
+Scroll walkthrough: prose steps beside a sticky code panel that follows the reader's scroll. Each step names a file and the lines to focus (dim the rest) or highlight. Fenced code blocks inside the element are the files (give each a title). On narrow screens each step shows its own code inline; the panel respects reduced motion and the prose reads fine without JavaScript.
+
+- Body: children. wc-walkthrough-step elements followed by one fenced code block per file (title="name").
+- Children: `wc-walkthrough-step`, `wc-walkthrough-substep`
+- Attributes:
+  - `layout` (default | wide, default `default`): Column split; wide gives the code panel more room.
+  - `panel-height` (string, default `min(70vh, 34rem)`): Height of the code panel (any CSS length).
+  - `dim` (true | false, default `true`): Fade inactive steps; set "false" to keep them fully visible.
+  - `data-name` (string): Set by the build step on each file panel: the file title.
+
+````markdown
+<wc-walkthrough>
+<wc-walkthrough-step title="Create the client" file="client.js" focus="1-3">
+Import the SDK and construct a client.
+</wc-walkthrough-step>
+<wc-walkthrough-step title="Send a request" file="client.js" highlight="5-7">
+Call the API.
+</wc-walkthrough-step>
+
+```js title="client.js"
+import { Client } from 'sdk';
+const client = new Client({ key: 'KEY' });
+export default client;
+
+const res = await client.get('/plants');
+console.log(res.data);
+```
+</wc-walkthrough>
+````
+
+#### `wc-walkthrough-step`
+
+A step in a wc-walkthrough: prose plus the file and lines it targets while it is in view.
+
+- Body: markdown. Step prose; may contain wc-walkthrough-substep elements.
+- Parent: `wc-walkthrough`
+- Children: `wc-walkthrough-substep`
+- Attributes:
+  - `title` (string): Step heading (inline Markdown).
+  - `description` (string): Short summary under the title.
+  - `file` (string): Target file: a file title or its 0-based index. Omitted: keeps the previous step's file.
+  - `focus` (string): Lines to focus, dimming the rest: "1-5,8".
+  - `highlight` (string): Lines to highlight with an accent background, e.g. "3,5-6".
+  - `start-line` (string): Line the panel scrolls to (default: the first focused / highlighted line).
+
+````markdown
+<wc-walkthrough>
+<wc-walkthrough-step title="Intro" focus="1">
+Start here.
+</wc-walkthrough-step>
+
+```js title="a.js"
+console.log('hi');
+```
+</wc-walkthrough>
+````
+
+#### `wc-walkthrough-substep`
+
+A finer-grained target inside a wc-walkthrough-step; it takes over the code panel while it is in view.
+
+- Body: markdown. Substep prose.
+- Parent: `wc-walkthrough-step`
+- Attributes:
+  - `title` (string): Short heading above the substep prose.
+  - `file` (string): Target file (default: the parent step's file).
+  - `focus` (string): Lines to focus: "1-5,8".
+  - `highlight` (string): Lines to highlight.
+  - `start-line` (string): Line the panel scrolls to.
+
+````markdown
+<wc-walkthrough>
+<wc-walkthrough-step title="Config" file="a.js">
+Two settings:
+<wc-walkthrough-substep focus="1">The key.</wc-walkthrough-substep>
+<wc-walkthrough-substep focus="2">The region.</wc-walkthrough-substep>
+</wc-walkthrough-step>
+
+```js title="a.js"
+const key = 'k';
+const region = 'eu';
+```
+</wc-walkthrough>
+````
 
 ### Code
 
@@ -465,17 +597,26 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
 
 #### `wc-code-block`
 
-Syntax-highlighted code with copy button, optional filename header and line numbers. Plain fenced code blocks (```lang) are usually preferred; use this tag when you need attributes like filename.
+Syntax-highlighted code with copy button, optional filename header, icon, line numbers, line highlight / focus / diff marks, wrapping and a collapse toggle. Plain fenced code blocks (```lang) are usually preferred and take the same options in the fence meta (```js title="app.js" {1,3-5} lines wrap); use this tag when you want attributes. Shiki notation comments (// [!code ++], [!code --], [!code highlight], [!code focus], [!code error], [!code warning]) are stripped from the display and from Copy.
 
 - Body: code. Raw code, shown verbatim (not parsed as Markdown).
 - Attributes:
-  - `language` (string): Highlighting language, e.g. javascript, python, bash, json, html, css.
-  - `filename` (string): Filename displayed in the header bar.
+  - `language` (string): Highlighting language, e.g. javascript, python, bash, json, html, css. Shown as a label in the header.
+  - `filename` (string): Filename or title displayed in the header bar.
+  - `icon` (string): Icon shown before the filename (a wc-icon name: built-in or Font Awesome).
   - `linenumbers` (true | false): Set to "true" to show line numbers.
+  - `start-line` (number): Number of the first line when line numbers are shown (default 1).
+  - `highlight` (string): Lines to highlight, e.g. "1,3-5". In a fence: {1,3-5} or highlight={1,3-5}.
+  - `focus` (string): Lines to focus (all other lines are dimmed until the reader hovers or focuses the block), e.g. "2-4".
+  - `wrap` (boolean): Wrap long lines instead of scrolling horizontally.
+  - `expandable` (boolean): Collapse long blocks (default 10 lines) behind an accessible "Show more" toggle.
+  - `max-lines` (number): Collapse after this many lines and add a "Show more" toggle (implies expandable). 0 disables.
+  - `nocopy` (boolean): Hide the copy button.
+  - `for` (string): Sync token inside a wc-code-group (e.g. "npm"): groups whose tabs share a token switch together. Defaults to the language.
   - `highlighted` (boolean): Content is already syntax highlighted HTML (set by the build; rarely written by hand).
 
 ```markdown
-<wc-code-block language="json" filename="package.json" linenumbers="true">
+<wc-code-block language="json" filename="package.json" linenumbers="true" highlight="2">
 {
   "name": "my-docs",
   "private": true
@@ -485,32 +626,36 @@ Syntax-highlighted code with copy button, optional filename header and line numb
 
 #### `wc-code-group`
 
-Tabbed group of code snippets (e.g. one per package manager or language).
+Tabbed group of code snippets (e.g. one per package manager or language). Children are wc-code-tab elements or, Mintlify style, fenced code blocks whose title becomes the tab label. Groups sync with each other by language / label by default (sync="off" disables).
 
-- Body: children. One or more wc-code-tab elements.
-- Children: `wc-code-tab`
+- Body: children. One or more wc-code-tab elements, or fenced code blocks.
+- Children: `wc-code-tab`, `wc-code-block`
 - Attributes:
-  - `sync` (string): Sync key. Tab groups on the same page (wc-tabs and wc-code-group) that share a sync value switch together when the reader picks a tab label, and the choice is remembered in localStorage. Tab labels must match across groups.
+  - `sync` (string): Sync key (default "code"). Code groups on the page (and wc-tabs with the same sync key) switch together when the reader picks a tab; tabs match by for= token, label or language (js = javascript), and the choice is remembered in localStorage. Use sync="off" to opt out.
+  - `dropdown` (boolean): Replace the tab bar with a language dropdown.
+  - `nocopy` (boolean): Hide the copy button for every tab.
 
 ```markdown
 <wc-code-group>
-<wc-code-tab label="npm">npm install docslit</wc-code-tab>
-<wc-code-tab label="pnpm">pnpm add docslit</wc-code-tab>
+<wc-code-tab label="npm" language="bash">npm install docslit</wc-code-tab>
+<wc-code-tab label="pnpm" language="bash">pnpm add docslit</wc-code-tab>
 </wc-code-group>
 ```
 
 #### `wc-code-tab`
 
-A single labelled snippet inside wc-code-group (or wc-endpoint). Content is raw text, not Markdown.
+A single labelled snippet inside wc-code-group (or wc-endpoint). Content is raw text, not Markdown; with language it is highlighted at build time.
 
 - Body: code. Raw code or command text (not parsed as Markdown).
 - Parent: `wc-code-group`, `wc-endpoint`
 - Attributes:
   - `label` (string, required): Tab label.
+  - `language` (string): Highlighting language for the snippet (also used for language sync between groups).
+  - `icon` (string): Icon shown in the tab.
 
 ```markdown
 <wc-code-group>
-<wc-code-tab label="yarn">yarn add docslit</wc-code-tab>
+<wc-code-tab label="yarn" language="bash">yarn add docslit</wc-code-tab>
 </wc-code-group>
 ```
 
@@ -518,16 +663,19 @@ A single labelled snippet inside wc-code-group (or wc-endpoint). Content is raw 
 
 #### `wc-icon`
 
-Inline icon: one of 33 built-in SVG icons, or any free Font Awesome 6 icon (fetched from the jsDelivr CDN when the page is viewed, so it needs a network connection and will not render offline).
+Inline icon. Names are resolved at BUILD time to inline SVG from Lucide (ISC) and Font Awesome Free 6 (CC BY 4.0): no CDN request, works offline, and unknown names are flagged by validate with a suggestion. Also accepts an emoji, an image URL/path or inline <svg>.
 
 - Body: none
 - Attributes:
-  - `name` (string, required): Built-in icon name (e.g. check, x, warning, info, error, arrow-right, chevron-down, external-link, link, copy, download, code, terminal, file, folder, search, star, zap, book, settings, user, home, grid, list, eye, lock, package, globe, cpu), or a Font Awesome icon as a bare name ("github", "gear") or class string ("fa-brands fa-github", "fa-solid fa-gear", "far fa-star"; fa-solid/fas, fa-regular/far and fa-brands/fab are understood, size and animation modifiers such as fa-lg are ignored). A bare name picks the brands set for well-known brands (github, docker, npm, slack…), otherwise solid.
-  - `size` (number): Icon size in pixels.
+  - `name` (string, required): Icon name: rocket, fa-solid fa-gear, fa-brands fa-github, lucide:zap, an emoji, an image URL/path, or inline <svg>. Bare names use the order set by docslit.json icons.library (auto | fontawesome | lucide).
+  - `icon-type` (solid | regular | brands): Font Awesome style when the name is bare.
+  - `size` (number, default `16`): Icon size in pixels.
   - `color` (string): Icon color (any CSS color).
+  - `src` (string): Image URL/path to use as the icon instead of a named one.
+  - `label` (string): Accessible name. Icons are decorative (aria-hidden) unless you set this.
 
 ```markdown
-<wc-icon name="zap" size="20" color="#ff6600"></wc-icon>
+<wc-icon name="rocket" size="20" color="#ff6600"></wc-icon> <wc-icon name="fa-brands fa-github" size="20"></wc-icon>
 ```
 
 #### `wc-files`
@@ -551,26 +699,34 @@ Container for a file/directory tree (wc-dir and wc-file).
 
 #### `wc-dir`
 
-A directory node in a wc-files tree; may contain wc-dir and wc-file.
+A directory node in a wc-files tree; may contain wc-dir and wc-file. A button toggles it (keyboard accessible).
 
 - Body: children. Nested wc-dir and wc-file elements.
 - Parent: `wc-files`, `wc-dir`
 - Children: `wc-dir`, `wc-file`
 - Attributes:
   - `name` (string, required): Directory name.
-  - `open` (boolean, default `false`): Expand the directory by default.
+  - `open` (boolean, default `true`): Expand the directory (the default).
+  - `collapsed` (boolean): Start collapsed (use this to make a directory closed by default).
+  - `href` (string): Make the directory name a link.
+  - `comment` (string): Short comment displayed after the name.
+  - `highlight` (boolean): Highlight the directory row.
+  - `openable` (true | false, default `true`): Set to "false" for a non-interactive, always-open folder.
 
 ```markdown
 <wc-files>
-<wc-dir name="src" open>
+<wc-dir name="src" comment="sources" highlight>
 <wc-file name="index.js"></wc-file>
+<wc-dir name="old" collapsed>
+<wc-file name="legacy.js"></wc-file>
+</wc-dir>
 </wc-dir>
 </wc-files>
 ```
 
 #### `wc-file`
 
-A file node in a wc-files tree.
+A file node in a wc-files tree. The icon follows the file type.
 
 - Body: none
 - Parent: `wc-files`, `wc-dir`
@@ -578,10 +734,11 @@ A file node in a wc-files tree.
   - `name` (string, required): File name.
   - `highlight` (boolean, default `false`): Highlight this file to draw attention.
   - `comment` (string): Short comment displayed after the file name.
+  - `href` (string): Make the file name a link.
 
 ```markdown
 <wc-files>
-<wc-file name="docslit.json" highlight comment="site config"></wc-file>
+<wc-file name="docslit.json" highlight comment="site config" href="/configuration"></wc-file>
 </wc-files>
 ```
 
@@ -625,14 +782,15 @@ A node in a wc-tree; may contain nested wc-tree-item elements.
 
 #### `wc-download`
 
-Download link styled as a button.
+Download link styled as a button. With sources it bundles several files into one ZIP in the browser (no dependency; files must be CORS-readable).
 
-- Body: none
+- Body: text. Optional link text (alternative to label).
 - Attributes:
   - `href` (string, required): URL or path of the file to download.
-  - `filename` (string): Suggested filename for the download.
-  - `label` (string): Link text. Defaults to the filename, then "Download".
+  - `filename` (string): Suggested filename (for sources: the ZIP name, default download.zip).
+  - `label` (string): Link text. Defaults to the element body, then the filename, then "Download".
   - `size` (string): File size text shown in parentheses, e.g. "2.4 MB".
+  - `sources` (string): Comma-, space- or JSON-array-separated URLs to bundle into one ZIP download (instead of href).
 
 ```markdown
 <wc-download href="/files/report.pdf" filename="report.pdf" label="Download report" size="2.4 MB"></wc-download>
@@ -640,20 +798,21 @@ Download link styled as a button.
 
 #### `wc-copy`
 
-Click-to-copy button that copies a string to the clipboard.
+Click-to-copy chip that copies a string to the clipboard. Use it inline for versions, commands and keys.
 
-- Body: none
+- Body: text. Displayed text (alternative to label).
 - Attributes:
-  - `text` (string, required): The text copied to the clipboard.
-  - `label` (string): Button label. Defaults to the text.
+  - `text` (string): The text copied to the clipboard (default: the shown text).
+  - `label` (string): Displayed text. Defaults to the element body, then the text.
+  - `clipboard` (string): Copy this value instead of the displayed text.
 
 ```markdown
-<wc-copy text="npm install -g docslit" label="Copy install command"></wc-copy>
+<wc-copy clipboard="npm install -g docslit">npm install</wc-copy>
 ```
 
 #### `wc-image`
 
-Lazy-loaded image with click-to-zoom lightbox and optional dark-mode variant.
+Lazy-loaded image with click-to-zoom lightbox (keyboard accessible, Escape closes) and optional dark-mode variant. Plain Markdown images use it automatically; images inside links or with noZoom do not zoom.
 
 - Body: none
 - Attributes:
@@ -662,9 +821,49 @@ Lazy-loaded image with click-to-zoom lightbox and optional dark-mode variant.
   - `dark-src` (string): Image to show instead when the dark theme is active.
   - `width` (number): Width in pixels.
   - `height` (number): Height in pixels.
+  - `no-zoom` (boolean): Disable the click-to-zoom lightbox.
 
 ```markdown
-<wc-image src="/images/architecture.png" dark-src="/images/architecture-dark.png" alt="System architecture" width="800"></wc-image>
+<wc-image src="/images/architecture.png" dark-src="/images/architecture-dark.png" alt="System architecture" width="800" no-zoom></wc-image>
+```
+
+#### `wc-embed`
+
+Responsive embed for video and iframes: fixed aspect ratio (no layout shift), lazy loading, and a privacy-friendly facade for YouTube / Vimeo / Loom (nothing is requested from the provider until the reader presses play). Also plays self-hosted video files.
+
+- Body: none
+- Attributes:
+  - `src` (string, required): Embed URL (YouTube, Vimeo, Loom, any iframe URL) or a video file (.mp4, .webm...).
+  - `title` (string): Accessible title of the embed (also shown on the facade).
+  - `ratio` (string, default `16/9`): Aspect ratio, e.g. 16/9, 4/3, 1/1, 21/9.
+  - `height` (string): Fixed height (px or any CSS length) instead of an aspect ratio.
+  - `poster` (string): Poster image: shown behind the facade / as the video poster (a local image keeps the facade request-free).
+  - `allow` (string): iframe allow attribute (permissions policy).
+  - `autoplay` (boolean): Video files only: autoplay (needs muted; ignored when the reader prefers reduced motion).
+  - `muted` (boolean): Video files only: start muted.
+  - `loop` (boolean): Video files only: loop.
+  - `controls` (true | false): Video files only: set to "false" to hide controls.
+
+```markdown
+<wc-embed src="https://www.youtube.com/embed/4KzFe50RQkQ" title="Product tour" ratio="16/9"></wc-embed>
+```
+
+#### `wc-github-repo`
+
+GitHub repository card. Renders instantly from attributes; unless live="false" it then fetches stars, forks, language and description from the public GitHub API (cached for an hour, fails silently offline, space is reserved so nothing shifts).
+
+- Body: none
+- Attributes:
+  - `repo` (string, required): owner/name or a full github.com URL.
+  - `variant` (inset | flat, default `inset`): Card style.
+  - `description` (string): Static description (overrides the fetched one).
+  - `stars` (string): Static star count (overrides the fetched one).
+  - `forks` (string): Static fork count.
+  - `language` (string): Static primary language.
+  - `live` (true | false, default `true`): Set to "false" to never contact the GitHub API (privacy / offline docs).
+
+```markdown
+<wc-github-repo repo="UmbrellaDocs/docslit-cli" description="Static docs generator" stars="120" live="false"></wc-github-repo>
 ```
 
 ### Data & API reference
@@ -714,6 +913,9 @@ A single parameter/property row: name, type, flags and a Markdown description. C
   - `maxlength` (string): Maximum string length.
   - `example` (string): Example value.
   - `collapsible` (boolean): Render nested wc-field children as a collapsible section.
+  - `pre` (string): Comma-separated labels shown before the field name.
+  - `post` (string): Comma-separated labels shown after the field name and flags.
+  - `placeholder` (string): Placeholder / example input text shown under the description.
 
 ```markdown
 <wc-fields title="Parameters">
@@ -862,15 +1064,26 @@ Documents a named type/object schema; body holds wc-field rows.
 
 #### `wc-table`
 
-Table rendered from JSON passed in attributes (the component reads only the headers/rows attributes; the docs site shows a JSON-body form that the component source does not implement). For ordinary tables prefer GFM Markdown tables.
+Table helper. Wrap an ordinary Markdown table to add a sticky header and/or a live search box; or build a table from JSON in the headers/rows attributes.
 
-- Body: none
+- Body: markdown. A Markdown table (optional; otherwise use headers and rows).
 - Attributes:
   - `headers` (string): JSON array of header strings, e.g. ["Name","Type"]. Use single quotes around the attribute value.
   - `rows` (string): JSON array of row arrays, e.g. [["a","b"]]. Use single quotes around the attribute value.
+  - `sticky` (boolean): Keep the header row visible while the table body scrolls (scroll area height: max-height).
+  - `searchable` (boolean): Show a search box that filters rows as you type (case-insensitive substring).
+  - `placeholder` (string, default `Filter rows…`): Placeholder / label for the search box.
+  - `max-height` (string, default `70vh with sticky`): Maximum height of the scroll area (any CSS length).
 
 ```markdown
-<wc-table headers='["Command","Description"]' rows='[["init","Scaffold a project"],["build","Build the static site"]]'></wc-table>
+<wc-table sticky searchable placeholder="Filter plants">
+
+| Plant | Light | Water |
+| --- | --- | --- |
+| Fern | Partial shade | Weekly |
+| Monstera | Bright indirect | Weekly |
+
+</wc-table>
 ```
 
 #### `wc-asciidoc-table`
@@ -901,16 +1114,55 @@ Table written in AsciiDoc syntax (|=== blocks): cell spans, column specs, multi-
 
 #### `wc-color`
 
-Color swatch; click to copy the hex value. Useful for design-system docs.
+Color swatch; click (or press Enter) to copy the value. Supports any CSS colour and separate light / dark values.
 
 - Body: none
+- Parent: `wc-colors`, `wc-color-row`
 - Attributes:
-  - `hex` (string, required): Color in hex, e.g. #3b82f6.
+  - `value` (string): Colour in any CSS format (hex, rgb, hsl, oklch...). Alias: hex.
+  - `hex` (string): Colour in hex, e.g. #3b82f6 (legacy alias of value).
+  - `light` (string): Colour shown (and copied) in light mode.
+  - `dark` (string): Colour shown (and copied) in dark mode.
   - `name` (string): Display name of the color.
-  - `variable` (string): CSS custom property name for this color.
+  - `variable` (string): CSS custom property name for this color (copied instead of the value).
 
 ```markdown
-<wc-color hex="#3b82f6" name="Primary" variable="--color-primary"></wc-color>
+<wc-color value="#3b82f6" name="Primary" variable="--color-primary"></wc-color>
+```
+
+#### `wc-colors`
+
+Palette container: compact swatch grid, or table with titled rows (wc-color-row).
+
+- Body: children. wc-color or wc-color-row elements.
+- Children: `wc-color`, `wc-color-row`
+- Attributes:
+  - `variant` (compact | table, default `compact`): Layout.
+
+```markdown
+<wc-colors variant="compact">
+<wc-color name="primary" value="#16a34a"></wc-color>
+<wc-color name="surface" light="#ffffff" dark="#0b0b0b"></wc-color>
+</wc-colors>
+```
+
+#### `wc-color-row`
+
+A titled row of swatches in a table-variant wc-colors.
+
+- Body: children. wc-color elements.
+- Parent: `wc-colors`
+- Children: `wc-color`
+- Attributes:
+  - `title` (string): The row's label (inline Markdown).
+
+```markdown
+<wc-colors variant="table">
+<wc-color-row title="Brand">
+<wc-color name="brand-500" value="#0ea5e9"></wc-color>
+<wc-color name="brand-700" value="#0369a1"></wc-color>
+</wc-color-row>
+</wc-colors>
 ```
 
 #### `wc-mermaid`
@@ -932,17 +1184,27 @@ graph LR
 
 #### `wc-card`
 
-Clickable content card with optional icon and title.
+Content card with optional icon, image, call-to-action and callout theme. Links when href is set; a plain box otherwise.
 
 - Body: markdown. Card body text.
 - Attributes:
-  - `title` (string): Card heading.
-  - `href` (string): Link destination (page slug or external URL).
-  - `icon-name` (string): Built-in icon name displayed on the card.
-  - `icon` (string): Emoji or text icon (use icon-name for named icons).
+  - `title` (string): Card heading (inline Markdown).
+  - `href` (string): Link destination (page slug or external URL). External links open in a new tab.
+  - `icon` (string): Icon: Lucide / Font Awesome name, emoji, image URL or inline <svg> (see wc-icon).
+  - `icon-name` (string): Legacy alias of icon for named icons.
+  - `icon-color` (string): Icon colour (any CSS colour).
+  - `icon-color-dark` (string): Icon colour used in dark mode (icon-color is then the light-mode colour).
+  - `icon-size` (number, default `36`): Icon box size in pixels.
+  - `icon-position` (top | left, default `top`): Where the icon sits relative to the text.
+  - `horizontal` (boolean): Compact horizontal layout (icon on the left).
+  - `img` (string): Image URL/path shown on the card.
+  - `img-position` (top | left | right | bottom, default `top`): Where the image sits.
+  - `cta` (string): Call-to-action text shown at the bottom (with an arrow).
+  - `arrow` (true | false): Show ("true") or hide ("false") the corner arrow. Default: shown for external links only.
+  - `type` (info | warning | note | tip | check | danger): Callout-style colour theme for the card.
 
 ```markdown
-<wc-card title="Quickstart" href="quickstart" icon-name="zap">
+<wc-card title="Quickstart" href="quickstart" icon="rocket" cta="Start now">
 Go from zero to a live site in minutes.
 </wc-card>
 ```
@@ -965,46 +1227,67 @@ Responsive grid that lays out wc-tile (or wc-card) children.
 
 #### `wc-tile`
 
-Compact link tile with icon, title and description.
+Link tile. Compact (icon, title, description) by default; put an image or SVG inside to get a larger visual preview above the title.
 
-- Body: none
+- Body: markdown. Optional preview content (an image or SVG). Omit for the compact icon layout.
 - Parent: `wc-tiles`
 - Attributes:
-  - `title` (string, required): Tile heading.
+  - `title` (string, required): Tile heading (inline Markdown).
   - `description` (string): Short description under the title.
   - `href` (string): Link destination.
-  - `icon-name` (string): Built-in icon name shown above the title.
-  - `icon` (string): Emoji or text icon.
+  - `icon` (string): Icon: Lucide / Font Awesome name, emoji, image URL (see wc-icon).
+  - `icon-name` (string): Legacy alias of icon for named icons.
 
 ```markdown
-<wc-tile title="API reference" description="Every endpoint." href="api/overview" icon-name="book"></wc-tile>
+<wc-tile title="API reference" description="Every endpoint." href="api/overview" icon="book"></wc-tile>
+
+<wc-tile title="Dashboard" description="With a preview." href="dashboard">
+
+![Dashboard](https://example.com/dashboard.png)
+
+</wc-tile>
 ```
 
 #### `wc-button`
 
-Call-to-action button/link.
+Call-to-action button/link with variants, icons and state flags.
 
-- Body: none
+- Body: text. Button text (alternative to the label attribute).
 - Attributes:
-  - `label` (string, required): Button text.
-  - `href` (string): Link destination.
-  - `variant` (primary | outline | ghost | danger, default `primary`): Visual style.
+  - `label` (string): Button text. Defaults to the element body.
+  - `href` (string): Link destination (renders an <a>).
+  - `variant` (primary | outline | ghost | danger | success | warning | none, default `primary`): Visual style (colour intent).
   - `size` (sm | md | lg, default `md`): Button size.
+  - `target` (string): Link target (_blank adds rel=noopener noreferrer).
+  - `outlined` (boolean): Transparent background with a coloured border.
+  - `minimal` (boolean): Subtle tinted background, no border.
+  - `full` (boolean): Full-width button.
+  - `rounded` (boolean): Pill-shaped corners.
+  - `mono` (boolean): Monospace label.
+  - `active` (boolean): Show the active (pressed) ring.
+  - `disabled` (boolean): Disable the button.
+  - `icon` (string): Icon before the label (see wc-icon for accepted values).
+  - `right-icon` (string): Icon after the label.
 
 ```markdown
-<wc-button label="Get started" href="quickstart" variant="primary" size="md"></wc-button>
+<wc-button href="quickstart" variant="success" icon="rocket" right-icon="arrow-right" rounded>Get started</wc-button>
 ```
 
 #### `wc-prompt`
 
-Copyable AI-prompt block with a Copy button. Use it to give readers a ready-made prompt for an AI assistant.
+Copyable AI-prompt card with a Copy button and optional open-in-assistant actions.
 
-- Body: text. The prompt text; the Copy button copies the element text.
+- Body: text. The prompt text; the Copy button copies it.
 - Attributes:
   - `title` (string, default `AI Prompt`): Header label.
+  - `description` (string): Text displayed in the card (inline Markdown). When set, the element body is NOT shown but is what gets copied / sent.
+  - `icon` (string): Icon before the title (see wc-icon for accepted values). Default: a sparkle.
+  - `actions` (string): Open-in buttons: comma-separated cursor, claude, chatgpt, or a JSON array that may include custom { "label", "url", "icon" } objects ({prompt} in url is replaced by the URL-encoded prompt). The Copy button is always present.
+  - `single-line` (boolean): Truncate the preview to one line.
+  - `hide-prompt` (boolean): Hide the prompt body; show only the header with its actions.
 
 ```markdown
-<wc-prompt title="Ask your assistant">
+<wc-prompt title="Ask your assistant" actions="claude,chatgpt">
 Write a quickstart page for my project using DocsLit components.
 </wc-prompt>
 ```
@@ -1106,10 +1389,34 @@ Compile-time include of a reusable Markdown snippet from docs/_reusables. Must b
 
 - Body: none (self-closing)
 - Attributes:
-  - `src` (string, required): Path of the snippet. Resolved under docs/_reusables (e.g. "snippet.md" or "_reusables/snippet.md").
+  - `src` (string, required): Path of the snippet. Resolved under docs/_reusables (e.g. "snippet.md" or "_reusables/snippet.md"). Any other attribute is a snippet prop: it fills the matching {{name}} placeholder inside the snippet (<wc-include src="water.md" plant="fern" />).
 
 ```markdown
 <wc-include src="snippet.md" />
+```
+
+#### `wc-if`
+
+Compile-time conditional content. Evaluated at build time: excluded content never reaches the HTML, the search index or the generated .md / llms output. Conditions: version (versioned builds), locale, an attributes variable, and audience (humans vs AI agents). All given conditions must hold.
+
+- Body: markdown. Content to include when the condition holds. Leave blank lines around block Markdown.
+- Attributes:
+  - `version` (string): Comma-separated versions; true when the build is for one of them.
+  - `locale` (string): Comma-separated locales; true for pages under docs.<locale>/ (default locale: en).
+  - `attr` (string): Name of an attributes variable (docslit.json attributes or page frontmatter). Alone: true when set and not empty / false / 0.
+  - `equals` (string): With attr: comma-separated values the variable must equal.
+  - `not-equals` (string): With attr: values the variable must not equal.
+  - `not` (boolean): Invert the version / locale / attr condition.
+  - `for` (humans | agents): Audience: humans = HTML only (dropped from the agent Markdown); agents = agent Markdown only (hidden on the web).
+
+```markdown
+<wc-if version="2.0">
+Only in the 2.0 docs.
+</wc-if>
+
+<wc-if for="agents">
+Machine-readable hint that only appears in the generated Markdown.
+</wc-if>
 ```
 
 ## Icons

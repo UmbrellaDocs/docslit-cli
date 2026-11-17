@@ -2,7 +2,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import git from 'isomorphic-git';
 import nodeFs from 'node:fs';
-import { expandAllSidebars, expandSidebarValue, createFileListSource, hasAutogenerate } from './auto-sidebar.js';
+import { expandAllSidebars, expandSidebarValue, expandTabsValue, hasTabAutogenerate, createFileListSource, hasAutogenerate } from './auto-sidebar.js';
+import { applyNavigation, collectIds } from './navigation.js';
 
 const _warned = new Set();
 function warnOnce(msg) {
@@ -55,16 +56,7 @@ export async function detectEditUrl(dir) {
 
 export function getAllPageIds(config) {
   const ids = [];
-  function collect(pages) {
-    for (const item of (pages || [])) {
-      if (typeof item === 'string') ids.push(item);
-      else if (item.id) ids.push(item.id);
-      else if (item.pages) collect(item.pages);
-    }
-  }
-  for (const group of (config.sidebar || [])) {
-    collect(group.pages);
-  }
+  for (const group of (config.sidebar || [])) ids.push(...collectIds(group.pages));
   return ids;
 }
 
@@ -91,23 +83,44 @@ export async function gitReadFile(branch, filePath, dir) {
   }
 }
 
-export async function getVersionSidebar(branch, dir) {
+/**
+ * Navigation of a version branch: { sidebar, tabs }. `sidebar` is always the flat list of
+ * groups (derived from the tabs when the branch uses them); `tabs` is null for plain sidebars.
+ */
+export async function getVersionNavigation(branch, dir) {
+  const empty = { sidebar: [], tabs: null };
   const raw = await gitReadFile(branch, 'docslit.json', dir);
-  if (!raw) return [];
+  if (!raw) return empty;
   try {
     const config = JSON.parse(raw);
-    const sidebar = config.sidebar || [];
-    if (!hasAutogenerate(sidebar)) return sidebar;
-    // Expand against the branch's git tree (docs/ at that ref).
-    const oid = await git.resolveRef({ fs: nodeFs, dir, ref: branch });
-    const files = (await git.listFiles({ fs: nodeFs, dir, ref: oid }))
-      .filter((f) => f.startsWith('docs/')).map((f) => f.slice('docs/'.length));
-    const source = createFileListSource(files, (rel) => gitReadFile(branch, `docs/${rel}`, dir));
-    const expanded = await expandSidebarValue(sidebar, source, { siteName: config.name, warn: warnOnce });
-    return Array.isArray(expanded) ? expanded : [];
+    const needsExpand = hasAutogenerate(config.sidebar) || hasTabAutogenerate(config.tabs);
+    let source = null;
+    if (needsExpand) {
+      // Expand against the branch's git tree (docs/ at that ref).
+      const oid = await git.resolveRef({ fs: nodeFs, dir, ref: branch });
+      const files = (await git.listFiles({ fs: nodeFs, dir, ref: oid }))
+        .filter((f) => f.startsWith('docs/')).map((f) => f.slice('docs/'.length));
+      source = createFileListSource(files, (rel) => gitReadFile(branch, `docs/${rel}`, dir));
+    }
+    let sidebar = config.sidebar || [];
+    if (hasAutogenerate(sidebar)) {
+      const expanded = await expandSidebarValue(sidebar, source, { siteName: config.name, warn: warnOnce });
+      sidebar = Array.isArray(expanded) ? expanded : [];
+    }
+    if (Array.isArray(config.tabs) && config.tabs.length) {
+      let tabs = config.tabs;
+      if (hasTabAutogenerate(tabs)) tabs = await expandTabsValue(tabs, source, { siteName: config.name, warn: warnOnce });
+      const applied = applyNavigation({ ...config, sidebar, tabs }, { warn: warnOnce });
+      return { sidebar: applied.sidebar || [], tabs: applied.tabs || null };
+    }
+    return { sidebar: Array.isArray(sidebar) ? sidebar : [], tabs: null };
   } catch {
-    return [];
+    return empty;
   }
+}
+
+export async function getVersionSidebar(branch, dir) {
+  return (await getVersionNavigation(branch, dir)).sidebar;
 }
 
 export async function getChangedDocs(defaultBranch, versionBranch, dir) {
