@@ -38,6 +38,8 @@ docslit lint --format json                        # is it good?
 
 ## Quick start
 
+Requires Node.js 22.22.0 or later.
+
 ```bash
 npm install -g docslit
 docslit init my-docs

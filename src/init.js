@@ -108,7 +108,7 @@ DocsLit is an npm CLI. Install it globally or run it directly with \`npx\` — n
 
 ## Requirements
 
-- **Node.js** \`>=20.19.0\` — check with \`node --version\`
+- **Node.js** \`>=22.22.0\` — check with \`node --version\`
 - Any package manager: npm, pnpm, or yarn
 
 ## Install the CLI

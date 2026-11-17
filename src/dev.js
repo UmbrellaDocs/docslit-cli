@@ -137,6 +137,8 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
   }
 
   // Watch for changes
+  const docsDir = path.join(cwd, 'docs');
+  const componentsDir = path.join(cwd, 'components');
   const watchPaths = [
     // chokidar >=4 has no glob support: watch directories and filter in the handler.
     path.join(cwd, 'docs'),

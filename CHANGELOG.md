@@ -4,6 +4,7 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
+<<<<<<< HEAD
 ## 0.2.0
 
 ### Breaking / behaviour changes
@@ -91,6 +92,11 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 - **`Accept` headers are parsed with q-values.** `text/markdown, text/html;q=0.9` and `text/markdown, text/html` now get Markdown; before, any mention of `text/html` returned HTML. Browsers still get HTML.
 - **`llms.txt`** no longer contains a literal `https://…/{slug}.md` line, which link checkers and AI-readiness scanners reported as a broken link.
 - **`scripts/crawl-dist.js`** crawls a built site the way a search engine does and reports every link whose target is missing: `node scripts/crawl-dist.js dist [--base /docs] [--file]`.
+=======
+## Unreleased
+
+- Updated dependencies to their latest releases. Node.js 22.22.0 or later is now required; the optional Playwright peer requires 1.65.1 or later.
+>>>>>>> 4f7b35a (chore: update dependencies and Node.js version, added new test)
 
 ---
 

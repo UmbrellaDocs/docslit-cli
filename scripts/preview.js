@@ -59,12 +59,18 @@ function broadcast(event) {
 // Watch both preview markdown files and component source files — any change
 // triggers a browser reload so edits to components are instantly visible.
 const watcher = chokidar.watch([
-  path.join(PREVIEW_DIR, '**/*.md'),
-  path.join(ROOT, 'src/components/**/*.js'),
+  PREVIEW_DIR,
+  path.join(ROOT, 'src/components'),
   path.join(ROOT, 'src/template.js'),
 ], { ignoreInitial: true });
 
 watcher.on('all', (event, filePath) => {
+  if (event.endsWith('Dir')) return;
+  const resolved = path.resolve(filePath);
+  const componentsDir = path.join(ROOT, 'src/components');
+  if (!(resolved.startsWith(PREVIEW_DIR + path.sep) && resolved.endsWith('.md')) &&
+      !(resolved.startsWith(componentsDir + path.sep) && resolved.endsWith('.js')) &&
+      resolved !== path.join(ROOT, 'src/template.js')) return;
   const rel = path.relative(ROOT, filePath);
   console.log(`  ${pc.cyan('~')} ${rel} changed — reloading`);
   broadcast({ type: 'reload' });
