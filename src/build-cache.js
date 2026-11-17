@@ -19,6 +19,51 @@ function hashKey(...parts) {
   return crypto.createHash('sha256').update(parts.join('\0')).digest('hex');
 }
 
+export function contentHash(content) {
+  return crypto.createHash('sha256').update(content).digest('hex');
+}
+
+export function assetCacheKey(code, loader, esbuildVersion) {
+  return hashKey('minify-v1', loader, esbuildVersion, code);
+}
+
+async function readTextCache(kind, key) {
+  const file = path.join(cacheRoot(), kind, `${key}.json`);
+  let raw;
+  try {
+    raw = await fs.readFile(file, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+  try {
+    const data = JSON.parse(raw);
+    if (data && typeof data.code === 'string' && data.hash === contentHash(data.code)) return data.code;
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+  }
+  console.warn(`  Warning: invalid ${kind === 'assets' ? 'minified asset' : 'rendered page'} cache ${file}; regenerating`);
+  return null;
+}
+
+async function writeTextCache(kind, key, code) {
+  const dir = path.join(cacheRoot(), kind);
+  const file = path.join(dir, `${key}.json`);
+  const tmp = `${file}.${crypto.randomUUID()}.tmp`;
+  await ensureDir(dir);
+  try {
+    await fs.writeFile(tmp, JSON.stringify({ code, hash: contentHash(code) }));
+    await fs.rename(tmp, file);
+  } finally {
+    await fs.rm(tmp, { force: true });
+  }
+}
+
+export const readAssetCache = key => readTextCache('assets', key);
+export const writeAssetCache = (key, code) => writeTextCache('assets', key, code);
+export const readRenderedPageCache = key => readTextCache('html', key);
+export const writeRenderedPageCache = (key, html) => writeTextCache('html', key, html);
+
 export function getPkgVersion() {
   return PKG_VERSION;
 }
@@ -43,8 +88,8 @@ export async function writeOgImageCache(key, png) {
   await fs.writeFile(p, png);
 }
 
-export function pageCacheKey({ raw, docsRoot, pagePath, globalAttributes, pkgVersion = PKG_VERSION }) {
-  return hashKey(raw, docsRoot || '', pagePath || '', JSON.stringify(globalAttributes || {}), pkgVersion);
+export function pageCacheKey({ raw, docsRoot, pagePath, globalAttributes, versionSlug, parserFingerprint = '', pkgVersion = PKG_VERSION }) {
+  return hashKey(raw, docsRoot || '', pagePath || '', JSON.stringify(globalAttributes || {}), versionSlug || '', parserFingerprint, pkgVersion);
 }
 
 export async function readPageCache(key) {

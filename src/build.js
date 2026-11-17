@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'node:fs/promises';
-import { pathExists, ensureDir, emptyDir } from './fs-helpers.js';
+import { pathExists, ensureDir, emptyDir, writeFileIfChanged, copyFileIfChanged } from './fs-helpers.js';
 import pc from 'picocolors';
 import { fileURLToPath } from 'url';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionNavigation, getChangedDocs, gitReadFile } from './config.js';
@@ -8,7 +8,7 @@ import { parseDoc } from './markdown.js';
 import { sidebarLabel } from './sidebar.js';
 import { hasTabs, tabIdForPage, tabLandingId, walkPages, pageNavMeta, isNoindexMeta, isSearchableMeta, collectHiddenIds } from './navigation.js';
 import { pageClientInfo, withApiTab } from './nav-chrome.js';
-import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile, buildOfflineThemeInitFile, buildOfflineAppFile, isEsbuildAvailable } from './template.js';
+import { renderShell, renderPage, buildOfflineThemeInitFile, buildOfflineAppFile, isEsbuildAvailable } from './template.js';
 import { resolveSiteTheme } from './themes.js';
 import { resolvePdfOptions, buildPdfManifest, getChapterManifest, generatePdfs } from './pdf.js';
 import {
@@ -33,6 +33,7 @@ import { resolveBuildOptions } from './build-options.js';
 import {
   createBuildProfiler,
   loadOpenApiIfNeeded,
+  buildSharedAssets,
   writeSharedAssets,
   collectOgJobs,
   generateOgImagesForPages,
@@ -111,10 +112,10 @@ function getRuntimeAttributes(config, version = null, branch = null) {
   return attrs;
 }
 
-async function writePageMarkdown(destMd, content, config, id, version = null, llmsEnabled = true) {
+async function writePageMarkdown(destMd, content, config, id, version = null, llmsEnabled = true, incremental = false) {
   await ensureDir(path.dirname(destMd));
   const markdown = prependAgentDirectiveToMarkdown(content, buildAgentDirectiveMarkdown(config, id, version, llmsEnabled));
-  await fs.writeFile(destMd, markdown);
+  await writeFileIfChanged(destMd, markdown, incremental);
 }
 
 function _formatBytes(b) {
@@ -246,7 +247,7 @@ export async function build({
   // Copy favicon assets
   const assetsDir = path.join(__dirname, 'assets');
   for (const f of ['favicon-32x32.png', 'favicon-16x16.png', 'apple-touch-icon.png']) {
-    await fs.copyFile(path.join(assetsDir, f), path.join(outDir, f));
+    await copyFileIfChanged(path.join(assetsDir, f), path.join(outDir, f), buildOptions.incremental);
   }
   console.log(`  ${pc.green('✓')} Copied favicon assets`);
 
@@ -254,7 +255,7 @@ export async function build({
   if (config.favicon) {
     const faviconFile = path.resolve(cwd, config.favicon);
     if (await pathExists(faviconFile)) {
-      await fs.copyFile(faviconFile, path.join(outDir, _assetDest(config.favicon)));
+      await copyFileIfChanged(faviconFile, path.join(outDir, _assetDest(config.favicon)), buildOptions.incremental);
       console.log(`  ${pc.green('✓')} Copied custom favicon ${config.favicon}`);
     }
   }
@@ -263,7 +264,7 @@ export async function build({
   if (config.css) {
     const cssFile = path.resolve(cwd, config.css);
     if (await pathExists(cssFile)) {
-      await fs.copyFile(cssFile, path.join(outDir, _assetDest(config.css)));
+      await copyFileIfChanged(cssFile, path.join(outDir, _assetDest(config.css)), buildOptions.incremental);
       console.log(`  ${pc.green('✓')} Copied custom CSS ${config.css}`);
     }
   }
@@ -271,7 +272,7 @@ export async function build({
   for (const logo of logoFiles(config)) {
     const logoFile = path.resolve(cwd, logo);
     if (await pathExists(logoFile)) {
-      await fs.copyFile(logoFile, path.join(outDir, _assetDest(logo)));
+      await copyFileIfChanged(logoFile, path.join(outDir, _assetDest(logo)), buildOptions.incremental);
       console.log(`  ${pc.green('✓')} Copied logo ${logo}`);
     } else {
       console.log(`  ${pc.yellow('⚠')} Logo file not found: ${logo}`);
@@ -284,11 +285,11 @@ export async function build({
   // dir), so a root copy would be dead weight in both.
   const flexSearchSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
   if (buildOptions.searchIndex && !versionConfig && await pathExists(flexSearchSrc)) {
-    await fs.copyFile(flexSearchSrc, path.join(outDir, 'flexsearch.js'));
+    await copyFileIfChanged(flexSearchSrc, path.join(outDir, 'flexsearch.js'), buildOptions.incremental);
   }
 
   // Copy docs media (images) preserving relative paths
-  await copyDocsMedia(path.join(cwd, 'docs'), outDir);
+  await copyDocsMedia(path.join(cwd, 'docs'), outDir, { incremental: buildOptions.incremental });
 
   if (versionConfig) {
     await buildVersioned({ config, versionConfig, cwd, outDir, out, buildOptions, pdfOptions, siteTheme, hooks, basePath, profiler });
@@ -392,7 +393,7 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
       const mdContent = isApiPage && specData && buildApiPageMarkdown
         ? buildApiPageMarkdown(preprocessedMarkdown, specData)
         : preprocessedMarkdown;
-      await writePageMarkdown(destMd, mdContent, config, id, null, buildOptions.llmsTxt);
+      await writePageMarkdown(destMd, mdContent, config, id, null, buildOptions.llmsTxt, incremental);
     }
     built++;
   }
@@ -419,7 +420,7 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} (offline)${draftNote}${skippedNote}`);
   } else {
     profiler.start('minify');
-    await writeSharedAssets(outDir, { minify, siteTheme });
+    await writeSharedAssets(outDir, { minify, siteTheme, incremental });
     profiler.end('minify');
 
     const publishedIds = Object.keys(pagesData);
@@ -435,7 +436,7 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
     }
 
     profiler.start('html');
-    await writePageHtmlBatch(
+    const { reused } = await writePageHtmlBatch(
       Object.entries(pagesData).map(([id, { meta, html, isApiPage }]) => [
         id,
         { meta, html, isApiPage, destHtml: path.join(outDir, `${id}.html`) },
@@ -451,8 +452,10 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
         searchEnabled: buildOptions.searchIndex,
         llmsEnabled: buildOptions.llmsTxt,
       }),
+      { incremental, context: { config, siteTheme, draftPageIds, specData, apiMeta, pdfManifest, titleMap, buildOptions, isHybrid } },
     );
     profiler.end('html');
+    if (reused) console.log(`  ${pc.dim('○')} Reused ${reused} cached page${reused !== 1 ? 's' : ''}`);
 
     if (publishedIds.length) {
       await writeRootIndexStub({ dir: outDir, firstId: firstVisibleId(config, pagesData), urlPrefix: basePath, config });
@@ -472,10 +475,10 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
       const { getPageLastmods } = await import('./git-dates.js');
       const lastmods = await getPageLastmods(cwd, pagesData);
       await generateRobotsTxt({ config, outDir, buildOptions });
-      await generateSitemap({ config, pagesData, outDir, lastmods });
+      await generateSitemap({ config, pagesData, outDir, lastmods, buildOptions });
       profiler.end('seo');
     }
-    await generateMarkdownMiddleware({ pageIds: Object.keys(pagesData), outDir, cwd, basePath });
+    await generateMarkdownMiddleware({ pageIds: Object.keys(pagesData), outDir, cwd, basePath, incremental });
     if (buildOptions.mcp) {
       await generateAgentJson({ config, pageIds: Object.keys(pagesData), pagesData, outDir, buildOptions });
       await generateMcpServer({ config, pagesData, outDir, buildOptions });
@@ -553,14 +556,19 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
     if (!await pathExists(mdPath)) return null;
     const raw = await fs.readFile(mdPath, 'utf8');
-    const parsed = await parseDoc(raw, {
-      onWarning: warnPage,
-      docsRoot: path.join(cwd, 'docs'),
-      pagePath: mdPath,
-      globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultBranch),
-      basePath,
+    return parsePageWithCache({
+      id,
+      mdPath,
+      raw,
+      parseOpts: {
+        onWarning: warnPage,
+        docsRoot: path.join(cwd, 'docs'),
+        pagePath: mdPath,
+        globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultBranch),
+        basePath,
+      },
+      incremental,
     });
-    return { id, ...parsed };
   }));
 
   for (const result of defaultParseResults) {
@@ -578,14 +586,14 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       const mdContent = isApiPage && specData && buildApiPageMarkdown
         ? buildApiPageMarkdown(preprocessedMarkdown, specData)
         : preprocessedMarkdown;
-      await writePageMarkdown(destMd, mdContent, config, id, defaultVersion, buildOptions.llmsTxt);
+      await writePageMarkdown(destMd, mdContent, config, id, defaultVersion, buildOptions.llmsTxt, incremental);
     }
     built++;
   }
 
-  const sharedCss = offline ? null : await buildStylesFile({ minify, siteTheme });
-  const sharedJs = offline ? null : await buildComponentsFile('static', { minify });
-  const sharedApp = offline ? null : await buildAppFile('static', { minify });
+  const [sharedCss, sharedJs, sharedApp] = offline
+    ? [null, null, null]
+    : await buildSharedAssets({ minify, siteTheme, incremental });
   const vendorData = offline ? await _loadVendorData() : null;
   const defaultTitleMap = buildTitleMap(defaultPagesData);
   const defaultNavMeta = buildNavMeta(defaultPagesData);
@@ -594,7 +602,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
 
   if (pagesUseMath(defaultPagesData)) await writeKatexAssets(defaultDir);
   // pages are served from /<version>/..., so their relative image / poster / download paths resolve inside the version dir
-  await copyDocsMedia(path.join(cwd, 'docs'), defaultDir, { locales: false, quiet: true });
+  await copyDocsMedia(path.join(cwd, 'docs'), defaultDir, { locales: false, quiet: true, incremental });
   if (offline) {
     await ensureDir(defaultDir);
     const defaultShell = await renderShell({
@@ -610,12 +618,12 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       ...Object.entries(defaultPagesData).map(([id, { meta, html }]) => _writePageJs(defaultDir, id, { meta, html, nav: pageClientInfo(defaultNavConfig, id, meta) })),
     ]);
   } else {
-    await fs.writeFile(path.join(defaultDir, 'docslit.css'), sharedCss);
-    await fs.writeFile(path.join(defaultDir, 'docslit.js'), sharedJs);
-    await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), sharedApp);
+    await writeFileIfChanged(path.join(defaultDir, 'docslit.css'), sharedCss, incremental);
+    await writeFileIfChanged(path.join(defaultDir, 'docslit.js'), sharedJs, incremental);
+    await writeFileIfChanged(path.join(defaultDir, 'docslit-app.js'), sharedApp, incremental);
     // Copy FlexSearch into version dir
     const flexSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
-    if (buildOptions.searchIndex && await pathExists(flexSrc)) await fs.copyFile(flexSrc, path.join(defaultDir, 'flexsearch.js'));
+    if (buildOptions.searchIndex && await pathExists(flexSrc)) await copyFileIfChanged(flexSrc, path.join(defaultDir, 'flexsearch.js'), incremental);
 
     const publishedIds = Object.keys(defaultPagesData);
     const defaultHasRegularDocs = (config.sidebar || []).length > 0;
@@ -642,6 +650,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
         searchEnabled: buildOptions.searchIndex,
         llmsEnabled: buildOptions.llmsTxt,
       }),
+      { incremental, context: { config, siteTheme, draftPageIds, versionConfig, defaultVersion, specData, apiMeta, defaultPdfManifest, defaultTitleMap, buildOptions, defaultIsHybrid } },
     );
 
     if (publishedIds.length) {
@@ -710,7 +719,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
         versionPagesData[id] = { meta, html };
         if (!offline) {
           const destMd = path.join(versionDir, `${id}.md`);
-          await writePageMarkdown(destMd, preprocessedMarkdown, config, id, entry.version, buildOptions.llmsTxt);
+          await writePageMarkdown(destMd, preprocessedMarkdown, config, id, entry.version, buildOptions.llmsTxt, incremental);
         }
         manifest[id] = entry.version;
         vBuilt++;
@@ -721,7 +730,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     }
 
     await ensureDir(versionDir);
-    await copyDocsMedia(path.join(cwd, 'docs'), versionDir, { locales: false, quiet: true });
+    await copyDocsMedia(path.join(cwd, 'docs'), versionDir, { locales: false, quiet: true, incremental });
     if (pagesUseMath(versionPagesData)) await writeKatexAssets(versionDir);
     const versionTitleMap = buildTitleMap(versionPagesData);
     const versionNavMeta = buildNavMeta(versionPagesData);
@@ -741,11 +750,11 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
         ...Object.entries(versionPagesData).map(([id, { meta, html }]) => _writePageJs(versionDir, id, { meta, html, nav: pageClientInfo(versionNavConfig, id, meta) })),
       ]);
     } else {
-      await fs.writeFile(path.join(versionDir, 'docslit.css'), sharedCss);
-      await fs.writeFile(path.join(versionDir, 'docslit.js'), sharedJs);
-      await fs.writeFile(path.join(versionDir, 'docslit-app.js'), sharedApp);
+      await writeFileIfChanged(path.join(versionDir, 'docslit.css'), sharedCss, incremental);
+      await writeFileIfChanged(path.join(versionDir, 'docslit.js'), sharedJs, incremental);
+      await writeFileIfChanged(path.join(versionDir, 'docslit-app.js'), sharedApp, incremental);
       const flexSrcV = path.join(__dirname, 'vendor', 'flexsearch.js');
-      if (buildOptions.searchIndex && await pathExists(flexSrcV)) await fs.copyFile(flexSrcV, path.join(versionDir, 'flexsearch.js'));
+      if (buildOptions.searchIndex && await pathExists(flexSrcV)) await copyFileIfChanged(flexSrcV, path.join(versionDir, 'flexsearch.js'), incremental);
 
       const vPublishedIds = Object.keys(versionPagesData);
       const vIsHybrid = specData && (versionConf.sidebar || []).length > 0;
@@ -765,6 +774,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
           searchEnabled: buildOptions.searchIndex,
           llmsEnabled: buildOptions.llmsTxt,
         }),
+        { incremental, context: { config: versionConf, siteTheme, versionConfig, currentVersion: entry.version, specData, apiMeta, versionPdfManifest, versionTitleMap, buildOptions, vIsHybrid } },
       );
 
       if (vPublishedIds.length) {
@@ -775,7 +785,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       }
     }
 
-    await fs.writeFile(path.join(versionDir, '_manifest.json'), JSON.stringify(manifest, null, 2));
+    await writeFileIfChanged(path.join(versionDir, '_manifest.json'), JSON.stringify(manifest, null, 2), incremental);
     if (!offline && (buildOptions.llmsTxt || buildOptions.searchIndex)) {
       await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir, version: entry.version, buildOptions });
     }
@@ -790,10 +800,10 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     ? `${defaultVersion}/index.html#${defaultFirstId}`
     : `${basePath}/${defaultVersion}/${defaultFirstId}`;
   const siteUrl = (config.url || '').replace(/\/$/, '');
-  await fs.writeFile(path.join(outDir, 'index.html'), redirectStubHtml(redirectUrl, {
+  await writeFileIfChanged(path.join(outDir, 'index.html'), redirectStubHtml(redirectUrl, {
     canonical: !offline && siteUrl ? `${siteUrl}${redirectUrl}` : redirectUrl,
     fileHref: offline ? null : `${defaultVersion}/${defaultFirstId}.html`,
-  }));
+  }), incremental);
 
   if (!offline) {
     const allPagesData = {};
@@ -801,16 +811,16 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       if (defaultPagesData[id]) allPagesData[id] = defaultPagesData[id];
     }
     if (buildOptions.llmsTxt) {
-      await generateRootLlmsIndex({ config, versionConfig, outDir });
+      await generateRootLlmsIndex({ config, versionConfig, outDir, incremental });
     }
     if (buildOptions.sitemap && config.url) {
       const { getPageLastmods } = await import('./git-dates.js');
       const lastmods = await getPageLastmods(cwd, allPagesData);
       await generateRobotsTxt({ config, outDir, versionConfig, buildOptions });
-      await generateSitemap({ config, pagesData: allPagesData, outDir, versionConfig, defaultVersion, lastmods });
+      await generateSitemap({ config, pagesData: allPagesData, outDir, versionConfig, defaultVersion, lastmods, buildOptions });
     }
     const allPageIds = Object.keys(allPagesData);
-    await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, cwd, versionConfig, basePath });
+    await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, cwd, versionConfig, basePath, incremental });
     if (buildOptions.mcp) {
       await generateAgentJson({ config, pageIds: allPageIds, pagesData: allPagesData, outDir, versionConfig, buildOptions });
       await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig, versionPages, buildOptions });
@@ -925,7 +935,7 @@ async function generateLlmsTxt({ config, pagesData, outDir, version = null, buil
       }
       lines.push('');
     }
-    await fs.writeFile(path.join(outDir, 'llms.txt'), lines.join('\n'));
+    await writeFileIfChanged(path.join(outDir, 'llms.txt'), lines.join('\n'), buildOptions?.incremental);
   }
 
   const fullParts = includeLlms ? [
@@ -967,8 +977,8 @@ async function generateLlmsTxt({ config, pagesData, outDir, version = null, buil
   }
 
   const writes = [];
-  if (includeLlms) writes.push(fs.writeFile(path.join(outDir, 'llms-full.txt'), fullParts.join('\n')));
-  if (includeSearch) writes.push(fs.writeFile(path.join(outDir, 'search-index.json'), JSON.stringify(searchIndex)));
+  if (includeLlms) writes.push(writeFileIfChanged(path.join(outDir, 'llms-full.txt'), fullParts.join('\n'), buildOptions?.incremental));
+  if (includeSearch) writes.push(writeFileIfChanged(path.join(outDir, 'search-index.json'), JSON.stringify(searchIndex), buildOptions?.incremental));
   await Promise.all(writes);
 
   const count = Object.keys(pagesData).length;
@@ -978,7 +988,7 @@ async function generateLlmsTxt({ config, pagesData, outDir, version = null, buil
   console.log(`  ${pc.green('✓')} Generated ${parts.join(' + ')} (${count} page${count !== 1 ? 's' : ''} indexed)`);
 }
 
-async function generateRootLlmsIndex({ config, versionConfig, outDir }) {
+async function generateRootLlmsIndex({ config, versionConfig, outDir, incremental = false }) {
   const siteTitle = config.name || 'Documentation';
   const siteDesc = config.description || '';
   const lines = [`# ${siteTitle}`];
@@ -994,7 +1004,7 @@ async function generateRootLlmsIndex({ config, versionConfig, outDir }) {
     lines.push(`- [${label}](${llmsUrl}): Documentation for version ${entry.version}`);
   }
   lines.push('');
-  await fs.writeFile(path.join(outDir, 'llms.txt'), lines.join('\n'));
+  await writeFileIfChanged(path.join(outDir, 'llms.txt'), lines.join('\n'), incremental);
   console.log(`  ${pc.green('✓')} Generated root llms.txt (version index)`);
 }
 
@@ -1038,11 +1048,11 @@ async function generateRobotsTxt({ config, outDir, versionConfig = null, buildOp
   }
 
   lines.push('');
-  await fs.writeFile(path.join(outDir, 'robots.txt'), lines.join('\n'));
+  await writeFileIfChanged(path.join(outDir, 'robots.txt'), lines.join('\n'), buildOptions?.incremental);
   console.log(`  ${pc.green('✓')} Generated robots.txt`);
 }
 
-async function generateSitemap({ config, pagesData, outDir, versionConfig = null, defaultVersion = null, lastmods = {} }) {
+async function generateSitemap({ config, pagesData, outDir, versionConfig = null, defaultVersion = null, lastmods = {}, buildOptions = null }) {
   // Page URLs match each page's canonical: <url><basePath>[/<version>]/<id>. Roots
   // ("/", "/<version>/") are redirect stubs to the first page, so they are not listed.
   const baseUrl = (config.url || '').replace(/\/$/, '') + normalizeBasePath(config.basePath);
@@ -1070,7 +1080,7 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
 
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
       await ensureDir(versionDir);
-      await fs.writeFile(path.join(versionDir, 'sitemap.xml'), xml);
+      await writeFileIfChanged(path.join(versionDir, 'sitemap.xml'), xml, buildOptions?.incremental);
     }
   } else {
     const urls = [];
@@ -1082,7 +1092,7 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
     }
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
-    await fs.writeFile(path.join(outDir, 'sitemap.xml'), xml);
+    await writeFileIfChanged(path.join(outDir, 'sitemap.xml'), xml, buildOptions?.incremental);
   }
 
   console.log(`  ${pc.green('✓')} Generated sitemap.xml (${sitemapIds.length} URLs)`);
@@ -1101,11 +1111,11 @@ async function refreshProjectMiddleware(cwd, middleware) {
   const file = path.join(cwd, 'functions', '_middleware.js');
   try {
     const existing = await fs.readFile(file, 'utf8');
-    if (existing.includes('generated by DocsLit')) await fs.writeFile(file, middleware);
+    if (existing.includes('generated by DocsLit')) await writeFileIfChanged(file, middleware);
   } catch { /* not present: leave the source tree alone */ }
 }
 
-async function generateMarkdownMiddleware({ pageIds, outDir, cwd, versionConfig = null, basePath = '' }) {
+async function generateMarkdownMiddleware({ pageIds, outDir, cwd, versionConfig = null, basePath = '', incremental = false }) {
   const mdPaths = new Set();
   const versions = versionConfig ? versionConfig.list.map(v => v.version) : [];
 
@@ -1179,12 +1189,12 @@ export function onRequest(context) {
   const headersFile = '/*.md\n  Content-Type: text/markdown; charset=utf-8\n';
 
   await Promise.all([
-    fs.writeFile(path.join(outDir, '_middleware.js'), middleware),
+    writeFileIfChanged(path.join(outDir, '_middleware.js'), middleware, incremental),
     ensureDir(path.join(outDir, 'functions')).then(() =>
-      fs.writeFile(path.join(outDir, 'functions', '_middleware.js'), middleware)),
+      writeFileIfChanged(path.join(outDir, 'functions', '_middleware.js'), middleware, incremental)),
     refreshProjectMiddleware(cwd, middleware),
-    fs.writeFile(path.join(outDir, '_headers'), headersFile),
-    fs.writeFile(path.join(outDir, 'vercel.json'), JSON.stringify(vercelConfig, null, 2) + '\n'),
+    writeFileIfChanged(path.join(outDir, '_headers'), headersFile, incremental),
+    writeFileIfChanged(path.join(outDir, 'vercel.json'), JSON.stringify(vercelConfig, null, 2) + '\n', incremental),
   ]);
   console.log(`  ${pc.green('✓')} Generated _middleware.js, functions/_middleware.js + _headers + vercel.json (content negotiation for ${mdPaths.size} pages)`);
 }
@@ -1244,7 +1254,7 @@ async function generateAgentJson({ config, pageIds, pagesData = null, outDir, ve
 
   const wellKnown = path.join(outDir, '.well-known');
   await ensureDir(wellKnown);
-  await fs.writeFile(path.join(wellKnown, 'agent.json'), JSON.stringify(agent, null, 2) + '\n');
+  await writeFileIfChanged(path.join(wellKnown, 'agent.json'), JSON.stringify(agent, null, 2) + '\n', buildOptions.incremental);
   console.log(`  ${pc.green('✓')} Generated .well-known/agent.json`);
 }
 
@@ -1504,7 +1514,7 @@ process.stdin.on('data', (chunk) => {
 process.stderr.write(\`\${SITE} MCP server running on stdio\\n\`);
 `;
 
-  await fs.writeFile(path.join(outDir, 'mcp-server.js'), server);
+  await writeFileIfChanged(path.join(outDir, 'mcp-server.js'), server, buildOptions.incremental);
   const verNote = versioned ? `, ${Object.keys(versionPages).length} versions (default ${defaultVersion})` : '';
   console.log(`  ${pc.green('✓')} Generated mcp-server.js (${pageCount} pages${verNote}, 3 tools: list_pages, get_page, search_docs)`);
 }
@@ -1530,7 +1540,7 @@ async function getDirBytes(dir) {
 
 const MEDIA_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico']);
 
-async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } = {}) {
+async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false, incremental = false } = {}) {
   if (!await pathExists(docsDir)) return;
   let copied = 0;
   async function walk(dir) {
@@ -1544,7 +1554,7 @@ async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } 
         const rel = path.relative(docsDir, full);
         const dest = path.join(outDir, rel);
         await ensureDir(path.dirname(dest));
-        await fs.copyFile(full, dest);
+        await copyFileIfChanged(full, dest, incremental);
         copied++;
       }
     }
@@ -1572,7 +1582,7 @@ async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } 
           const rel = path.relative(locDir, full);
           const dest = path.join(outDir, locale, rel);
           await ensureDir(path.dirname(dest));
-          await fs.copyFile(full, dest);
+          await copyFileIfChanged(full, dest, incremental);
           copied++;
         }
       }
@@ -1657,11 +1667,12 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
       searchEnabled: buildOptions.searchIndex,
       llmsEnabled: buildOptions.llmsTxt,
     }),
+    { incremental, context: { config: localeConfig, siteTheme, draftPageIds, specData, apiMeta, pdfManifest, locale, localeTitleMap, buildOptions } },
   );
 
   for (const { id, preprocessedMarkdown } of localeParsed) {
     const destMd = path.join(localeOutDir, `${id}.md`);
-    await writePageMarkdown(destMd, preprocessedMarkdown, config, id, null, buildOptions.llmsTxt);
+    await writePageMarkdown(destMd, preprocessedMarkdown, config, id, null, buildOptions.llmsTxt, incremental);
     if (!untranslated) built++;
   }
 
@@ -1672,7 +1683,7 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
 
   if (pagesUseMath(localePagesData)) await writeKatexAssets(localeOutDir);
   // Copy shared CSS/JS/app into locale dir
-  await writeSharedAssets(localeOutDir, { minify, siteTheme });
+  await writeSharedAssets(localeOutDir, { minify, siteTheme, incremental });
 
   if (built) {
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} for locale ${pc.cyan(locale)}`);

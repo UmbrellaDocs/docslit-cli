@@ -144,9 +144,13 @@ The same options can be set persistently in `docslit.json`:
 }
 ```
 
-Use `--incremental` (or `build.cache`) to reuse cached page and OG image
-results. Pages containing `<wc-include>` are reparsed so changes to reusable
-content are reflected. Incremental builds preserve the output directory:
+Use `--incremental` (or `build.cache`) to reuse cached page, minified shared
+asset, and OG image results. Reusable `<wc-include>` content is tracked by
+content hash, so changes invalidate affected pages. Unchanged static pages
+reuse rendered HTML, and unchanged page, asset, and media files are not
+rewritten. Changes to shared site configuration can require all pages to be
+rendered again. Hooks and optional generators still run; offline and PDF output
+is regenerated. Incremental builds preserve the output directory:
 previously generated files remain when a generator is disabled or a page is
 removed. Run a non-incremental build into a clean output directory when
 publishing or measuring a minimal build.

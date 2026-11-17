@@ -27,6 +27,7 @@ import {
   faviconLinks,
 } from './site-config.js';
 import { buildLocaleSwitcherHtml, buildHreflangTags, getI18nConfig } from './i18n.js';
+import { assetCacheKey, readAssetCache, writeAssetCache } from './build-cache.js';
 
 const require = createRequire(import.meta.url);
 
@@ -47,18 +48,23 @@ export function isEsbuildAvailable() {
   return _getEsbuild() !== null;
 }
 
-async function _minifyJS(code) {
+async function _minify(code, loader, incremental) {
   const esbuild = _getEsbuild();
   if (!esbuild) return code;
-  const result = await esbuild.transform(code, { loader: 'js', minify: true, legalComments: 'none' });
+  const key = incremental ? assetCacheKey(code, loader, esbuild.version) : null;
+  if (key) {
+    const cached = await readAssetCache(key);
+    if (cached !== null) return cached;
+  }
+  const options = loader === 'js'
+    ? { loader, minify: true, legalComments: 'none' }
+    : { loader, minify: true };
+  const result = await esbuild.transform(code, options);
+  if (key) await writeAssetCache(key, result.code);
   return result.code;
 }
-async function _minifyCSS(code) {
-  const esbuild = _getEsbuild();
-  if (!esbuild) return code;
-  const result = await esbuild.transform(code, { loader: 'css', minify: true });
-  return result.code;
-}
+const _minifyJS = (code, incremental = false) => _minify(code, 'js', incremental);
+const _minifyCSS = (code, incremental = false) => _minify(code, 'css', incremental);
 
 export async function renderShell({ config: baseConfig, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null, locale = null, titleMap = null, navMeta = null }) {
   const config = withApiTab(baseConfig, !!specData);
@@ -401,22 +407,22 @@ ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)}
 </html>`;
 }
 
-export async function buildStylesFile({ minify = false, siteTheme = null } = {}) {
+export async function buildStylesFile({ minify = false, siteTheme = null, incremental = false } = {}) {
   const resolved = siteTheme ?? resolveSiteThemeSync(null);
   const raw = buildStyles(resolved).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
-  return minify ? _minifyCSS(raw) : raw;
+  return minify ? _minifyCSS(raw, incremental) : raw;
 }
 
-export async function buildComponentsFile(mode = 'static', { minify = false } = {}) {
+export async function buildComponentsFile(mode = 'static', { minify = false, incremental = false } = {}) {
   const raw = buildComponents();
-  return minify ? _minifyJS(raw) : raw;
+  return minify ? _minifyJS(raw, incremental) : raw;
 }
 
-export async function buildAppFile(mode = 'static', { minify = false } = {}) {
+export async function buildAppFile(mode = 'static', { minify = false, incremental = false } = {}) {
   const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
   const wsScript = mode === 'dev' ? buildWsScript(3000) : '';
   const raw = buildAppScript(mode, loaderScript, wsScript);
-  return minify ? _minifyJS(raw) : raw;
+  return minify ? _minifyJS(raw, incremental) : raw;
 }
 
 export async function buildOfflineThemeInitFile({ minify = false, siteTheme = null } = {}) {

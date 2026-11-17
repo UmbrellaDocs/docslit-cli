@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import nodeFs from 'node:fs';
-import { mkdtemp, mkdir, readFile, readlink, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readlink, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 import git from 'isomorphic-git';
 import { emptyDir, pathExists, readJson } from './fs-helpers.js';
@@ -13,6 +14,15 @@ import { detectEditUrl } from './config.js';
 
 const execFileAsync = promisify(execFile);
 const cli = fileURLToPath(new URL('../bin/docslit.js', import.meta.url));
+const require = createRequire(import.meta.url);
+let hasEsbuild;
+try {
+  require.resolve('esbuild');
+  hasEsbuild = true;
+} catch (error) {
+  if (error.code !== 'MODULE_NOT_FOUND') throw error;
+  hasEsbuild = false;
+}
 let dir;
 
 beforeEach(async () => {
@@ -159,29 +169,208 @@ describe('build filesystem behavior', () => {
     expect(await readFile(path.join(dir, 'dist', 'index.html'), 'utf8')).toContain('id="search-trigger"');
   }, 120000);
 
-  it('rebuilds included content on incremental builds and reports preserved outputs', async () => {
+  it('caches included content and invalidates changes, missing files and unsafe symlinks', async () => {
     await mkdir(path.join(dir, 'docs', '_reusables'), { recursive: true });
     await writeFile(path.join(dir, 'docslit.json'), JSON.stringify({
       name: 'Test', editUrl: 'https://example.com/edit',
-      sidebar: [{ group: 'Guide', pages: ['intro'] }],
+      sidebar: [{ group: 'Guide', pages: ['intro', 'second'] }],
       build: { ogImages: false, searchIndex: false, llmsTxt: false, mcp: false, sitemap: false },
     }));
     await writeFile(path.join(dir, 'docs', 'intro.md'), '# Hello\n\n<wc-include src="part.md" />');
+    await writeFile(path.join(dir, 'docs', 'second.md'), '# Second\n\n<wc-include src="other.md" />');
     await writeFile(path.join(dir, 'docs', '_reusables', 'part.md'), 'First reusable content');
+    await writeFile(path.join(dir, 'docs', '_reusables', 'other.md'), 'Unchanged secondary content');
     const runBuild = () => execFileAsync(process.execPath, [
       cli, 'build', '--no-minify', '--incremental',
     ], { cwd: dir, timeout: 60000 });
     await runBuild();
     expect(await readFile(path.join(dir, 'dist', 'intro.html'), 'utf8')).toContain('First reusable content');
-    await writeFile(path.join(dir, 'docs', '_reusables', 'part.md'), 'Updated reusable content');
+    const cacheDir = path.join(dir, 'node_modules', '.cache', 'docslit', 'build', 'pages');
+    const cacheFiles = await readdir(cacheDir);
+    expect(cacheFiles).toHaveLength(2);
+    const cacheEntries = await Promise.all(cacheFiles.map(async file => ({
+      file: path.join(cacheDir, file),
+      data: JSON.parse(await readFile(path.join(cacheDir, file), 'utf8')),
+    })));
+    const cachedPage = cacheEntries.find(entry => entry.data.preprocessedMarkdown.includes('First reusable content')).file;
+    const otherCachedPage = cacheEntries.find(entry => entry.data.preprocessedMarkdown.includes('Unchanged secondary content')).file;
+    const oldTime = new Date('2001-01-01T00:00:00Z');
+    await utimes(cachedPage, oldTime, oldTime);
+    await utimes(otherCachedPage, oldTime, oldTime);
+    await runBuild();
+    expect((await stat(cachedPage)).mtimeMs).toBe(oldTime.getTime());
+    expect((await stat(otherCachedPage)).mtimeMs).toBe(oldTime.getTime());
+
+    const part = path.join(dir, 'docs', '_reusables', 'part.md');
+    await utimes(part, oldTime, oldTime);
+    await writeFile(part, 'Other reusable content');
+    await utimes(part, oldTime, oldTime);
     const { stdout } = await runBuild();
     const html = await readFile(path.join(dir, 'dist', 'intro.html'), 'utf8');
-    expect(html).toContain('Updated reusable content');
+    expect(html).toContain('Other reusable content');
     expect(html).not.toContain('First reusable content');
+    expect((await stat(otherCachedPage)).mtimeMs).toBe(oldTime.getTime());
     expect(stdout).toContain('previously generated optional files');
     for (const file of ['search-index.json', 'llms.txt', 'mcp-server.js', 'sitemap.xml', 'og']) {
       expect(await pathExists(path.join(dir, 'dist', file))).toBe(false);
     }
+    await rm(part);
+    await expect(runBuild()).rejects.toMatchObject({ stderr: expect.stringContaining('Include target not found') });
+    if (process.platform !== 'win32') {
+      const outside = path.join(dir, 'outside.md');
+      await writeFile(outside, 'Other reusable content');
+      await symlink(outside, part);
+      await expect(runBuild()).rejects.toMatchObject({ stderr: expect.stringContaining('escapes docs/_reusables via symlink') });
+    }
+  }, 120000);
+
+  it.skipIf(!hasEsbuild)('reuses minified assets and invalidates changed inputs and corrupt cache entries', async () => {
+    await mkdir(path.join(dir, 'docs'));
+    const config = {
+      name: 'Test', editUrl: 'https://example.com/edit',
+      sidebar: [{ group: 'Guide', pages: ['intro'] }],
+    };
+    const configFile = path.join(dir, 'docslit.json');
+    await writeFile(configFile, JSON.stringify(config));
+    await writeFile(path.join(dir, 'docs', 'intro.md'), '# Hello');
+    const logFile = path.join(dir, 'transforms.log');
+    const tracer = path.join(dir, 'trace.cjs');
+    await writeFile(tracer, `
+      const Module = require('node:module');
+      const fs = require('node:fs');
+      const original = Module.prototype.require;
+      Module.prototype.require = function(id) {
+        const result = original.apply(this, arguments);
+        if (id !== 'esbuild') return result;
+        return { ...result, version: process.env.TEST_ESBUILD_VERSION || result.version,
+          transform(...args) {
+            fs.appendFileSync(process.env.TEST_TRANSFORMS, args[1].loader + '\\n');
+            return result.transform(...args);
+          }
+        };
+      };
+    `);
+    await writeFile(logFile, '');
+    const runBuild = (version = '', ...extra) => execFileAsync(process.execPath, [
+      '--require', tracer, cli, 'build', '--incremental', '--no-og-images',
+      '--no-search-index', '--no-llms-txt', '--no-mcp', '--no-sitemap', ...extra,
+    ], { cwd: dir, timeout: 60000, env: { ...process.env, TEST_TRANSFORMS: logFile, TEST_ESBUILD_VERSION: version } });
+    const transforms = async () => (await readFile(logFile, 'utf8')).trim().split('\n').filter(Boolean);
+
+    await runBuild();
+    const css = await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8');
+    const js = await readFile(path.join(dir, 'dist', 'docslit.js'), 'utf8');
+    const app = await readFile(path.join(dir, 'dist', 'docslit-app.js'), 'utf8');
+    expect((await transforms()).sort()).toEqual(['css', 'js', 'js']);
+    await runBuild();
+    expect((await transforms()).length).toBe(3);
+    expect(await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8')).toBe(css);
+    expect(await readFile(path.join(dir, 'dist', 'docslit.js'), 'utf8')).toBe(js);
+    expect(await readFile(path.join(dir, 'dist', 'docslit-app.js'), 'utf8')).toBe(app);
+
+    config.theme = { colors: { accent: '#aabbcc' } };
+    await writeFile(configFile, JSON.stringify(config));
+    await runBuild();
+    expect(await transforms()).toHaveLength(4);
+    expect((await transforms())[3]).toBe('css');
+    expect(await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8')).not.toBe(css);
+
+    await runBuild('different-esbuild-version');
+    expect(await transforms()).toHaveLength(7);
+    const assetsDir = path.join(dir, 'node_modules', '.cache', 'docslit', 'build', 'assets');
+    const currentCss = await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8');
+    const files = await readdir(assetsDir);
+    const entries = await Promise.all(files.map(async file => ({
+      file, data: JSON.parse(await readFile(path.join(assetsDir, file), 'utf8')),
+    })));
+    const cssFiles = entries.filter(entry => entry.data.code === currentCss);
+    expect(cssFiles).toHaveLength(2);
+    for (const { file } of cssFiles) await writeFile(path.join(assetsDir, file), '{');
+    const { stderr } = await runBuild('different-esbuild-version');
+    expect(stderr).toContain('invalid minified asset cache');
+    expect(await transforms()).toHaveLength(8);
+    expect((await transforms())[7]).toBe('css');
+    expect(await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8')).toBe(currentCss);
+    await runBuild('different-esbuild-version', '--no-minify');
+    expect(await transforms()).toHaveLength(8);
+    expect(await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8')).not.toBe(currentCss);
+  }, 120000);
+
+  it('reuses unchanged rendered pages and updates affected outputs', async () => {
+    await mkdir(path.join(dir, 'docs'));
+    const config = {
+      name: 'Test', editUrl: 'https://example.com/edit',
+      sidebar: [{ group: 'Guide', pages: ['intro', 'second'] }],
+    };
+    const configFile = path.join(dir, 'docslit.json');
+    await writeFile(configFile, JSON.stringify(config));
+    await writeFile(path.join(dir, 'docs', 'intro.md'), '# Intro\n\nOriginal body');
+    await writeFile(path.join(dir, 'docs', 'second.md'), '# Second\n\nUnchanged body');
+    const runBuild = () => execFileAsync(process.execPath, [
+      cli, 'build', '--incremental', '--no-og-images',
+    ], { cwd: dir, timeout: 60000 });
+    await runBuild();
+    const dist = path.join(dir, 'dist');
+    const oldTime = new Date('2001-01-01T00:00:00Z');
+    const stableFiles = ['intro.html', 'second.html', 'intro.md', 'second.md',
+      'index.html', 'docslit.css', 'docslit.js', 'docslit-app.js', 'flexsearch.js', 'favicon-32x32.png',
+      'llms.txt', 'llms-full.txt', 'search-index.json', 'mcp-server.js', '.well-known/agent.json',
+      '_headers', '_middleware.js', 'functions/_middleware.js', 'vercel.json'];
+    for (const file of stableFiles) await utimes(path.join(dist, file), oldTime, oldTime);
+    const htmlCache = path.join(dir, 'node_modules', '.cache', 'docslit', 'build', 'html');
+    expect(await readdir(htmlCache)).toHaveLength(2);
+    const warm = await runBuild();
+    for (const file of stableFiles) expect((await stat(path.join(dist, file))).mtimeMs).toBe(oldTime.getTime());
+    expect(warm.stdout).toContain('Reused 2 cached pages');
+    expect(await readdir(htmlCache)).toHaveLength(2);
+
+    await writeFile(path.join(dir, 'docs', 'intro.md'), '# Intro\n\nChanged body');
+    await runBuild();
+    expect(await readFile(path.join(dist, 'intro.html'), 'utf8')).toContain('Changed body');
+    expect(await readFile(path.join(dist, 'index.html'), 'utf8')).toContain('Changed body');
+    expect(await readFile(path.join(dist, 'search-index.json'), 'utf8')).toContain('Changed body');
+    expect(await readFile(path.join(dist, 'llms-full.txt'), 'utf8')).toContain('Changed body');
+    expect((await stat(path.join(dist, 'second.html'))).mtimeMs).toBe(oldTime.getTime());
+    expect((await stat(path.join(dist, 'second.md'))).mtimeMs).toBe(oldTime.getTime());
+    expect(await readdir(htmlCache)).toHaveLength(3);
+
+    await writeFile(path.join(dist, 'second.html'), 'tampered');
+    await rm(path.join(dist, 'intro.html'));
+    await runBuild();
+    expect(await readFile(path.join(dist, 'second.html'), 'utf8')).toContain('Unchanged body');
+    expect(await readFile(path.join(dist, 'intro.html'), 'utf8')).toContain('Changed body');
+    expect(await readdir(htmlCache)).toHaveLength(3);
+
+    config.name = 'Updated site';
+    await writeFile(configFile, JSON.stringify(config));
+    await runBuild();
+    expect(await readFile(path.join(dist, 'second.html'), 'utf8')).toContain('Updated site');
+    expect(await readdir(htmlCache)).toHaveLength(5);
+  }, 120000);
+
+  it('skips rendering on cache hits and invalidates shared rendering context', async () => {
+    const helpers = new URL('./build-helpers.js', import.meta.url).href;
+    const script = `
+      import { writePageHtmlBatch } from ${JSON.stringify(helpers)};
+      let renders = 0;
+      const render = async (id, data) => { renders++; return id + data.html; };
+      const entries = [['intro', { html: ' body', destHtml: 'page.html' }]];
+      const context = { config: { name: 'Test' } };
+      const build = () => writePageHtmlBatch(entries, render, { incremental: true, context });
+      await build();
+      await build();
+      const warmRenders = renders;
+      context.config.name = 'Changed';
+      await build();
+      context.config.announcement = { message: 'Hello' };
+      await build();
+      await build();
+      console.log(JSON.stringify({ warmRenders, renders }));
+    `;
+    const { stdout } = await execFileAsync(process.execPath, ['--input-type=module', '-e', script], {
+      cwd: dir, timeout: 60000,
+    });
+    expect(JSON.parse(stdout)).toEqual({ warmRenders: 1, renders: 4 });
   }, 120000);
 
   it('runs the warm-minimal benchmark against a project after an untimed warm-up', async () => {
@@ -240,9 +429,10 @@ describe('build filesystem behavior', () => {
     await git.add({ fs: nodeFs, dir, filepath: 'docs/intro.md' });
     const oid = await git.commit({ fs: nodeFs, dir, message: 'Docs', author: { name: 'Test', email: 'test@example.com' } });
     await git.writeRef({ fs: nodeFs, dir, ref: 'refs/heads/old', value: oid });
-    await execFileAsync(process.execPath, [
-      cli, 'build', '--no-minify', '--no-og-images', '--no-search-index', '--no-llms-txt',
+    const runBuild = () => execFileAsync(process.execPath, [
+      cli, 'build', '--incremental', '--no-minify', '--no-og-images', '--no-search-index', '--no-llms-txt',
     ], { cwd: dir, timeout: 60000 });
+    await runBuild();
     for (const version of ['v1', 'v0']) {
       expect(await readFile(path.join(dir, 'dist', version, 'intro.html'), 'utf8')).not.toContain('id="search-trigger"');
       expect(await pathExists(path.join(dir, 'dist', version, 'search-index.json'))).toBe(false);
@@ -251,5 +441,11 @@ describe('build filesystem behavior', () => {
     const agent = JSON.parse(await readFile(path.join(dir, 'dist', '.well-known', 'agent.json'), 'utf8'));
     expect(agent.docs).not.toHaveProperty('llms_txt');
     expect(agent.docs).not.toHaveProperty('search_index');
+    const oldTime = new Date('2001-01-01T00:00:00Z');
+    for (const version of ['v1', 'v0']) await utimes(path.join(dir, 'dist', version, 'intro.html'), oldTime, oldTime);
+    await runBuild();
+    for (const version of ['v1', 'v0']) {
+      expect((await stat(path.join(dir, 'dist', version, 'intro.html'))).mtimeMs).toBe(oldTime.getTime());
+    }
   }, 120000);
 });

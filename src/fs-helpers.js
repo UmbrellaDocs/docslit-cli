@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, readFile, rm } from 'node:fs/promises';
+import { access, copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export async function pathExists(file) {
@@ -13,6 +13,28 @@ export async function pathExists(file) {
 
 export function ensureDir(dir) {
   return mkdir(dir, { recursive: true });
+}
+
+export async function writeFileIfChanged(file, data, incremental = false) {
+  if (incremental) {
+    try {
+      const current = await readFile(file);
+      if (current.equals(Buffer.isBuffer(data) ? data : Buffer.from(data))) return false;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  await writeFile(file, data);
+  return true;
+}
+
+export async function copyFileIfChanged(source, dest, incremental = false) {
+  if (incremental) {
+    const data = await readFile(source);
+    return writeFileIfChanged(dest, data, true);
+  }
+  await copyFile(source, dest);
+  return true;
 }
 
 export async function emptyDir(dir) {

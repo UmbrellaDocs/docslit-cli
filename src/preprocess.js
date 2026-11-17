@@ -120,6 +120,7 @@ export async function preprocessDoc({
   pathExists = existsInFs,
   strictFsSafety = true,
   projectRoot = null,
+  onDependencyRead = null,
 }) {
   if (!needsPreprocess(rawBody || '')) {
     return {
@@ -282,6 +283,7 @@ export async function preprocessDoc({
 
       dependencies.add(absTarget);
       const rawInclude = await readFile(absTarget);
+      if (onDependencyRead) onDependencyRead(absTarget, rawInclude);
       if (hasActiveIncludeTag(rawInclude)) {
         diagnostics.errors.push({
           file: pagePath,

@@ -3,7 +3,7 @@
  */
 import path from 'path';
 import fs from 'node:fs/promises';
-import { ensureDir } from './fs-helpers.js';
+import { ensureDir, writeFileIfChanged } from './fs-helpers.js';
 import { renderSvgToPng } from './og-image-pool.js';
 import {
   ogImageCacheKey,
@@ -64,7 +64,7 @@ async function renderAndWrite({ title, siteName, colors, outFile, incremental = 
     const cacheKey = ogImageCacheKey({ title, siteName, colors });
     const cached = await readOgImageCache(cacheKey);
     if (cached) {
-      await fs.writeFile(outFile, cached);
+      await writeFileIfChanged(outFile, cached, true);
       return true;
     }
     try {
