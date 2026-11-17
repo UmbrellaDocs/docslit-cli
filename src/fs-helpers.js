@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export async function pathExists(file) {
@@ -30,8 +30,42 @@ export async function writeFileIfChanged(file, data, incremental = false) {
 
 export async function copyFileIfChanged(source, dest, incremental = false) {
   if (incremental) {
-    const data = await readFile(source);
-    return writeFileIfChanged(dest, data, true);
+    const sourceStat = await stat(source);
+    let destStat;
+    try {
+      destStat = await stat(dest);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (destStat && sourceStat.size === destStat.size) {
+      const sourceFile = await open(source, 'r');
+      try {
+        const destFile = await open(dest, 'r');
+        try {
+          const a = Buffer.allocUnsafe(64 * 1024);
+          const b = Buffer.allocUnsafe(64 * 1024);
+          let equal = true;
+          let position = 0;
+          while (position < sourceStat.size) {
+            const length = Math.min(a.length, sourceStat.size - position);
+            const [ra, rb] = await Promise.all([
+              sourceFile.read(a, 0, length, position),
+              destFile.read(b, 0, length, position),
+            ]);
+            if (ra.bytesRead !== length || rb.bytesRead !== length || !a.subarray(0, length).equals(b.subarray(0, length))) {
+              equal = false;
+              break;
+            }
+            position += length;
+          }
+          if (equal) return false;
+        } finally {
+          await destFile.close();
+        }
+      } finally {
+        await sourceFile.close();
+      }
+    }
   }
   await copyFile(source, dest);
   return true;

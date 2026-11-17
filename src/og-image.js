@@ -65,31 +65,33 @@ async function renderAndWrite({ title, siteName, colors, outFile, incremental = 
     const cached = await readOgImageCache(cacheKey);
     if (cached) {
       await writeFileIfChanged(outFile, cached, true);
-      return true;
+      return { success: true, outFile };
     }
     try {
       const png = await renderSvgToPng(svg);
       await fs.writeFile(outFile, png);
       await writeOgImageCache(cacheKey, png);
-      return true;
+      return { success: true, outFile };
     } catch {
-      await fs.writeFile(outFile.replace(/\.png$/, '.svg'), svg);
-      return false;
+      const svgFile = outFile.replace(/\.png$/, '.svg');
+      await fs.writeFile(svgFile, svg);
+      return { success: false, outFile: svgFile };
     }
   }
 
   try {
     const png = await renderSvgToPng(svg);
     await fs.writeFile(outFile, png);
-    return true;
+    return { success: true, outFile };
   } catch {
-    await fs.writeFile(outFile.replace(/\.png$/, '.svg'), svg);
-    return false;
+    const svgFile = outFile.replace(/\.png$/, '.svg');
+    await fs.writeFile(svgFile, svg);
+    return { success: false, outFile: svgFile };
   }
 }
 
 export async function generateOgImage({ title, siteName, colors, outFile, incremental = false }) {
-  return renderAndWrite({ title, siteName, colors, outFile, incremental });
+  return (await renderAndWrite({ title, siteName, colors, outFile, incremental })).success;
 }
 
 /**
@@ -98,12 +100,13 @@ export async function generateOgImage({ title, siteName, colors, outFile, increm
  * @param {{ incremental?: boolean }} opts
  * @returns {Promise<number>} count of successfully rendered PNGs
  */
-export async function generateOgImages(jobs, { incremental = false } = {}) {
+export async function generateOgImages(jobs, { incremental = false, onOutput = null } = {}) {
   if (!jobs.length) return 0;
   let count = 0;
   await Promise.all(jobs.map(async (job) => {
-    const ok = await renderAndWrite({ ...job, incremental });
-    if (ok) count++;
+    const result = await renderAndWrite({ ...job, incremental });
+    if (onOutput) onOutput(result.outFile);
+    if (result.success) count++;
   }));
   return count;
 }

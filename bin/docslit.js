@@ -72,6 +72,14 @@ if (command === 'init') {
     out, offline, minify, pdf, noPdf, pdfDir,
     incremental, noOgImages, noSearchIndex, noLlmsTxt, noMcp, noSitemap, profile, verbose,
   });
+} else if (command === 'cache') {
+  if (args[1] !== 'clean' || args.length !== 2) {
+    console.error('  Usage: docslit cache clean');
+    process.exit(1);
+  }
+  const { clearBuildCache } = await import('../src/build-cache.js');
+  await clearBuildCache();
+  console.log('  Build cache cleared.');
 } else if (command === 'import') {
   const restArgs = args.slice(1);
   if (!restArgs[0] || restArgs[0].startsWith('--')) {

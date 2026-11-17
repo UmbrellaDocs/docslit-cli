@@ -42,7 +42,8 @@ async function readTextCache(kind, key) {
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error;
   }
-  console.warn(`  Warning: invalid ${kind === 'assets' ? 'minified asset' : 'rendered page'} cache ${file}; regenerating`);
+  const label = kind === 'assets' ? 'minified asset' : kind === 'html' ? 'rendered page' : 'generator';
+  console.warn(`  Warning: invalid ${label} cache ${file}; regenerating`);
   return null;
 }
 
@@ -63,6 +64,47 @@ export const readAssetCache = key => readTextCache('assets', key);
 export const writeAssetCache = (key, code) => writeTextCache('assets', key, code);
 export const readRenderedPageCache = key => readTextCache('html', key);
 export const writeRenderedPageCache = (key, html) => writeTextCache('html', key, html);
+export const readGeneratorCache = key => readTextCache('generators', key);
+export const writeGeneratorCache = (key, data) => writeTextCache('generators', key, data);
+
+export async function clearBuildCache() {
+  await fs.rm(cacheRoot(), { recursive: true, force: true });
+}
+
+function outputManifestPath(outDir) {
+  return path.join(process.cwd(), 'node_modules', '.cache', 'docslit', 'outputs', `${contentHash(path.resolve(outDir))}.json`);
+}
+
+export async function readOutputManifest(outDir) {
+  const file = outputManifestPath(outDir);
+  let raw;
+  try {
+    raw = await fs.readFile(file, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+  try {
+    const data = JSON.parse(raw);
+    if (data?.version === 1 && data.outDir === path.resolve(outDir) && data.files && typeof data.files === 'object' && !Array.isArray(data.files)) return data.files;
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+  }
+  console.warn(`  Warning: invalid output manifest ${file}; preserving existing files`);
+  return null;
+}
+
+export async function writeOutputManifest(outDir, files) {
+  const file = outputManifestPath(outDir);
+  const tmp = `${file}.${crypto.randomUUID()}.tmp`;
+  await ensureDir(path.dirname(file));
+  try {
+    await fs.writeFile(tmp, JSON.stringify({ version: 1, outDir: path.resolve(outDir), files }));
+    await fs.rename(tmp, file);
+  } finally {
+    await fs.rm(tmp, { force: true });
+  }
+}
 
 export function getPkgVersion() {
   return PKG_VERSION;

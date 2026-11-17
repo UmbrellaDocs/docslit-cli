@@ -93,9 +93,9 @@ export function collectOgJobs(pagesData, { buildOptions, siteName, ogColors, out
   return jobs;
 }
 
-export async function generateOgImagesForPages(jobs, { incremental = false } = {}) {
+export async function generateOgImagesForPages(jobs, { incremental = false, onOutput = null } = {}) {
   if (!jobs.length) return 0;
-  const count = await generateOgImages(jobs, { incremental });
+  const count = await generateOgImages(jobs, { incremental, onOutput });
   return count;
 }
 

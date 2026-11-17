@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import nodeFs from 'node:fs';
-import { mkdtemp, mkdir, readFile, readlink, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readlink, readdir, rename, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 import git from 'isomorphic-git';
-import { emptyDir, pathExists, readJson } from './fs-helpers.js';
-import { getFileLastmod } from './git-dates.js';
+import { copyFileIfChanged, emptyDir, pathExists, readJson } from './fs-helpers.js';
+import { getFileLastmod, getPageLastmods } from './git-dates.js';
 import { detectEditUrl } from './config.js';
 
 const execFileAsync = promisify(execFile);
@@ -57,6 +57,19 @@ describe('filesystem helpers', () => {
     await expect(readJson(file)).rejects.toThrow(file);
   });
 
+  it('compares large media by content, including same-sized changes', async () => {
+    const source = path.join(dir, 'source');
+    const dest = path.join(dir, 'dest');
+    const data = Buffer.alloc(140000, 42);
+    await writeFile(source, data);
+    expect(await copyFileIfChanged(source, dest, true)).toBe(true);
+    expect(await copyFileIfChanged(source, dest, true)).toBe(false);
+    data[100000] = 43;
+    await writeFile(source, data);
+    expect(await copyFileIfChanged(source, dest, true)).toBe(true);
+    expect(await readFile(dest)).toEqual(data);
+  });
+
   it('uses git history for last-modified dates', async () => {
     const file = path.join(dir, 'page.md');
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' });
@@ -70,6 +83,31 @@ describe('filesystem helpers', () => {
     });
 
     expect(await getFileLastmod(dir, 'page.md')).toBe('2020-01-01');
+  });
+
+  it('shares Git history work without changing individual dates or file fallbacks', async () => {
+    await git.init({ fs: nodeFs, dir, defaultBranch: 'main' });
+    await mkdir(path.join(dir, 'docs'));
+    for (const name of ['first', 'second']) await writeFile(path.join(dir, 'docs', `${name}.md`), `# ${name}`);
+    await git.add({ fs: nodeFs, dir, filepath: 'docs/first.md' });
+    await git.add({ fs: nodeFs, dir, filepath: 'docs/second.md' });
+    const author = { name: 'Test', email: 'test@example.com', timestamp: 1577836800, timezoneOffset: 0 };
+    const base = await git.commit({ fs: nodeFs, dir, message: 'Base', author });
+    await git.writeRef({ fs: nodeFs, dir, ref: 'refs/heads/side', value: base });
+    await writeFile(path.join(dir, 'docs', 'first.md'), '# changed');
+    await git.add({ fs: nodeFs, dir, filepath: 'docs/first.md' });
+    await git.commit({ fs: nodeFs, dir, message: 'Main', author: { ...author, timestamp: 1577923200 } });
+    await git.checkout({ fs: nodeFs, dir, ref: 'side' });
+    await writeFile(path.join(dir, 'docs', 'second.md'), '# side');
+    await git.add({ fs: nodeFs, dir, filepath: 'docs/second.md' });
+    const side = await git.commit({ fs: nodeFs, dir, message: 'Side', author: { ...author, timestamp: 1578009600 } });
+    await git.checkout({ fs: nodeFs, dir, ref: 'main' });
+    await git.merge({ fs: nodeFs, dir, theirs: side, author: { ...author, timestamp: 1578096000 } });
+    await writeFile(path.join(dir, 'docs', 'untracked.md'), '# untracked');
+    const pages = { first: {}, second: {}, untracked: {}, missing: {} };
+    const expected = {};
+    for (const id of Object.keys(pages)) expected[id] = await getFileLastmod(dir, `docs/${id}.md`);
+    expect(await getPageLastmods(dir, pages)).toEqual(expected);
   });
 
   it('detects GitHub edit URLs, preferring upstream and its main ref', async () => {
@@ -306,8 +344,8 @@ describe('build filesystem behavior', () => {
     await writeFile(configFile, JSON.stringify(config));
     await writeFile(path.join(dir, 'docs', 'intro.md'), '# Intro\n\nOriginal body');
     await writeFile(path.join(dir, 'docs', 'second.md'), '# Second\n\nUnchanged body');
-    const runBuild = () => execFileAsync(process.execPath, [
-      cli, 'build', '--incremental', '--no-og-images',
+    const runBuild = (...args) => execFileAsync(process.execPath, [
+      cli, 'build', '--incremental', '--no-og-images', ...args,
     ], { cwd: dir, timeout: 60000 });
     await runBuild();
     const dist = path.join(dir, 'dist');
@@ -322,7 +360,23 @@ describe('build filesystem behavior', () => {
     const warm = await runBuild();
     for (const file of stableFiles) expect((await stat(path.join(dist, file))).mtimeMs).toBe(oldTime.getTime());
     expect(warm.stdout).toContain('Reused 2 cached pages');
+    expect(warm.stdout).toContain('Reused cached documentation indexes');
     expect(await readdir(htmlCache)).toHaveLength(2);
+
+    await writeFile(path.join(dist, 'search-index.json'), 'tampered');
+    await rm(path.join(dist, 'llms.txt'));
+    await runBuild();
+    expect(await readFile(path.join(dist, 'search-index.json'), 'utf8')).toContain('Original body');
+    expect(await readFile(path.join(dist, 'llms.txt'), 'utf8')).toContain('Intro');
+    const generatorDir = path.join(dir, 'node_modules', '.cache', 'docslit', 'build', 'generators');
+    const generatorFiles = await readdir(generatorDir);
+    const { createHash } = await import('node:crypto');
+    const code = '{}';
+    await writeFile(path.join(generatorDir, generatorFiles[0]), JSON.stringify({
+      code, hash: createHash('sha256').update(code).digest('hex'),
+    }));
+    const invalid = await runBuild();
+    expect(invalid.stderr).toContain('invalid documentation index cache');
 
     await writeFile(path.join(dir, 'docs', 'intro.md'), '# Intro\n\nChanged body');
     await runBuild();
@@ -346,6 +400,117 @@ describe('build filesystem behavior', () => {
     await runBuild();
     expect(await readFile(path.join(dist, 'second.html'), 'utf8')).toContain('Updated site');
     expect(await readdir(htmlCache)).toHaveLength(5);
+
+    await runBuild('--no-search-index');
+    expect(await pathExists(path.join(dist, 'search-index.json'))).toBe(false);
+    expect(await pathExists(path.join(dist, 'llms.txt'))).toBe(true);
+    await runBuild('--no-llms-txt');
+    expect(await pathExists(path.join(dist, 'llms.txt'))).toBe(false);
+    expect(await pathExists(path.join(dist, 'search-index.json'))).toBe(true);
+    await runBuild();
+    expect(await pathExists(path.join(dist, 'llms.txt'))).toBe(true);
+    expect(await pathExists(path.join(dist, 'search-index.json'))).toBe(true);
+  }, 120000);
+
+  it('removes only unchanged owned stale outputs, even after cleaning the build cache', async () => {
+    await mkdir(path.join(dir, 'docs', 'nested'), { recursive: true });
+    const config = {
+      name: 'Test', url: 'https://docs.example.com', editUrl: 'https://example.com/edit',
+      sidebar: [{ group: 'Guide', pages: ['intro', 'old', 'nested/old'] }],
+    };
+    const configFile = path.join(dir, 'docslit.json');
+    await writeFile(configFile, JSON.stringify(config));
+    for (const id of ['intro', 'old', 'nested/old']) await writeFile(path.join(dir, 'docs', `${id}.md`), `# ${id}`);
+    const runBuild = (...args) => execFileAsync(process.execPath, [
+      cli, 'build', '--incremental', '--no-minify', ...args,
+    ], { cwd: dir, timeout: 60000 });
+    await runBuild();
+    const dist = path.join(dir, 'dist');
+    await runBuild('--out', 'other', '--no-og-images');
+    await mkdir(path.join(dir, 'docs', 'og'));
+    await writeFile(path.join(dir, 'docs', 'og', 'old.png'), await readFile(path.join(dist, 'og', 'old.png')));
+    await writeFile(path.join(dist, 'old.md'), 'user modified');
+    await writeFile(path.join(dist, 'untracked.html'), 'user file');
+    await mkdir(path.join(dir, 'node_modules', '.cache', 'docslit', 'other'), { recursive: true });
+    await writeFile(path.join(dir, 'node_modules', '.cache', 'docslit', 'other', 'keep'), 'keep');
+    await execFileAsync(process.execPath, [cli, 'cache', 'clean'], { cwd: dir });
+    expect(await pathExists(path.join(dir, 'node_modules', '.cache', 'docslit', 'build'))).toBe(false);
+    expect(await pathExists(path.join(dir, 'node_modules', '.cache', 'docslit', 'other', 'keep'))).toBe(true);
+    config.sidebar[0].pages = ['intro'];
+    await writeFile(configFile, JSON.stringify(config));
+    const { stderr } = await runBuild('--no-og-images', '--no-search-index', '--no-llms-txt', '--no-mcp', '--no-sitemap');
+    expect(stderr).toContain('preserving modified generated file');
+    for (const file of ['old.html', 'nested/old.html', 'nested/old.md', 'og/nested--old.png', 'llms.txt', 'search-index.json', 'mcp-server.js', 'sitemap.xml']) {
+      expect(await pathExists(path.join(dist, file)), file).toBe(false);
+    }
+    expect(await pathExists(path.join(dist, 'og', 'old.png'))).toBe(true);
+    expect(await readFile(path.join(dist, 'old.md'), 'utf8')).toBe('user modified');
+    expect(await readFile(path.join(dist, 'untracked.html'), 'utf8')).toBe('user file');
+    expect(await pathExists(path.join(dist, 'index.html'))).toBe(true);
+    expect(await pathExists(path.join(dir, 'other', 'old.html'))).toBe(true);
+    await runBuild('--out', 'other', '--no-og-images');
+    expect(await pathExists(path.join(dir, 'other', 'old.html'))).toBe(false);
+  }, 120000);
+
+  it.skipIf(process.platform === 'win32')('does not follow stale output paths through symlinks', async () => {
+    await mkdir(path.join(dir, 'docs', 'nested'), { recursive: true });
+    const config = { name: 'Test', editUrl: 'https://example.com/edit', sidebar: [{ group: 'Guide', pages: ['intro', 'nested/old'] }] };
+    const configFile = path.join(dir, 'docslit.json');
+    await writeFile(configFile, JSON.stringify(config));
+    await writeFile(path.join(dir, 'docs', 'intro.md'), '# Intro');
+    await writeFile(path.join(dir, 'docs', 'nested', 'old.md'), '# Old');
+    const runBuild = () => execFileAsync(process.execPath, [
+      cli, 'build', '--incremental', '--no-minify', '--no-og-images', '--no-search-index', '--no-llms-txt', '--no-mcp', '--no-sitemap',
+    ], { cwd: dir, timeout: 60000 });
+    await runBuild();
+    const output = path.join(dir, 'dist', 'nested');
+    const outside = path.join(dir, 'outside');
+    await rename(output, outside);
+    await symlink(outside, output, 'dir');
+    config.sidebar[0].pages = ['intro'];
+    await writeFile(configFile, JSON.stringify(config));
+    await runBuild();
+    expect(await pathExists(path.join(outside, 'old.html'))).toBe(true);
+    expect(await pathExists(path.join(outside, 'old.md'))).toBe(true);
+  }, 120000);
+
+  it('updates incremental redirects without duplicating rules or deleting user content', async () => {
+    await mkdir(path.join(dir, 'docs'));
+    const config = {
+      name: 'Test', editUrl: 'https://example.com/edit',
+      sidebar: [{ group: 'Guide', pages: ['intro'] }], redirects: { '/old': '/intro' },
+    };
+    const configFile = path.join(dir, 'docslit.json');
+    await writeFile(configFile, JSON.stringify(config));
+    await writeFile(path.join(dir, 'docs', 'intro.md'), '# Intro');
+    const runBuild = () => execFileAsync(process.execPath, [
+      cli, 'build', '--incremental', '--no-minify', '--no-og-images', '--no-search-index', '--no-llms-txt', '--no-mcp', '--no-sitemap',
+    ], { cwd: dir, timeout: 60000 });
+    const redirectsFile = path.join(dir, 'dist', '_redirects');
+    await runBuild();
+    const first = await readFile(redirectsFile, 'utf8');
+    await runBuild();
+    expect(await readFile(redirectsFile, 'utf8')).toBe(first);
+    config.redirects['/old'] = '/new';
+    await writeFile(configFile, JSON.stringify(config));
+    await runBuild();
+    const updated = await readFile(redirectsFile, 'utf8');
+    expect(updated).toContain('/old  /new  301');
+    expect(updated).not.toContain('/old  /intro  301');
+    delete config.redirects['/old'];
+    await writeFile(configFile, JSON.stringify(config));
+    await runBuild();
+    expect(await pathExists(redirectsFile)).toBe(false);
+    expect(await pathExists(path.join(dir, 'dist', 'old.html'))).toBe(false);
+
+    config.redirects['/old'] = '/intro';
+    await writeFile(configFile, JSON.stringify(config));
+    await runBuild();
+    await writeFile(redirectsFile, (await readFile(redirectsFile, 'utf8')) + '/custom /target 301\n');
+    delete config.redirects['/old'];
+    await writeFile(configFile, JSON.stringify(config));
+    await runBuild();
+    expect(await readFile(redirectsFile, 'utf8')).toContain('/custom /target 301');
   }, 120000);
 
   it('skips rendering on cache hits and invalidates shared rendering context', async () => {
@@ -372,6 +537,45 @@ describe('build filesystem behavior', () => {
     });
     expect(JSON.parse(stdout)).toEqual({ warmRenders: 1, renders: 4 });
   }, 120000);
+
+  it('creates OG workers on demand and replaces a failed worker for queued jobs', async () => {
+    const tracer = path.join(dir, 'workers.cjs');
+    await writeFile(tracer, `
+      const { EventEmitter } = require('node:events');
+      const threads = require('node:worker_threads');
+      const os = require('node:os');
+      global.workerCount = 0;
+      os.cpus = () => Array(8).fill({});
+      threads.Worker = class extends EventEmitter {
+        constructor() { super(); global.workerCount++; }
+        postMessage({ svg }) {
+          queueMicrotask(() => {
+            if (svg === 'fail') { this.emit('error', new Error('render failed')); this.emit('exit', 1); }
+            else this.emit('message', { png: Buffer.from(svg) });
+          });
+        }
+        terminate() { return Promise.resolve(0); }
+      };
+      require('node:module').syncBuiltinESMExports();
+    `);
+    const pool = new URL('./og-image-pool.js', import.meta.url).href;
+    const script = `
+      import { renderSvgToPng, shutdownOgImagePool } from ${JSON.stringify(pool)};
+      await renderSvgToPng('one');
+      const single = global.workerCount;
+      await Promise.all(['a', 'b', 'c'].map(renderSvgToPng));
+      const concurrent = global.workerCount;
+      const results = await Promise.allSettled(['fail', 'a', 'b', 'c'].map(renderSvgToPng));
+      console.log(JSON.stringify({ single, concurrent, replaced: global.workerCount, results: results.map(r => r.status) }));
+      await shutdownOgImagePool();
+    `;
+    const { stdout } = await execFileAsync(process.execPath, ['--require', tracer, '--input-type=module', '-e', script], {
+      cwd: dir, timeout: 60000,
+    });
+    expect(JSON.parse(stdout)).toEqual({
+      single: 1, concurrent: 3, replaced: 4, results: ['rejected', 'fulfilled', 'fulfilled', 'fulfilled'],
+    });
+  });
 
   it('runs the warm-minimal benchmark against a project after an untimed warm-up', async () => {
     await mkdir(path.join(dir, 'docs'));
@@ -418,11 +622,12 @@ describe('build filesystem behavior', () => {
 
   it('applies generator opt-outs to versioned pages and metadata', async () => {
     await mkdir(path.join(dir, 'docs'));
-    await writeFile(path.join(dir, 'docslit.json'), JSON.stringify({
+    const config = {
       name: 'Test', editUrl: 'https://example.com/edit',
       sidebar: [{ group: 'Guide', pages: ['intro'] }],
       versions: { default: 'v1', list: [{ version: 'v1', branch: 'main' }, { version: 'v0', branch: 'old' }] },
-    }));
+    };
+    await writeFile(path.join(dir, 'docslit.json'), JSON.stringify(config));
     await writeFile(path.join(dir, 'docs', 'intro.md'), '# Hello');
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' });
     await git.add({ fs: nodeFs, dir, filepath: 'docslit.json' });
@@ -430,9 +635,11 @@ describe('build filesystem behavior', () => {
     const oid = await git.commit({ fs: nodeFs, dir, message: 'Docs', author: { name: 'Test', email: 'test@example.com' } });
     await git.writeRef({ fs: nodeFs, dir, ref: 'refs/heads/old', value: oid });
     const runBuild = () => execFileAsync(process.execPath, [
-      cli, 'build', '--incremental', '--no-minify', '--no-og-images', '--no-search-index', '--no-llms-txt',
+      cli, 'build', '--incremental', '--no-minify', '--no-og-images', '--no-search-index', '--no-llms-txt', '--profile',
     ], { cwd: dir, timeout: 60000 });
-    await runBuild();
+    const profiled = await runBuild();
+    expect(profiled.stdout).toContain('Phase');
+    expect(profiled.stdout).toContain('cleanup');
     for (const version of ['v1', 'v0']) {
       expect(await readFile(path.join(dir, 'dist', version, 'intro.html'), 'utf8')).not.toContain('id="search-trigger"');
       expect(await pathExists(path.join(dir, 'dist', version, 'search-index.json'))).toBe(false);
@@ -447,5 +654,11 @@ describe('build filesystem behavior', () => {
     for (const version of ['v1', 'v0']) {
       expect((await stat(path.join(dir, 'dist', version, 'intro.html'))).mtimeMs).toBe(oldTime.getTime());
     }
+    config.versions.list.pop();
+    await writeFile(path.join(dir, 'docslit.json'), JSON.stringify(config));
+    await runBuild();
+    expect(await pathExists(path.join(dir, 'dist', 'v0', 'intro.html'))).toBe(false);
+    expect(await pathExists(path.join(dir, 'dist', 'v0', 'index.html'))).toBe(false);
+    expect(await pathExists(path.join(dir, 'dist', 'v1', 'index.html'))).toBe(true);
   }, 120000);
 });

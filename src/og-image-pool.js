@@ -10,16 +10,21 @@ let pool = null;
 
 class OgImagePool {
   constructor(size) {
+    this.size = size;
     this.workers = [];
     this.idle = [];
     this.queue = [];
-    for (let i = 0; i < size; i++) {
-      const worker = new Worker(workerUrl, { type: 'module' });
-      worker.on('message', (msg) => this._onMessage(worker, msg));
-      worker.on('error', (err) => this._onError(worker, err));
-      this.workers.push(worker);
-      this.idle.push(worker);
-    }
+  }
+
+  _addWorker() {
+    const worker = new Worker(workerUrl, { type: 'module' });
+    worker.on('message', (msg) => this._onMessage(worker, msg));
+    worker.on('error', (err) => this._onError(worker, err));
+    worker.on('exit', (code) => {
+      if (this.workers.includes(worker)) this._onError(worker, new Error(`OG image worker exited unexpectedly (${code})`));
+    });
+    this.workers.push(worker);
+    this.idle.push(worker);
   }
 
   render(svg) {
@@ -30,6 +35,9 @@ class OgImagePool {
   }
 
   _dispatch() {
+    while (this.queue.length > this.idle.length && this.workers.length < this.size) {
+      this._addWorker();
+    }
     while (this.queue.length && this.idle.length) {
       const worker = this.idle.pop();
       const task = this.queue.shift();
@@ -49,19 +57,21 @@ class OgImagePool {
 
   _onError(worker, err) {
     const task = worker._currentTask;
+    this.workers = this.workers.filter(w => w !== worker);
+    this.idle = this.idle.filter(w => w !== worker);
     if (task) {
       worker._currentTask = null;
-      this.idle.push(worker);
       task.reject(err);
-      this._dispatch();
     }
+    this._dispatch();
   }
 
   async shutdown() {
-    await Promise.all(this.workers.map((w) => w.terminate()));
+    const workers = this.workers;
     this.workers = [];
     this.idle = [];
     this.queue = [];
+    await Promise.all(workers.map((w) => w.terminate()));
   }
 }
 

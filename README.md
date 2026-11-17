@@ -56,7 +56,8 @@ Or run it without installing: `npx docslit init my-docs`. Requires Node.js 20.19
 | `docslit init [dir]` | Scaffold a new docs project (also writes `AGENTS.md`; `--no-agents` to skip; `--theme <name>`) |
 | `docslit new <page-id>` | Create a page and add it to the sidebar. `--title`, `--group`, `--description`, `--position`, `--json` |
 | `docslit dev` | Start the local dev server with hot reload (`--port`, default 3000; `--theme-picker` to try every theme live) |
-| `docslit build` | Build a static site to `./dist` (`--out`, `--offline`, `--no-minify`, `--pdf`, `--no-pdf`, `--pdf-dir`) |
+| `docslit build` | Build a static site to `./dist` (`--out`, `--offline`, `--no-minify`, `--incremental`, `--profile`, `--pdf`, `--no-pdf`, `--pdf-dir`) |
+| `docslit cache clean` | Remove the current project's build cache |
 | `docslit deploy` | Write hosting recipes: `--github-pages`, `--netlify`, `--cloudflare`, `--out <dir>` |
 | `docslit import <dir>` | Migrate a Mintlify, Fern or GitBook project (`--out`, `--from`, `--dry-run`, `--theme`, `--no-theme`, `--versions`, `--force`, `--json`) |
 | `docslit validate [dir]` | Check for broken links, missing assets, frontmatter errors, unknown components. `--strict`, `--external`, `--format pretty\|github\|json` |
@@ -144,16 +145,20 @@ The same options can be set persistently in `docslit.json`:
 }
 ```
 
-Use `--incremental` (or `build.cache`) to reuse cached page, minified shared
-asset, and OG image results. Reusable `<wc-include>` content is tracked by
-content hash, so changes invalidate affected pages. Unchanged static pages
-reuse rendered HTML, and unchanged page, asset, and media files are not
-rewritten. Changes to shared site configuration can require all pages to be
-rendered again. Hooks and optional generators still run; offline and PDF output
-is regenerated. Incremental builds preserve the output directory:
-previously generated files remain when a generator is disabled or a page is
-removed. Run a non-incremental build into a clean output directory when
-publishing or measuring a minimal build.
+Use `--incremental` (or `build.cache`) to reuse parsed and rendered pages,
+minified shared assets, OG images, and unchanged documentation indexes.
+Reusable `<wc-include>` content is tracked by content hash, so changes
+invalidate affected pages. Unchanged page, asset, and media files are not
+rewritten. Shared configuration changes can require all pages to be rendered
+again. Hooks, some generators, offline output, and PDFs still run.
+
+Incremental builds preserve the output directory. DocsLit records ownership
+per output directory and removes stale generated pages, OG images, redirects,
+and tracked optional generator outputs only when their contents have not been
+modified. Modified or untracked files are preserved; other stale files,
+including output from older DocsLit versions, may remain. Use a clean build
+when a guaranteed clean output is needed. `docslit cache clean` removes cached
+build results without removing generated output or its ownership records.
 
 Use `--profile` for phase timings. To benchmark a project, run
 `npm run benchmark -- warm-minimal --project /path/to/project --out bench-minimal --runs 3`.
