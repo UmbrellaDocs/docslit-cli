@@ -234,7 +234,7 @@ class WcTable extends LitElement {
     @media(max-width:640px){th,td{padding:8px 12px;font-size:13px}}
   \`;
   constructor(){super();this._q='';this._shown=-1;}
-  _native(){return this.querySelector(':scope > table');}
+  _native(){return this.querySelector('table');}
   _filter(e){
     this._q=e.target.value;const q=this._q.trim().toLowerCase();const t=this._native();if(!t)return;
     let n=0;t.querySelectorAll('tbody tr').forEach(tr=>{const hit=!q||tr.textContent.toLowerCase().indexOf(q)>=0;tr.hidden=!hit;if(hit)n++;});

@@ -5,6 +5,7 @@ import pc from 'picocolors';
 import express from 'express';
 import { PDFDocument } from 'pdf-lib';
 import { collectPageIds, toLabel } from './sidebar.js';
+import { collectHiddenIds, isHiddenMeta } from './navigation.js';
 
 const PDF_MARGINS = { top: '1.5cm', right: '2cm', bottom: '1.5cm', left: '2cm' };
 
@@ -59,6 +60,9 @@ function filterPages(pageIds, pagesData, options) {
 function chaptersFromSidebarGroups(config, pagesData, options) {
   const chapters = [];
   const usedIds = new Set();
+  // Hidden pages stay out of the printed manual (like the sidebar, search and sitemap).
+  const hidden = collectHiddenIds(config.sidebar);
+  const isShown = (id) => !hidden.has(id) && !isHiddenMeta(pagesData[id]?.meta);
 
   for (const group of config.sidebar || []) {
     const title = group.group || 'Docs';
@@ -70,7 +74,7 @@ function chaptersFromSidebarGroups(config, pagesData, options) {
     }
     usedIds.add(baseId);
 
-    const pages = filterPages(collectPageIds(group.pages), pagesData, options);
+    const pages = filterPages(collectPageIds(group.pages), pagesData, options).filter(isShown);
     if (!pages.length) continue;
     chapters.push({ id: baseId, title, pages });
   }

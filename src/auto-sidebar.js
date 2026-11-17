@@ -12,7 +12,7 @@
 import path from 'path';
 import fs from 'fs-extra';
 import { parseFrontmatter } from './frontmatter.js';
-import { applyNavigation, normalizeDir, isHiddenMeta } from './navigation.js';
+import { applyNavigation, normalizeDir, isHiddenMeta, slugify, collectIds } from './navigation.js';
 
 const PRIORITY_NAMES = new Set(['index', 'introduction', 'overview']);
 
@@ -275,6 +275,69 @@ export async function expandTabsValue(tabs, source, { siteName = null, warn = ()
   return out;
 }
 
+// ─── Hidden pages ─────────────────────────────────────────────────────────────
+
+async function listMarkdown(source, relDir = '', out = []) {
+  for (const e of await source.list(relDir)) {
+    if (e.name.startsWith('_') || e.name.startsWith('.') || e.name === 'node_modules') continue;
+    const rel = relDir ? `${relDir}/${e.name}` : e.name;
+    if (e.isDir) await listMarkdown(source, rel, out);
+    else if (e.name.endsWith('.md')) out.push(rel.slice(0, -3));
+  }
+  return out;
+}
+
+/**
+ * Pages with `hidden: true` frontmatter are built even when no sidebar lists them (they are
+ * reachable by URL, kept out of the sidebar, search and sitemap). Appends them as a hidden
+ * group to the sidebar — or, with tabs, to the tab named by their `tab` frontmatter / `path`
+ * prefix, else the first content tab. Returns the config unchanged when there are none.
+ */
+export async function appendHiddenPages(config, source) {
+  if (!config) return config;
+  const hasTabsList = Array.isArray(config.tabs) && config.tabs.length > 0;
+  if (!hasTabsList && !Array.isArray(config.sidebar)) return config;
+  const listed = new Set(collectIds(config.sidebar || []));
+  if (hasTabsList) for (const t of config.tabs) if (t && Array.isArray(t.sidebar)) for (const id of collectIds(t.sidebar)) listed.add(id);
+  const found = [];
+  for (const id of await listMarkdown(source)) {
+    if (listed.has(id)) continue;
+    let fm = {};
+    try { fm = parseFrontmatter(await source.read(`${id}.md`) || '').data || {}; } catch { continue; }
+    if (isHiddenMeta(fm) && fm.draft !== true) found.push({ id, tab: typeof fm.tab === 'string' ? fm.tab : '' });
+  }
+  if (!found.length) return config;
+  found.sort((a, b) => (a.id < b.id ? -1 : 1));
+  if (!hasTabsList) {
+    return { ...config, sidebar: [...(config.sidebar || []), { group: '', hidden: true, pages: found.map((f) => ({ id: f.id, hidden: true })) }] };
+  }
+  const tabs = config.tabs.map((t) => (t && !t.href ? { ...t, sidebar: Array.isArray(t.sidebar) ? [...t.sidebar] : [] } : t));
+  const contentIdx = tabs.map((t, i) => (t && !t.href ? i : -1)).filter((i) => i >= 0);
+  if (!contentIdx.length) return config;
+  const labelOf = (t) => String(t.tab ?? t.label ?? t.title ?? t.name ?? '');
+  const byTab = new Map();
+  for (const f of found) {
+    let idx = -1;
+    if (f.tab) {
+      const w = slugify(f.tab);
+      idx = contentIdx.find((i) => slugify(tabs[i].id || labelOf(tabs[i])) === w || slugify(labelOf(tabs[i])) === w);
+    }
+    if (idx === undefined || idx < 0) {
+      let best = -1;
+      for (const i of contentIdx) {
+        const p = normalizeDir(tabs[i].path);
+        if (p && (f.id === p || f.id.startsWith(p + '/')) && (best < 0 || p.length > normalizeDir(tabs[best].path).length)) best = i;
+      }
+      idx = best;
+    }
+    if (idx < 0) idx = contentIdx[0];
+    if (!byTab.has(idx)) byTab.set(idx, []);
+    byTab.get(idx).push({ id: f.id, hidden: true });
+  }
+  for (const [idx, pages] of byTab) tabs[idx].sidebar.push({ group: '', hidden: true, pages });
+  return { ...config, tabs };
+}
+
 /**
  * Expand config.sidebar using the docs directory (string path or a source).
  * Returns a new config object (the input is not mutated).
@@ -311,8 +374,11 @@ export async function expandAllSidebars(config, cwd, opts = {}) {
       const source = createFsSource(path.join(cwd, 'docs'));
       out = { ...out, tabs: await expandTabsValue(config.tabs, source, { siteName: config.name, ...opts }) };
     }
-    out = applyNavigation(out, opts);
   }
+  if (out && (Array.isArray(out.sidebar) || (Array.isArray(out.tabs) && out.tabs.length))) {
+    out = await appendHiddenPages(out, createFsSource(path.join(cwd, 'docs')));
+  }
+  if (Array.isArray(out?.tabs) && out.tabs.length) out = applyNavigation(out, opts);
   return out;
 }
 

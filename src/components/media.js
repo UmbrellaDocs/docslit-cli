@@ -72,11 +72,13 @@ export default `
       :host{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:0}
       span{display:flex;align-items:center;justify-content:center}
       ::slotted(svg),::slotted(img){width:100%;height:100%;display:block;object-fit:contain}
+      span{line-height:1;font-size:inherit}
       svg{width:100%;height:100%}
     \`;
     // Icons are normally resolved at BUILD time (inline SVG child). This runtime lookup only serves
     // wc-icon elements created without one (JS-built DOM); it never fetches over file:// / offline.
-    _needsFetch(){if(location.protocol==='file:')return null;const r=_resolveIcon(this.name);return !!r.slug&&!!r.style&&!_faCache[r.key]?r:null;}
+    _hasBuilt(){return !!(this.querySelector(':scope > *')||(this.textContent||'').trim());}
+    _needsFetch(){if(location.protocol==='file:'||this._hasBuilt())return null;const r=_resolveIcon(this.name);return !!r.slug&&!!r.style&&!_faCache[r.key]?r:null;}
     connectedCallback(){super.connectedCallback();const r=this._needsFetch();if(r)this._fetchFa(r);}
     updated(changed){if(changed.has('name')){const r=this._needsFetch();if(r)this._fetchFa(r);}}
     async _fetchFa(r){
@@ -94,7 +96,7 @@ export default `
       const c=this.color||'currentColor';
       const a11y=this.label?html\`role="img" aria-label=\${this.label}\`:nothing;
       const box='color:'+c+';width:'+s+'px;height:'+s+'px';
-      if(this.querySelector(':scope > svg, :scope > img')){
+      if(this._hasBuilt()){
         return html\`<span style=\${box} aria-hidden=\${this.label?nothing:'true'} role=\${this.label?'img':nothing} aria-label=\${this.label||nothing}><slot></slot></span>\`;
       }
       const r=_resolveIcon(this.name);

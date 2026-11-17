@@ -568,7 +568,7 @@ summary.sidebar-group-title:has(> .sidebar-badge)::after, summary.sidebar-subgro
 }
 .nav-dropdown-menu::before { content: ''; position: absolute; left: 0; right: 0; top: -8px; height: 8px; }
 .nav-dropdown[data-open] .nav-dropdown-menu { display: block; }
-@media (hover: hover) { .nav-dropdown:hover .nav-dropdown-menu { display: block; } .nav-dropdown:hover .nav-chevron { transform: rotate(180deg); } }
+@media (hover: hover) { .nav-dropdown:not([data-suppress]):hover .nav-dropdown-menu { display: block; } .nav-dropdown:not([data-suppress]):hover .nav-chevron { transform: rotate(180deg); } }
 .nav-dropdown-item {
   display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px;
   font-size: 13px; font-weight: 500; color: var(--text2); text-decoration: none; white-space: nowrap;
@@ -727,7 +727,8 @@ function _tabLabelFor(id) {
 function _navDropdown(dd, open) {
   if (!dd) return;
   var btn = dd.querySelector('.nav-dropdown-btn');
-  if (open) dd.setAttribute('data-open', ''); else dd.removeAttribute('data-open');
+  if (open) { dd.setAttribute('data-open', ''); dd.removeAttribute('data-suppress'); }
+  else { dd.removeAttribute('data-open'); dd.setAttribute('data-suppress', ''); }
   if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 function _navCloseDropdowns(except) {
@@ -789,6 +790,10 @@ document.addEventListener('click', function(e) {
     if (k === 'copy') copyMd(); else if (k === 'view') viewMd(); else if (k === 'mcp') copyMcpCommand();
     if (act.classList.contains('copy-page-item')) closeCopyMenu();
   }
+});
+document.addEventListener('mouseout', function(e) {
+  var dd = e.target && e.target.closest ? e.target.closest('.nav-dropdown') : null;
+  if (dd && !dd.contains(e.relatedTarget)) dd.removeAttribute('data-suppress');
 });
 document.addEventListener('keydown', function(e) {
   var t = e.target;

@@ -18,6 +18,8 @@ import { parseArgs, assertCleanArgs, resolveFormat } from './cli-args.js';
 import { expandAllSidebars } from './auto-sidebar.js';
 import { expandCodeImports, CODE_IMPORT_FIXES } from './code-import.js';
 import { isValidThemePreset, listThemePresets, parseThemeConfig, loadThemeFile } from './themes.js';
+import { checkNavigation, checkPageNavigation } from './nav-validate.js';
+import { isNavFrontmatterKey, isLinkItem, collectIds } from './navigation.js';
 
 // ─── Built-in component registry ──────────────────────────────────────────────
 // Derived from the component manifest (src/component-manifest.js), which a test
@@ -91,6 +93,9 @@ const ISSUE_RULES = [
   [/^Invalid wc-var declaration name/, 'var-invalid-name', () => 'Use letters, digits and underscores, starting with a letter or underscore'],
   [/^Invalid variable placeholder/, 'var-invalid-placeholder', () => 'Use {{NAME}} with a valid variable name'],
   [/^Undefined variable "\{\{(.+?)\}\}"/, 'var-undefined', (m) => `Define ${m[1]} in docslit.json "attributes", page frontmatter "attributes", <wc-var name="${m[1]}" value="..." /> (build time) or <wc-var name="${m[1]}" default="..."></wc-var> (editable at runtime)`],
+  [/^tabs\[\d+\]/, 'tab-invalid', () => 'Each tab needs a "tab" name and a "sidebar", "path" or "href"'],
+  [/^Tab ".*": autogenerate found no pages/, 'tab-autogenerate-empty', () => 'Add pages under the tab\'s "path" or list them in its "sidebar"'],
+  [/^Tab ".*": invalid path/, 'tab-invalid-path', () => 'Use a docs-relative folder such as "reference"'],
   [/^Orphaned page/, 'orphan-page', (m, msg) => { const s = /slug: "(.+?)"/.exec(msg); return s ? `Add "${s[1]}" to a sidebar group in docslit.json` : undefined; }],
   [/^External link returned/, 'external-link-status', () => 'Update or remove the dead link'],
   [/^External link failed/, 'external-link-failed', () => 'Check the URL or your network connection'],
@@ -342,6 +347,7 @@ function flattenSidebarPages(pages, onInvalid) {
   for (const p of pages || []) {
     if (typeof p === 'string') out.push(p);
     else if (p && typeof p === 'object' && typeof p.id === 'string') out.push(p.id);
+    else if (isLinkItem(p)) continue; // { href, title } link entries are not pages
     else if (p && typeof p === 'object' && Array.isArray(p.pages)) out.push(...flattenSidebarPages(p.pages, onInvalid));
     else onInvalid(p);
   }
@@ -368,9 +374,13 @@ async function checkConfig(dir) {
   }
 
   // Expand autogenerate groups / "sidebar": "auto" into explicit pages.
+  const rawConfig = config;
   config = await expandAllSidebars(config, dir, {
     warn: (m) => issues.push(issue('warning', 'docslit.json', null, m)),
   });
+  for (const n of await checkNavigation({ raw: rawConfig, config, dir })) {
+    issues.push(issue(n.level, 'docslit.json', null, n.message, { code: n.code, fix: n.fix }));
+  }
 
   if (!config.sidebar || !Array.isArray(config.sidebar)) {
     issues.push(issue('error', 'docslit.json', null,
@@ -380,7 +390,8 @@ async function checkConfig(dir) {
 
   const slugs = new Set();
   for (const group of config.sidebar) {
-    if (typeof group !== 'object' || !group.group) {
+    // group: "" is deliberate (unnamed groups in tabs, the hidden-pages group); a missing name is not.
+    if (typeof group !== 'object' || group === null || (!group.group && group.group !== '')) {
       issues.push(issue('warning', 'docslit.json', null,
         `Sidebar group is missing a "group" name: ${JSON.stringify(group)}`));
       continue;
@@ -402,11 +413,21 @@ async function checkConfig(dir) {
     }
   }
 
-  // Check for duplicate slugs
+  // Check for duplicate slugs (pages shared between tabs are reported as tab-duplicate-page instead)
+  const crossTab = new Set();
+  if (Array.isArray(config.tabs)) {
+    const owner = new Map();
+    for (const tab of config.tabs) {
+      for (const id of new Set((tab.sidebar || []).flatMap((g) => collectIds(g.pages || [])))) {
+        if (owner.has(id) && owner.get(id) !== tab.id) crossTab.add(id);
+        else owner.set(id, tab.id);
+      }
+    }
+  }
   const seen = new Set();
   for (const group of config.sidebar) {
     for (const slug of flattenSidebarPages(group.pages || [], () => {})) {
-      if (seen.has(slug)) {
+      if (seen.has(slug) && !crossTab.has(slug)) {
         issues.push(issue('warning', 'docslit.json', null,
           `Duplicate page slug in sidebar: "${slug}"`));
       }
@@ -554,7 +575,7 @@ async function checkSlugs(dir, slugs, issues) {
 }
 
 // ─── 4. Frontmatter check ──────────────────────────────────────────────────────
-async function checkFrontmatter(files, dir, issues) {
+async function checkFrontmatter(files, dir, issues, config = null) {
   for (const file of files) {
     if (isReusableDocFile(file, dir)) continue;
     const rel = path.relative(dir, file);
@@ -574,10 +595,13 @@ async function checkFrontmatter(files, dir, issues) {
     }
 
     for (const key of Object.keys(data)) {
-      if (!VALID_FM_KEYS.has(key)) {
+      if (!VALID_FM_KEYS.has(key) && !isNavFrontmatterKey(key)) {
         issues.push(issue('info', rel, null,
           `Unknown frontmatter key: "${key}" — will be ignored at build time`));
       }
+    }
+    for (const n of checkPageNavigation(data, config)) {
+      issues.push(issue(n.level, rel, null, n.message, { code: n.code, fix: n.fix }));
     }
 
     if (data.readtime !== undefined && typeof data.readtime !== 'string') {
@@ -1066,7 +1090,7 @@ export async function runValidation(dir, { strict = false, external = false, onE
 
   // 4–8. Per-file checks (in parallel)
   const [fmIssues, linkIssues, assetIssues, compIssues, markupIssues, mathIssues] = await Promise.all([
-    (async () => { const a = []; await checkFrontmatter(files, dir, a); return a; })(),
+    (async () => { const a = []; await checkFrontmatter(files, dir, a, loadedConfig); return a; })(),
     (async () => { const a = []; await checkLinks(files, slugs, dir, a); return a; })(),
     (async () => { const a = []; await checkAssets(files, dir, a); return a; })(),
     (async () => { const a = []; await checkComponents(files, dir, a); return a; })(),

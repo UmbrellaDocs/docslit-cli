@@ -864,7 +864,7 @@ describe('renderShell — announcement banner', () => {
 
   it('renders announcement banner above nav', async () => {
     const html = await renderShell({ config: baseConfig, mode: 'dev', port: 3000 });
-    const navIdx = html.indexOf('<nav class="nav">');
+    const navIdx = html.indexOf('<nav class="nav"');
     const bannerIdx = html.indexOf('announcement-banner');
     expect(bannerIdx).toBeGreaterThan(-1);
     expect(bannerIdx).toBeLessThan(navIdx);
@@ -2492,7 +2492,7 @@ describe('offline build — security hardening', () => {
 
   it('_buildPrevNext escapes text content', async () => {
     const js = buildOfflineAppFile({});
-    expect(js).toContain('_escHtml(prev.textContent.trim())');
-    expect(js).toContain('_escHtml(next.textContent.trim())');
+    expect(js).toContain('_escHtml(_itemLabel(prev))');
+    expect(js).toContain('_escHtml(_itemLabel(next))');
   });
 });

@@ -18,6 +18,12 @@ wc-embed, wc-github-repo, wc-walkthrough, wc-colors { display: block; margin-bot
 wc-step:not(:defined) { display: block; position: relative; min-height: 32px; padding: 0 0 28px 48px; }
 wc-step:not(:defined)::before { content: ''; position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--accent); background: var(--accent-dim); }
 
+/* host spacing: the global reset (margin/padding 0) beats :host rules, so spacing lives here */
+wc-tiles, wc-accordion-group, wc-update { margin-bottom: 20px; }
+wc-color:not([data-v]) { margin: 8px 8px 8px 0; }
+wc-aside { margin: 0 0 20px 28px; }
+@media (max-width: 900px) { wc-aside { margin: 16px 0; } }
+
 /* ── pre-upgrade boxes ── */
 wc-callout:not(:defined), wc-alert:not(:defined) { padding: 16px 20px; border: 1px solid var(--border); border-radius: 10px; min-height: 58px; box-sizing: border-box; }
 wc-card:not(:defined) { padding: 22px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); min-height: 96px; box-sizing: border-box; }
@@ -37,7 +43,8 @@ wc-colors:not(:defined) { min-height: 80px; }
 
 /* ── tables: sticky header + search ── */
 wc-table[sticky] th { position: sticky; top: 0; z-index: 2; background: var(--surface2); }
-wc-table > table { margin: 0; }
+wc-table > table, wc-table .table-wrap > table { margin: 0; }
+wc-table .table-wrap { overflow: visible; margin: 0; }
 
 /* ── scroll walkthrough ── */
 .wt-file { font-family: var(--font-mono, monospace); font-size: 13px; line-height: 1.65; color: var(--code-text, #e2e8f0); padding: 12px 0; white-space: pre; background: var(--code-bg, #161616); }

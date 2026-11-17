@@ -12,13 +12,13 @@ customElements.define('wc-steps',WcSteps);
 class WcStep extends LitElement {
   static properties={title:{type:String},n:{type:Number},icon:{type:String},titleSize:{type:String,attribute:'title-size'},noAnchor:{type:Boolean,attribute:'no-anchor'}};
   static styles=css\`
-    :host{display:block;width:100%;box-sizing:border-box;position:relative;padding-bottom:28px}
-    :host(:last-child){padding-bottom:0}
-    .row{display:flex;align-items:flex-start;gap:16px;width:100%}
+    :host{display:block;width:100%;box-sizing:border-box;position:relative}
+    .row{display:flex;align-items:flex-start;gap:16px;width:100%;padding-bottom:28px;box-sizing:border-box}
+    :host(:last-child) .row{padding-bottom:0}
     .rail{display:flex;flex-direction:column;align-items:center;align-self:stretch;flex-shrink:0;width:32px}
     .num{width:32px;height:32px;border-radius:50%;background:var(--accent-dim,rgba(1,105,111,.15));border:1px solid var(--accent,#01696f);color:var(--accent-light,#4f98a3);font-family:var(--font-sans,'Inter',sans-serif);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:0}
     .num ::slotted(span),.num ::slotted(svg){display:inline-flex;width:16px;height:16px}
-    .line{flex:1;width:2px;margin-top:6px;margin-bottom:-22px;background:var(--border,#2a2a2a);border-radius:1px;min-height:12px}
+    .line{flex:1;width:2px;margin-top:6px;margin-bottom:6px;background:var(--border,#2a2a2a);border-radius:1px;min-height:12px}
     :host(:last-child) .line{display:none}
     .content{flex:1;min-width:0;padding-top:3px}
     .titlebar{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;min-width:0}
@@ -173,7 +173,7 @@ customElements.define('wc-view',WcView);
 
 class WcViewPanel extends LitElement {
   static properties={label:{type:String},icon:{type:String}};
-  static styles=css\`:host{display:none}:host([active]){display:block}.inner{padding:0 24px}.print-label{display:none;font-family:var(--font-sans,'Inter',sans-serif);font-size:13px;font-weight:600;color:#555;margin:0 0 8px;padding:4px 0;border-bottom:1px solid #ddd}@media print{:host{display:block !important;padding-top:4px;margin-bottom:12px}.print-label{display:block}}\`;
+  static styles=css\`:host{display:none}:host([active]){display:block}.inner{padding:14px 24px}.print-label{display:none;font-family:var(--font-sans,'Inter',sans-serif);font-size:13px;font-weight:600;color:#555;margin:0 0 8px;padding:4px 0;border-bottom:1px solid #ddd}@media print{:host{display:block !important;padding-top:4px;margin-bottom:12px}.print-label{display:block}}\`;
   render(){return html\`<div class="print-label">\${this.label||''}</div><div class="inner"><slot></slot></div>\`;}
 }
 customElements.define('wc-view-panel',WcViewPanel);

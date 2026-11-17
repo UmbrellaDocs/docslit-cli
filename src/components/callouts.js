@@ -121,7 +121,7 @@ class WcTooltip extends LitElement {
     @media(prefers-reduced-motion:reduce){.tip{transition:none}}
   \`;
   constructor(){super();this._open=false;this._id='dl-tip-'+(++_tipSeq);this._t=null;this._onKey=(e)=>{if(e.key==='Escape')this._hide(true);};}
-  connectedCallback(){super.connectedCallback();window.addEventListener('scroll',this._hideNow=()=>this._hide(true),{passive:true,capture:true});window.addEventListener('resize',this._hideNow);}
+  connectedCallback(){super.connectedCallback();this._hideNow=()=>{if(!this._open)return;const t=this.renderRoot.querySelector('.trigger');const r=t&&t.getBoundingClientRect();if(!r||r.bottom<0||r.top>innerHeight)this._hide(true);else this._place();};window.addEventListener('scroll',this._hideNow,{passive:true,capture:true});window.addEventListener('resize',this._hideNow);}
   disconnectedCallback(){super.disconnectedCallback();window.removeEventListener('scroll',this._hideNow,true);window.removeEventListener('resize',this._hideNow);document.removeEventListener('keydown',this._onKey);}
   _show(){clearTimeout(this._t);if(this._open)return;this._open=true;document.addEventListener('keydown',this._onKey);this.updateComplete.then(()=>this._place());}
   _hide(now){clearTimeout(this._t);const go=()=>{this._open=false;document.removeEventListener('keydown',this._onKey);};if(now)go();else this._t=setTimeout(go,140);}

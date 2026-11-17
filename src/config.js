@@ -21,8 +21,14 @@ export async function loadConfig(cwd) {
     process.exit(1);
   }
   const raw = await fs.readFile(configPath, 'utf8');
+  let parsed;
   try {
-    const parsed = JSON.parse(raw);
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    console.error(`  Error: docslit.json is not valid JSON.`);
+    process.exit(1);
+  }
+  try {
     if (!parsed.attributes || typeof parsed.attributes !== 'object' || Array.isArray(parsed.attributes)) {
       parsed.attributes = {};
     }
@@ -32,7 +38,7 @@ export async function loadConfig(cwd) {
     setMathConfig(parsed.math);
     return await expandAllSidebars(parsed, cwd, { warn: warnOnce });
   } catch (e) {
-    console.error(`  Error: docslit.json is not valid JSON.`);
+    console.error(`  Error: could not load docslit.json: ${e.message}`);
     process.exit(1);
   }
 }

@@ -5,7 +5,8 @@
 import path from 'path';
 import fs from 'fs-extra';
 import { parseFrontmatter } from '../frontmatter.js';
-import { expandSidebar } from '../auto-sidebar.js';
+import { expandAllSidebars } from '../auto-sidebar.js';
+import { buildPageTabMap, collectHiddenIds } from '../navigation.js';
 import { collectPageIds } from '../sidebar.js';
 import { ToolError } from './server.js';
 import { listCustomComponentTags } from '../custom-components.js';
@@ -65,22 +66,25 @@ export async function hasProjectConfig(dir) {
   return fs.pathExists(path.join(dir, 'docslit.json'));
 }
 
-/** Read docslit.json without exiting. Returns { config, sidebar, error }. */
+/** Read docslit.json without exiting. Returns { config, sidebar, tabs, error } (sidebar is flat; tabs is null without tabs). */
 export async function readProjectConfig(dir) {
   const configPath = path.join(dir, 'docslit.json');
-  if (!await fs.pathExists(configPath)) return { config: null, sidebar: [], error: 'docslit.json not found' };
+  if (!await fs.pathExists(configPath)) return { config: null, sidebar: [], tabs: null, error: 'docslit.json not found' };
   let config;
   try {
     config = JSON.parse(await fs.readFile(configPath, 'utf8'));
   } catch (e) {
-    return { config: null, sidebar: [], error: `docslit.json is not valid JSON: ${e.message}` };
+    return { config: null, sidebar: [], tabs: null, error: `docslit.json is not valid JSON: ${e.message}` };
   }
   let sidebar = [];
+  let tabs = null;
   try {
-    const expanded = await expandSidebar(config, path.join(dir, 'docs'));
+    // Expands autogenerate groups and tabs; with tabs, `sidebar` is the flat list of every tab's groups.
+    const expanded = await expandAllSidebars(config, dir);
     sidebar = Array.isArray(expanded.sidebar) ? expanded.sidebar : [];
+    tabs = Array.isArray(expanded.tabs) && expanded.tabs.length ? expanded.tabs : null;
   } catch { /* leave empty */ }
-  return { config, sidebar, error: null };
+  return { config, sidebar, tabs, error: null };
 }
 
 export async function walkDocs(dir) {
@@ -124,8 +128,11 @@ function sidebarIdGroups(sidebar) {
 
 /** All pages: sidebar order first, then any source files not in the sidebar. */
 export async function listProjectPages(dir) {
-  const { sidebar } = await readProjectConfig(dir);
+  const { sidebar, tabs } = await readProjectConfig(dir);
   const groups = sidebarIdGroups(sidebar);
+  const tabOf = tabs ? buildPageTabMap(tabs) : null;
+  const tabLabels = tabs ? new Map(tabs.map((t) => [t.id, t.label])) : null;
+  const hiddenIds = collectHiddenIds(sidebar);
   const files = await walkDocs(dir);
   const byId = new Map();
   for (const abs of files) {
@@ -148,12 +155,27 @@ export async function listProjectPages(dir) {
     const fid = lookupId(sid);
     if (!fid || used.has(fid)) continue;
     used.add(fid);
-    pages.push({ ...byId.get(fid), group: groups.get(sid) || null, inSidebar: true });
+    pages.push({
+      ...byId.get(fid), group: groups.get(sid) || null, inSidebar: true,
+      ...(tabOf ? { tab: tabLabels.get(tabOf.get(sid)) || null } : {}),
+      ...(hiddenIds.has(sid) ? { hidden: true } : {}),
+    });
   }
   for (const [id, p] of byId) {
-    if (!used.has(id)) pages.push({ ...p, group: null, inSidebar: false });
+    if (!used.has(id)) pages.push({ ...p, group: null, inSidebar: false, ...(tabOf ? { tab: null } : {}) });
   }
   return pages;
+}
+
+/** Tab overview for get_project_info: [{ tab, href? , groups: tree }]. */
+export async function tabsTree(dir, tabs) {
+  if (!tabs) return null;
+  const out = [];
+  for (const t of tabs) {
+    if (t.href) { out.push({ tab: t.label, href: t.href }); continue; }
+    out.push({ tab: t.label, ...(t.path ? { path: t.path } : {}), groups: await sidebarTree(dir, t.sidebar || []) });
+  }
+  return out;
 }
 
 /** Sidebar tree with titles resolved from frontmatter. */

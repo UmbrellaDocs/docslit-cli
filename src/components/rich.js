@@ -51,7 +51,7 @@ class WcEmbed extends LitElement {
       const host=info.provider==='youtube'?'YouTube':info.provider==='vimeo'?'Vimeo':'Loom';
       return html\`<div class="box \${this.poster?'poster':''}" style=\${boxStyle+(this.poster?';background-image:url('+this.poster+');background-size:cover;background-position:center':'')}><button type="button" class="facade" style=\${this.poster?'background:linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.45))':''} @click=\${()=>{this._play=true;}} aria-label=\${'Play video: '+title}><span class="play" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span><span class="ttl">\${this.title||'Play video'}</span><span class="note">Loads from \${host} when you press play</span></button></div>\`;
     }
-    return html\`<div class="box \${fixed?'fixed':''}" style=\${boxStyle}><iframe src=\${this._srcFor(info)} title=\${title} loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow=\${this.allow||'accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture'} allowfullscreen></iframe></div>\`;
+    return html\`<div class="box \${fixed?'fixed':''}" style=\${boxStyle}><iframe src=\${this._srcFor(info)} title=\${title} loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow=\${this.allow||'accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture'}></iframe></div>\`;
   }
 }
 customElements.define('wc-embed',WcEmbed);
@@ -174,8 +174,8 @@ class WcWalkthrough extends LitElement {
   constructor(){super();this._file=0;this._idx=-1;this._raf=0;this._manual=false;this._onScroll=()=>{if(this._raf)return;this._raf=requestAnimationFrame(()=>{this._raf=0;this._pick();});};}
   _files(){return Array.from(this.querySelectorAll(':scope > .wt-file'));}
   _targets(){return Array.from(this.querySelectorAll('wc-walkthrough-step, wc-walkthrough-substep'));}
-  connectedCallback(){super.connectedCallback();window.addEventListener('scroll',this._onScroll,{passive:true});window.addEventListener('resize',this._onScroll);}
-  disconnectedCallback(){super.disconnectedCallback();window.removeEventListener('scroll',this._onScroll);window.removeEventListener('resize',this._onScroll);}
+  connectedCallback(){super.connectedCallback();window.addEventListener('scroll',this._onScroll,{passive:true,capture:true});window.addEventListener('resize',this._onScroll);}
+  disconnectedCallback(){super.disconnectedCallback();window.removeEventListener('scroll',this._onScroll,true);window.removeEventListener('resize',this._onScroll);}
   firstUpdated(){
     if(this.panelHeight)this.style.setProperty('--wt-h',this.panelHeight);
     this._build();this._pick(true);

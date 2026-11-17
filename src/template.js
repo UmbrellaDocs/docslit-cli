@@ -310,7 +310,7 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
 
   const groupName = findGroupForPage(config.sidebar || [], id);
   const activeTab = tabsOn ? (config.tabs || []).find((t) => t.id === nav.activeTabId) : null;
-  const crumbParts = [activeTab ? tabLabel(activeTab, currentLocale) : '', groupName].filter(Boolean);
+  const crumbParts = [activeTab ? tabLabel(activeTab, currentLocale) : '', groupName].filter(Boolean).filter((p, i, a) => i === 0 || p.toLowerCase() !== a[i - 1].toLowerCase());
   const breadcrumbText = crumbParts.length ? `${crumbParts.map(escHtml).join(' › ')} › ${escHtml(pageTitle)}` : escHtml(pageTitle);
   const isApiPage = id.startsWith('api/') || meta.layout === 'api';
   const apiClass = isApiPage ? ' api-layout' : '';
@@ -342,7 +342,7 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
   const pageContent = (header.before ? html.replace(/<h1/, header.before + '<h1') : html).replace(/<\/h1>/, '</h1>' + metaBarHtml);
   const pageInfo = pageClientInfo(config, id, meta);
   const pageAttrs = docsPageAttrs({ ...pageInfo, tab: nav.activeTabId || pageInfo.tab }, nav);
-  const robotsTag = isNoindexMeta(meta) ? '\n  <meta name="robots" content="noindex">' : '';
+  const robotsTag = (isNoindexMeta(meta) || nav.hidden.has(id)) ? '\n  <meta name="robots" content="noindex">' : '';
   const documentTitle = pageOptions.headline || `${pageTitle} — ${siteTitle}`;
   const bodyClasses = [apiClass.trim(), ...bodyClassesFor(nav)].filter(Boolean).join(' ');
 
@@ -1235,13 +1235,15 @@ function _buildPrevNext(id) {
   h += '<nav class="page-nav">';
   if (prev) {
     const pid = _escHtml(prev.dataset.page);
+    const phref = _escHtml(_OFFLINE ? prev.dataset.page : _docsBase() + prev.dataset.page);
     const ptxt = _escHtml(_itemLabel(prev));
-    h += '<a class="page-nav-btn" href="' + pid + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + pid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">← Previous</span><span class="page-nav-title">' + ptxt + '</span></a>';
+    h += '<a class="page-nav-btn" href="' + phref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + pid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">← Previous</span><span class="page-nav-title">' + ptxt + '</span></a>';
   } else { h += '<span></span>'; }
   if (next) {
     const nid = _escHtml(next.dataset.page);
+    const nhref = _escHtml(_OFFLINE ? next.dataset.page : _docsBase() + next.dataset.page);
     const ntxt = _escHtml(_itemLabel(next));
-    h += '<a class="page-nav-btn next" href="' + nid + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + nid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">Next →</span><span class="page-nav-title">' + ntxt + '</span></a>';
+    h += '<a class="page-nav-btn next" href="' + nhref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + nid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">Next →</span><span class="page-nav-title">' + ntxt + '</span></a>';
   } else { h += '<span></span>'; }
   h += '</nav>';
   return h;
@@ -1528,7 +1530,7 @@ function _setBreadcrumb(id, title) {
   if (!crumb) return;
   var group = _groupFor(id);
   var tab = _tabLabelFor(id);
-  var trail = [tab, group].filter(Boolean).join(' \\u203A ');
+  var trail = (tab && group && tab.toLowerCase() === group.toLowerCase() ? [tab] : [tab, group]).filter(Boolean).join(' \\u203A ');
   crumb.textContent = trail ? trail + ' \\u203A ' + title : title;
 }
 function _pdfAssetHref(file) {

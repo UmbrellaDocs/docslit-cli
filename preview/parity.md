@@ -78,6 +78,7 @@ A shorter entry.
 
 <wc-accordion-group>
 <wc-accordion title="Open by default" description="With a description line" icon="circle-help" open>
+
 Accordion body with **Markdown** and a list:
 
 - one
@@ -85,7 +86,9 @@ Accordion body with **Markdown** and a list:
 
 </wc-accordion>
 <wc-accordion title="Closed item with `code`" icon="fa-solid fa-gear">
+
 Hidden until opened. Press Enter or Space on the header.
+
 </wc-accordion>
 </wc-accordion-group>
 
@@ -289,11 +292,11 @@ Install with <wc-copy clipboard="npm install -g docslit">npm install</wc-copy> a
 
 ## Aside
 
-<wc-aside title="Related" sticky>
+<wc-aside title="Related">
 A sticky aside floats right on wide screens and flows inline on small ones.
 </wc-aside>
 
-The aside above floats to the right of this paragraph. Scroll down: with `sticky` it stays pinned below the header. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+The aside above floats to the right of this paragraph. Add the `sticky` attribute (best near the top of a page) to keep it pinned below the header while scrolling. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
 
 ## Conditional content
 
@@ -350,7 +353,7 @@ console.log("done");
 
 ## Lists, images, math
 
-Images inside links do not zoom: [![inline logo](data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='24'%3E%3Crect width='80' height='24' fill='%2301696f'/%3E%3C/svg%3E)](https://example.com)
+Images inside links do not zoom: [![inline logo](data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='80'%20height='24'%3E%3Crect%20width='80'%20height='24'%20fill='%2301696f'/%3E%3C/svg%3E)](https://example.com)
 
 Inline math $E = mc^2$ and display math:
 

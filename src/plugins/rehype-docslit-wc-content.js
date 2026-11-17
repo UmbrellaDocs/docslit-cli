@@ -14,7 +14,7 @@ const CODE_TAGS = new Set([
   'wc-asciidoc-table',
 ]);
 
-const MD_SYNTAX_RE = /\*\*|__|\*[^*]|_[^_]|\[.*?\]\(|^#{1,6}\s|^[-*+]\s|^>\s|^```|^\|/m;
+const MD_SYNTAX_RE = /`[^`\n]+`|\*\*|__|\*[^*]|_[^_]|\[.*?\]\(|^#{1,6}\s|^[-*+]\s|^>\s|^```|^\|/m;
 
 let miniProcessor;
 let miniProcessorKey;
