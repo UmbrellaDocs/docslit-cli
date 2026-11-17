@@ -1,0 +1,37 @@
+---
+title: Layout components
+---
+
+<Columns cols={2}>
+  <Card title="One" icon="1">First column card.</Card>
+  <Card title="Two" icon="2">Second column card.</Card>
+</Columns>
+
+<Tile href="/quickstart" title="Preview tile" description="A tile with an image">
+  <img src="/images/diagram.svg" alt="Preview" />
+</Tile>
+
+<View title="Cloud" icon="cloud">
+  Cloud content.
+</View>
+<View title="Self-hosted" icon="server">
+  Self-hosted content.
+</View>
+
+<Panel>
+  Side note for the right rail.
+</Panel>
+
+<Visibility for="humans">Only people see this.</Visibility>
+
+<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" className="aspect-video w-full" title="Video" />
+
+<video src="/images/clip.mp4" controls />
+
+<MyChart data={[1, 2, 3]} title="Weekly events" />
+
+export const Pill = ({ label }) => (
+  <span className="pill" style={{ padding: 4 }}>{label}</span>
+);
+
+<Pill label="inline component" />

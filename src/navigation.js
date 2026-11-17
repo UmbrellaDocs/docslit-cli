@@ -20,6 +20,8 @@
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 
+import { themeLayoutDefaults } from './themes.js';
+
 export function slugify(text) {
   return String(text ?? '')
     .toLowerCase()
@@ -543,7 +545,7 @@ export function normalizeLength(v) {
  *   hideNav / hideFeedback / showDescription / contentAlignment ("center" | "left")
  */
 export function resolveSiteLayout(config) {
-  const raw = isObject(config?.layout) ? config.layout : {};
+  const raw = { ...themeLayoutDefaults(config), ...(isObject(config?.layout) ? config.layout : {}) };
   const values = {};
   const issues = [];
   const len = (key) => {

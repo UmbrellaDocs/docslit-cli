@@ -167,7 +167,6 @@ describe('parseDoc', () => {
     const { html } = await parseDoc('<Tip>Use cache</Tip>\n');
     expect(html).toContain('<wc-callout');
     expect(html).toContain('type="tip"');
-    expect(html).toContain('title="Tip"');
     expect(html).toContain('Use cache');
   });
 
@@ -176,7 +175,7 @@ describe('parseDoc', () => {
     const { html } = await parseDoc(raw);
     expect(html).toContain('<wc-card');
     expect(html).toContain('title="Quickstart"');
-    expect(html).toContain('icon-name="zap"'); // rocket → zap via FA_TO_LUCIDE
+    expect(html).toContain('icon="rocket"'); // icons pass through; resolved at build time
     expect(html).toContain('href="/start"');
   });
 
@@ -209,17 +208,16 @@ describe('parseDoc', () => {
     expect(html).not.toContain('<wc-callout');
   });
 
-  it('auto-numbers <Step> inside <Steps>', async () => {
-    const raw = '<Steps>\n<Step title="A">First</Step>\n<Step title="B">Second</Step>\n</Steps>\n';
+  it('does not force step numbers (numbering is automatic; only stepNumber maps to n)', async () => {
+    const raw = '<Steps>\n<Step title="A">First</Step>\n<Step title="B" stepNumber={4}>Second</Step>\n</Steps>\n';
     const { html } = await parseDoc(raw);
-    expect(html).toContain('n="1"');
-    expect(html).toContain('n="2"');
+    expect(html).not.toContain('n="1"');
+    expect(html).toContain('n="4"');
   });
 
-  it('drops <Tooltip> wrapper but keeps inner content (flatten)', async () => {
+  it('maps <Tooltip> to wc-tooltip and keeps inner content', async () => {
     const { html } = await parseDoc('Hover <Tooltip tip="hi">here</Tooltip> for info.\n');
-    expect(html).not.toContain('Tooltip');
-    expect(html).not.toContain('wc-tooltip');
+    expect(html).toContain('wc-tooltip');
     expect(html).toContain('Hover');
     expect(html).toContain('here');
   });
@@ -478,7 +476,7 @@ describe('rewriteMdxTags', () => {
   it('exports the COMPONENT_MAP with expected aliases', async () => {
     expect(COMPONENT_MAP.Tip.tag).toBe('wc-callout');
     expect(COMPONENT_MAP.CardGroup.tag).toBe('wc-tiles');
-    expect(COMPONENT_MAP.Tooltip.flatten).toBe(true);
+    expect(COMPONENT_MAP.Tooltip.tag).toBe('wc-tooltip');
   });
 });
 
@@ -1306,7 +1304,8 @@ describe('renderShell — accessibility', () => {
   it('includes focus-visible indicators', async () => {
     const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('*:focus-visible');
-    expect(html).toContain('outline: 2px solid var(--accent)');
+    expect(html).toContain('outline: var(--focus-w) solid var(--focus-color)');
+    expect(html).toContain('--focus-color: var(--accent)');
   });
 
   it('content links have underline for distinguishability', async () => {

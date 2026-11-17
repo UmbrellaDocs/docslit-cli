@@ -24,7 +24,7 @@ class WcStep extends LitElement {
     .titlebar{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;min-width:0}
     .title{font-family:var(--font-sans,'Inter',sans-serif);font-size:16px;font-weight:700;color:var(--text,#e2e8f0);word-break:break-word;line-height:1.4}
     ::slotted([slot="title"]){margin:0;padding:0;border:0;font:inherit;font-weight:700;color:var(--text,#e2e8f0);line-height:1.4}
-    .anchor{opacity:0;color:var(--text3,#737373);text-decoration:none;font-size:14px;border-radius:3px;transition:opacity .15s}
+    .anchor{opacity:0;color:var(--text3,#737373);text-decoration:none;font-size:14px;border-radius:var(--r-xs,3px);transition:opacity .15s}
     :host(:hover) .anchor,.anchor:focus-visible{opacity:1}
     .anchor:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:2px}
     .body{font-family:var(--font-sans,'Inter',sans-serif);font-size:14px;color:var(--text2,#a0a0a0);line-height:1.7;width:100%;box-sizing:border-box;min-width:0}
@@ -80,16 +80,16 @@ class WcTabs extends LitElement {
   static styles=css\`
     :host{display:block;margin:0 0 16px;min-width:0}
     :host([border-bottom]){border-bottom:1px solid var(--border,#2a2a2a);padding-bottom:20px;margin-bottom:24px}
-    .tabbar{display:flex;border-bottom:1px solid var(--border,#2a2a2a);gap:0;margin-bottom:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;min-width:0;scrollbar-width:none}
+    .tabbar{display:flex;border-bottom:var(--tabbar-line-w,1px) solid var(--border,#2a2a2a);gap:var(--tabbar-gap,0);margin-bottom:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;min-width:0;scrollbar-width:none}
     .tabbar::-webkit-scrollbar{display:none}
-    button{background:none;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-family:var(--font-sans,'Inter',sans-serif);font-size:14px;font-weight:500;color:var(--text3,#737373);cursor:pointer;margin-bottom:-1px;transition:color .15s,border-color .15s;white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;gap:8px}
-    button.active{color:var(--accent-light,#4f98a3);border-bottom-color:var(--accent,#01696f)}
+    button{background:var(--tabbtn-bg,none);border:none;border-bottom:var(--tabbtn-bar-w,2px) solid transparent;border-radius:var(--tabbtn-radius,0);padding:10px 18px;font-family:var(--font-sans,'Inter',sans-serif);font-size:14px;font-weight:500;color:var(--text3,#737373);cursor:pointer;margin-bottom:-1px;transition:color .15s,border-color .15s;white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;gap:8px}
+    button.active{color:var(--tabbtn-active-fg,var(--accent-light,#4f98a3));border-bottom-color:var(--tabbtn-active-bar,var(--accent,#01696f));background:var(--tabbtn-active-bg,var(--tabbtn-bg,none))}
     button:hover{color:var(--text,#f0f0f0)}
     button:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:-2px;border-radius:4px 4px 0 0}
     .ico{display:inline-flex;width:15px;height:15px}
     .ico svg{width:15px;height:15px}
     .panel{outline:none}
-    .panel:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:4px;border-radius:4px}
+    .panel:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:4px;border-radius:var(--r-xs,4px)}
     @media(max-width:640px){button{padding:8px 12px;font-size:12px;margin-bottom:0;border-bottom-width:3px}}
     @media(prefers-reduced-motion:reduce){button{transition:none}}
     @media print{.tabbar{display:none}}
@@ -139,7 +139,7 @@ class WcView extends LitElement {
     .toolbar{display:flex;align-items:center;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:2px;scrollbar-width:none}
     .toolbar::-webkit-scrollbar{display:none}
     button{background:none;border:none;border-bottom:2px solid transparent;padding:10px 14px;font-family:var(--font-sans,'Inter',sans-serif);font-size:13px;font-weight:500;color:var(--text3,#737373);cursor:pointer;white-space:nowrap;flex-shrink:0;transition:color .15s,border-color .15s;margin-bottom:-1px;display:inline-flex;align-items:center;gap:8px}
-    button.active{color:var(--accent-light,#4f98a3);border-bottom-color:var(--accent,#01696f)}
+    button.active{color:var(--tabbtn-active-fg,var(--accent-light,#4f98a3));border-bottom-color:var(--tabbtn-active-bar,var(--accent,#01696f));background:var(--tabbtn-active-bg,var(--tabbtn-bg,none))}
     button:hover{color:var(--text,#f0f0f0)}
     button:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:-2px;border-radius:4px 4px 0 0}
     .ico{display:inline-flex;width:14px;height:14px}

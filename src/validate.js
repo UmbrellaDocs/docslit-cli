@@ -17,7 +17,7 @@ import { findMathErrors, resolveMathConfig } from './math.js';
 import { parseArgs, assertCleanArgs, resolveFormat } from './cli-args.js';
 import { expandAllSidebars } from './auto-sidebar.js';
 import { expandCodeImports, CODE_IMPORT_FIXES } from './code-import.js';
-import { isValidThemePreset, listThemePresets, parseThemeConfig, loadThemeFile } from './themes.js';
+import { parseThemeConfig, loadThemeFile, resolveSiteTheme, diagnoseTheme, contrastIssues, looksLikeThemeFile } from './themes.js';
 import { checkNavigation, checkPageNavigation } from './nav-validate.js';
 import { isNavFrontmatterKey, isLinkItem, collectIds } from './navigation.js';
 
@@ -348,8 +348,10 @@ function flattenSidebarPages(pages, onInvalid) {
     if (typeof p === 'string') out.push(p);
     else if (p && typeof p === 'object' && typeof p.id === 'string') out.push(p.id);
     else if (isLinkItem(p)) continue; // { href, title } link entries are not pages
-    else if (p && typeof p === 'object' && Array.isArray(p.pages)) out.push(...flattenSidebarPages(p.pages, onInvalid));
-    else onInvalid(p);
+    else if (p && typeof p === 'object' && Array.isArray(p.pages)) {
+      if (typeof p.root === 'string' && p.root) out.push(p.root); // group "root" page (title links to it)
+      out.push(...flattenSidebarPages(p.pages, onInvalid));
+    } else onInvalid(p);
   }
   return out;
 }
@@ -401,6 +403,7 @@ async function checkConfig(dir) {
         `Group "${group.group}" has no "pages" array`));
       continue;
     }
+    if (typeof group.root === 'string' && group.root) slugs.add(group.root);
     for (const slug of flattenSidebarPages(group.pages, (bad) => {
       issues.push(issue('error', 'docslit.json', null,
         `Group "${group.group}" contains a non-string page slug: ${JSON.stringify(bad)}`));
@@ -481,17 +484,10 @@ async function checkConfig(dir) {
 
   if (config.theme != null) {
     const parsed = parseThemeConfig(config);
-    if (typeof config.theme === 'string' && !isValidThemePreset(config.theme) && !parsed.file) {
-      issues.push(issue('error', 'docslit.json', null,
-        `Unknown theme preset "${config.theme}". Use a preset name, a theme file path, or docslit theme list`));
+    for (const d of diagnoseTheme(config)) {
+      issues.push(issue(d.level, 'docslit.json', null, d.message, { code: d.code, fix: d.fix }));
     }
     if (typeof config.theme === 'object' && !Array.isArray(config.theme)) {
-      const base = parsed.basePreset;
-      if (!isValidThemePreset(base)) {
-        const names = listThemePresets().map(t => t.id).join(', ');
-        issues.push(issue('error', 'docslit.json', null,
-          `Unknown theme preset "${base}". Available presets: ${names}`));
-      }
       for (const layer of ['colors', 'dark', 'light']) {
         const obj = parsed[layer];
         if (obj && Object.keys(obj).length) {
@@ -502,22 +498,11 @@ async function checkConfig(dir) {
           }
         }
       }
-      if (parsed.file) {
-        const themePath = path.resolve(dir, parsed.file);
-        if (!await fs.pathExists(themePath)) {
-          issues.push(issue('error', 'docslit.json', null, `Theme file not found: ${parsed.file}`));
-        } else {
-          try {
-            await loadThemeFile(parsed.file, dir);
-          } catch (e) {
-            issues.push(issue('error', parsed.file, null, e.message, { code: 'theme-file-invalid', fix: 'Fix the theme file contents (see `docslit theme init`)' }));
-          }
-        }
-      }
     } else if (typeof config.theme !== 'string') {
       issues.push(issue('error', 'docslit.json', null,
-        '"theme" must be a preset name, theme file path, or theme config object'));
-    } else if (parsed.file) {
+        '"theme" must be a theme name, palette name, theme file path, or theme config object'));
+    }
+    if (parsed.file && (typeof config.theme === 'object' || looksLikeThemeFile(config.theme))) {
       const themePath = path.resolve(dir, parsed.file);
       if (!await fs.pathExists(themePath)) {
         issues.push(issue('error', 'docslit.json', null, `Theme file not found: ${parsed.file}`));
@@ -528,6 +513,18 @@ async function checkConfig(dir) {
           issues.push(issue('error', parsed.file, null, e.message, { code: 'theme-file-invalid', fix: 'Fix the theme file contents (see `docslit theme init`)' }));
         }
       }
+    }
+    if (!issues.some((i) => i.level === 'error' && /^theme-/.test(i.code || ''))) {
+      try {
+        const resolved = await resolveSiteTheme(config, dir);
+        if (resolved.isCustom) {
+          for (const c of contrastIssues(resolved)) {
+            issues.push(issue('warning', 'docslit.json', null,
+              `Theme (${c.mode} mode): ${c.pair} has contrast ${c.ratio}:1, below the WCAG AA minimum of ${c.min}:1`,
+              { code: 'theme-low-contrast', fix: 'Pick a lighter/darker colour, or leave the key unset so DocsLit derives an accessible value' }));
+          }
+        }
+      } catch { /* a broken theme file is reported above */ }
     }
   }
 

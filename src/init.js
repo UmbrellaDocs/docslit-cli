@@ -2,9 +2,22 @@ import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
 import { detectEditUrl } from './config.js';
+import { isThemeName, isValidPalette, suggestName, allThemeIds, allPaletteIds } from './themes.js';
 
 export async function init(args) {
-  const dirName = args.find((a) => !a.startsWith('--')) || 'my-docs';
+  const themeIdx = args.indexOf('--theme');
+  const themeArg = themeIdx >= 0 ? args[themeIdx + 1] : undefined;
+  if (themeIdx >= 0) {
+    const known = themeArg && (isThemeName(themeArg) || isValidPalette(themeArg));
+    if (!known) {
+      const near = themeArg ? suggestName(themeArg, [...allThemeIds().filter((t) => t !== 'classic'), ...allPaletteIds()]) : null;
+      console.error(pc.red(`  Error: ${themeArg ? `Unknown theme "${themeArg}".${near ? ` Did you mean "${near}"?` : ''}` : '--theme needs a value.'}`));
+      console.error(pc.dim(`  Themes: ${allThemeIds().filter((t) => t !== 'classic').join(', ')}; palettes: ${allPaletteIds().join(', ')}`));
+      process.exit(1);
+    }
+  }
+  const rest = args.filter((a, i) => !(i === themeIdx || (themeIdx >= 0 && i === themeIdx + 1)));
+  const dirName = rest.find((a) => !a.startsWith('--')) || 'my-docs';
   const writeAgents = !args.includes('--no-agents');
   const target = path.resolve(process.cwd(), dirName);
 
@@ -30,6 +43,7 @@ export async function init(args) {
     ]
   };
   if (editUrl) config.editUrl = editUrl;
+  if (themeArg) config.theme = themeArg;
   await fs.writeFile(path.join(target, 'docslit.json'), JSON.stringify(config, null, 2));
 
   // docs/introduction.md

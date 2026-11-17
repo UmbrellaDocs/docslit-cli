@@ -25,9 +25,9 @@ wc-aside { margin: 0 0 20px 28px; }
 @media (max-width: 900px) { wc-aside { margin: 16px 0; } }
 
 /* ── pre-upgrade boxes ── */
-wc-callout:not(:defined), wc-alert:not(:defined) { padding: 16px 20px; border: 1px solid var(--border); border-radius: 10px; min-height: 58px; box-sizing: border-box; }
-wc-card:not(:defined) { padding: 22px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); min-height: 96px; box-sizing: border-box; }
-wc-accordion:not(:defined), wc-expandable:not(:defined) { border: 1px solid var(--border); border-radius: 10px; box-sizing: border-box; }
+wc-callout:not(:defined), wc-alert:not(:defined) { padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--r-lg,10px); min-height: 58px; box-sizing: border-box; }
+wc-card:not(:defined) { padding: 22px; border: 1px solid var(--border); border-radius: var(--r-xl,12px); background: var(--surface); min-height: 96px; box-sizing: border-box; }
+wc-accordion:not(:defined), wc-expandable:not(:defined) { border: 1px solid var(--border); border-radius: var(--r-lg,10px); box-sizing: border-box; }
 wc-accordion:not(:defined):not([open]) > *, wc-expandable:not(:defined):not([open]) > * { display: none; }
 wc-github-repo:not(:defined) { min-height: 112px; max-width: 520px; }
 wc-embed { aspect-ratio: 16 / 9; width: 100%; }
@@ -36,7 +36,7 @@ wc-embed[ratio="1/1"], wc-embed[ratio="1:1"] { aspect-ratio: 1 / 1; }
 wc-embed[ratio="21/9"], wc-embed[ratio="21:9"] { aspect-ratio: 21 / 9; }
 wc-embed[ratio="9/16"], wc-embed[ratio="9:16"] { aspect-ratio: 9 / 16; max-width: 360px; }
 wc-embed[height] { aspect-ratio: auto; }
-wc-embed:not(:defined) { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; box-sizing: border-box; overflow: hidden; }
+wc-embed:not(:defined) { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-lg,10px); box-sizing: border-box; overflow: hidden; }
 wc-embed:not(:defined) > a { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--accent-light); }
 wc-update:not(:defined) { min-height: 64px; }
 wc-colors:not(:defined) { min-height: 80px; }
@@ -54,13 +54,13 @@ wc-table .table-wrap { overflow: visible; margin: 0; }
 .wt-file .wl.dim { opacity: .35; }
 .wt-file .wl.hl { background: var(--accent-dim2); }
 html.light .wt-file .line span, html.light .wt-inline .line span { color: var(--shiki-light) !important; }
-.wt-inline { display: none; margin: 10px 0 4px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--code-bg, #161616); }
+.wt-inline { display: none; margin: 10px 0 4px; border: 1px solid var(--border); border-radius: var(--r-md,8px); overflow: hidden; background: var(--code-bg, #161616); }
 .wt-inline-name { padding: 6px 12px; font: 500 12px var(--font-mono, monospace); color: var(--text3); border-bottom: 1px solid var(--border); background: var(--surface2); }
 .wt-inline pre { margin: 0; padding: 10px 0; overflow-x: auto; font: 13px/1.65 var(--font-mono, monospace); color: var(--code-text, #e2e8f0); background: none; border: 0; }
 .wt-inline .wl { display: block; }
 wc-walkthrough:not(:defined) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
 wc-walkthrough:not(:defined) > wc-walkthrough-step { grid-column: 1; }
-wc-walkthrough:not(:defined) > .wt-file { grid-column: 2; grid-row: 1 / span 40; border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: min(70vh, 34rem); }
+wc-walkthrough:not(:defined) > .wt-file { grid-column: 2; grid-row: 1 / span 40; border: 1px solid var(--border); border-radius: var(--r-lg,10px); overflow: auto; max-height: min(70vh, 34rem); }
 wc-walkthrough:not(:defined) > .wt-file ~ .wt-file { display: none; }
 @media (max-width: 900px) {
   wc-walkthrough .wt-inline { display: block; }

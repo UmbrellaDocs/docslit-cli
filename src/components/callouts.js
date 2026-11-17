@@ -13,7 +13,7 @@ class WcCallout extends LitElement {
     :host([type="error"]),:host([type="danger"]){--c:#ef4444}
     :host([type="success"]),:host([type="check"]){--c:#10b981}
     :host([type="note"]){--c:#a855f7}
-    .wrap{display:flex;gap:12px;padding:16px 20px;border-radius:var(--radius-lg,10px);border:1px solid color-mix(in srgb,var(--c) 32%,transparent);background:color-mix(in srgb,var(--c) 9%,transparent);min-width:0;font-family:var(--font-sans,'Inter',sans-serif)}
+    .wrap{display:flex;gap:12px;padding:var(--callout-pad,16px 20px);border-radius:var(--callout-radius,var(--radius-lg,10px));border:1px solid color-mix(in srgb,var(--c) var(--callout-border-mix,32%),transparent);border-left:var(--callout-bar-w,1px) solid color-mix(in srgb,var(--c) var(--callout-bar-mix,32%),transparent);background:color-mix(in srgb,var(--c) var(--callout-bg-mix,9%),var(--callout-bg-base,transparent));min-width:0;font-family:var(--font-sans,'Inter',sans-serif)}
     .ico{display:inline-flex;flex-shrink:0;width:20px;height:20px;margin-top:1px;font-size:20px;line-height:1;color:color-mix(in srgb,var(--c) 70%,var(--text,#f0f0f0))}
     .ico ::slotted(span),.ico ::slotted(svg){display:inline-flex;width:20px;height:20px}
     .body{flex:1;font-size:14px;line-height:1.7;min-width:0;overflow:hidden;color:var(--text2,#a0a0a0)}
@@ -47,7 +47,7 @@ class WcBanner extends LitElement {
     .ico{display:inline-flex;width:16px;height:16px;flex-shrink:0;color:color-mix(in srgb,var(--c) 70%,var(--text,#f0f0f0))}
     .ico ::slotted(span),.ico ::slotted(svg){display:inline-flex;width:16px;height:16px}
     .solid .ico{color:inherit}
-    .close{background:none;border:none;cursor:pointer;color:inherit;opacity:.65;font-size:16px;line-height:1;padding:4px 6px;flex-shrink:0;transition:opacity .15s;border-radius:4px}
+    .close{background:none;border:none;cursor:pointer;color:inherit;opacity:.65;font-size:16px;line-height:1;padding:4px 6px;flex-shrink:0;transition:opacity .15s;border-radius:var(--r-xs,4px)}
     .close:hover{opacity:1}
     .close:focus-visible{outline:2px solid currentColor;outline-offset:1px}
     ::slotted(*){margin:0}
@@ -85,8 +85,8 @@ class WcBadge extends LitElement {
     :host([variant="tip"]),:host([variant="launch"]){--c:var(--accent,#01696f)}
     :host([variant="white"]){--c:var(--text,#f0f0f0)}
     :host([variant="surface"]){--c:var(--text3,#737373)}
-    span{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:6px;font-family:var(--font-sans,'Inter',sans-serif);font-size:12px;line-height:1.5;font-weight:600;border:1px solid color-mix(in srgb,var(--c) 35%,transparent);background:color-mix(in srgb,var(--c) 14%,transparent);color:color-mix(in srgb,var(--c) 65%,var(--text,#f0f0f0));white-space:nowrap}
-    span.pill{border-radius:100px}
+    span{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:var(--r-sm,6px);font-family:var(--font-sans,'Inter',sans-serif);font-size:12px;line-height:1.5;font-weight:600;border:1px solid color-mix(in srgb,var(--c) 35%,transparent);background:color-mix(in srgb,var(--c) 14%,transparent);color:color-mix(in srgb,var(--c) 65%,var(--text,#f0f0f0));white-space:nowrap}
+    span.pill{border-radius:var(--r-pill,100px)}
     span.xs{font-size:10px;padding:0 6px}
     span.sm{font-size:11px;padding:1px 8px}
     span.lg{font-size:14px;padding:4px 14px}
@@ -150,7 +150,7 @@ class WcUpdate extends LitElement {
   static styles=css\`
     :host{display:block;margin:0 0 20px;--c:var(--accent,#01696f)}
     .wrap{display:flex;align-items:flex-start;gap:14px;padding:14px 18px;border-radius:var(--radius-lg,10px);border:1px solid var(--border,#2a2a2a);background:var(--surface,#111)}
-    .badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:100px;font-family:var(--font-sans,'Inter',sans-serif);font-size:11px;font-weight:700;border:1px solid color-mix(in srgb,var(--c) 35%,transparent);background:color-mix(in srgb,var(--c) 14%,transparent);color:color-mix(in srgb,var(--c) 65%,var(--text,#f0f0f0));white-space:nowrap;flex-shrink:0;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+    .badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:var(--r-pill,100px);font-family:var(--font-sans,'Inter',sans-serif);font-size:11px;font-weight:700;border:1px solid color-mix(in srgb,var(--c) 35%,transparent);background:color-mix(in srgb,var(--c) 14%,transparent);color:color-mix(in srgb,var(--c) 65%,var(--text,#f0f0f0));white-space:nowrap;flex-shrink:0;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
     .added{--c:#10b981}.changed,.updated{--c:#3b82f6}.fixed{--c:#f59e0b}.removed,.deprecated{--c:#ef4444}.security{--c:#a855f7}
     .body{flex:1;min-width:0;font-family:var(--font-sans,'Inter',sans-serif);font-size:14px;color:var(--text2,#a0a0a0);line-height:1.7}
     .meta{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
@@ -159,12 +159,12 @@ class WcUpdate extends LitElement {
     /* timeline layout (label / description / tags) */
     .tl{display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:8px 32px;padding:8px 0 24px;border:none;background:none;border-radius:0;border-top:1px solid var(--border,#2a2a2a)}
     .side{display:flex;flex-direction:column;gap:6px;align-items:flex-start;font-family:var(--font-sans,'Inter',sans-serif)}
-    .label{font-size:15px;font-weight:700;color:var(--text,#f0f0f0);text-decoration:none;border-radius:3px}
+    .label{font-size:15px;font-weight:700;color:var(--text,#f0f0f0);text-decoration:none;border-radius:var(--r-xs,3px)}
     .label:hover{color:var(--accent-light,#4f98a3)}
     .label:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:2px}
     .desc{font-size:13px;color:var(--text3,#737373)}
     .tags{display:flex;flex-wrap:wrap;gap:6px}
-    .tag{font-size:11px;font-weight:600;padding:1px 8px;border-radius:100px;border:1px solid var(--border2,#3a3a3a);color:var(--text2,#a0a0a0);background:var(--surface,#111)}
+    .tag{font-size:11px;font-weight:600;padding:1px 8px;border-radius:var(--r-pill,100px);border:1px solid var(--border2,#3a3a3a);color:var(--text2,#a0a0a0);background:var(--surface,#111)}
     .tl .body{padding-top:2px}
     ::slotted(:first-child){margin-top:0}
     ::slotted(:last-child){margin-bottom:0}

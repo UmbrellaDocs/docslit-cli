@@ -21,10 +21,11 @@ import { normalizeBasePath, logoFiles } from './site-config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export async function dev({ port = 3000 } = {}) {
+export async function dev({ port = 3000, themePicker = false } = {}) {
   const cwd = process.cwd();
   const [config] = await Promise.all([loadConfig(cwd), initHighlighter()]);
   let siteTheme = await resolveSiteTheme(config, cwd);
+  if (themePicker) siteTheme.picker = true;
 
   console.log(`\n  ${pc.bold('DocsLit')} dev server starting...\n`);
 
@@ -126,6 +127,7 @@ export async function dev({ port = 3000 } = {}) {
 
   async function reloadSiteTheme(cfg) {
     siteTheme = await resolveSiteTheme(cfg, cwd);
+    if (themePicker) siteTheme.picker = true;
   }
 
   // Watch for changes

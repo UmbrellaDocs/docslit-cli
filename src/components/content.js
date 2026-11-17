@@ -12,22 +12,22 @@ class WcCard extends LitElement {
     :host([type="check"]){--c:#10b981}
     :host([type="note"]){--c:#a855f7}
     :host([type="tip"]){--c:var(--accent,#01696f)}
-    .card{display:flex;flex-direction:column;height:100%;box-sizing:border-box;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--radius-lg,12px);overflow:hidden;text-decoration:none;color:inherit;transition:border-color .2s,transform .2s,box-shadow .2s;position:relative}
+    .card{display:flex;flex-direction:column;height:100%;box-sizing:border-box;background:var(--card-bg,var(--surface,#111));border:1px solid var(--card-border,var(--border,#2a2a2a));border-radius:var(--card-radius,var(--radius-lg,12px));box-shadow:var(--card-shadow,none);overflow:hidden;text-decoration:none;color:inherit;transition:border-color .2s,transform .2s,box-shadow .2s,background-color .2s;position:relative}
     .card.typed{background:color-mix(in srgb,var(--c) 8%,var(--surface,#111));border-color:color-mix(in srgb,var(--c) 32%,transparent)}
-    a.card:hover{border-color:var(--border2,#3a3a3a);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.15)}
+    a.card:hover{border-color:var(--card-border-hover,var(--border2,#3a3a3a));background:var(--card-bg-hover,var(--card-bg,var(--surface,#111)));transform:translateY(var(--card-lift,-2px));box-shadow:var(--card-shadow-hover,0 8px 24px rgba(0,0,0,.15))}
     a.card:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:2px}
     .card.img-left,.card.img-right{flex-direction:row}
     .card.img-right{flex-direction:row-reverse}
     .card.img-bottom{flex-direction:column-reverse}
     .pic{display:block;width:100%;height:auto;max-height:200px;object-fit:cover;background:var(--surface2,#1a1a1a)}
     .img-left .pic,.img-right .pic{width:38%;max-height:none;height:auto}
-    .inner{display:flex;gap:14px;padding:22px;flex:1;min-width:0;flex-direction:column;align-items:flex-start}
+    .inner{display:flex;gap:14px;padding:var(--card-pad,22px);flex:1;min-width:0;flex-direction:column;align-items:flex-start}
     .inner.row{flex-direction:row;align-items:flex-start}
     .ico{width:var(--isz,36px);height:var(--isz,36px);flex-shrink:0;background:color-mix(in srgb,var(--ic,var(--c)) 15%,transparent);color:color-mix(in srgb,var(--ic,var(--c)) 70%,var(--text,#f0f0f0));border-radius:var(--radius,8px);display:flex;align-items:center;justify-content:center;font-size:calc(var(--isz,36px) * .5)}
     .ico ::slotted(span),.ico ::slotted(svg){display:inline-flex;width:calc(var(--isz,36px) * .5);height:calc(var(--isz,36px) * .5)}
     .ico ::slotted(.dl-emoji){width:auto;height:auto;font-size:inherit}
     .text{min-width:0;flex:1}
-    .title{font-family:var(--font-sans,'Inter',sans-serif);font-size:16px;font-weight:700;color:var(--text,#f0f0f0);margin-bottom:6px;line-height:1.35}
+    .title{font-family:var(--font-sans,'Inter',sans-serif);font-size:var(--card-title-fs,16px);font-weight:var(--card-title-weight,700);color:var(--text,#f0f0f0);margin-bottom:6px;line-height:1.35}
     .body{font-family:var(--font-sans,'Inter',sans-serif);font-size:14px;color:var(--text2,#a0a0a0);line-height:1.6}
     ::slotted(*){color:var(--text2,#a0a0a0);font-size:14px;line-height:1.6;margin-top:0;margin-bottom:8px}
     ::slotted(:last-child){margin-bottom:0}
@@ -71,7 +71,7 @@ class WcTile extends LitElement {
     a:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:2px}
     .pv{flex-direction:column;gap:12px;padding:12px}
     .preview{width:100%;box-sizing:border-box;min-height:120px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--surface2,#1a1a1a);border:1px solid var(--border,#2a2a2a);border-radius:var(--radius,8px);padding:12px}
-    ::slotted(img),::slotted(svg),::slotted(wc-image){max-width:100%;max-height:220px;height:auto;margin:0 !important;border-radius:4px}
+    ::slotted(img),::slotted(svg),::slotted(wc-image){max-width:100%;max-height:220px;height:auto;margin:0 !important;border-radius:var(--r-xs,4px)}
     .icon{width:38px;height:38px;background:var(--accent-dim,rgba(1,105,111,.12));border:1px solid var(--accent-dim2,rgba(1,105,111,.2));border-radius:var(--radius,8px);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;color:var(--accent-light,#4f98a3)}
     .icon ::slotted(span),.icon ::slotted(svg){display:inline-flex;width:18px;height:18px}
     .info{display:flex;flex-direction:column;gap:3px;min-width:0;padding:0 2px}
@@ -116,7 +116,7 @@ class WcButton extends LitElement {
     .sm{padding:6px 14px;font-size:13px}
     .md{padding:10px 20px;font-size:14px}
     .lg{padding:13px 26px;font-size:15px}
-    .rounded{border-radius:100px}
+    .rounded{border-radius:var(--r-pill,100px)}
     .mono{font-family:var(--font-mono,'JetBrains Mono',monospace);font-weight:500}
     .primary,.success,.warning{background:var(--c);color:#fff}
     .success,.warning{color:#fff}
@@ -163,7 +163,7 @@ class WcPrompt extends LitElement {
     .ico{display:inline-flex;width:15px;height:15px;flex-shrink:0}
     .ico ::slotted(span),.ico ::slotted(svg){display:inline-flex;width:15px;height:15px}
     .acts{display:flex;gap:6px;flex-wrap:wrap}
-    .btn{background:none;border:1px solid color-mix(in srgb,var(--c) 30%,transparent);border-radius:6px;padding:4px 10px;font-family:var(--font-sans,'Inter',sans-serif);font-size:11px;font-weight:600;color:color-mix(in srgb,var(--c) 65%,var(--text,#f0f0f0));cursor:pointer;text-decoration:none;transition:background .15s;display:inline-flex;align-items:center}
+    .btn{background:none;border:1px solid color-mix(in srgb,var(--c) 30%,transparent);border-radius:var(--r-sm,6px);padding:4px 10px;font-family:var(--font-sans,'Inter',sans-serif);font-size:11px;font-weight:600;color:color-mix(in srgb,var(--c) 65%,var(--text,#f0f0f0));cursor:pointer;text-decoration:none;transition:background .15s;display:inline-flex;align-items:center}
     .btn:hover{background:color-mix(in srgb,var(--c) 12%,transparent)}
     .btn:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:2px}
     .btn.copied{color:#10b981;border-color:rgba(16,185,129,.4)}

@@ -291,34 +291,27 @@
       "additionalProperties": true
     },
     "theme": {
-      "description": "Brand theme: a built-in preset name, a path to a theme JSON file, or an inline theme object.",
+      "description": "Pick a prebuilt look and palette: a theme name, a palette name, a path to a theme JSON file, or an inline theme object. THEME = layout, typography and shape; PALETTE = colours. Any theme works with any palette and custom colours. Run `docslit theme list`.",
       "oneOf": [
         {
           "type": "string",
-          "description": "Preset name (teal, ocean, forest, slate, violet, rose, amber, graphite) or path to a theme JSON file."
+          "description": "Theme (default, peppermint, frond, tonal, folio, ledger), palette (teal, ocean, forest, slate, violet, rose, amber, graphite, mint, ink, paper, steel, iris) or path to a theme JSON file. A theme name uses that theme's signature palette; a palette name keeps the classic look.",
+          "examples": [
+            "peppermint",
+            "ocean",
+            "./brand-theme.json"
+          ]
         },
         {
           "type": "object",
           "properties": {
-            "extends": {
-              "type": "string",
-              "description": "Preset to start from (teal, ocean, forest, slate, violet, rose, amber, graphite). Default: teal."
-            },
-            "preset": {
-              "type": "string",
-              "description": "Alias of \"extends\"."
-            },
-            "file": {
-              "type": "string",
-              "description": "Path to a theme JSON file to merge in (see `docslit theme init`)."
-            },
-            "id": {
-              "type": "string",
-              "description": "Identifier for the custom theme."
-            },
             "name": {
               "type": "string",
-              "description": "Display name; used to derive the id when \"id\" is omitted."
+              "description": "Theme id (default, peppermint, frond, tonal, folio, ledger). Any other value is a brand display name used to derive \"id\"."
+            },
+            "palette": {
+              "type": "string",
+              "description": "Colour palette (teal, ocean, forest, slate, violet, rose, amber, graphite, mint, ink, paper, steel, iris). Default: the theme's signature palette."
             },
             "colors": {
               "$ref": "#/$defs/stringMap",
@@ -334,7 +327,48 @@
             },
             "fonts": {
               "$ref": "#/$defs/stringMap",
-              "description": "Font stacks (for example fontSans, fontMono)."
+              "description": "Font stacks and shape overrides (sans, heading, mono, radius, radiusLg). Themes ship system-font fallbacks; custom fonts must be loaded by your own css."
+            },
+            "radius": {
+              "type": "string",
+              "description": "Corner radius scale: none, sm, md, lg, xl, full, or a length such as \"6px\". Overrides the theme's radii.",
+              "examples": [
+                "md",
+                "6px"
+              ]
+            },
+            "appearance": {
+              "type": "string",
+              "enum": [
+                "system",
+                "light",
+                "dark"
+              ],
+              "description": "Default colour mode for first-time visitors. Readers can still toggle unless \"strict\" is true."
+            },
+            "strict": {
+              "type": "boolean",
+              "description": "Hide the light/dark toggle and always use \"appearance\"."
+            },
+            "theme": {
+              "type": "string",
+              "description": "Explicit theme id (alternative to \"name\" when \"name\" is a brand label)."
+            },
+            "extends": {
+              "type": "string",
+              "description": "Legacy: palette to start from (alias of \"palette\"). A theme id here selects that theme."
+            },
+            "preset": {
+              "type": "string",
+              "description": "Alias of \"extends\"."
+            },
+            "file": {
+              "type": "string",
+              "description": "Path to a theme JSON file to merge in (see `docslit theme init`)."
+            },
+            "id": {
+              "type": "string",
+              "description": "Identifier for the custom theme."
             }
           },
           "additionalProperties": true
@@ -815,6 +849,10 @@
           }
         }
       ]
+    },
+    "themePicker": {
+      "type": "boolean",
+      "description": "Show a floating theme/palette/mode picker in the built site (for galleries and demos). Off by default; `docslit dev --theme-picker` enables it in development only."
     }
   },
   "patternProperties": {

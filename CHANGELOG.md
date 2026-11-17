@@ -19,6 +19,8 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ### What's new
 
+- **Prebuilt themes.** `"theme": "peppermint"` (airy SaaS look, familiar to Mintlify users), `"frond"` (crisp technical, familiar to Fern users), `"tonal"` (Material 3 style, accents and surfaces derived from one seed colour), `"folio"` (book / knowledge base) and `"ledger"` (API reference), plus the unchanged `"default"`. A theme is the look (layout, type, shape); a palette is the colour set, so any theme works with any palette and brand colours: `{ "theme": { "name": "tonal", "palette": "ocean", "appearance": "light" } }`. Existing configs (`"theme": "ocean"`, theme objects, theme files) render exactly as before. New palettes: mint, ink, paper, steel, iris. New commands: `docslit theme list [--json]`, `theme use <theme> [--palette <p>]`, `theme tokens [--json]`, `init --theme`, and `docslit dev --theme-picker` to try every combination live. Themed sites meet WCAG AA contrast for every derived colour; `validate` suggests the nearest name for typos and warns about low-contrast custom colours.
+
 #### AI agent tooling
 
 - **`docslit mcp`**: a Model Context Protocol server over stdio. In a project (authoring mode) it offers 13 tools (`get_project_info`, `list_pages`, `read_page`, `search_docs`, `list_components`, `get_component`, `get_authoring_guide`, `get_schema`, `create_page`, `update_page`, `validate`, `check_markup`, `preview_page`), resources and prompts. With a site URL (reader mode) it offers `get_docs_overview`, `list_pages`, `get_page` and `search_docs` for any published DocsLit site. `--print-config [claude|cursor|vscode] [url]` prints client config.

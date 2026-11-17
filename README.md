@@ -111,39 +111,31 @@ docslit lint --strict       # quality findings fail too
 
 `validate` checks component attributes and nesting against the built-in manifest (the `check_markup` MCP tool runs the same checks on a snippet). Look up one component with `docslit components <tag> --json`. Every issue in `--format json` has a stable `code`, a `line` and a `fix`.
 
-## Migrating from Mintlify
+## Migrating from Mintlify, Fern or GitBook
 
 ```bash
-docslit import ./my-mintlify-docs
+docslit import ./my-docs --out ./my-docs-site        # auto-detects Mintlify (docs.json or mint.json), Fern or GitBook
+docslit import ./my-docs --dry-run --json            # report only, machine-readable
 ```
 
-This detects `mint.json`, converts MDX components to DocsLit web components, strips `import`/`export` lines, copies static assets, generates `docslit.json` and prints a migration report. Output goes to `./my-mintlify-docs-docslit/` (use `--out` to change it). Use `--dry-run` to preview.
+The importer converts every page (MDX components, code blocks, snippets, links, assets), the navigation and the site config (branding, redirects, analytics, OpenAPI), validates the result and writes `MIGRATION.md`: every item that needs a human, grouped by severity with `file:line`, what was done instead and how to fix it. Nothing is silently dropped; custom React components are kept inside a marked placeholder callout. Flags: `--from`, `--out`, `--dry-run`, `--theme <name>` / `--no-theme`, `--versions tabs|latest`, `--force`, `--json`. The source folder is never modified.
 
-### Component mapping
+### Component mapping (short version)
 
-| Mintlify | DocsLit |
+| Mintlify / Fern | DocsLit |
 |----------|---------|
-| `<Note>`, `<Info>` | `<wc-callout type="info">` |
-| `<Warning>`, `<Caution>` | `<wc-callout type="warning">` |
-| `<Danger>` | `<wc-callout type="error">` |
-| `<Tip>` | `<wc-callout type="tip">` |
-| `<Check>`, `<Success>` | `<wc-callout type="success">` |
-| `<Card>` | `<wc-card>` |
-| `<CardGroup>` | `<wc-tiles>` |
+| `<Note>` `<Info>` `<Tip>` `<Warning>` `<Check>` `<Danger>` (Fern also `<Success>` `<Error>` `<Launch>`) | `<wc-callout type="...">` |
+| `<Card>` / `<CardGroup>` / `<Tile>` | `<wc-card>` / `<wc-tiles>` / `<wc-tile>` |
 | `<Tabs>` / `<Tab>` | `<wc-tabs>` / `<wc-tab>` |
-| `<Accordion>` / `<AccordionGroup>` | `<wc-accordion>` / `<wc-accordion-group>` |
-| `<Steps>` / `<Step>` | `<wc-steps>` / `<wc-step>` (auto-numbered) |
-| `<CodeGroup>` | `<wc-code-group>` |
-| `<Frame>` | `<wc-frame>` |
-| `<Badge>` | `<wc-badge>` (`color` → `variant`) |
-| `<Expandable>` | `<wc-expandable>` (`defaultOpen` → `open`) |
-| `<Update>` | `<wc-update>` (`label` → `version`) |
-| `<ParamField>` | `<wc-field>` (`path`/`query`/`body`/`header` → `name` + `in`) |
-| `<ResponseField>` | `<wc-field>` |
-| `<Tooltip>` | text content only (inlined) |
-| `<Icon>` | removed |
+| `<Accordion>` / `<AccordionGroup>` / `<Expandable>` | `<wc-accordion>` / `<wc-accordion-group>` / `<wc-expandable>` |
+| `<Steps>` / `<Step>` | `<wc-steps>` / `<wc-step>` |
+| `<CodeGroup>` / `<CodeBlocks>` / `<RequestExample>` | `<wc-code-group>` |
+| `<ParamField>` / `<ResponseField>` | `<wc-field>` in `<wc-fields>` / `<wc-response-fields>` |
+| `<Frame>` `<Badge>` `<Button>` `<Tooltip>` `<Icon>` `<Update>` `<View>` `<Tree>` `<Files>` `<Prompt>` `<Color>` | `wc-frame` `wc-badge` `wc-button` `wc-tooltip` `wc-icon` `wc-update` `wc-view` `wc-files` `wc-files` `wc-prompt` `wc-colors` |
+| `<iframe>` / `<video>` | `<wc-embed>` |
+| `import X from '/snippets/x.mdx'` | `docs/_reusables/x.md` + `<wc-include src="x.md" />` |
 
-Also works with **Fern**, **GitBook**, **Docusaurus**, **MkDocs**, **Sphinx**, **ReadMe**, **VuePress**, **VitePress**, **Starlight** and **Nextra** projects. DocsLit auto-discovers all `.md` and `.mdx` files and builds the sidebar from the folder structure.
+See `skills/docslit-migrate.md` (or the docs site) for the full table, every attribute mapping and how to fix each kind of manual item. Other Markdown/MDX sites (Docusaurus, MkDocs, Sphinx, VitePress, Starlight, Nextra) import as plain folders with an auto-generated sidebar.
 
 ## docslit.json
 

@@ -24,7 +24,7 @@ class WcFrame extends LitElement {
     .frame.bordered{border:1px solid var(--border,#2a2a2a)}
     .frame.subtle{background:var(--surface2,#1a1a1a)}
     .inner{padding:24px;display:flex;align-items:center;justify-content:center;min-width:0}
-    ::slotted(img),::slotted(wc-image){max-width:100%;height:auto;display:block;border-radius:6px;margin:0 !important}
+    ::slotted(img),::slotted(wc-image){max-width:100%;height:auto;display:block;border-radius:var(--r-sm,6px);margin:0 !important}
     ::slotted(iframe),::slotted(wc-embed){width:100%}
     ::slotted(*){max-width:100%}
     figcaption{padding:10px 16px;font-family:var(--font-sans,'Inter',sans-serif);font-size:13px;color:var(--text3,#737373);border-top:1px solid var(--border,#2a2a2a);text-align:center}
@@ -42,7 +42,7 @@ class WcPanel extends LitElement {
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text:#0f0f0f;--text2:#555}
-    .wrap{border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden;background:var(--surface,#111)}
+    .wrap{border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);overflow:hidden;background:var(--surface,#111)}
     .header{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--border,#2a2a2a);background:var(--surface2,#1a1a1a)}
     .icon{font-size:16px;flex-shrink:0;line-height:1;display:inline-flex;width:16px;height:16px}
     .icon ::slotted(span),.icon ::slotted(svg){display:inline-flex;width:16px;height:16px}

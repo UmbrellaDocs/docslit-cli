@@ -111,6 +111,8 @@ Project root config (JSON). Page ids in \`sidebar\` map to \`docs/<id>.md\`.
 
 Sidebar forms: explicit groups with \`pages\` (strings, nested {group,pages}), \`autogenerate\` (a docs/ subdirectory; pages appear automatically, ordered by \`sidebar_position\`), or the string \`"auto"\` for the whole tree. create_page only edits explicit groups.
 
+Look: \`"theme": "peppermint"\` picks a prebuilt theme (layout, type, shape); a palette sets colours: \`"theme": { "name": "tonal", "palette": "ocean" }\`. Themes: default, peppermint (airy SaaS look, familiar to Mintlify users), frond (crisp technical, familiar to Fern users), tonal (Material-3 style), folio (book / knowledge base), ledger (API reference). Palettes: teal, ocean, forest, slate, violet, rose, amber, graphite, mint, ink, paper, steel, iris. Brand colours go in \`theme.colors\` (accent, ...); \`theme.appearance\` sets the default mode. CLI: \`docslit theme list --json\`, \`docslit theme use <theme> [--palette <p>]\`, \`docslit theme tokens --json\` (design tokens).
+
 Top-level keys:
 ${lines.join('\n')}
 

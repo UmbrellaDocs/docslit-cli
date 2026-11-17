@@ -14,6 +14,7 @@ import { slugify as slugifyTab } from '../navigation.js';
 import { runValidation } from '../validate.js';
 import { ToolError } from './server.js';
 import { GUIDE_TOPICS, getGuide, HOW_TO_WORK } from './guide.js';
+import { resolveSiteThemeSync, listThemes, listPalettes } from '../themes.js';
 import { searchDocs } from './search.js';
 import {
   resolvePage, normalizePageId, hasProjectConfig, readProjectConfig, listProjectPages, sidebarTree, tabsTree,
@@ -73,6 +74,15 @@ function componentsMarkdown() {
   }
   out.push('', '(* = required) Use get_component { tag } for descriptions and examples.');
   return out.join('\n');
+}
+
+function themeSummary(config) {
+  try {
+    const r = resolveSiteThemeSync(config);
+    return { theme: r.themeName, palette: r.paletteId, customColours: r.isCustom, appearance: r.appearance, strict: r.strict, availableThemes: listThemes().map((t) => t.id), availablePalettes: listPalettes().map((p) => p.id), hint: 'Change with `docslit theme use <theme> [--palette <p>]`; token reference: `docslit theme tokens --json`.' };
+  } catch {
+    return null;
+  }
 }
 
 function detectFeatures(config, sidebarRaw) {
@@ -191,6 +201,7 @@ export function createAuthoringDefinition({ dir, version = '1.0.0' }) {
           versions,
           i18n,
           features: detectFeatures(config, config.sidebar),
+          theme: themeSummary(config),
           globalVariables: Object.keys(config.attributes || {}),
           customComponents: await customComponentTags(dir),
         };
@@ -496,6 +507,28 @@ export function createAuthoringDefinition({ dir, version = '1.0.0' }) {
       },
     },
     {
+      name: 'convert_mdx',
+      title: 'Convert MDX from Mintlify/Fern/GitBook',
+      description: 'Convert ONE page or snippet written for Mintlify (MDX), Fern (MDX) or GitBook (`{% hint %}` blocks) into DocsLit Markdown with wc-* components, WITHOUT writing anything. Returns the converted `markdown` (frontmatter included), `issues` (each with severity, code, line, what was done instead and how to fix it: unknown/custom components are kept inside a clearly marked "Unconverted component" callout, never dropped) and `components` converted. Run check_markup on the result, fix the listed issues, then create_page. For a whole project use `docslit import` instead.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          source: { type: 'string', description: 'The page source (optionally with frontmatter).' },
+          from: { type: 'string', enum: ['mintlify', 'fern', 'gitbook'], description: 'Source platform (default mintlify). Fern adds default code line numbers and Fern-only components; gitbook converts `{% %}` blocks.' },
+        },
+        required: ['source'],
+        additionalProperties: false,
+      },
+      annotations: { title: 'Convert MDX', ...RO },
+      async handler({ source, from }) {
+        const { convertMdxSource } = await import('../import.js');
+        const r = await convertMdxSource(source, { from: from || 'mintlify' });
+        const custom = await customComponentTags(dir);
+        const markup = checkMarkup(r.markdown, { customTags: custom });
+        return { ...r, markup: { ok: markup.ok, summary: markup.summary, issues: markup.issues } };
+      },
+    },
+    {
       name: 'preview_page',
       title: 'Preview page structure',
       description: 'Render a page through the real Markdown pipeline (includes, variables, components) and return a text outline: headings, components used, word count and any render error. Use it to sanity-check structure after writing. Set html:true to also get the rendered HTML (truncated).',
@@ -674,7 +707,8 @@ ${source}
 
 Process:
 1. get_authoring_guide { topic: "overview" } and { topic: "components" }; get_project_info to choose the group and match existing conventions.
-2. Map source constructs to DocsLit components - never keep foreign tags: Callout/Note/Warning/Tip -> wc-callout (type=info|tip|warning|error|success|note); Steps -> wc-steps/wc-step; Tabs -> wc-tabs/wc-tab (label=); CodeGroup -> wc-code-group/wc-code-tab (label=); Accordion -> wc-accordion-group/wc-accordion; Card/CardGroup -> wc-tiles/wc-tile or wc-card (icon-name=); ParamField/ResponseField -> wc-fields/wc-field; Frame/Image -> wc-frame; Mermaid -> wc-mermaid. Use get_component to confirm attributes. Strip imports/exports and JSX expressions.
+1b. Call convert_mdx { source, from } first: it converts Mintlify/Fern/GitBook syntax mechanically and lists what needs a human (issues with line numbers). Then review its output instead of converting by hand.
+2. If you convert by hand, map source constructs to DocsLit components - never keep foreign tags: Callout/Note/Warning/Tip -> wc-callout (type=info|tip|warning|error|success|note); Steps -> wc-steps/wc-step; Tabs -> wc-tabs/wc-tab (label=); CodeGroup -> wc-code-group/wc-code-tab (label=); Accordion -> wc-accordion-group/wc-accordion; Card/CardGroup -> wc-tiles/wc-tile or wc-card (icon-name=); ParamField/ResponseField -> wc-fields/wc-field; Frame/Image -> wc-frame; Mermaid -> wc-mermaid. Use get_component to confirm attributes. Strip imports/exports and JSX expressions.
 3. Keep all content, code samples and links; convert links to DocsLit page ids/paths and move frontmatter to title/description (get_schema { kind: "frontmatter" }).
 4. check_markup the result, create_page, then validate { page } and fix every issue (missing assets must be added or the reference removed - say which). Summarize what changed and anything you could not map.`)],
         };

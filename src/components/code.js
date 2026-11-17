@@ -54,11 +54,11 @@ class WcVar extends LitElement {
   static properties={name:{type:String},default:{type:String},readonly:{type:Boolean},_editing:{type:Boolean,state:true},_value:{type:String,state:true}};
   static styles=css\`
     :host{display:inline;vertical-align:baseline}
-    .badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:4px;background:rgba(1,105,111,.1);border:1px solid rgba(1,105,111,.3);font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;font-style:italic;color:#3d7a83;cursor:pointer;transition:background .15s,border-color .15s;vertical-align:baseline;line-height:inherit}
+    .badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:var(--r-xs,4px);background:rgba(1,105,111,.1);border:1px solid rgba(1,105,111,.3);font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;font-style:italic;color:#3d7a83;cursor:pointer;transition:background .15s,border-color .15s;vertical-align:baseline;line-height:inherit}
     .badge:hover{background:rgba(1,105,111,.18);border-color:rgba(1,105,111,.5)}
     .pencil{font-style:normal;font-size:.8em;opacity:.6}
     .edit-wrap{display:inline-flex;align-items:center;gap:4px;vertical-align:baseline}
-    input{font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;color:#3d7a83;background:rgba(1,105,111,.08);border:1px solid rgba(1,105,111,.4);border-radius:4px;padding:1px 7px;outline:none;min-width:60px;width:auto;line-height:inherit}
+    input{font-family:'JetBrains Mono',monospace;font-size:.9em;font-weight:600;color:#3d7a83;background:rgba(1,105,111,.08);border:1px solid rgba(1,105,111,.4);border-radius:var(--r-xs,4px);padding:1px 7px;outline:none;min-width:60px;width:auto;line-height:inherit}
     input:focus{border-color:#01696f;box-shadow:0 0 0 2px rgba(1,105,111,.15)}
     .clear-btn{background:none;border:none;cursor:pointer;color:#3d7a83;font-size:14px;padding:0 2px;line-height:1;opacity:.6;transition:opacity .15s}
     .clear-btn:hover{opacity:1}
@@ -231,10 +231,10 @@ function _cbScrollables(host){
 }
 
 const _cbSharedStyles=css\`
-  :host{display:block;margin:0 0 20px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;--cb-fs:13px;--cb-lh:1.7;--cb-pady:16px;--cb-padx:20px;--cb-head:40px;--cb-r:var(--radius-lg,12px)}
+  :host{display:block;margin:0 0 20px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;--cb-fs:var(--code-block-fs,13px);--cb-lh:1.7;--cb-pady:16px;--cb-padx:20px;--cb-head:var(--code-head-h,40px);--cb-r:var(--code-radius,var(--radius-lg,12px))}
   :host([data-in-group]){display:none}
   *{box-sizing:border-box}
-  .wrap{--_bg:var(--code-bg,#161616);--_fg:var(--code-text,#e2e8f0);--_bd:var(--border,#2a2a2a);--_bar:var(--surface,#111);--_mut:var(--text2,#a0a0a0);--_hov:var(--accent-light,#4f98a3);--_acc:var(--accent,#01696f);position:relative;width:100%;background:var(--_bg);color:var(--_fg);border:1px solid var(--_bd);border-radius:var(--cb-r);font-family:var(--font-sans,'Inter',system-ui,sans-serif)}
+  .wrap{--_bg:var(--code-bg,#161616);--_fg:var(--code-text,#e2e8f0);--_bd:var(--code-border,var(--border,#2a2a2a));--_bar:var(--code-bar-bg,var(--surface,#111));--_mut:var(--text2,#a0a0a0);--_hov:var(--accent-light,#4f98a3);--_acc:var(--accent,#01696f);position:relative;width:100%;background:var(--_bg);color:var(--_fg);border:1px solid var(--_bd);box-shadow:var(--code-shadow,none);border-radius:var(--cb-r);font-family:var(--font-sans,'Inter',system-ui,sans-serif)}
   .wrap.th-dark{--_add:var(--code-add,#3fb950);--_rem:var(--code-remove,#f85149);--_warn:var(--code-warn,#d29922);--_dim:.5;color-scheme:dark}
   .wrap.th-light{--_add:var(--code-add,#1a7f37);--_rem:var(--code-remove,#cf222e);--_warn:var(--code-warn,#9a6700);--_dim:.55;color-scheme:light}
   .wrap.alt.th-dark{--_bg:var(--code-bg-dark,#161616);--_fg:var(--code-text-dark,#e2e8f0);--_bd:var(--border-dark,#2a2a2a);--_bar:var(--surface-dark,#111);--_mut:var(--text2-dark,#a0a0a0);--_hov:var(--accent-light-dark,#4f98a3);--_acc:var(--accent-dark,#01696f)}
@@ -456,7 +456,7 @@ class WcCodeGroup extends _CbBase {
     .tab{appearance:none;display:inline-flex;align-items:center;gap:6px;flex:none;margin:0 0 -1px;padding:0 14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--_mut);font:500 12px/1 var(--font-mono,'JetBrains Mono',ui-monospace,monospace);white-space:nowrap;cursor:pointer;transition:color .15s,border-color .15s}
     .tab:hover{color:var(--_fg)}
     .tab[aria-selected="true"]{color:var(--_fg);border-bottom-color:var(--_hov)}
-    .tab:focus-visible{outline:2px solid var(--_hov);outline-offset:-3px;border-radius:4px}
+    .tab:focus-visible{outline:2px solid var(--_hov);outline-offset:-3px;border-radius:var(--r-xs,4px)}
     .dd-wrap{position:relative;display:inline-flex;align-items:center;flex:0 1 auto;min-width:0;margin-left:10px}
     .dd-wrap::after{content:'';position:absolute;right:11px;top:50%;width:5px;height:5px;margin-top:-4px;border:solid var(--_mut);border-width:0 1.5px 1.5px 0;transform:rotate(45deg);pointer-events:none}
     .tabbar .actions{margin-left:auto}

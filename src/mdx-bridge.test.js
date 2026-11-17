@@ -14,7 +14,7 @@ const SAMPLE = `
 <Success>s</Success>
 
 <CardGroup cols={2}>
-<Card title="A" href="a" icon="rocket" color="#fff">body</Card>
+<Card title="A" href="a" icon="rocket">body</Card>
 </CardGroup>
 
 <Tabs>
@@ -39,25 +39,25 @@ const SAMPLE = `
 
 </CodeGroup>
 
-<Frame caption="cap" type="glass">![x](x.png)</Frame>
+<Frame caption="cap">![x](x.png)</Frame>
 
 <Columns cols={2}>
 <Column>left</Column>
 <Column>right</Column>
 </Columns>
 
-<Panel title="P">p</Panel>
+<Panel>p</Panel>
 
-<Badge color="green">ok</Badge> <Badge color="nonsense">x</Badge> <Badge variant="info">v</Badge>
+<Badge color="green">ok</Badge> <Badge color="nonsense">x</Badge>
 
 <Expandable title="More" defaultOpen>e</Expandable>
-<Update label="v1" date="May 2026">u</Update>
+<Update label="v1" description="May 2026">u</Update>
 
 <AsciidocTable cols="1,1" options="header" stripes="even">
 a|b
 </AsciidocTable>
 
-<Tooltip tip="t">hover</Tooltip> <Icon icon="x" /> <Snippet file="a.mdx" />
+<Tooltip tip="t">hover</Tooltip> <Icon icon="rocket" /> <Snippet file="a.mdx" />
 `;
 
 const FIELDS = `
@@ -103,11 +103,11 @@ describe('mdx-bridge output matches the component manifest', () => {
   });
 
   it('maps specific attributes correctly', () => {
-    expect(out).toContain('<wc-callout type="error" title="Danger">');
+    expect(out).toContain('<wc-callout type="danger">');
     expect(out).toContain('<wc-badge variant="success">');
     expect(out).toContain('<wc-expandable title="More" open>');
-    expect(out).toContain('<wc-update version="v1" date="May 2026">');
-    expect(out).not.toMatch(/defaultOpen|color=|label="v1"/);
+    expect(out).toContain('<wc-update label="v1" description="May 2026">');
+    expect(out).not.toMatch(/defaultOpen|color=/);
     expect(FIELDS).toContain('in="path" name="id"');
     expect(FIELDS).toContain('in="query" name="q"');
   });
@@ -116,5 +116,13 @@ describe('mdx-bridge output matches the component manifest', () => {
     const { issues } = checkMarkup(out + FIELDS);
     const bad = issues.filter((i) => /attribute|value/.test(i.code));
     expect(bad).toEqual([]);
+  });
+});
+
+describe('mdx-bridge keeps blank lines around fences inside a CodeGroup', () => {
+  it('does not strip the blank lines that Markdown needs', () => {
+    const out = rewriteMdxTags('<CodeGroup>\n\n```js a\n1\n```\n\n```py b\n2\n```\n\n</CodeGroup>');
+    expect(out).toContain('<wc-code-group>\n\n```js a');
+    expect(out).toContain('```\n\n</wc-code-group>');
   });
 });

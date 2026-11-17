@@ -25,8 +25,11 @@ export const COMMANDS = [
     name: 'init', group: 'Create and write',
     usage: ['docslit init [dir]'],
     summary: 'Scaffold a new docs project (default dir: my-docs). Also writes AGENTS.md.',
-    options: [['--no-agents', 'Do not write AGENTS.md']],
-    examples: ['docslit init my-docs', 'docslit init my-docs --no-agents'],
+    options: [
+      ['--no-agents', 'Do not write AGENTS.md'],
+      ['--theme <name>', 'Start with a theme (default, peppermint, frond, tonal, folio, ledger) or a palette; see `docslit theme list`'],
+    ],
+    examples: ['docslit init my-docs', 'docslit init my-docs --no-agents', 'docslit init my-docs --theme peppermint'],
   },
   {
     name: 'new', group: 'Create and write',
@@ -45,11 +48,18 @@ export const COMMANDS = [
   {
     name: 'import', group: 'Create and write',
     usage: ['docslit import <source-dir> [options]'],
-    summary: 'Migrate a Mintlify (or Fern/GitBook) project: converts MDX components, generates docslit.json and prints a migration report.',
+    summary: 'Migrate a Mintlify (docs.json or mint.json), Fern or GitBook project: converts MDX components, code blocks, links, assets and config (navigation, branding, redirects, analytics), validates the result and writes MIGRATION.md listing everything that needs a human.',
     options: [
-      ['--out <dir>', 'Output directory (default: <source-dir>-docslit)'],
-      ['--dry-run', 'Scan and report without writing files'],
+      ['--out <dir>', 'Output directory (default: <source-dir>-docslit). Never the source dir; refused when not empty unless --force'],
+      ['--from <mintlify|fern|gitbook>', 'Skip auto-detection and treat the source as this format'],
+      ['--dry-run', 'Convert and report everything without writing files'],
+      ['--theme <name>', 'Built-in theme to apply (default: peppermint for Mintlify, frond for Fern), plus the source brand colours'],
+      ['--no-theme', 'Do not select a built-in theme (brand colours are still applied)'],
+      ['--versions <tabs|latest>', 'Versioned navigation: one tab per version (default) or only the default version'],
+      ['--force', 'Overwrite a non-empty output directory'],
+      ['--json', 'Print the migration report (summary, components, config mapping, items with file:line/severity/fix, validation) as JSON'],
     ],
+    examples: ['docslit import ./my-mintlify-docs --out ./docs-site', 'docslit import ./fern --from fern --theme frond --json', 'docslit import ./site --dry-run'],
   },
   {
     name: 'openapi', group: 'Create and write',
@@ -62,16 +72,24 @@ export const COMMANDS = [
   },
   {
     name: 'theme', group: 'Create and write',
-    usage: ['docslit theme init [file]', 'docslit theme list'],
-    summary: 'Scaffold a brand theme file (default: brand-theme.json, wired into docslit.json), or list the built-in presets and theme variables.',
-    options: [],
+    usage: ['docslit theme list [--json]', 'docslit theme use <theme> [--palette <palette>]', 'docslit theme tokens [--json] [--theme <id>]', 'docslit theme init [file]'],
+    summary: 'Pick a prebuilt look. A theme (default, peppermint, frond, tonal, folio, ledger) sets layout, type and shape; a palette (teal, ocean, mint, ...) sets colours; any theme works with any palette. `use` edits docslit.json in place, `tokens` prints the design-token reference, `init` scaffolds a brand theme file (default: brand-theme.json).',
+    options: [
+      ['--palette <name>', 'With `use`: the colour palette to pair with the theme'],
+      ['--json', 'With `list` or `tokens`: machine-readable output (for agents)'],
+      ['--theme <id>', 'With `tokens`: show the values for that theme (default: the project theme)'],
+    ],
+    examples: ['docslit theme list', 'docslit theme use peppermint', 'docslit theme use tonal --palette ocean', 'docslit theme tokens --json'],
   },
 
   {
     name: 'dev', group: 'Build and preview',
     usage: ['docslit dev [options]'],
     summary: 'Start the local dev server with live reload.',
-    options: [['--port <number>', 'Port to listen on (default: 3000)']],
+    options: [
+      ['--port <number>', 'Port to listen on (default: 3000)'],
+      ['--theme-picker', 'Show a floating control to try every theme, palette and mode on your content (dev only; never written to builds)'],
+    ],
   },
   {
     name: 'build', group: 'Build and preview',

@@ -14,26 +14,26 @@ class WcField extends LitElement {
     .name{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--text,#f0f0f0)}
     :host([deprecated]) .name{text-decoration:line-through;opacity:.6}
     .type-label{font-family:'Inter',sans-serif;font-size:12px;color:var(--text3,#666)}
-    .in-badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface2,#1a1a1a);color:var(--text3,#666);border:1px solid var(--border,#2a2a2a);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-    .lbl{font-family:var(--font-sans,'Inter',sans-serif);font-size:10px;font-weight:600;padding:1px 6px;border-radius:3px;background:var(--accent-dim,rgba(1,105,111,.15));color:var(--accent-light,#4f98a3);border:1px solid var(--accent-dim2,rgba(1,105,111,.25));white-space:nowrap}
-    .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+    .in-badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:1px 6px;border-radius:var(--r-xs,3px);background:var(--surface2,#1a1a1a);color:var(--text3,#666);border:1px solid var(--border,#2a2a2a);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+    .lbl{font-family:var(--font-sans,'Inter',sans-serif);font-size:10px;font-weight:600;padding:1px 6px;border-radius:var(--r-xs,3px);background:var(--accent-dim,rgba(1,105,111,.15));color:var(--accent-light,#4f98a3);border:1px solid var(--accent-dim2,rgba(1,105,111,.25));white-space:nowrap}
+    .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-xs,3px);background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
     .desc{color:var(--text2,#a0a0a0);line-height:1.6;font-size:13px;margin-top:6px}
-    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:3px;color:#4f98a3}
+    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:#4f98a3}
     .desc a{color:#4f98a3;text-decoration:none}
     .desc a:hover{text-decoration:underline}
     .constraint{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .default-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
     .example-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-top:4px}
-    .example-val code{font-size:11px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:3px;color:#4f98a3}
-    .enum-box{margin-top:10px;border:1px solid var(--border,#2a2a2a);border-radius:8px;overflow:hidden}
+    .example-val code{font-size:11px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:#4f98a3}
+    .enum-box{margin-top:10px;border:1px solid var(--border,#2a2a2a);border-radius:var(--r-md,8px);overflow:hidden}
     .enum-title{font-size:12px;font-weight:600;color:var(--text,#f0f0f0);padding:10px 14px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a)}
     .enum-item{padding:10px 14px;border-bottom:1px solid var(--border,#2a2a2a)}
     .enum-item:last-child{border-bottom:none}
-    .enum-val{font-family:'JetBrains Mono',monospace;font-size:12px;padding:2px 8px;border-radius:4px;background:rgba(1,105,111,.1);color:#4f98a3;display:inline-block}
+    .enum-val{font-family:'JetBrains Mono',monospace;font-size:12px;padding:2px 8px;border-radius:var(--r-xs,4px);background:rgba(1,105,111,.1);color:#4f98a3;display:inline-block}
     .toggle-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 14px;border:1px solid var(--border,#2a2a2a);border-radius:20px;background:transparent;font-family:'Inter',sans-serif;font-size:12px;color:var(--text2,#a0a0a0);cursor:pointer;transition:all .15s;user-select:none}
     .toggle-btn:hover{border-color:var(--text3,#666);color:var(--text,#f0f0f0)}
     .toggle-icon{font-size:10px;line-height:1}
-    .children{margin-top:10px;border:1px solid var(--border,#2a2a2a);border-radius:8px;overflow:hidden}
+    .children{margin-top:10px;border:1px solid var(--border,#2a2a2a);border-radius:var(--r-md,8px);overflow:hidden}
     .children-header{display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;color:var(--text2,#a0a0a0);cursor:pointer;user-select:none;transition:color .15s}
     .children-header:hover{color:var(--text,#f0f0f0)}
     .children-header .icon{font-size:11px}
@@ -84,7 +84,7 @@ class WcFields extends LitElement {
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text3:#737373}
-    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);overflow:hidden}
     .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666)}
     .body{padding:0 16px}
   \`;
@@ -99,7 +99,7 @@ class WcResponseFields extends LitElement {
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text3:#737373}
-    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);overflow:hidden}
     .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666)}
     .body{padding:0 16px}
   \`;
@@ -116,7 +116,7 @@ class WcResponse extends LitElement {
     :host([theme="light"]){--border:#e2e2e2;--text2:#555;--text3:#737373}
     .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:13px}
     .row:last-child{border-bottom:none}
-    .code{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap}
+    .code{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:2px 8px;border-radius:var(--r-xs,4px);white-space:nowrap}
     .c2{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
     .c3{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
     .c4{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
@@ -137,7 +137,7 @@ class WcResponses extends LitElement {
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text3:#666}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text3:#737373}
-    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);overflow:hidden}
     .header{padding:10px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3,#666)}
     .body{padding:0 16px}
   \`;
@@ -226,7 +226,7 @@ class WcTable extends LitElement {
     th:last-child,td:last-child{border-right:none}
     tr:last-child td{border-bottom:none}
     tr:hover td{background:rgba(128,128,128,.04)}
-    code{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:12px;background:var(--accent-dim,rgba(1,105,111,.1));padding:1px 6px;border-radius:3px;color:var(--accent-light,#4f98a3)}
+    code{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:12px;background:var(--accent-dim,rgba(1,105,111,.1));padding:1px 6px;border-radius:var(--r-xs,3px);color:var(--accent-light,#4f98a3)}
     .bar{display:flex;align-items:center;gap:12px;margin:0 0 10px}
     input{flex:1;max-width:380px;box-sizing:border-box;padding:8px 12px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--radius,8px);color:var(--text,#f0f0f0);font-family:var(--font-sans,'Inter',sans-serif);font-size:14px}
     input:focus-visible{outline:2px solid var(--accent,#01696f);outline-offset:1px}
@@ -265,7 +265,7 @@ class WcAsciidocTable extends LitElement {
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--adoc-border:#2a2a2a;--adoc-surface:#111}
     :host([theme="light"]){--adoc-border:#e2e2e2;--adoc-surface:#f8f8f8}
-    .wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--adoc-border,var(--border,#2a2a2a));border-radius:10px;background:var(--adoc-surface,var(--surface,#111))}
+    .wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--adoc-border,var(--border,#2a2a2a));border-radius:var(--r-lg,10px);background:var(--adoc-surface,var(--surface,#111))}
     ::slotted(.adoc-table-wrap){display:block}
   \`;
   render(){return html\`<div class="wrap"><slot></slot></div>\`;}
@@ -279,7 +279,7 @@ class WcSchema extends LitElement {
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#737373}
-    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);overflow:hidden}
     .header{padding:14px 18px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .type-name{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--text,#f0f0f0)}
     .extends{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text3,#666)}
@@ -298,18 +298,18 @@ class WcMermaid extends LitElement {
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--border:#2a2a2a;--text3:#666}
     :host([theme="light"]){--surface:#f8f8f8;--border:#e2e2e2;--text3:#737373}
-    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;padding:24px;overflow-x:auto;text-align:center;position:relative}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);padding:24px;overflow-x:auto;text-align:center;position:relative}
     .loading{color:#555;font-family:'Inter',sans-serif;font-size:13px}
     .error{color:#f87171;font-family:'JetBrains Mono',monospace;font-size:12px;white-space:pre-wrap;text-align:left}
     .diagram{display:inline-block;max-width:100%}
     .diagram svg{max-width:100%;height:auto}
-    .expand-btn{position:absolute;top:10px;right:10px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:6px;padding:5px 8px;cursor:pointer;color:var(--text3,#666);font-size:14px;line-height:1;display:flex;align-items:center;gap:4px;font-family:'Inter',sans-serif;font-size:11px;transition:color .15s,border-color .15s;z-index:1}
+    .expand-btn{position:absolute;top:10px;right:10px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-sm,6px);padding:5px 8px;cursor:pointer;color:var(--text3,#666);font-size:14px;line-height:1;display:flex;align-items:center;gap:4px;font-family:'Inter',sans-serif;font-size:11px;transition:color .15s,border-color .15s;z-index:1}
     .expand-btn:hover{color:#4f98a3;border-color:#4f98a3}
     .overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:32px;box-sizing:border-box}
-    .modal{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:12px;padding:48px 32px 32px;width:90vw;height:90vh;overflow:auto;position:relative;display:flex;align-items:center;justify-content:center}
+    .modal{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-xl,12px);padding:48px 32px 32px;width:90vw;height:90vh;overflow:auto;position:relative;display:flex;align-items:center;justify-content:center}
     .modal-diagram{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
     .modal-diagram svg{width:100%;height:100%;max-width:100%;max-height:100%}
-    .close-btn{position:absolute;top:12px;right:12px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:6px;padding:6px 12px;cursor:pointer;color:var(--text3,#666);font-family:'Inter',sans-serif;font-size:12px;transition:color .15s,border-color .15s;z-index:1}
+    .close-btn{position:absolute;top:12px;right:12px;background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-sm,6px);padding:6px 12px;cursor:pointer;color:var(--text3,#666);font-family:'Inter',sans-serif;font-size:12px;transition:color .15s,border-color .15s;z-index:1}
     .close-btn:hover{color:#f87171;border-color:#f87171}
   \`;
   constructor(){super();this._expanded=false;}
@@ -345,9 +345,9 @@ class WcEndpoint extends LitElement {
     :host{display:block;margin:0 0 16px;min-width:0}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666;--code-text:#e2e8f0}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#737373;--code-text:#24292f}
-    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);overflow:hidden}
     .url-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);flex-wrap:wrap;gap:8px}
-    .method{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:3px 10px;border-radius:4px;flex-shrink:0;text-transform:uppercase}
+    .method{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:3px 10px;border-radius:var(--r-xs,4px);flex-shrink:0;text-transform:uppercase}
     .GET{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
     .POST{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
     .PUT,.PATCH{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
@@ -355,12 +355,12 @@ class WcEndpoint extends LitElement {
     .url{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text,#f0f0f0);word-break:break-all}
     .security{display:flex;gap:6px;padding:8px 16px;border-bottom:1px solid var(--border,#2a2a2a);flex-wrap:wrap;align-items:center;font-family:'Inter',sans-serif;font-size:11px}
     .security-label{color:var(--text3,#666);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-right:2px}
-    .security-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
+    .security-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:var(--r-xs,4px);background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
     .security-badge.open{background:rgba(16,185,129,.12);color:#34d399;border-color:rgba(16,185,129,.25)}
     .summary{padding:10px 16px 4px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;color:var(--text,#f0f0f0)}
     .summary+.desc{padding-top:4px}
     .desc{padding:10px 16px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text2,#a0a0a0);border-bottom:1px solid var(--border,#2a2a2a);line-height:1.6}
-    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:3px;color:#4f98a3}
+    .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:#4f98a3}
     .desc a{color:#4f98a3;text-decoration:none}
     .desc a:hover{text-decoration:underline}
     .tabbar{display:flex;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);overflow-x:auto}
@@ -424,9 +424,9 @@ class WcApiExamples extends LitElement {
   static properties={ref:{type:String},method:{type:String},url:{type:String},data:{type:String},_activeStatus:{type:Number,state:true},_activeExample:{type:Number,state:true},_activeReqExample:{type:Number,state:true},_parsed:{type:Object,state:true}};
   static styles=css\`
     :host{display:block;margin:0 0 24px;--ex-bg:#0d0d0d;--ex-bg2:#161616;--ex-border:#2a2a2a;--ex-text:#f0f0f0;--ex-text2:#a0a0a0;--ex-text3:#888;--ex-code:#e2e8f0}
-    .wrap{background:var(--ex-bg);border:1px solid var(--ex-border);border-radius:10px;overflow:hidden}
+    .wrap{background:var(--ex-bg);border:1px solid var(--ex-border);border-radius:var(--r-lg,10px);overflow:hidden}
     .header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--ex-bg2);border-bottom:1px solid var(--ex-border);flex-wrap:wrap}
-    .method{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase}
+    .method{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:2px 8px;border-radius:var(--r-xs,4px);text-transform:uppercase}
     .GET{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
     .POST{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
     .PUT,.PATCH{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
@@ -434,13 +434,13 @@ class WcApiExamples extends LitElement {
     .ep-url{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ex-text);word-break:break-all}
     .section-title{font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ex-text3);padding:12px 14px 6px}
     .status-tabs{display:flex;gap:4px;padding:0 14px 8px}
-    .status-tab{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;padding:4px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--ex-border);background:transparent;color:var(--ex-text3);transition:all .15s}
+    .status-tab{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;padding:4px 12px;border-radius:var(--r-xs,4px);cursor:pointer;border:1px solid var(--ex-border);background:transparent;color:var(--ex-text3);transition:all .15s}
     .status-tab.active{background:rgba(16,185,129,.15);color:#34d399;border-color:rgba(16,185,129,.3)}
     .status-tab.c4.active{background:rgba(245,158,11,.15);color:#fbbf24;border-color:rgba(245,158,11,.3)}
     .status-tab.c5.active{background:rgba(239,68,68,.15);color:#f87171;border-color:rgba(239,68,68,.3)}
     .meta{padding:4px 14px;font-family:'Inter',sans-serif;font-size:11px;color:var(--ex-text3)}
     .example-select{padding:4px 14px 8px}
-    .example-select select{background:var(--ex-bg2);border:1px solid var(--ex-border);border-radius:4px;padding:4px 8px;font-family:'Inter',sans-serif;font-size:12px;color:var(--ex-text2);cursor:pointer;width:100%}
+    .example-select select{background:var(--ex-bg2);border:1px solid var(--ex-border);border-radius:var(--r-xs,4px);padding:4px 8px;font-family:'Inter',sans-serif;font-size:12px;color:var(--ex-text2);cursor:pointer;width:100%}
     pre.code{margin:0;padding:14px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:var(--ex-code);background:var(--ex-bg2);max-height:400px;overflow-y:auto}
     .empty{padding:14px;color:var(--ex-text3);font-family:'Inter',sans-serif;font-size:12px}
   \`;
@@ -498,24 +498,24 @@ class WcRunnableEndpoint extends LitElement {
     :host{display:block;margin:0 0 16px}
     :host([theme="dark"]){--surface:#111;--surface2:#1a1a1a;--surface3:#222;--border:#2a2a2a;--text:#f0f0f0;--text2:#a0a0a0;--text3:#666;--code-text:#e2e8f0}
     :host([theme="light"]){--surface:#f8f8f8;--surface2:#f0f0f0;--surface3:#e8e8e8;--border:#e2e2e2;--text:#0f0f0f;--text2:#555;--text3:#737373;--code-text:#24292f}
-    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:10px;overflow:hidden;font-family:'Inter',sans-serif}
+    .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);overflow:hidden;font-family:'Inter',sans-serif}
     .toolbar{display:flex;align-items:center;gap:8px;padding:12px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);flex-wrap:wrap}
-    select{background:var(--surface3,#222);border:1px solid var(--border,#2a2a2a);border-radius:6px;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--text,#f0f0f0);cursor:pointer;flex-shrink:0}
-    input[type=text]{flex:1;min-width:200px;background:var(--surface3,#222);border:1px solid var(--border,#2a2a2a);border-radius:6px;padding:7px 12px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text,#f0f0f0);outline:none}
+    select{background:var(--surface3,#222);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-sm,6px);padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--text,#f0f0f0);cursor:pointer;flex-shrink:0}
+    input[type=text]{flex:1;min-width:200px;background:var(--surface3,#222);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-sm,6px);padding:7px 12px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text,#f0f0f0);outline:none}
     input[type=text]:focus{border-color:#01696f}
-    button.send{background:#01696f;border:none;border-radius:6px;padding:7px 20px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:#fff;cursor:pointer;flex-shrink:0;transition:background .15s}
+    button.send{background:#01696f;border:none;border-radius:var(--r-sm,6px);padding:7px 20px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:#fff;cursor:pointer;flex-shrink:0;transition:background .15s}
     button.send:hover{background:#4f98a3}
     button.send:disabled{opacity:.5;cursor:not-allowed}
     .extras{padding:12px 16px;border-bottom:1px solid var(--border,#2a2a2a);display:flex;flex-direction:column;gap:8px}
     label{font-size:12px;font-weight:600;color:var(--text3,#666);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px}
-    textarea{width:100%;background:var(--surface3,#222);border:1px solid var(--border,#2a2a2a);border-radius:6px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text,#f0f0f0);resize:vertical;outline:none;min-height:80px;box-sizing:border-box;line-height:1.5}
+    textarea{width:100%;background:var(--surface3,#222);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-sm,6px);padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text,#f0f0f0);resize:vertical;outline:none;min-height:80px;box-sizing:border-box;line-height:1.5}
     textarea:focus{border-color:#01696f}
     .response{padding:16px}
     .status{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:10px}
     .status.ok{color:#34d399}
     .status.err{color:#f87171}
     .status.warn{color:#fbbf24}
-    pre.res{background:var(--surface2,#1a1a1a);border:1px solid var(--border,#2a2a2a);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:var(--code-text,#e2e8f0);white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto;margin:0}
+    pre.res{background:var(--surface2,#1a1a1a);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-md,8px);padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:var(--code-text,#e2e8f0);white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto;margin:0}
     .empty{color:var(--text3,#666);font-size:13px;padding:16px}
     @media(max-width:640px){.toolbar{gap:6px;}input[type=text]{min-width:120px;font-size:12px;}}
   \`;
@@ -568,18 +568,18 @@ class WcPlayground extends LitElement {
   };
   static styles=css\`
     :host{display:block;margin:0 0 20px}
-    .wrap{border:1px solid var(--dl-border,rgba(255,255,255,.08));border-radius:10px;overflow:hidden;background:var(--dl-surface,#111)}
+    .wrap{border:1px solid var(--dl-border,rgba(255,255,255,.08));border-radius:var(--r-lg,10px);overflow:hidden;background:var(--dl-surface,#111)}
     .head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--dl-border,rgba(255,255,255,.08));flex-wrap:wrap}
-    .method{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(16,185,129,.15);color:#34d399}
+    .method{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;padding:3px 8px;border-radius:var(--r-xs,4px);background:rgba(16,185,129,.15);color:#34d399}
     .path{font-family:ui-monospace,monospace;font-size:13px;flex:1;min-width:160px}
-    button.go{background:var(--dl-accent,#01696f);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-weight:600;cursor:pointer}
+    button.go{background:var(--dl-accent,#01696f);color:#fff;border:none;border-radius:var(--r-sm,6px);padding:7px 16px;font-weight:600;cursor:pointer}
     button.go:disabled{opacity:.5;cursor:not-allowed}
     .body{padding:12px 14px;display:grid;gap:10px}
     label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.7;display:block;margin-bottom:4px}
-    input,textarea{width:100%;box-sizing:border-box;border-radius:6px;border:1px solid var(--dl-border,rgba(255,255,255,.12));background:transparent;color:inherit;padding:8px 10px;font-family:ui-monospace,monospace;font-size:12px}
+    input,textarea{width:100%;box-sizing:border-box;border-radius:var(--r-sm,6px);border:1px solid var(--dl-border,rgba(255,255,255,.12));background:transparent;color:inherit;padding:8px 10px;font-family:ui-monospace,monospace;font-size:12px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media(max-width:700px){.grid{grid-template-columns:1fr}}
-    pre{margin:0;padding:12px;border-radius:8px;background:rgba(0,0,0,.25);overflow:auto;max-height:360px;font-size:12px;white-space:pre-wrap}
+    pre{margin:0;padding:12px;border-radius:var(--r-md,8px);background:rgba(0,0,0,.25);overflow:auto;max-height:360px;font-size:12px;white-space:pre-wrap}
     .note{font-size:12px;opacity:.7;padding:0 14px 12px}
     .err{color:#f87171}
   \`;

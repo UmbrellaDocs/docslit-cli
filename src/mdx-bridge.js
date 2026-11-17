@@ -10,48 +10,6 @@
 //   Layer 2 — convention fallback: any unmapped PascalCase tag becomes
 //             <wc-pascal-case>. Disable via { conventionFallback: false }.
 
-// ─── Font Awesome → built-in Lucide icon name mapping ────────────────────────
-// Icons not in this map are kept as-is and fetched from FA CDN at runtime.
-export const FA_TO_LUCIDE = {
-  'check': 'check', 'check-circle': 'check', 'circle-check': 'check',
-  'times': 'x', 'xmark': 'x', 'circle-xmark': 'x', 'times-circle': 'x',
-  'exclamation-triangle': 'warning', 'triangle-exclamation': 'warning',
-  'info-circle': 'info', 'circle-info': 'info',
-  'exclamation-circle': 'error', 'circle-exclamation': 'error',
-  'arrow-right': 'arrow-right', 'arrow-left': 'arrow-left',
-  'arrow-up': 'arrow-up', 'arrow-down': 'arrow-down',
-  'chevron-right': 'chevron-right', 'angle-right': 'chevron-right',
-  'chevron-down': 'chevron-down', 'angle-down': 'chevron-down',
-  'external-link': 'external-link', 'external-link-alt': 'external-link',
-  'up-right-from-square': 'external-link', 'arrow-up-right-from-square': 'external-link',
-  'link': 'link', 'chain': 'link',
-  'copy': 'copy', 'clone': 'copy',
-  'download': 'download', 'cloud-download': 'download', 'cloud-arrow-down': 'download',
-  'code': 'code',
-  'terminal': 'terminal',
-  'file': 'file', 'file-alt': 'file', 'file-lines': 'file',
-  'folder': 'folder', 'folder-open': 'folder',
-  'search': 'search', 'magnifying-glass': 'search',
-  'star': 'star',
-  'bolt': 'zap', 'lightning': 'zap', 'zap': 'zap',
-  'book': 'book', 'book-open': 'book',
-  'cog': 'settings', 'gear': 'settings', 'sliders': 'settings',
-  'sliders-h': 'settings', 'wrench': 'settings',
-  'user': 'user', 'user-circle': 'user', 'circle-user': 'user',
-  'home': 'home', 'house': 'home',
-  'th-large': 'grid', 'grid': 'grid', 'table-cells-large': 'grid',
-  'list': 'list', 'list-ul': 'list', 'bars': 'list',
-  'eye': 'eye',
-  'lock': 'lock',
-  'box': 'package', 'cube': 'package', 'cubes': 'package',
-  'globe': 'globe', 'earth-americas': 'globe', 'earth': 'globe',
-  'microchip': 'cpu', 'chip': 'cpu',
-  'rocket': 'zap', 'paper-plane': 'zap',
-  'shield': 'lock', 'shield-alt': 'lock', 'shield-halved': 'lock',
-  'plug': 'zap', 'power-off': 'zap',
-  'envelope': 'file', 'mail': 'file',
-};
-
 // ─── Mintlify / common-MDX → DocsLit component map ───────────────────────────
 // tag:         output wc-* tag (null = special handling)
 // fixedAttrs:  attrs always written on the output tag
@@ -62,60 +20,63 @@ export const FA_TO_LUCIDE = {
 // remove:      drop tag + all children
 export const COMPONENT_MAP = {
   // ── Callouts ────────────────────────────────────────────────────────────────
-  Note:    { tag: 'wc-callout', fixedAttrs: { type: 'info',    title: 'Note'    } },
-  Info:    { tag: 'wc-callout', fixedAttrs: { type: 'info',    title: 'Info'    } },
-  Warning: { tag: 'wc-callout', fixedAttrs: { type: 'warning', title: 'Warning' } },
-  Danger:  { tag: 'wc-callout', fixedAttrs: { type: 'error',   title: 'Danger'  } },
-  Caution: { tag: 'wc-callout', fixedAttrs: { type: 'warning', title: 'Caution' } },
-  Tip:     { tag: 'wc-callout', fixedAttrs: { type: 'tip',     title: 'Tip'     } },
-  Check:   { tag: 'wc-callout', fixedAttrs: { type: 'success', title: 'Check'   } },
-  Success: { tag: 'wc-callout', fixedAttrs: { type: 'success', title: 'Success' } },
+  Note:    { tag: 'wc-callout', fixedAttrs: { type: 'note' } },
+  Info:    { tag: 'wc-callout', fixedAttrs: { type: 'info' } },
+  Warning: { tag: 'wc-callout', fixedAttrs: { type: 'warning' } },
+  Danger:  { tag: 'wc-callout', fixedAttrs: { type: 'danger' } },
+  Caution: { tag: 'wc-callout', fixedAttrs: { type: 'warning' } },
+  Tip:     { tag: 'wc-callout', fixedAttrs: { type: 'tip' } },
+  Check:   { tag: 'wc-callout', fixedAttrs: { type: 'check' } },
+  Success: { tag: 'wc-callout', fixedAttrs: { type: 'success' } },
   // ── Cards ────────────────────────────────────────────────────────────────────
-  Card:      { tag: 'wc-card',  passAttrs: ['title', 'href'], attrRename: { icon: 'icon-name' } },
+  Card:      { tag: 'wc-card', passAttrs: ['title', 'href', 'icon', 'horizontal', 'img', 'cta'], attrRename: { color: 'icon-color' } },
   CardGroup: { tag: 'wc-tiles', passAttrs: ['cols'] },
   // ── Tabs ─────────────────────────────────────────────────────────────────────
-  Tabs: { tag: 'wc-tabs' },
-  Tab:  { tag: 'wc-tab', attrRename: { title: 'label' }, passAttrs: ['label'] },
+  Tabs: { tag: 'wc-tabs', fixedAttrs: { sync: 'mintlify' } },
+  Tab:  { tag: 'wc-tab', attrRename: { title: 'label' }, passAttrs: ['label', 'icon', 'id'] },
   // ── Accordion ────────────────────────────────────────────────────────────────
-  Accordion:      { tag: 'wc-accordion', passAttrs: ['title'] },
+  Accordion:      { tag: 'wc-accordion', passAttrs: ['title', 'description', 'icon', 'id'], attrRename: { defaultOpen: 'open' } },
   AccordionGroup: { tag: 'wc-accordion-group' },
   // ── Steps ────────────────────────────────────────────────────────────────────
-  Steps: { tag: 'wc-steps' },
-  Step:  { tag: 'wc-step', passAttrs: ['title'], autoNumber: true },
+  Steps: { tag: 'wc-steps', attrRename: { titleSize: 'title-size' } },
+  Step:  { tag: 'wc-step', passAttrs: ['title', 'icon', 'id'], attrRename: { stepNumber: 'n', titleSize: 'title-size', noAnchor: 'no-anchor' } },
   // ── Code ─────────────────────────────────────────────────────────────────────
   CodeGroup: { tag: 'wc-code-group', passAttrs: ['dropdown'] },
   // ── Layout / media ───────────────────────────────────────────────────────────
-  Frame:   { tag: 'wc-frame',   passAttrs: ['caption'] },
-  Columns: { tag: 'wc-columns' },
+  Frame:   { tag: 'wc-frame',   fixedAttrs: { border: 'true' }, passAttrs: ['caption', 'hint'] },
+  Columns: { tag: 'wc-columns', passAttrs: ['cols'] },
   Column:  { tag: null, unwrap: true },
-  Panel:   { tag: 'wc-panel',   passAttrs: ['title'] },
+  Panel:   { tag: 'wc-aside',   fixedAttrs: { sticky: 'true' } },
   // ── UI elements ──────────────────────────────────────────────────────────────
-  // Mintlify Badge `color` → wc-badge `variant` (unlisted colors are dropped).
-  Badge:      { tag: 'wc-badge',      passAttrs: ['variant'], attrRename: { color: 'variant' },
-                valueMap: { color: { green: 'success', red: 'danger', orange: 'warning', yellow: 'warning',
+  // Mintlify Badge `color` → wc-badge `variant`.
+  Badge:      { tag: 'wc-badge',      passAttrs: ['size', 'shape', 'icon', 'disabled'], attrRename: { color: 'variant', stroke: 'outlined' },
+                valueMap: { color: { green: 'success', red: 'danger', orange: 'orange', yellow: 'warning',
                                      blue: 'info', purple: 'purple', gray: 'neutral', grey: 'neutral',
-                                     white: 'default', black: 'default' } } },
-  Expandable: { tag: 'wc-expandable', passAttrs: ['title'], attrRename: { defaultOpen: 'open' } },
-  Update:     { tag: 'wc-update',     passAttrs: ['date'], attrRename: { label: 'version' } },
+                                     white: 'white', surface: 'surface', black: 'neutral' } } },
+  Expandable: { tag: 'wc-expandable', passAttrs: ['title', 'description', 'icon'], attrRename: { defaultOpen: 'open' } },
+  Update:     { tag: 'wc-update',     passAttrs: ['label', 'description', 'tags'] },
   // ── API reference ────────────────────────────────────────────────────────────
   // Mintlify ParamField/ResponseField → docslit wc-field. Users wrap groups in
-  // <wc-fields> or <wc-response-fields> themselves (Mintlify has no analogue).
+  // <wc-fields> or <wc-response-fields> themselves (the importer does it automatically).
   ParamField:    { tag: 'wc-field',
-                   passAttrs: ['name', 'type', 'required', 'default'],
+                   passAttrs: ['name', 'type', 'required', 'default', 'deprecated', 'placeholder'],
                    // `path="id"` etc. → name="id" in="path"
                    attrRename: { path: 'name', query: 'name', body: 'name', header: 'name' },
                    attrIn: { path: 'path', query: 'query', body: 'body', header: 'header' } },
-  ResponseField: { tag: 'wc-field', passAttrs: ['name', 'type', 'required'] },
+  ResponseField: { tag: 'wc-field', passAttrs: ['name', 'type', 'required', 'default', 'deprecated'] },
   // ── Tables ───────────────────────────────────────────────────────────────────
   AsciidocTable: {
     tag: 'wc-asciidoc-table',
     passAttrs: ['cols', 'options', 'format', 'separator', 'frame', 'grid', 'stripes', 'width', 'caption'],
   },
+  // ── Inline ───────────────────────────────────────────────────────────────────
+  Tooltip: { tag: 'wc-tooltip', passAttrs: ['tip', 'headline', 'cta', 'href'] },
+  Icon:    { tag: 'wc-icon', attrRename: { icon: 'name' }, passAttrs: ['color', 'size'] },
   // ── Unsupported (graceful degradation) ───────────────────────────────────────
-  Tooltip: { tag: null, flatten: true },
-  Icon:    { tag: null, remove: true },
   Snippet: { tag: null, flatten: true },
 };
+
+const INLINE_TAGS = new Set(['wc-badge', 'wc-tooltip', 'wc-icon', 'wc-copy']);
 
 // ─── JSX prop parser ──────────────────────────────────────────────────────────
 // Converts the raw attribute string from a JSX tag into structured { name, value } pairs.
@@ -201,7 +162,6 @@ export function buildAttrs(rawAttrStr, config) {
       if (val === undefined) continue;
     }
     if (attrIn[prop.name]) parts.push(`in="${attrIn[prop.name]}"`);
-    if (prop.name === 'icon' && typeof val === 'string') val = FA_TO_LUCIDE[val] || val;
     parts.push(`${dest}="${val}"`);
   }
 
@@ -274,18 +234,14 @@ export function rewriteMdxTags(src, { conventionFallback = true } = {}) {
     out = out.replace(pairRe, (_, rawAttrs, inner) => {
       const attrs = buildAttrs(rawAttrs || '', cfg);
       const trimmed = inner.trim();
-      return attrs
-        ? `<${tag} ${attrs}>\n${trimmed}\n</${tag}>`
-        : `<${tag}>\n${trimmed}\n</${tag}>`;
+      const open = attrs ? `<${tag} ${attrs}>` : `<${tag}>`;
+      // Inline components stay on one line; block components get blank lines around the
+      // body so Markdown inside (code fences, lists) parses and the closing tag is not
+      // swallowed by a paragraph.
+      if (INLINE_TAGS.has(tag)) return `${open}${trimmed}</${tag}>`;
+      return `${open}\n\n${trimmed}\n\n</${tag}>`;
     });
   }
-
-  // Auto-number <wc-step> within each <wc-steps> block (Mintlify Step parity)
-  out = out.replace(/<wc-steps>([\s\S]*?)<\/wc-steps>/g, (_, inner) => {
-    let n = 0;
-    const numbered = inner.replace(/<wc-step\b/g, () => `<wc-step n="${++n}"`);
-    return `<wc-steps>${numbered}</wc-steps>`;
-  });
 
   // ── Layer 2: convention fallback for unmapped PascalCase tags ─────────────
   if (conventionFallback) {

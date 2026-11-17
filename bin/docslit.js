@@ -51,7 +51,7 @@ if (command === 'init') {
 } else if (command === 'dev') {
   const port = getFlag(args, '--port') || 3000;
   const { dev } = await import('../src/dev.js');
-  await dev({ port: Number(port) });
+  await dev({ port: Number(port), themePicker: args.includes('--theme-picker') });
 } else if (command === 'build') {
   const out = getFlag(args, '--out') || 'dist';
   const offline = args.includes('--offline');
@@ -65,7 +65,7 @@ if (command === 'init') {
   const restArgs = args.slice(1);
   if (!restArgs[0] || restArgs[0].startsWith('--')) {
     console.error('  Error: Please provide a source directory.\n');
-    console.error('  Usage: docslit import <source-dir> [--out <output-dir>] [--dry-run]\n');
+    console.error('  Usage: docslit import <source-dir> [--from mintlify|fern|gitbook] [--out <dir>] [--dry-run] [--theme <name>|--no-theme] [--json] [--force]\n');
     process.exit(1);
   }
   const { importDocs } = await import('../src/import.js');
