@@ -159,7 +159,7 @@ describe('Mintlify docs.json site settings', () => {
     expect(config.head.join('\n')).toMatch(/googletagmanager.*GTM-ABC|GTM-ABC/s);
     expect(config.head.join('\n')).toMatch(/fonts.googleapis.com.*Source\+Sans\+3/);
     expect(config.head.join('\n')).toMatch(/og:image/);
-    expect(config.theme.fonts.fontSans).toMatch(/Source Sans 3/);
+    expect(config.theme.fonts.sans).toMatch(/Source Sans 3/);
     expect(codes(report)).toEqual(expect.arrayContaining(['integration-unsupported', 'contextual-unsupported']));
   });
 
@@ -324,7 +324,7 @@ footer-links:
     expect(config.tabs.map((t) => t.tab)).toEqual(['Alpha', 'Beta']);
     expect(config.layout).toMatchObject({ pageWidth: 'full', sidebarWidth: 280, tabsPlacement: 'sidebar', contentAlignment: 'left', tabsStyle: 'pill', tabsAlign: 'center' });
     expect(config.footer.socials.slack).toBe('https://slack.example.com');
-    expect(config.theme.fonts.fontSans).toMatch(/Brand Sans/);
+    expect(config.theme.fonts.sans).toMatch(/Brand Sans/);
     const css = await fs.readFile(path.join(out, 'custom.css'), 'utf8');
     expect(css).toContain('@font-face{font-family:"Brand Sans"');
     expect(css).toContain('.y{color:blue}');

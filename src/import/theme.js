@@ -1,31 +1,54 @@
-// Theme selection for imported projects. Kept in ONE place so the final `theme`
-// config shape (owned by the themes work) is a one-function change.
-import { isValidThemePreset } from '../themes.js';
+// Theme selection for imported projects. Kept in ONE place so the `theme`
+// config shape is a one-function change.
+import { isThemeName, isValidThemePreset, suggestName, allThemeIds, allPaletteIds } from '../themes.js';
 
-export const DEFAULT_PRESET = { mintlify: 'peppermint', fern: 'frond', gitbook: null };
+/** Theme picked for each source platform when --theme is not given. */
+export const DEFAULT_PRESET = { mintlify: 'peppermint', fern: 'frond', gitbook: 'folio' };
+
+const FONT_KEYS = { fontSans: 'sans', fontHeading: 'heading', fontMono: 'mono', sans: 'sans', heading: 'heading', mono: 'mono' };
+
+function normalizeFonts(fonts) {
+  const out = {};
+  for (const [k, v] of Object.entries(fonts || {})) {
+    if (FONT_KEYS[k] && typeof v === 'string' && v.trim()) out[FONT_KEYS[k]] = v;
+  }
+  return out;
+}
 
 /**
- * @param {{ vendor: string, brand: {light?: Record<string,string>, dark?: Record<string,string>, colors?: Record<string,string>}, fonts?: Record<string,string>,
- *           themeOpt?: string|null|false, report?: Function }} o
- * @returns the value for docslit.json `theme` (or undefined)
+ * Build the docslit.json `theme` value for an imported site.
+ * `themeOpt`: a theme or palette name from --theme, `false` for --no-theme, or
+ * null/undefined to use the platform default. Source brand colours and fonts are
+ * layered on top, so the imported site keeps its brand in the chosen look.
+ * @returns the value for docslit.json `theme` (or undefined for the plain default)
  */
 export function buildThemeConfig({ vendor, brand = {}, fonts = {}, themeOpt, report = () => {} }) {
-  let preset = themeOpt === false ? null : (themeOpt || DEFAULT_PRESET[vendor] || null);
-  if (preset && !isValidThemePreset(preset)) {
-    report('info', 'theme-preset-unavailable', `Theme preset "${preset}" is not available in this DocsLit version; the default theme with the source brand colours was used.`, {
-      fix: `Set "theme": { "extends": "${preset}" } in docslit.json once the preset is installed.` });
-    preset = null;
+  let pick = themeOpt === false ? null : (themeOpt || DEFAULT_PRESET[vendor] || null);
+  if (pick && !isThemeName(pick) && !isValidThemePreset(pick)) {
+    const known = [...allThemeIds(), ...allPaletteIds()];
+    const near = suggestName ? suggestName(pick, known) : null;
+    report('warning', 'theme-unknown', `Unknown theme "${pick}"; the default theme was used.`, {
+      fix: near ? `Did you mean "${near}"? Run \`docslit theme list\` to see every theme and palette.` : 'Run `docslit theme list` to see every theme and palette.' });
+    pick = null;
   }
-  const hasBrand = Object.keys(brand.light || {}).length || Object.keys(brand.dark || {}).length || Object.keys(brand.colors || {}).length;
-  const hasFonts = Object.keys(fonts).length;
-  if (!hasBrand && !hasFonts) return preset || undefined;
+  const isTheme = pick && isThemeName(pick);
+  const f = normalizeFonts(fonts);
+  const colors = brand.colors && Object.keys(brand.colors).length ? brand.colors : null;
+  const light = brand.light && Object.keys(brand.light).length ? brand.light : null;
+  let dark = brand.dark && Object.keys(brand.dark).length ? brand.dark : null;
+  const hasBrand = Boolean(colors || light || dark);
+  const hasFonts = Object.keys(f).length > 0;
+  if (!hasBrand && !hasFonts) return pick || undefined;
+
+  // The classic theme does not repair contrast; keep muted text readable on a custom dark background.
+  if (!isTheme && dark && !dark.text3) dark = { ...dark, text3: '#8f8f8f' };
+
   const t = {};
-  if (preset) t.extends = preset;
-  // keep muted text readable on the (possibly custom) dark background
-  if (!brand.dark?.text3 && !preset) brand = { ...brand, dark: { ...(brand.dark || {}), text3: '#8f8f8f' } };
-  if (brand.colors && Object.keys(brand.colors).length) t.colors = brand.colors;
-  if (brand.light && Object.keys(brand.light).length) t.light = brand.light;
-  if (brand.dark && Object.keys(brand.dark).length) t.dark = brand.dark;
-  if (hasFonts) t.fonts = fonts;
+  if (isTheme) t.name = pick;
+  else if (pick) t.extends = pick;
+  if (colors) t.colors = colors;
+  if (light) t.light = light;
+  if (dark) t.dark = dark;
+  if (hasFonts) t.fonts = f;
   return t;
 }
