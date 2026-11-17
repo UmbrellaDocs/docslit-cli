@@ -1,4 +1,5 @@
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists } from './fs-helpers.js';
 import path from 'path';
 import nodeFs from 'node:fs';
 import { expandAllSidebars, expandSidebarValue, expandTabsValue, hasTabAutogenerate, createFileListSource, hasAutogenerate } from './auto-sidebar.js';
@@ -19,7 +20,7 @@ async function getGit() {
 
 export async function loadConfig(cwd) {
   const configPath = path.join(cwd, 'docslit.json');
-  if (!await fs.pathExists(configPath)) {
+  if (!await pathExists(configPath)) {
     console.error(`  Error: docslit.json not found in ${cwd}`);
     console.error(`  Run "docslit init" to create a new project.`);
     process.exit(1);

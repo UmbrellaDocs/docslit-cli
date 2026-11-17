@@ -6,7 +6,8 @@
  */
 
 import esbuild from 'esbuild';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { ensureDir } from '../src/fs-helpers.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -14,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VENDOR_DIR = path.resolve(__dirname, '../src/vendor');
 const ROOT = path.resolve(__dirname, '..');
 
-await fs.ensureDir(VENDOR_DIR);
+await ensureDir(VENDOR_DIR);
 
 const ENTRIES = [
   { entry: 'lit',                          out: 'lit.js' },

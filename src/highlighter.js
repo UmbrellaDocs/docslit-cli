@@ -1,6 +1,7 @@
 import { createHighlighter, bundledLanguages } from 'shiki';
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { ensureDir } from './fs-helpers.js';
 
 let highlighter = null;
 let initPromise = null;
@@ -33,7 +34,7 @@ async function saveDiskCache() {
     obj[k] = v;
   }
   const p = getCachePath();
-  await fs.ensureDir(path.dirname(p));
+  await ensureDir(path.dirname(p));
   await fs.writeFile(p, JSON.stringify(obj));
   cacheDirty = 0;
 }

@@ -1,14 +1,15 @@
 /**
  * git lastmod helpers for sitemap.
  */
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import nodeFs from 'node:fs';
 import path from 'path';
 import git from 'isomorphic-git';
 
 export async function getFileLastmod(cwd, filePath) {
   try {
     const commits = await git.log({
-      fs,
+      fs: nodeFs,
       dir: cwd,
       filepath: filePath,
       depth: 1,

@@ -1,5 +1,6 @@
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists, ensureDir, emptyDir } from './fs-helpers.js';
 import pc from 'picocolors';
 import { fileURLToPath } from 'url';
 import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionNavigation, getChangedDocs, gitReadFile } from './config.js';
@@ -111,7 +112,7 @@ function getRuntimeAttributes(config, version = null, branch = null) {
 }
 
 async function writePageMarkdown(destMd, content, config, id, version = null) {
-  await fs.ensureDir(path.dirname(destMd));
+  await ensureDir(path.dirname(destMd));
   const markdown = prependAgentDirectiveToMarkdown(content, buildAgentDirectiveMarkdown(config, id, version));
   await fs.writeFile(destMd, markdown);
 }
@@ -130,7 +131,7 @@ function _writePageJs(outDir, id, data) {
   // data: { meta, html, nav } — `nav` carries the page's tab/layout switches for the offline runtime.
   const file = path.join(outDir, 'pages', _pageFileName(id));
   const js = `(window.__DOCSLIT_PAGES__=window.__DOCSLIT_PAGES__||{})[${JSON.stringify(id)}]=${JSON.stringify(data)};`;
-  return fs.ensureDir(path.dirname(file)).then(() => fs.writeFile(file, js));
+  return ensureDir(path.dirname(file)).then(() => fs.writeFile(file, js));
 }
 
 /** Build-time page warning (e.g. invalid TeX). Printed, never fatal. */
@@ -152,7 +153,7 @@ function _writeSearchIndexJs(outDir, searchIndex) {
   const iife = path.join(__dirname, 'vendor', 'flexsearch.iife.js');
   return Promise.all([
     fs.writeFile(path.join(outDir, 'search-index.js'), js),
-    fs.pathExists(iife).then(ok => ok && fs.copyFile(iife, path.join(outDir, 'flexsearch.iife.js'))),
+    pathExists(iife).then(ok => ok && fs.copyFile(iife, path.join(outDir, 'flexsearch.iife.js'))),
   ]);
 }
 
@@ -223,18 +224,18 @@ export async function build({
   }
 
   if (!buildOptions.incremental) {
-    await fs.emptyDir(outDir);
+    await emptyDir(outDir);
   } else {
-    await fs.ensureDir(outDir);
+    await ensureDir(outDir);
     console.log(`  ${pc.dim('○')} Incremental build — preserving existing dist output`);
   }
 
   // Copy user components (shared across versions)
   const componentsDir = path.join(cwd, 'components');
-  if (await fs.pathExists(componentsDir)) {
+  if (await pathExists(componentsDir)) {
     const entries = await fs.readdir(componentsDir);
     if (entries.length) {
-      await fs.copy(componentsDir, path.join(outDir, 'components'));
+      await fs.cp(componentsDir, path.join(outDir, 'components'), { recursive: true, verbatimSymlinks: true });
       console.log(`  ${pc.green('✓')} Copied components/`);
     }
   }
@@ -249,8 +250,8 @@ export async function build({
   // Copy custom favicon if configured
   if (config.favicon) {
     const faviconFile = path.resolve(cwd, config.favicon);
-    if (await fs.pathExists(faviconFile)) {
-      await fs.copy(faviconFile, path.join(outDir, _assetDest(config.favicon)));
+    if (await pathExists(faviconFile)) {
+      await fs.copyFile(faviconFile, path.join(outDir, _assetDest(config.favicon)));
       console.log(`  ${pc.green('✓')} Copied custom favicon ${config.favicon}`);
     }
   }
@@ -258,16 +259,16 @@ export async function build({
   // Copy custom CSS if configured
   if (config.css) {
     const cssFile = path.resolve(cwd, config.css);
-    if (await fs.pathExists(cssFile)) {
-      await fs.copy(cssFile, path.join(outDir, _assetDest(config.css)));
+    if (await pathExists(cssFile)) {
+      await fs.copyFile(cssFile, path.join(outDir, _assetDest(config.css)));
       console.log(`  ${pc.green('✓')} Copied custom CSS ${config.css}`);
     }
   }
 
   for (const logo of logoFiles(config)) {
     const logoFile = path.resolve(cwd, logo);
-    if (await fs.pathExists(logoFile)) {
-      await fs.copy(logoFile, path.join(outDir, _assetDest(logo)));
+    if (await pathExists(logoFile)) {
+      await fs.copyFile(logoFile, path.join(outDir, _assetDest(logo)));
       console.log(`  ${pc.green('✓')} Copied logo ${logo}`);
     } else {
       console.log(`  ${pc.yellow('⚠')} Logo file not found: ${logo}`);
@@ -279,7 +280,7 @@ export async function build({
   // versioned builds load the copy inside <version>/ (the search base is the version
   // dir), so a root copy would be dead weight in both.
   const flexSearchSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
-  if (!offline && !versionConfig && await fs.pathExists(flexSearchSrc)) {
+  if (!offline && !versionConfig && await pathExists(flexSearchSrc)) {
     await fs.copyFile(flexSearchSrc, path.join(outDir, 'flexsearch.js'));
   }
 
@@ -335,7 +336,7 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
   profiler.start('parse');
   const parseResults = await Promise.all(pageIds.map(async (id) => {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
-    if (!await fs.pathExists(mdPath)) return { id, notFound: true };
+    if (!await pathExists(mdPath)) return { id, notFound: true };
     const raw = await fs.readFile(mdPath, 'utf8');
     return parsePageWithCache({
       id,
@@ -545,7 +546,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
 
   const defaultParseResults = await Promise.all(defaultPageIds.map(async (id) => {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
-    if (!await fs.pathExists(mdPath)) return null;
+    if (!await pathExists(mdPath)) return null;
     const raw = await fs.readFile(mdPath, 'utf8');
     const parsed = await parseDoc(raw, {
       onWarning: warnPage,
@@ -590,7 +591,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
   // pages are served from /<version>/..., so their relative image / poster / download paths resolve inside the version dir
   await copyDocsMedia(path.join(cwd, 'docs'), defaultDir, { locales: false, quiet: true });
   if (offline) {
-    await fs.ensureDir(defaultDir);
+    await ensureDir(defaultDir);
     const defaultShell = await renderShell({
       config, siteTheme, mode: 'static', out, draftPageIds,
       versionConfig, currentVersion: defaultVersion,
@@ -609,7 +610,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), sharedApp);
     // Copy FlexSearch into version dir
     const flexSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
-    if (await fs.pathExists(flexSrc)) await fs.copyFile(flexSrc, path.join(defaultDir, 'flexsearch.js'));
+    if (await pathExists(flexSrc)) await fs.copyFile(flexSrc, path.join(defaultDir, 'flexsearch.js'));
 
     const publishedIds = Object.keys(defaultPagesData);
     const defaultHasRegularDocs = (config.sidebar || []).length > 0;
@@ -712,7 +713,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       }
     }
 
-    await fs.ensureDir(versionDir);
+    await ensureDir(versionDir);
     await copyDocsMedia(path.join(cwd, 'docs'), versionDir, { locales: false, quiet: true });
     if (pagesUseMath(versionPagesData)) await writeKatexAssets(versionDir);
     const versionTitleMap = buildTitleMap(versionPagesData);
@@ -737,7 +738,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       await fs.writeFile(path.join(versionDir, 'docslit.js'), sharedJs);
       await fs.writeFile(path.join(versionDir, 'docslit-app.js'), sharedApp);
       const flexSrcV = path.join(__dirname, 'vendor', 'flexsearch.js');
-      if (await fs.pathExists(flexSrcV)) await fs.copyFile(flexSrcV, path.join(versionDir, 'flexsearch.js'));
+      if (await pathExists(flexSrcV)) await fs.copyFile(flexSrcV, path.join(versionDir, 'flexsearch.js'));
 
       const vPublishedIds = Object.keys(versionPagesData);
       const vIsHybrid = specData && (versionConf.sidebar || []).length > 0;
@@ -930,8 +931,8 @@ async function generateLlmsTxt({ config, pagesData, outDir, version = null, buil
     for (const id of section.ids) {
       const mdPath = path.join(outDir, `${id}.md`);
       const mdPathFallback = path.join(outDir, 'docs', `${id}.md`);
-      const resolvedMdPath = await fs.pathExists(mdPath) ? mdPath : mdPathFallback;
-      if (await fs.pathExists(resolvedMdPath)) {
+      const resolvedMdPath = await pathExists(mdPath) ? mdPath : mdPathFallback;
+      if (await pathExists(resolvedMdPath)) {
         const src = await fs.readFile(resolvedMdPath, 'utf8');
         if (includeLlms) {
           fullParts.push('---');
@@ -1057,7 +1058,7 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
       }
 
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
-      await fs.ensureDir(versionDir);
+      await ensureDir(versionDir);
       await fs.writeFile(path.join(versionDir, 'sitemap.xml'), xml);
     }
   } else {
@@ -1168,7 +1169,7 @@ export function onRequest(context) {
 
   await Promise.all([
     fs.writeFile(path.join(outDir, '_middleware.js'), middleware),
-    fs.ensureDir(path.join(outDir, 'functions')).then(() =>
+    ensureDir(path.join(outDir, 'functions')).then(() =>
       fs.writeFile(path.join(outDir, 'functions', '_middleware.js'), middleware)),
     refreshProjectMiddleware(cwd, middleware),
     fs.writeFile(path.join(outDir, '_headers'), headersFile),
@@ -1229,7 +1230,7 @@ async function generateAgentJson({ config, pageIds, pagesData = null, outDir, ve
   }
 
   const wellKnown = path.join(outDir, '.well-known');
-  await fs.ensureDir(wellKnown);
+  await ensureDir(wellKnown);
   await fs.writeFile(path.join(wellKnown, 'agent.json'), JSON.stringify(agent, null, 2) + '\n');
   console.log(`  ${pc.green('✓')} Generated .well-known/agent.json`);
 }
@@ -1516,7 +1517,7 @@ async function getDirBytes(dir) {
 const MEDIA_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico']);
 
 async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } = {}) {
-  if (!await fs.pathExists(docsDir)) return;
+  if (!await pathExists(docsDir)) return;
   let copied = 0;
   async function walk(dir) {
     const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -1528,7 +1529,7 @@ async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } 
       } else if (MEDIA_EXTENSIONS.has(path.extname(e.name).toLowerCase())) {
         const rel = path.relative(docsDir, full);
         const dest = path.join(outDir, rel);
-        await fs.ensureDir(path.dirname(dest));
+        await ensureDir(path.dirname(dest));
         await fs.copyFile(full, dest);
         copied++;
       }
@@ -1556,7 +1557,7 @@ async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } 
         } else if (MEDIA_EXTENSIONS.has(path.extname(s.name).toLowerCase())) {
           const rel = path.relative(locDir, full);
           const dest = path.join(outDir, locale, rel);
-          await fs.ensureDir(path.dirname(dest));
+          await ensureDir(path.dirname(dest));
           await fs.copyFile(full, dest);
           copied++;
         }
@@ -1571,14 +1572,14 @@ async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } 
 async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, buildOptions, hooks, basePath, specData, apiMeta, draftPageIds, pdfManifest, resolveSpecRefs }) {
   const { minify, incremental } = buildOptions;
   const docsDir = localeDocsDir(cwd, locale, i18n.defaultLocale);
-  if (!await fs.pathExists(docsDir)) return;
+  if (!await pathExists(docsDir)) return;
 
   // With tabs, locale builds keep the tab structure (per-locale sidebar overrides apply to plain sidebars only).
   const sidebar = hasTabs(config) ? config.sidebar : getSidebarForLocale(config, locale, i18n.defaultLocale);
   const localeConfig = { ...config, sidebar };
   const pageIds = getAllPageIds(localeConfig);
   const localeOutDir = path.join(outDir, locale);
-  await fs.ensureDir(localeOutDir);
+  await ensureDir(localeOutDir);
 
   let built = 0;
   const localePagesData = {};
@@ -1590,10 +1591,10 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
     // in the locale site resolves; their canonical points at the default-locale page.
     let mdPath = path.join(docsDir, `${id}.md`);
     let untranslated = false;
-    if (!await fs.pathExists(mdPath)) {
+    if (!await pathExists(mdPath)) {
       mdPath = path.join(defaultDocsDir, `${id}.md`);
       untranslated = true;
-      if (!await fs.pathExists(mdPath)) return;
+      if (!await pathExists(mdPath)) return;
     }
     const raw = await fs.readFile(mdPath, 'utf8');
     const result = await parsePageWithCache({

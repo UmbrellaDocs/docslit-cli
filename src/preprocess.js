@@ -1,5 +1,6 @@
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists } from './fs-helpers.js';
 import matter from './frontmatter.js';
 import { getMathConfig } from './math.js';
 import { expandCodeImports, CODE_IMPORT_DETECT_RE } from './code-import.js';
@@ -106,7 +107,7 @@ async function readFromFs(absPath) {
 }
 
 async function existsInFs(absPath) {
-  return fs.pathExists(absPath);
+  return pathExists(absPath);
 }
 
 export async function preprocessDoc({

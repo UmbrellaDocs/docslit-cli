@@ -2,7 +2,8 @@
  * Shared helpers for the static build pipeline.
  */
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { ensureDir } from './fs-helpers.js';
 import { getOpenAPIConfig } from './config.js';
 import { parseDoc } from './markdown.js';
 import { buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
@@ -97,7 +98,7 @@ export async function writePageHtmlBatch(entries, renderPageFn) {
   await Promise.all(entries.map(async ([id, data]) => {
     const pageHtml = await renderPageFn(id, data);
     const destHtml = data.destHtml;
-    await fs.ensureDir(path.dirname(destHtml));
+    await ensureDir(path.dirname(destHtml));
     await fs.writeFile(destHtml, pageHtml);
   }));
 }

@@ -2,7 +2,8 @@
  * Build-time Open Graph / Twitter card images (SVG → PNG via @resvg/resvg-js).
  */
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { ensureDir } from './fs-helpers.js';
 import { renderSvgToPng } from './og-image-pool.js';
 import {
   ogImageCacheKey,
@@ -57,7 +58,7 @@ export function buildOgSvg({ title, siteName, colors = {} }) {
 
 async function renderAndWrite({ title, siteName, colors, outFile, incremental = false }) {
   const svg = buildOgSvg({ title, siteName, colors });
-  await fs.ensureDir(path.dirname(outFile));
+  await ensureDir(path.dirname(outFile));
 
   if (incremental) {
     const cacheKey = ogImageCacheKey({ title, siteName, colors });

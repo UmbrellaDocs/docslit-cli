@@ -1,7 +1,9 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { pathExists } from './fs-helpers.js';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import chokidar from 'chokidar';
@@ -225,7 +227,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
         const entry = vc.list.find(v => v.version === version);
         const docsDir = path.join(cwd, 'docs');
         const mdPath = path.resolve(docsDir, `${id}.md`);
-        if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
+        if (mdPath.startsWith(docsDir + path.sep) && await pathExists(mdPath)) {
           const raw = await fs.readFile(mdPath, 'utf8');
           let { meta, html } = await cachedParseDoc(mdPath, raw, {
             docsRoot: path.join(cwd, 'docs'),
@@ -269,7 +271,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
       if (!mdPath.startsWith(docsDir + path.sep)) {
         return res.status(400).json({ error: 'Invalid page id' });
       }
-      if (!await fs.pathExists(mdPath)) {
+      if (!await pathExists(mdPath)) {
         return res.status(404).json({ error: `Page "${id}" not found` });
       }
       const raw = await fs.readFile(mdPath, 'utf8');
@@ -343,7 +345,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
       }
     }
     if (mdRaw == null) {
-      if (!await fs.pathExists(mdPath)) return res.status(404).send('Not found');
+      if (!await pathExists(mdPath)) return res.status(404).send('Not found');
       mdRaw = await fs.readFile(mdPath, 'utf8');
     }
 
@@ -373,7 +375,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
     for (const id of pageIds) {
       const mdPath = path.resolve(docsDir, `${id}.md`);
       if (!mdPath.startsWith(docsDir + path.sep)) continue;
-      if (!await fs.pathExists(mdPath)) continue;
+      if (!await pathExists(mdPath)) continue;
       const raw = await fs.readFile(mdPath, 'utf8');
       const { meta } = await cachedParseDoc(mdPath, raw, {
         docsRoot: path.join(cwd, 'docs'),
@@ -420,7 +422,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
     const rel = req.path.replace(/^\//, '');
     if (!logoFiles(config).some((f) => f.replace(/^\/+/, '') === rel)) return next();
     const resolved = path.resolve(cwd, rel);
-    if (!resolved.startsWith(cwd + path.sep) || !fs.pathExistsSync(resolved)) return next();
+    if (!resolved.startsWith(cwd + path.sep) || !existsSync(resolved)) return next();
     res.sendFile(resolved);
   });
 
@@ -431,7 +433,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
     if (!['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.mp4', '.webm'].includes(ext)) return next();
     const resolved = path.resolve(docsStaticDir, req.path.replace(/^\//, ''));
     if (!resolved.startsWith(docsStaticDir + path.sep)) return next();
-    if (!fs.pathExistsSync(resolved)) return next();
+    if (!existsSync(resolved)) return next();
     res.sendFile(resolved);
   });
 
@@ -490,7 +492,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
           }
         }
         if (mdRaw == null) {
-          if (!await fs.pathExists(mdPath)) return res.status(404).send('Not found');
+          if (!await pathExists(mdPath)) return res.status(404).send('Not found');
           mdRaw = await fs.readFile(mdPath, 'utf8');
         }
         const { preprocessedMarkdown } = await parseDoc(mdRaw, parseOpts);

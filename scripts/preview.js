@@ -9,7 +9,8 @@
 
 import express from 'express';
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists } from '../src/fs-helpers.js';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
@@ -81,7 +82,7 @@ app.get('/api/pages', (_req, res) => {
 app.get('/api/page/:id', async (req, res) => {
   const id = req.params.id;
   const mdPath = path.join(PREVIEW_DIR, `${id}.md`);
-  if (!await fs.pathExists(mdPath)) {
+  if (!await pathExists(mdPath)) {
     return res.status(404).json({ error: `Preview page "${id}" not found` });
   }
   const raw = await fs.readFile(mdPath, 'utf8');

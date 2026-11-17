@@ -1,5 +1,6 @@
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { ensureDir } from './fs-helpers.js';
 import http from 'node:http';
 import pc from 'picocolors';
 import express from 'express';
@@ -242,7 +243,7 @@ export async function generatePdfs({ outDir, config, pagesData, pdfOptions }) {
 
   const pdfRoot = path.join(outDir, pdfOptions.outputDir);
   const pagesDir = path.join(pdfRoot, 'pages');
-  await fs.ensureDir(pagesDir);
+  await ensureDir(pagesDir);
 
   const { chapters, pageToChapter } = getChapterManifest(config, pagesData, pdfOptions);
   const manifest = buildPdfManifest({
@@ -319,7 +320,7 @@ export async function generatePdfs({ outDir, config, pagesData, pdfOptions }) {
   }
 
   if (!pdfOptions.include.pages) {
-    await fs.remove(pagesDir);
+    await fs.rm(pagesDir, { recursive: true, force: true });
   }
 
   await fs.writeFile(path.join(pdfRoot, 'manifest.json'), JSON.stringify(manifest, null, 2));
