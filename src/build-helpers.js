@@ -104,7 +104,7 @@ export async function writePageHtmlBatch(entries, renderPageFn) {
 }
 
 export async function parsePageWithCache({ id, mdPath, raw, parseOpts, incremental }) {
-  if (incremental) {
+  if (incremental && !/<wc-include\b/i.test(raw)) {
     const key = pageCacheKey({
       raw,
       docsRoot: parseOpts.docsRoot,

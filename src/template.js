@@ -35,31 +35,29 @@ const require = createRequire(import.meta.url);
 // served output stays readable for debugging. esbuild is loaded lazily via
 // createRequire so dev/npx installs without esbuild still work.
 function _getEsbuild() {
-  return require('esbuild');
-}
-
-export function isEsbuildAvailable() {
   try {
-    _getEsbuild();
-    return true;
-  } catch {
-    return false;
+    return require('esbuild');
+  } catch (error) {
+    if (error.code === 'MODULE_NOT_FOUND' && error.message.startsWith("Cannot find module 'esbuild'")) return null;
+    throw error;
   }
 }
 
+export function isEsbuildAvailable() {
+  return _getEsbuild() !== null;
+}
+
 async function _minifyJS(code) {
-  try {
-    const esbuild = _getEsbuild();
-    const result = await esbuild.transform(code, { loader: 'js', minify: true, legalComments: 'none' });
-    return result.code;
-  } catch { return code; }
+  const esbuild = _getEsbuild();
+  if (!esbuild) return code;
+  const result = await esbuild.transform(code, { loader: 'js', minify: true, legalComments: 'none' });
+  return result.code;
 }
 async function _minifyCSS(code) {
-  try {
-    const esbuild = _getEsbuild();
-    const result = await esbuild.transform(code, { loader: 'css', minify: true });
-    return result.code;
-  } catch { return code; }
+  const esbuild = _getEsbuild();
+  if (!esbuild) return code;
+  const result = await esbuild.transform(code, { loader: 'css', minify: true });
+  return result.code;
 }
 
 export async function renderShell({ config: baseConfig, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null, locale = null, titleMap = null, navMeta = null }) {
@@ -243,7 +241,7 @@ ${appBlock}
 </html>`;
 }
 
-export async function renderPage({ config: baseConfig, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null, titleMap = null, navMeta = null, untranslated = false }) {
+export async function renderPage({ config: baseConfig, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null, titleMap = null, navMeta = null, untranslated = false, searchEnabled = true, llmsEnabled = baseConfig.build?.llmsTxt !== false }) {
   const config = withApiTab(baseConfig, !!specData);
   const basePath = normalizeBasePath(config.basePath);
   const i18n = getI18nConfig(config);
@@ -345,7 +343,7 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
   const announcementChrome = await buildAnnouncementChrome({ config, versionConfig, currentVersion });
   const resolvedTheme = siteTheme ?? resolveSiteThemeSync(config);
   const htmlTag = buildHtmlTag(resolvedTheme, currentLocale);
-  const agentDirective = buildAgentDirectiveHtml(config, currentVersion);
+  const agentDirective = buildAgentDirectiveHtml(config, currentVersion, llmsEnabled);
   const siteUrl = (config.url || '').replace(/\/$/, '');
   const header = pageHeaderHtml(config, id, meta);
   const metaBarHtml = header.after + injectPageMeta(config, meta, id, pdfManifest, assetPrefix, siteUrl, hrefPrefix);
@@ -377,9 +375,9 @@ ${htmlTag}
 <body class="${bodyClasses}">
 ${agentDirective}
 ${announcementChrome.html}
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, { navbarCta: chrome.navbarCta, navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath, logo, nav })}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, { navbarCta: chrome.navbarCta, navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath, logo, nav, searchEnabled })}
 ${renderTabsBar(nav)}
-${buildSearchOverlayHtml()}
+${searchEnabled ? buildSearchOverlayHtml() : ''}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
 ${buildMainLayoutHtml(docsSidebarHtml, siteTitle, pageContent, breadcrumbText, isApiPage, apiSidebarHtml, false, pageOptions.hideFeedback ? ' data-feedback-off' : '', { nav, pageAttrs, mobileExtras: chrome.navbarMobile })}
@@ -571,7 +569,7 @@ function buildSiteChrome(config, { basePath = '', offline = false, locale = 'en'
 }
 
 function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false, extra = {}) {
-  const { navbarLinks = '', navbarCta = '', localeSwitcher = '', basePath = '', logo = {} } = extra;
+  const { navbarLinks = '', navbarCta = '', localeSwitcher = '', basePath = '', logo = {}, searchEnabled = true } = extra;
   const { nav = null } = extra;
   // The offline shell is opened from file://, where "/" is the filesystem root.
   const homeHref = logo.href || (offline ? 'index.html' : (basePath || '/'));
@@ -606,11 +604,11 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
   <div class="nav-links">
     ${modeLinksHtml}
     ${navbarLinks}
-    <button class="search-trigger"${searchClick} id="search-trigger" title="Search (⌘K)">
+    ${searchEnabled ? `<button class="search-trigger"${searchClick} id="search-trigger" title="Search (⌘K)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
       <span class="search-trigger-text">Search…</span>
       <span class="search-trigger-kbd"><kbd>⌘</kbd><kbd>K</kbd></span>
-    </button>
+    </button>` : ''}
     ${localeSwitcher}
     ${versionSelectorHtml}
     <button class="a11y-btn" id="a11y-btn"${offline ? '' : ' onclick="toggleA11yPanel()"'} aria-label="Accessibility settings">
@@ -1228,7 +1226,7 @@ function _show404(id) {
     '<p class="not-found-desc">The page' + (id ? ' <code>' + _escHtml(id) + '</code>' : '') + ' doesn\\u2019t exist or may have been moved.</p>' +
     '<div class="not-found-actions">' +
     '<a class="not-found-btn" href="#"' + (_OFFLINE ? '' : ' onclick="var f=document.querySelector(\\'.sidebar-item\\');if(f)loadPage(f.dataset.page,f);return false;"') + '>Go to first page</a>' +
-    '<button class="not-found-btn not-found-btn-alt"' + (_OFFLINE ? '' : ' onclick="openSearch()"') + '>Search docs</button>' +
+    (document.getElementById('search-trigger') ? '<button class="not-found-btn not-found-btn-alt"' + (_OFFLINE ? '' : ' onclick="openSearch()"') + '>Search docs</button>' : '') +
     '</div></div>';
 }
 
@@ -2280,6 +2278,7 @@ function _prefetchSearch() {
 
 function openSearch() {
   var overlay = document.getElementById('search-overlay');
+  if (!overlay) return;
   overlay.classList.add('open');
   var input = document.getElementById('search-input');
   input.value = '';
@@ -2499,8 +2498,9 @@ function selectSearchItem(el) {
 
 document.addEventListener('keydown', function(e) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    e.preventDefault();
     var overlay = document.getElementById('search-overlay');
+    if (!overlay) return;
+    e.preventDefault();
     if (overlay.classList.contains('open')) closeSearch();
     else openSearch();
   }
@@ -2516,7 +2516,7 @@ document.addEventListener('keydown', function(e) {
     trigger.addEventListener('pointerenter', _prefetchSearch, { once: true });
     trigger.addEventListener('focus', _prefetchSearch, { once: true });
   }
-  _prefetchSearch();
+  if (trigger) _prefetchSearch();
 })();
 
 window.openSearch = openSearch;

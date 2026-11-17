@@ -3,8 +3,6 @@ import fs from 'node:fs/promises';
 import { ensureDir } from './fs-helpers.js';
 import http from 'node:http';
 import pc from 'picocolors';
-import express from 'express';
-import { PDFDocument } from 'pdf-lib';
 import { collectPageIds, toLabel } from './sidebar.js';
 import { collectHiddenIds, isHiddenMeta } from './navigation.js';
 
@@ -181,7 +179,8 @@ async function loadPlaywright() {
   }
 }
 
-function startStaticServer(outDir) {
+async function startStaticServer(outDir) {
+  const { default: express } = await import('express');
   const app = express();
   app.use(express.static(outDir, { extensions: ['html'] }));
   return new Promise((resolve, reject) => {
@@ -222,6 +221,7 @@ function formatBytes(b) {
 }
 
 async function mergePdfs(inputPaths, outputPath, label) {
+  const { PDFDocument } = await import('pdf-lib');
   const t0 = performance.now();
   process.stdout.write(`    ${pc.dim('→')} ${label}: merging ${inputPaths.length} PDFs...`);
   const merged = await PDFDocument.create();

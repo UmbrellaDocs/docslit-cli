@@ -1059,7 +1059,7 @@ describe('template.js — esbuild lazy load', () => {
       const actual = await importOriginal<typeof import('node:module')>();
       return {
         createRequire: () => (id: string) => {
-          if (id === 'esbuild') throw new Error('Cannot find package esbuild');
+          if (id === 'esbuild') throw Object.assign(new Error("Cannot find module 'esbuild'"), { code: 'MODULE_NOT_FOUND' });
           return actual.createRequire(import.meta.url)(id);
         },
       };
@@ -1070,6 +1070,24 @@ describe('template.js — esbuild lazy load', () => {
     expect(css).toContain(':root');
     const js = await tpl.buildAppFile('static', { minify: true });
     expect(js).toContain('function loadPage');
+    vi.doUnmock('node:module');
+    vi.resetModules();
+  });
+
+  it('surfaces esbuild transform failures', async () => {
+    vi.resetModules();
+    vi.doMock('node:module', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('node:module')>();
+      return {
+        createRequire: () => (id: string) => {
+          if (id === 'esbuild') return { transform: async () => { throw new Error('transform failed'); } };
+          return actual.createRequire(import.meta.url)(id);
+        },
+      };
+    });
+    const tpl = await import('./template.js');
+    await expect(tpl.buildStylesFile({ minify: true })).rejects.toThrow('transform failed');
+    await expect(tpl.buildAppFile('static', { minify: true })).rejects.toThrow('transform failed');
     vi.doUnmock('node:module');
     vi.resetModules();
   });

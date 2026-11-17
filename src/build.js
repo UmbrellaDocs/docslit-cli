@@ -111,9 +111,9 @@ function getRuntimeAttributes(config, version = null, branch = null) {
   return attrs;
 }
 
-async function writePageMarkdown(destMd, content, config, id, version = null) {
+async function writePageMarkdown(destMd, content, config, id, version = null, llmsEnabled = true) {
   await ensureDir(path.dirname(destMd));
-  const markdown = prependAgentDirectiveToMarkdown(content, buildAgentDirectiveMarkdown(config, id, version));
+  const markdown = prependAgentDirectiveToMarkdown(content, buildAgentDirectiveMarkdown(config, id, version, llmsEnabled));
   await fs.writeFile(destMd, markdown);
 }
 
@@ -228,6 +228,9 @@ export async function build({
   } else {
     await ensureDir(outDir);
     console.log(`  ${pc.dim('○')} Incremental build — preserving existing dist output`);
+    if (!offline && (!buildOptions.ogImages || !buildOptions.searchIndex || !buildOptions.llmsTxt || !buildOptions.mcp || !buildOptions.sitemap)) {
+      console.log(`  ${pc.yellow('⚠')} Incremental builds preserve old output, including previously generated optional files; use a clean build to remove them`);
+    }
   }
 
   // Copy user components (shared across versions)
@@ -280,7 +283,7 @@ export async function build({
   // versioned builds load the copy inside <version>/ (the search base is the version
   // dir), so a root copy would be dead weight in both.
   const flexSearchSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
-  if (!offline && !versionConfig && await pathExists(flexSearchSrc)) {
+  if (buildOptions.searchIndex && !versionConfig && await pathExists(flexSearchSrc)) {
     await fs.copyFile(flexSearchSrc, path.join(outDir, 'flexsearch.js'));
   }
 
@@ -389,7 +392,7 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
       const mdContent = isApiPage && specData && buildApiPageMarkdown
         ? buildApiPageMarkdown(preprocessedMarkdown, specData)
         : preprocessedMarkdown;
-      await writePageMarkdown(destMd, mdContent, config, id);
+      await writePageMarkdown(destMd, mdContent, config, id, null, buildOptions.llmsTxt);
     }
     built++;
   }
@@ -445,6 +448,8 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
         ogImagePath: getOgImagePath(buildOptions, meta, id),
         titleMap,
         navMeta,
+        searchEnabled: buildOptions.searchIndex,
+        llmsEnabled: buildOptions.llmsTxt,
       }),
     );
     profiler.end('html');
@@ -472,8 +477,8 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
     }
     await generateMarkdownMiddleware({ pageIds: Object.keys(pagesData), outDir, cwd, basePath });
     if (buildOptions.mcp) {
-      await generateAgentJson({ config, pageIds: Object.keys(pagesData), pagesData, outDir });
-      await generateMcpServer({ config, pagesData, outDir });
+      await generateAgentJson({ config, pageIds: Object.keys(pagesData), pagesData, outDir, buildOptions });
+      await generateMcpServer({ config, pagesData, outDir, buildOptions });
     }
 
     // Redirects
@@ -573,7 +578,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       const mdContent = isApiPage && specData && buildApiPageMarkdown
         ? buildApiPageMarkdown(preprocessedMarkdown, specData)
         : preprocessedMarkdown;
-      await writePageMarkdown(destMd, mdContent, config, id, defaultVersion);
+      await writePageMarkdown(destMd, mdContent, config, id, defaultVersion, buildOptions.llmsTxt);
     }
     built++;
   }
@@ -610,7 +615,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     await fs.writeFile(path.join(defaultDir, 'docslit-app.js'), sharedApp);
     // Copy FlexSearch into version dir
     const flexSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
-    if (await pathExists(flexSrc)) await fs.copyFile(flexSrc, path.join(defaultDir, 'flexsearch.js'));
+    if (buildOptions.searchIndex && await pathExists(flexSrc)) await fs.copyFile(flexSrc, path.join(defaultDir, 'flexsearch.js'));
 
     const publishedIds = Object.keys(defaultPagesData);
     const defaultHasRegularDocs = (config.sidebar || []).length > 0;
@@ -634,6 +639,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
         ogImagePath: getOgImagePath(buildOptions, meta, id),
         titleMap: defaultTitleMap,
         navMeta: defaultNavMeta,
+        searchEnabled: buildOptions.searchIndex,
+        llmsEnabled: buildOptions.llmsTxt,
       }),
     );
 
@@ -703,7 +710,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
         versionPagesData[id] = { meta, html };
         if (!offline) {
           const destMd = path.join(versionDir, `${id}.md`);
-          await writePageMarkdown(destMd, preprocessedMarkdown, config, id, entry.version);
+          await writePageMarkdown(destMd, preprocessedMarkdown, config, id, entry.version, buildOptions.llmsTxt);
         }
         manifest[id] = entry.version;
         vBuilt++;
@@ -738,7 +745,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       await fs.writeFile(path.join(versionDir, 'docslit.js'), sharedJs);
       await fs.writeFile(path.join(versionDir, 'docslit-app.js'), sharedApp);
       const flexSrcV = path.join(__dirname, 'vendor', 'flexsearch.js');
-      if (await pathExists(flexSrcV)) await fs.copyFile(flexSrcV, path.join(versionDir, 'flexsearch.js'));
+      if (buildOptions.searchIndex && await pathExists(flexSrcV)) await fs.copyFile(flexSrcV, path.join(versionDir, 'flexsearch.js'));
 
       const vPublishedIds = Object.keys(versionPagesData);
       const vIsHybrid = specData && (versionConf.sidebar || []).length > 0;
@@ -755,6 +762,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
           pdfManifest: versionPdfManifest,
           titleMap: versionTitleMap,
           navMeta: versionNavMeta,
+          searchEnabled: buildOptions.searchIndex,
+          llmsEnabled: buildOptions.llmsTxt,
         }),
       );
 
@@ -803,8 +812,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     const allPageIds = Object.keys(allPagesData);
     await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, cwd, versionConfig, basePath });
     if (buildOptions.mcp) {
-      await generateAgentJson({ config, pageIds: allPageIds, pagesData: allPagesData, outDir, versionConfig });
-      await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig, versionPages });
+      await generateAgentJson({ config, pageIds: allPageIds, pagesData: allPagesData, outDir, versionConfig, buildOptions });
+      await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig, versionPages, buildOptions });
     }
 
     // Redirects
@@ -1024,6 +1033,8 @@ async function generateRobotsTxt({ config, outDir, versionConfig = null, buildOp
     } else {
       lines.push(`Sitemap: ${baseUrl}/sitemap.xml`);
     }
+
+    if (!buildOptions || buildOptions.llmsTxt) lines.push(`Sitemap: ${baseUrl}/llms.txt`);
   }
 
   lines.push('');
@@ -1178,7 +1189,7 @@ export function onRequest(context) {
   console.log(`  ${pc.green('✓')} Generated _middleware.js, functions/_middleware.js + _headers + vercel.json (content negotiation for ${mdPaths.size} pages)`);
 }
 
-async function generateAgentJson({ config, pageIds, pagesData = null, outDir, versionConfig = null }) {
+async function generateAgentJson({ config, pageIds, pagesData = null, outDir, versionConfig = null, buildOptions = {} }) {
   const baseUrl = (config.url || '').replace(/\/$/, '');
   const defaultVersion = versionConfig?.default || null;
   const versionPrefix = getVersionPathPrefix(defaultVersion);
@@ -1189,9 +1200,11 @@ async function generateAgentJson({ config, pageIds, pagesData = null, outDir, ve
     description: config.description || '',
     spec: 'https://agentdocsspec.com/spec/',
     docs: {
-      llms_txt: getLlmsTxtUrl(config, versionConfig ? null : defaultVersion),
-      llms_full_txt: baseUrl ? `${baseUrl}${llmsFullPath}` : llmsFullPath,
-      search_index: baseUrl ? `${baseUrl}${searchIndexPath}` : searchIndexPath,
+      ...(buildOptions.llmsTxt ? {
+        llms_txt: getLlmsTxtUrl(config, versionConfig ? null : defaultVersion),
+        llms_full_txt: baseUrl ? `${baseUrl}${llmsFullPath}` : llmsFullPath,
+      } : {}),
+      ...(buildOptions.searchIndex ? { search_index: baseUrl ? `${baseUrl}${searchIndexPath}` : searchIndexPath } : {}),
       markdown_pattern: versionConfig
         ? (baseUrl ? `${baseUrl}/{version}/{slug}.md` : '/{version}/{slug}.md')
         : buildMarkdownPattern(config),
@@ -1226,7 +1239,7 @@ async function generateAgentJson({ config, pageIds, pagesData = null, outDir, ve
   if (versionConfig) {
     agent.versions = versionConfig.list.map(v => v.version);
     agent.default_version = versionConfig.default;
-    agent.docs.llms_txt = getLlmsTxtUrl(config);
+    if (buildOptions.llmsTxt) agent.docs.llms_txt = getLlmsTxtUrl(config);
   }
 
   const wellKnown = path.join(outDir, '.well-known');
@@ -1261,7 +1274,7 @@ function pageListOf(data, config = null) {
   });
 }
 
-async function generateMcpServer({ config, pagesData, outDir, versionConfig = null, versionPages = null }) {
+async function generateMcpServer({ config, pagesData, outDir, versionConfig = null, versionPages = null, buildOptions = {} }) {
   const siteTitle = config.name || 'Documentation';
   const siteDesc = config.description || '';
   const versioned = !!(versionConfig && versionPages && Object.keys(versionPages).length);
@@ -1370,7 +1383,7 @@ const tools = [
       required: ['slug'],
     },
   },
-  {
+  ${buildOptions.searchIndex ? `{
     name: 'search_docs',
     description: 'Search documentation by keyword. Returns matching pages with excerpts.',
     inputSchema: {
@@ -1381,7 +1394,7 @@ const tools = [
       },
       required: ['query'],
     },
-  },
+  },` : ''}
 ];
 
 async function handleToolCall(name, args) {
@@ -1400,6 +1413,7 @@ async function handleToolCall(name, args) {
   }
 
   if (name === 'search_docs') {
+    if (!${buildOptions.searchIndex}) return 'Search is disabled for this build.';
     const version = resolveVersion(args);
     const query = (args.query || '').toLowerCase();
     const index = await loadSearchIndex(version);
@@ -1640,12 +1654,14 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
       titleMap: localeTitleMap,
       navMeta: localeNavMeta,
       untranslated,
+      searchEnabled: buildOptions.searchIndex,
+      llmsEnabled: buildOptions.llmsTxt,
     }),
   );
 
   for (const { id, preprocessedMarkdown } of localeParsed) {
     const destMd = path.join(localeOutDir, `${id}.md`);
-    await writePageMarkdown(destMd, preprocessedMarkdown, config, id);
+    await writePageMarkdown(destMd, preprocessedMarkdown, config, id, null, buildOptions.llmsTxt);
     if (!untranslated) built++;
   }
 

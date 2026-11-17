@@ -120,6 +120,43 @@ Existing configs (`"theme": "ocean"`, theme objects and files) render exactly as
 - **Synced tabs:** `<wc-tabs sync="pkg">` switches every tab group with the same key.
 - **Feedback widget:** `"feedback": true` adds "Was this page helpful?" with analytics events and an optional endpoint.
 
+## Build performance
+
+Static builds generate OG images, a search index, `llms.txt` and
+`llms-full.txt`, an MCP server and agent manifest, and (when `url` is set)
+a sitemap and robots file by default. Disable individual generators with
+`--no-og-images`, `--no-search-index`, `--no-llms-txt`, `--no-mcp`, or
+`--no-sitemap`. Disabling the search index also disables site search and the
+MCP search tool. Offline builds retain their offline search.
+
+The same options can be set persistently in `docslit.json`:
+
+```json
+{
+  "build": {
+    "ogImages": false,
+    "searchIndex": false,
+    "llmsTxt": false,
+    "mcp": false,
+    "sitemap": false,
+    "cache": true
+  }
+}
+```
+
+Use `--incremental` (or `build.cache`) to reuse cached page and OG image
+results. Pages containing `<wc-include>` are reparsed so changes to reusable
+content are reflected. Incremental builds preserve the output directory:
+previously generated files remain when a generator is disabled or a page is
+removed. Run a non-incremental build into a clean output directory when
+publishing or measuring a minimal build.
+
+Use `--profile` for phase timings. To benchmark a project, run
+`npm run benchmark -- warm-minimal --project /path/to/project --out bench-minimal --runs 3`.
+The warm scenario performs an untimed warm-up; its incremental builds preserve
+the output directory. Choose an initially empty `--out` directory for a
+minimal output; non-incremental scenarios empty their output directory.
+
 ## Validating and linting
 
 ```bash
