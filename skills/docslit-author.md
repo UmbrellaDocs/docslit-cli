@@ -1225,8 +1225,8 @@ Responsive grid that lays out wc-tile (or wc-card) children.
 
 ```markdown
 <wc-tiles cols="2">
-<wc-tile href="installation" icon-name="package" title="Installation" description="Install the CLI."></wc-tile>
-<wc-tile href="quickstart" icon-name="zap" title="Quickstart" description="Build your first site."></wc-tile>
+<wc-tile href="installation" icon="package" title="Installation" description="Install the CLI."></wc-tile>
+<wc-tile href="quickstart" icon="zap" title="Quickstart" description="Build your first site."></wc-tile>
 </wc-tiles>
 ```
 

@@ -2676,7 +2676,7 @@ html.announcement-dismissed #announcement-banner { display: none; }
 html.light {
   --bg: #ffffff; --surface: #f8f8f8; --surface2: #f0f0f0; --surface3: #e8e8e8;
   --border: #e2e2e2; --border2: #d0d0d0;
-  --text: #0f0f0f; --text2: #555; --text3: #6b6b6b;
+  --text: #0f0f0f; --text2: #555; --text3: #656565;
   --accent-light: #015e63;
   --accent-dim: rgba(1,105,111,.08); --accent-dim2: rgba(1,105,111,.15);
   --sidebar-bg: #f5f5f5; --code-bg: #f6f8fa; --code-text: #24292f;
@@ -2782,8 +2782,8 @@ html.light .announcement-error { background: #fef2f2; color: #dc2626; border-col
 }
 .nav-logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-links { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.nav-ext-link { font-size: 13px; font-weight: 500; color: var(--dl-text-muted, #94a3b8); text-decoration: none; padding: 6px 10px; border-radius: 6px; }
-.nav-ext-link:hover { color: var(--dl-text, #f8fafc); background: rgba(255,255,255,.06); }
+.nav-ext-link { font-size: 13px; font-weight: 500; color: var(--dl-text-muted, var(--text2)); text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+.nav-ext-link:hover { color: var(--dl-text, var(--text)); background: var(--surface2); }
 .locale-switcher { font-size: 12px; font-weight: 600; background: transparent; border: 1px solid var(--dl-border, rgba(255,255,255,.12)); color: inherit; border-radius: 6px; padding: 5px 8px; }
 .site-footer { background: var(--surface); border-top: 1px solid var(--border); }
 .site-footer-inner { max-width: 1560px; margin: 0 auto; padding: 40px 24px 28px; display: flex; flex-direction: column; gap: 32px; }

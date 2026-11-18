@@ -295,9 +295,9 @@ const _cbSharedStyles=css\`
   :host(.light-shiki) .line span,:host([theme="light"]) .line span{color:var(--shiki-light) !important}
   /* github-light's keyword / parameter / comment colours are below 4.5:1 on tinted code backgrounds: nudge them to AA */
   :host(.light-shiki) .line span[style*="D73A49" i],:host([theme="light"]) .line span[style*="D73A49" i]{color:#cf222e !important}
-  :host(.light-shiki) .line span[style*="E36209" i],:host([theme="light"]) .line span[style*="E36209" i]{color:#bc4c00 !important}
+  :host(.light-shiki) .line span[style*="E36209" i],:host([theme="light"]) .line span[style*="E36209" i]{color:#a14100 !important}
   :host(.light-shiki) .line span[style*="6A737D" i],:host([theme="light"]) .line span[style*="6A737D" i]{color:#57606a !important}
-  :host(.light-shiki) .line span[style*="22863A" i],:host([theme="light"]) .line span[style*="22863A" i]{color:#1a7f37 !important}
+  :host(.light-shiki) .line span[style*="22863A" i],:host([theme="light"]) .line span[style*="22863A" i]{color:#176c2e !important}
   :host(:not(.light-shiki):not([theme="light"])) .line span[style*="6A737D" i]{color:#8b949e !important}
   :host(.light-shiki) .line span.dl-var,:host([theme="light"]) .line span.dl-var,.line span.dl-var{color:var(--_hov) !important}
   .fade{position:absolute;left:0;right:0;bottom:0;height:56px;pointer-events:none;background:linear-gradient(to bottom,transparent,var(--_bg))}

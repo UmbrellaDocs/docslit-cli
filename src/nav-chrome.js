@@ -398,7 +398,7 @@ export const NAV_TOKENS_CSS = `
   --badge-radius: 999px;
   --badge-font-size: 10px;
   --badge-tag-bg: var(--surface2);      --badge-tag-fg: var(--text2);      --badge-tag-border: var(--border);
-  --badge-new-bg: var(--accent-dim2);   --badge-new-fg: var(--accent-light); --badge-new-border: transparent;
+  --badge-new-bg: var(--accent-dim2);   --badge-new-fg: color-mix(in srgb, var(--accent-light) 72%, #fff); --badge-new-border: transparent;
   --badge-beta-bg: rgba(245,158,11,.14); --badge-beta-fg: #fbbf24;         --badge-beta-border: transparent;
   --badge-dev-bg: rgba(59,130,246,.14);  --badge-dev-fg: #60a5fa;          --badge-dev-border: transparent;
   --badge-deprecated-bg: rgba(239,68,68,.12); --badge-deprecated-fg: #f87171; --badge-deprecated-border: transparent;
@@ -406,6 +406,7 @@ export const NAV_TOKENS_CSS = `
 html.light {
   --dropdown-shadow: 0 8px 24px rgba(0,0,0,.12);
   --btn-filled-hover-bg: var(--accent-light);
+  --badge-new-fg: var(--accent-light);
   --badge-beta-fg: #92400e;  --badge-beta-bg: rgba(217,119,6,.12);
   --badge-dev-fg: #1d4ed8;   --badge-dev-bg: rgba(37,99,235,.1);
   --badge-deprecated-fg: #b91c1c; --badge-deprecated-bg: rgba(220,38,38,.09);

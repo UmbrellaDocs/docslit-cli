@@ -16,7 +16,7 @@ class WcField extends LitElement {
     .type-label{font-family:'Inter',sans-serif;font-size:12px;color:var(--text3,#666)}
     .in-badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:1px 6px;border-radius:var(--r-xs,3px);background:var(--surface2,#1a1a1a);color:var(--text3,#666);border:1px solid var(--border,#2a2a2a);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
     .lbl{font-family:var(--font-sans,'Inter',sans-serif);font-size:10px;font-weight:600;padding:1px 6px;border-radius:var(--r-xs,3px);background:var(--accent-dim,rgba(1,105,111,.15));color:var(--accent-light,#4f98a3);border:1px solid var(--accent-dim2,rgba(1,105,111,.25));white-space:nowrap}
-    .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-xs,3px);background:rgba(239,68,68,.15);color:color-mix(in srgb,#ef4444 58%,var(--text,#f0f0f0));border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+    .req{font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-xs,3px);background:rgba(239,68,68,.15);color:color-mix(in srgb,#ef4444 46%,var(--text,#f0f0f0));border:1px solid rgba(239,68,68,.3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
     .desc{color:var(--text2,#a0a0a0);line-height:1.6;font-size:13px;margin-top:6px}
     .desc code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(1,105,111,.1);padding:1px 4px;border-radius:var(--r-xs,3px);color:var(--accent-light,#4f98a3)}
     .desc a{color:var(--accent-light,#4f98a3);text-decoration:none}
@@ -117,10 +117,10 @@ class WcResponse extends LitElement {
     .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border,#2a2a2a);font-family:'Inter',sans-serif;font-size:13px}
     .row:last-child{border-bottom:none}
     .code{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:2px 8px;border-radius:var(--r-xs,4px);white-space:nowrap}
-    .c2{background:rgba(16,185,129,.15);color:color-mix(in srgb,#10b981 58%,var(--text,#f0f0f0));border:1px solid rgba(16,185,129,.3)}
-    .c3{background:rgba(59,130,246,.15);color:color-mix(in srgb,#3b82f6 58%,var(--text,#f0f0f0));border:1px solid rgba(59,130,246,.3)}
-    .c4{background:rgba(245,158,11,.15);color:color-mix(in srgb,#f59e0b 58%,var(--text,#f0f0f0));border:1px solid rgba(245,158,11,.3)}
-    .c5{background:rgba(239,68,68,.15);color:color-mix(in srgb,#ef4444 58%,var(--text,#f0f0f0));border:1px solid rgba(239,68,68,.3)}
+    .c2{background:rgba(16,185,129,.15);color:color-mix(in srgb,#10b981 46%,var(--text,#f0f0f0));border:1px solid rgba(16,185,129,.3)}
+    .c3{background:rgba(59,130,246,.15);color:color-mix(in srgb,#3b82f6 46%,var(--text,#f0f0f0));border:1px solid rgba(59,130,246,.3)}
+    .c4{background:rgba(245,158,11,.15);color:color-mix(in srgb,#f59e0b 46%,var(--text,#f0f0f0));border:1px solid rgba(245,158,11,.3)}
+    .c5{background:rgba(239,68,68,.15);color:color-mix(in srgb,#ef4444 46%,var(--text,#f0f0f0));border:1px solid rgba(239,68,68,.3)}
     .desc{color:var(--text2,#a0a0a0)}
     .ct{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3,#666);margin-left:auto}
   \`;
@@ -362,15 +362,15 @@ class WcEndpoint extends LitElement {
     .wrap{background:var(--surface,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--r-lg,10px);overflow:hidden}
     .url-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface2,#1a1a1a);border-bottom:1px solid var(--border,#2a2a2a);flex-wrap:wrap;gap:8px}
     .method{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:3px 10px;border-radius:var(--r-xs,4px);flex-shrink:0;text-transform:uppercase}
-    .GET{background:rgba(16,185,129,.15);color:color-mix(in srgb,#10b981 58%,var(--text,#f0f0f0));border:1px solid rgba(16,185,129,.3)}
-    .POST{background:rgba(59,130,246,.15);color:color-mix(in srgb,#3b82f6 58%,var(--text,#f0f0f0));border:1px solid rgba(59,130,246,.3)}
-    .PUT,.PATCH{background:rgba(245,158,11,.15);color:color-mix(in srgb,#f59e0b 58%,var(--text,#f0f0f0));border:1px solid rgba(245,158,11,.3)}
-    .DELETE{background:rgba(239,68,68,.15);color:color-mix(in srgb,#ef4444 58%,var(--text,#f0f0f0));border:1px solid rgba(239,68,68,.3)}
+    .GET{background:rgba(16,185,129,.15);color:color-mix(in srgb,#10b981 46%,var(--text,#f0f0f0));border:1px solid rgba(16,185,129,.3)}
+    .POST{background:rgba(59,130,246,.15);color:color-mix(in srgb,#3b82f6 46%,var(--text,#f0f0f0));border:1px solid rgba(59,130,246,.3)}
+    .PUT,.PATCH{background:rgba(245,158,11,.15);color:color-mix(in srgb,#f59e0b 46%,var(--text,#f0f0f0));border:1px solid rgba(245,158,11,.3)}
+    .DELETE{background:rgba(239,68,68,.15);color:color-mix(in srgb,#ef4444 46%,var(--text,#f0f0f0));border:1px solid rgba(239,68,68,.3)}
     .url{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text,#f0f0f0);word-break:break-all}
     .security{display:flex;gap:6px;padding:8px 16px;border-bottom:1px solid var(--border,#2a2a2a);flex-wrap:wrap;align-items:center;font-family:'Inter',sans-serif;font-size:11px}
     .security-label{color:var(--text3,#666);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-right:2px}
-    .security-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:var(--r-xs,4px);background:rgba(245,158,11,.12);color:color-mix(in srgb,#f59e0b 58%,var(--text,#f0f0f0));border:1px solid rgba(245,158,11,.25)}
-    .security-badge.open{background:rgba(16,185,129,.12);color:color-mix(in srgb,#10b981 58%,var(--text,#f0f0f0));border-color:rgba(16,185,129,.25)}
+    .security-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:var(--r-xs,4px);background:rgba(245,158,11,.12);color:color-mix(in srgb,#f59e0b 46%,var(--text,#f0f0f0));border:1px solid rgba(245,158,11,.25)}
+    .security-badge.open{background:rgba(16,185,129,.12);color:color-mix(in srgb,#10b981 46%,var(--text,#f0f0f0));border-color:rgba(16,185,129,.25)}
     .summary{padding:10px 16px 4px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;color:var(--text,#f0f0f0)}
     .summary+.desc{padding-top:4px}
     .desc{padding:10px 16px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text2,#a0a0a0);border-bottom:1px solid var(--border,#2a2a2a);line-height:1.6}
@@ -584,7 +584,7 @@ class WcPlayground extends LitElement {
     :host{display:block;margin:0 0 20px}
     .wrap{border:1px solid var(--dl-border,var(--border,rgba(255,255,255,.08)));border-radius:var(--r-lg,10px);overflow:hidden;background:var(--dl-surface,var(--surface,#111));color:var(--text,#f0f0f0)}
     .head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--dl-border,var(--border,rgba(255,255,255,.08)));flex-wrap:wrap}
-    .method{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;padding:3px 8px;border-radius:var(--r-xs,4px);background:rgba(16,185,129,.15);color:color-mix(in srgb,#10b981 58%,var(--text,#f0f0f0))}
+    .method{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;padding:3px 8px;border-radius:var(--r-xs,4px);background:rgba(16,185,129,.15);color:color-mix(in srgb,#10b981 46%,var(--text,#f0f0f0))}
     .path{font-family:ui-monospace,monospace;font-size:13px;flex:1;min-width:160px}
     button.go{background:var(--dl-accent,#01696f);color:#fff;border:none;border-radius:var(--r-sm,6px);padding:7px 16px;font-weight:600;cursor:pointer}
     button.go:disabled{opacity:.5;cursor:not-allowed}
@@ -595,7 +595,7 @@ class WcPlayground extends LitElement {
     @media(max-width:700px){.grid{grid-template-columns:1fr}}
     pre{margin:0;padding:12px;border-radius:var(--r-md,8px);background:var(--surface2,rgba(0,0,0,.25));overflow:auto;max-height:360px;font-size:12px;white-space:pre-wrap}
     .note{font-size:12px;opacity:.7;padding:0 14px 12px}
-    .err{color:color-mix(in srgb,#ef4444 58%,var(--text,#f0f0f0))}
+    .err{color:color-mix(in srgb,#ef4444 46%,var(--text,#f0f0f0))}
   \`;
   constructor(){
     super();this.method='GET';this.url='/';this.server='';this.proxy='';

@@ -289,6 +289,7 @@ async function main() {
             if (loc && !/^data:/.test(loc) && new URL(loc).host !== baseHost) run.external.push(t.slice(0, 120) + ' ' + loc.slice(0, 80));
             return;
           }
+          if (/https?:\/\//.test(t) && !t.includes(baseHost)) { run.external.push(t.slice(0, 120)); return; } // CDN / third-party failures (offline sandbox)
           run.console.push(t.slice(0, 200));
         });
         pg.on('pageerror', (e) => run.console.push('pageerror: ' + String(e.message).slice(0, 200)));
