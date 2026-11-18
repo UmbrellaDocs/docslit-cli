@@ -95,7 +95,7 @@ export async function convertFern(imp, fernDir, opts = {}) {
   };
   if (ty.bodyFont?.name) { fonts.fontSans = `"${ty.bodyFont.name}", ui-sans-serif, system-ui, sans-serif`; fontFace(ty.bodyFont, 'bodyFont'); }
   if (ty.codeFont?.name) { fonts.fontMono = `"${ty.codeFont.name}", ui-monospace, monospace`; fontFace(ty.codeFont, 'codeFont'); }
-  if (ty.headingsFont) unmapped('typography.headingsFont', 'DocsLit uses one sans font for body and headings');
+  if (ty.headingsFont?.name) { fonts.fontHeading = `"${ty.headingsFont.name}", ui-sans-serif, system-ui, sans-serif`; fontFace(ty.headingsFont, 'headingsFont'); }
   if (Object.keys(ty).length) mapped('typography', 'theme.fonts');
   const theme = buildThemeConfig({ vendor: 'fern', brand, fonts, themeOpt: opts.themeOpt, report: (s, c, m, x) => rep(s, c, m, x) });
   if (theme !== undefined) out.theme = theme;

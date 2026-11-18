@@ -95,7 +95,7 @@ Pages are read by people and retrieved in chunks by LLMs. Write for both.
 3. Always write explicit closing tags: `<wc-tile ...></wc-tile>`, never `<wc-tile ... />` (these are HTML custom elements, not JSX). Only the compile-time tags `wc-include` and `wc-var` (declaration form) are written self-closing: `<wc-include src="snippet.md" />`.
 4. Respect nesting: containers hold only their listed children (see each component's "Children" and "Parent"). Inside `wc-tabs`, use `wc-tab`; inside `wc-steps`, `wc-step`; inside `wc-code-group`, `wc-code-tab`; and so on.
 5. "raw" bodies (`wc-code-block`, `wc-code-tab`, `wc-mermaid`, `wc-asciidoc-table`) are not Markdown; write the text exactly as it should appear.
-6. Use `icon-name` (not `icon`) for named icons on `wc-card` and `wc-tile`. Tabs use `label`, not `title`.
+6. Use `icon` for named icons on `wc-card`, `wc-tile`, `wc-button`, `wc-callout` and `wc-step` (`icon-name` is an accepted alias). Tabs use `label`, not `title`.
 7. Pass JSON attributes with single quotes around the value: `rows='[["a","b"]]'`.
 8. Do not invent tags or attributes. An unknown `wc-*` tag is a validate warning and renders as an unstyled element.
 9. The `theme="dark|light"` attribute pins any themable component to a color scheme. It is omitted from the per-component lists below.
@@ -108,4 +108,4 @@ Generated from the manifest. "Body" says what goes between the tags.
 %%COMPONENT_REFERENCE%%
 ## Icons
 
-`wc-icon name`, `icon-name` on cards and tiles, and page `icon` accept built-in Lucide-style names (for example `check`, `x`, `warning`, `info`, `arrow-right`, `external-link`, `code`, `terminal`, `file`, `folder`, `search`, `star`, `zap`, `book`, `settings`, `user`, `home`, `lock`, `package`, `globe`, `cpu`). Other names fall back to Font Awesome class names, fetched at runtime.
+`wc-icon name`, `icon` (or `icon-name`) on components, and page `icon` accept Lucide and Font Awesome Free names (for example `check`, `x`, `warning`, `info`, `arrow-right`, `external-link`, `code`, `terminal`, `file`, `folder`, `search`, `star`, `zap`, `book`, `settings`, `user`, `home`, `lock`, `package`, `globe`, `cpu`). Names are resolved at build time to inline SVG (Lucide first for the classic names, then Font Awesome Free: `rocket`, `fa-solid fa-gear`, `fa-brands fa-github`, `lucide:zap`), so there is no CDN request and offline builds work. Emoji, image paths/URLs and inline `<svg>` also work; unknown names are flagged by `docslit validate` with a suggestion.

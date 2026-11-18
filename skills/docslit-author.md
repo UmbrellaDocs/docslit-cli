@@ -95,7 +95,7 @@ Pages are read by people and retrieved in chunks by LLMs. Write for both.
 3. Always write explicit closing tags: `<wc-tile ...></wc-tile>`, never `<wc-tile ... />` (these are HTML custom elements, not JSX). Only the compile-time tags `wc-include` and `wc-var` (declaration form) are written self-closing: `<wc-include src="snippet.md" />`.
 4. Respect nesting: containers hold only their listed children (see each component's "Children" and "Parent"). Inside `wc-tabs`, use `wc-tab`; inside `wc-steps`, `wc-step`; inside `wc-code-group`, `wc-code-tab`; and so on.
 5. "raw" bodies (`wc-code-block`, `wc-code-tab`, `wc-mermaid`, `wc-asciidoc-table`) are not Markdown; write the text exactly as it should appear.
-6. Use `icon-name` (not `icon`) for named icons on `wc-card` and `wc-tile`. Tabs use `label`, not `title`.
+6. Use `icon` for named icons on `wc-card`, `wc-tile`, `wc-button`, `wc-callout` and `wc-step` (`icon-name` is an accepted alias). Tabs use `label`, not `title`.
 7. Pass JSON attributes with single quotes around the value: `rows='[["a","b"]]'`.
 8. Do not invent tags or attributes. An unknown `wc-*` tag is a validate warning and renders as an unstyled element.
 9. The `theme="dark|light"` attribute pins any themable component to a color scheme. It is omitted from the per-component lists below.
@@ -213,6 +213,7 @@ Changelog entry. Use label (+ description, tags) for the timeline layout with an
   - `version` (string): Version number for this change.
   - `type` (added | changed | fixed | removed | deprecated | security): Change type badge (boxed layout).
   - `date` (string): Release date (free-form text, boxed layout).
+  - `id` (string): Anchor id. Defaults to a slug of the label.
 
 ```markdown
 <wc-update label="2026-10-29" description="v1.2.0" tags="Feature, Fix">
@@ -315,6 +316,7 @@ Collapsible FAQ-style item (a real button with aria-expanded; opens when the URL
   - `description` (string): Smaller text under the title.
   - `icon` (string): Leading icon (see wc-icon for accepted values).
   - `open` (boolean): Expand the item by default.
+  - `id` (string): Anchor id for deep links. Defaults to a slug of the title.
 
 ```markdown
 <wc-accordion title="Which Node.js version do I need?" description="Short answer: 20.19 or later" icon="circle-help">
@@ -389,6 +391,7 @@ A single step inside wc-steps. The title is rendered as light-DOM text at build 
   - `n` (number): Override the auto-generated step number.
   - `icon` (string): Icon shown in the marker instead of the number (see wc-icon for accepted values).
   - `title-size` (p | h2 | h3 | h4): Title level for this step (overrides wc-steps).
+  - `id` (string): Anchor id for deep links. Defaults to a slug of the title.
   - `no-anchor` (boolean): Hide the hover anchor link on a plain-text (p) title.
   - `data-anchor` (string): Set by the build step: the heading id when title-size is h2-h4.
   - `data-title-level` (string): Set by the build step: h2, h3 or h4 when the title is a heading.
@@ -440,6 +443,7 @@ A single tab panel inside wc-tabs.
 - Attributes:
   - `label` (string, required): Text of the tab button (inline Markdown). Also the deep-link id (slug of the label) unless id is set.
   - `icon` (string): Icon shown before the label (see wc-icon for accepted values).
+  - `id` (string): Deep-link id. Defaults to a slug of the label.
 
 ```markdown
 <wc-tabs>
@@ -652,6 +656,7 @@ A single labelled snippet inside wc-code-group (or wc-endpoint). Content is raw 
   - `label` (string, required): Tab label.
   - `language` (string): Highlighting language for the snippet (also used for language sync between groups).
   - `icon` (string): Icon shown in the tab.
+  - `for` (string): Sync token (e.g. "npm"): groups whose tabs share a token switch together. Defaults to the label, then the language.
 
 ```markdown
 <wc-code-group>
@@ -667,11 +672,11 @@ Inline icon. Names are resolved at BUILD time to inline SVG from Lucide (ISC) an
 
 - Body: none
 - Attributes:
-  - `name` (string, required): Icon name: rocket, fa-solid fa-gear, fa-brands fa-github, lucide:zap, an emoji, an image URL/path, or inline <svg>. Bare names use the order set by docslit.json icons.library (auto | fontawesome | lucide).
+  - `name` (string): Icon name: rocket, fa-solid fa-gear, fa-brands fa-github, lucide:zap, an emoji, an image URL/path, or inline <svg>. Bare names use the order set by docslit.json icons.library (auto | fontawesome | lucide). Give either name or src.
   - `icon-type` (solid | regular | brands): Font Awesome style when the name is bare.
   - `size` (number, default `16`): Icon size in pixels.
   - `color` (string): Icon color (any CSS color).
-  - `src` (string): Image URL/path to use as the icon instead of a named one.
+  - `src` (string): Image URL/path to use as the icon (wins over name).
   - `label` (string): Accessible name. Icons are decorative (aria-hidden) unless you set this.
 
 ```markdown
@@ -786,7 +791,7 @@ Download link styled as a button. With sources it bundles several files into one
 
 - Body: text. Optional link text (alternative to label).
 - Attributes:
-  - `href` (string, required): URL or path of the file to download.
+  - `href` (string): URL or path of the file to download (give href or sources).
   - `filename` (string): Suggested filename (for sources: the ZIP name, default download.zip).
   - `label` (string): Link text. Defaults to the element body, then the filename, then "Download".
   - `size` (string): File size text shown in parentheses, e.g. "2.4 MB".
@@ -1421,4 +1426,4 @@ Machine-readable hint that only appears in the generated Markdown.
 
 ## Icons
 
-`wc-icon name`, `icon-name` on cards and tiles, and page `icon` accept built-in Lucide-style names (for example `check`, `x`, `warning`, `info`, `arrow-right`, `external-link`, `code`, `terminal`, `file`, `folder`, `search`, `star`, `zap`, `book`, `settings`, `user`, `home`, `lock`, `package`, `globe`, `cpu`). Other names fall back to Font Awesome class names, fetched at runtime.
+`wc-icon name`, `icon` (or `icon-name`) on components, and page `icon` accept Lucide and Font Awesome Free names (for example `check`, `x`, `warning`, `info`, `arrow-right`, `external-link`, `code`, `terminal`, `file`, `folder`, `search`, `star`, `zap`, `book`, `settings`, `user`, `home`, `lock`, `package`, `globe`, `cpu`). Names are resolved at build time to inline SVG (Lucide first for the classic names, then Font Awesome Free: `rocket`, `fa-solid fa-gear`, `fa-brands fa-github`, `lucide:zap`), so there is no CDN request and offline builds work. Emoji, image paths/URLs and inline `<svg>` also work; unknown names are flagged by `docslit validate` with a suggestion.

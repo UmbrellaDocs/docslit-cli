@@ -74,6 +74,7 @@ describe('versioned build: generated mcp-server.js', () => {
     await fs.outputJson(path.join(dir, 'docslit.json'), cfg);
     await fs.outputFile(path.join(dir, 'docs/intro.md'), '---\ntitle: Intro\ndescription: Start here\n---\n\n# Intro\n\nShared page about zebras.\n');
     await fs.outputFile(path.join(dir, 'docs/setup.md'), '---\ntitle: Setup 2\n---\n\n# Setup\n\nVersion two setup mentions quokkas.\n');
+    await fs.outputFile(path.join(dir, 'docs/assets/pic.png'), 'png');
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' });
     await commitAll(dir, 'v2', 'main');
     await git.branch({ fs: nodeFs, dir, ref: 'v1', checkout: true });
@@ -91,6 +92,11 @@ describe('versioned build: generated mcp-server.js', () => {
     expect(await fs.pathExists(path.join(out, '2.0', 'setup.md'))).toBe(true);
     expect(await fs.pathExists(path.join(out, '2.0', 'search-index.json'))).toBe(true);
     expect(await fs.pathExists(path.join(out, 'setup.md'))).toBe(false);
+  });
+
+  it('copies docs media into every version directory so relative image paths resolve', async () => {
+    for (const v of ['2.0', '1.0']) expect(await fs.pathExists(path.join(out, v, 'assets', 'pic.png'))).toBe(true);
+    expect(await fs.pathExists(path.join(out, 'assets', 'pic.png'))).toBe(true);
   });
 
   it('serves the default version by default and any version on request over stdio', async () => {

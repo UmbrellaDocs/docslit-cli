@@ -533,6 +533,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   const defaultPdfManifest = !offline ? preparePdfManifest(config, defaultPagesData, pdfOptions) : null;
 
   if (pagesUseMath(defaultPagesData)) await writeKatexAssets(defaultDir);
+  // pages are served from /<version>/..., so their relative image / poster / download paths resolve inside the version dir
+  await copyDocsMedia(path.join(cwd, 'docs'), defaultDir, { locales: false, quiet: true });
   if (offline) {
     await fs.ensureDir(defaultDir);
     const defaultShell = await renderShell({
@@ -654,6 +656,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     }
 
     await fs.ensureDir(versionDir);
+    await copyDocsMedia(path.join(cwd, 'docs'), versionDir, { locales: false, quiet: true });
     if (pagesUseMath(versionPagesData)) await writeKatexAssets(versionDir);
     const versionTitleMap = buildTitleMap(versionPagesData);
     const versionNavMeta = buildNavMeta(versionPagesData);
@@ -1429,7 +1432,7 @@ async function getDirBytes(dir) {
 
 const MEDIA_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico']);
 
-async function copyDocsMedia(docsDir, outDir) {
+async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } = {}) {
   if (!await fs.pathExists(docsDir)) return;
   let copied = 0;
   async function walk(dir) {
@@ -1451,6 +1454,7 @@ async function copyDocsMedia(docsDir, outDir) {
   await walk(docsDir);
 
   // Also copy from locale docs dirs (docs.fr/ etc.)
+  if (!locales) { if (copied && !quiet) console.log(`  ${pc.green('✓')} Copied ${copied} media file${copied !== 1 ? 's' : ''} from docs/`); return; }
   const parent = path.dirname(docsDir);
   const entries = await fs.readdir(parent, { withFileTypes: true });
   for (const e of entries) {

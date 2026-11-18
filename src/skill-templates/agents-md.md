@@ -18,7 +18,7 @@ This project is a DocsLit site: Markdown pages in `%%DOCS_DIR%%/` with embeddabl
 - Blank line before and after every `<wc-*>` block and after its opening tag, or the Markdown body will not render.
 - Close components explicitly (`<wc-tile ...></wc-tile>`); only `<wc-include src="..." />` is self-closing.
 - Respect nesting: `wc-tabs` > `wc-tab`, `wc-steps` > `wc-step`, `wc-code-group` > `wc-code-tab`, `wc-fields` > `wc-field`, `wc-tiles` > `wc-tile`. Code bodies are raw text, not Markdown.
-- Cards and tiles use `icon-name`, tabs use `label`. Do not invent attributes; check the manifest.
+- Cards, tiles, buttons, callouts and steps take `icon` (a Lucide / Font Awesome name, emoji, image path or URL; `icon-name` is an accepted alias); tabs use `label`. Do not invent attributes; check the manifest.
 - Keep pages under about 2500 words and link to related pages with relative slugs (`[Setup](setup)`).
 - No TODO/TBD text in prose.
 

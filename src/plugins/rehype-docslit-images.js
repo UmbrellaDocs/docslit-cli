@@ -21,8 +21,13 @@ export default function rehypeDocslitImages(opts = {}) {
 
   return async function transformer(tree) {
     const imgs = [];
-    visit(tree, 'element', (node) => {
-      if (node.tagName === 'img' && node.properties?.src) imgs.push(node);
+    visit(tree, 'element', (node, _i, parent) => {
+      if (node.tagName !== 'img' || !node.properties?.src) return;
+      // images that are component icons (build-time `<span slot="icon" class="dl-icon"><img>`) stay plain <img>:
+      // a <wc-image> wrapper has no intrinsic size and collapses to 0x0 inside the icon box
+      const cls = [].concat(parent?.properties?.className || []).map(String);
+      if (parent?.tagName === 'wc-icon' || (parent?.tagName === 'span' && (cls.includes('dl-icon') || /^icon/.test(String(parent.properties?.slot || ''))))) return;
+      imgs.push(node);
     });
 
     for (const node of imgs) {

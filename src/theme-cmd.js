@@ -33,15 +33,17 @@ export async function themeInit(args) {
   }
 
   const template = buildBrandThemeTemplate();
+  await fs.ensureDir(path.dirname(outPath));
   await fs.writeFile(outPath, JSON.stringify(template, null, 2) + '\n');
 
   let updatedConfig = false;
   if (await fs.pathExists(configPath)) {
     try {
-      const config = await fs.readJson(configPath);
+      const text = await fs.readFile(configPath, 'utf8');
+      const config = JSON.parse(text);
       if (!config.theme) {
-        config.theme = `./${outName}`;
-        await fs.writeFile(configPath, JSON.stringify(config, null, 2) + '\n');
+        const rel = path.relative(cwd, outPath).split(path.sep).join('/');
+        await fs.writeFile(configPath, patchTopLevelKey(text, 'theme', `./${rel}`, detectIndent(text), INSERT_AFTER));
         updatedConfig = true;
       }
     } catch {
@@ -56,8 +58,9 @@ export async function themeInit(args) {
   } else {
     console.log(`  ${pc.dim('Add to docslit.json:')} "theme": "./${outName}"`);
   }
-  console.log(`\n  ${pc.bold('Built-in presets:')} ${listThemePresets().map(t => t.id).join(', ')}`);
-  console.log(`  ${pc.dim('Set "extends" in the theme file to start from a preset, then override brand colors.')}\n`);
+  console.log(`\n  ${pc.bold('Themes:')}   ${allThemeIds().filter((t) => t !== 'classic').join(', ')}`);
+  console.log(`  ${pc.bold('Palettes:')} ${allPaletteIds().join(', ')}`);
+  console.log(`  ${pc.dim('Set "name" (a theme) and/or "palette" in the theme file to start from a built-in look, then override brand colours.')}\n`);
 }
 
 /** Machine-readable theme catalogue (`docslit theme list --json`). */
@@ -163,8 +166,11 @@ export function applyThemeToConfigText(text, { theme, palette } = {}) {
   if (curObj) {
     next = curObj;
     if (theme) {
-      if (isThemeName(next.name)) delete next.name;
-      if (!next.name || isThemeName(next.name)) next.name = nextTheme; else next.theme = nextTheme;
+      // switching theme: take the new theme's signature palette unless one is requested (colours/fonts/overrides stay)
+      if (!palette) { delete next.palette; delete next.extends; delete next.preset; }
+      const { name: oldName, ...rest } = next;
+      const keepName = oldName && !isThemeName(oldName) ? oldName : null; // a free brand label stays as "name", the theme id goes to "theme"
+      next = keepName ? { name: keepName, theme: nextTheme, ...(({ theme: _t, ...r }) => r)(rest) } : { name: nextTheme, ...(({ theme: _t, ...r }) => r)(rest) };
     }
     if (palette) { next.palette = palette; delete next.extends; delete next.preset; }
   } else if (palette) {
@@ -175,21 +181,57 @@ export function applyThemeToConfigText(text, { theme, palette } = {}) {
   }
   // `default` theme + a stock palette keeps the legacy one-liner
   if (next && typeof next === 'object' && Object.keys(next).length === 2 && next.name === 'default' && next.palette) next = next.palette;
-  // insert after the last of the preferred keys when `theme` is new, else replace in place
-  const out = {};
-  if (Object.prototype.hasOwnProperty.call(config, 'theme')) {
-    for (const [k, v] of Object.entries(config)) out[k] = k === 'theme' ? next : v;
-  } else {
-    const keys = Object.keys(config);
-    const anchor = [...keys].reverse().find((k) => INSERT_AFTER.includes(k));
-    let placed = false;
-    for (const k of keys) {
-      out[k] = config[k];
-      if (k === anchor) { out.theme = next; placed = true; }
-    }
-    if (!placed) { const rest = { ...out }; for (const k of Object.keys(out)) delete out[k]; out.theme = next; Object.assign(out, rest); }
+  if (next && typeof next === 'object' && Object.keys(next).length === 1 && next.name) next = next.name; // nothing left to customise: plain string
+  return patchTopLevelKey(text, 'theme', next, indent, INSERT_AFTER);
+}
+
+/** Index just past a JSON string literal that starts at i. */
+function skipString(t, i) {
+  for (i++; i < t.length; i++) { if (t[i] === '\\') i++; else if (t[i] === '"') return i + 1; }
+  return i;
+}
+/** Top-level entries of a JSON object text: [{ key, keyStart, valStart, valEnd }]. */
+function topLevelEntries(t) {
+  const out = [];
+  let i = t.indexOf('{') + 1; let depth = 0;
+  while (i < t.length) {
+    const c = t[i];
+    if (/\s|,/.test(c)) { i++; continue; }
+    if (c === '}') break;
+    if (c !== '"') throw new Error('unexpected JSON');
+    const keyStart = i; const keyEnd = skipString(t, i);
+    const key = JSON.parse(t.slice(keyStart, keyEnd));
+    i = keyEnd; while (/\s|:/.test(t[i])) i++;
+    const valStart = i;
+    if (t[i] === '"') i = skipString(t, i);
+    else if (t[i] === '{' || t[i] === '[') {
+      depth = 0;
+      for (; i < t.length; i++) {
+        if (t[i] === '"') { i = skipString(t, i) - 1; continue; }
+        if (t[i] === '{' || t[i] === '[') depth++;
+        else if (t[i] === '}' || t[i] === ']') { depth--; if (depth === 0) { i++; break; } }
+      }
+    } else { while (i < t.length && !/[,}\s]/.test(t[i])) i++; }
+    out.push({ key, keyStart, valStart, valEnd: i });
   }
-  return JSON.stringify(out, null, indent) + trailing;
+  return out;
+}
+
+/**
+ * Pure text edit of one top-level key of a JSON object: only that value (or one new line) changes, so
+ * formatting, inline arrays, key order and every other key stay byte-for-byte.
+ */
+export function patchTopLevelKey(text, key, value, indent = '  ', insertAfter = []) {
+  const entries = topLevelEntries(text);
+  if (!entries.length) return JSON.stringify({ [key]: value }, null, indent) + (/\n$/.test(text) ? '\n' : '');
+  const json = JSON.stringify(value, null, indent).replace(/\n/g, '\n' + indent);
+  const hit = entries.find((e) => e.key === key);
+  if (hit) return text.slice(0, hit.valStart) + json + text.slice(hit.valEnd);
+  const anchor = [...entries].reverse().find((e) => insertAfter.includes(e.key));
+  const line = `${JSON.stringify(key)}: ${json}`;
+  if (anchor) return text.slice(0, anchor.valEnd) + `,\n${indent}${line}` + text.slice(anchor.valEnd);
+  const open = text.indexOf('{') + 1;
+  return text.slice(0, open) + `\n${indent}${line}${','}` + text.slice(open);
 }
 
 export async function themeUse(args) {

@@ -185,7 +185,7 @@
         },
         "socials": {
           "type": "object",
-          "description": "Social links by platform name -> URL (github, x, discord, slack, linkedin, youtube, facebook, instagram, reddit, bluesky, mastodon, telegram, medium, hacker-news, website, rss \u2026), rendered as icons.",
+          "description": "Social links by platform name -> URL (github, x, discord, slack, linkedin, youtube, facebook, instagram, reddit, bluesky, mastodon, telegram, medium, hacker-news, website, rss …), rendered as icons.",
           "additionalProperties": {
             "type": "string"
           }
@@ -853,6 +853,22 @@
     "themePicker": {
       "type": "boolean",
       "description": "Show a floating theme/palette/mode picker in the built site (for galleries and demos). Off by default; `docslit dev --theme-picker` enables it in development only."
+    },
+    "icons": {
+      "type": "object",
+      "description": "Icon settings. `library` chooses which icon set a bare icon name resolves in: auto (default; the built-in names keep the Lucide look, everything else tries Lucide then Font Awesome), lucide or fontawesome. Icons are inlined as SVG at build time.",
+      "additionalProperties": false,
+      "properties": {
+        "library": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "lucide",
+            "fontawesome"
+          ],
+          "description": "Icon set used to resolve bare icon names."
+        }
+      }
     }
   },
   "patternProperties": {

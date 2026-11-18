@@ -8,6 +8,7 @@ export const componentPageCss = `
 [theme="light"] { --bg: #fff; --surface: #f8f8f8; --surface2: #f0f0f0; --surface3: #e8e8e8; --border: #e2e2e2; --border2: #d0d0d0; --text: #0f0f0f; --text2: #555; --text3: #737373; --code-bg: #f6f8fa; --code-text: #24292f; }
 /* ── content components: icons, headings, scroll margins ── */
 .dl-icon svg { width: 1em; height: 1em; }
+.dl-icon img { width: 100%; height: 100%; min-width: 1em; min-height: 1em; object-fit: contain; display: block; border-radius: 0; margin: 0; }
 :not(:defined) > [slot="icon"], :not(:defined) > [slot="icon-right"], :not(:defined) > [slot="icon-open"] { display: none; }
 wc-step, wc-update, wc-accordion, wc-expandable, wc-tab, wc-walkthrough-step { scroll-margin-top: calc(var(--chrome-h, 60px) + 16px); }
 wc-embed, wc-github-repo, wc-walkthrough, wc-colors { display: block; margin-bottom: 20px; }

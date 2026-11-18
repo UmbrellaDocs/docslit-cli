@@ -1,3 +1,4 @@
+import { describeTheme } from './theme.js';
 // Migration report: collects every item needing attention plus conversion stats,
 // and renders them as MIGRATION.md, JSON and a terminal summary.
 const SEV_ORDER = { error: 0, warning: 1, info: 2 };
@@ -50,7 +51,7 @@ export function renderMigrationMd(r) {
   L.push(`- Assets copied: **${r.summary.assets}**`);
   L.push(`- Items needing attention: **${r.counts.error}** errors, **${r.counts.warning}** warnings, ${r.counts.info} notes`);
   if (r.validation) L.push(`- Validation of the result: **${r.validation.errors}** errors, **${r.validation.warnings}** warnings`);
-  if (r.theme) L.push(`- Theme: \`${typeof r.theme === 'string' ? r.theme : JSON.stringify(r.theme)}\``);
+  if (r.theme) L.push(`- Theme: ${describeTheme(r.theme)}`);
   L.push('');
   const bySev = { error: [], warning: [], info: [] };
   for (const i of r.items) bySev[i.severity].push(i);

@@ -25,7 +25,7 @@ DocsLit is a static docs generator: Markdown files in \`docs/\` plus \`wc-*\` we
 - Start the body with a single \`# H1\` equal to the title, then \`##\` sections. Do not skip heading levels.
 - Put a blank line before and after every block-level \`<wc-*>\` tag, and after an opening tag whose body is Markdown.
 - Close every tag with \`</wc-x>\`. Never write \`<wc-x />\` (HTML custom elements do not self-close); the one exception is the compile-time \`<wc-include ... />\`.
-- Use only attributes listed by \`get_component\`. Common slips: \`label\` (not \`title\`) on wc-tab/wc-code-tab, \`icon-name\` (not \`icon\`) on cards/tiles.
+- Use only attributes listed by \`get_component\`. Common slips: \`label\` (not \`title\`) on wc-tab/wc-code-tab, \`icon\` (alias \`icon-name\`) for named icons on cards, tiles and buttons.
 - Container components accept only specific children (wc-steps > wc-step, wc-tabs > wc-tab, wc-tiles > wc-tile|wc-card, wc-code-group > wc-code-tab, wc-fields > wc-field, wc-accordion-group > wc-accordion).
 - Content of wc-code-block / wc-code-tab / wc-mermaid is raw text: no Markdown inside. Prefer plain fenced code blocks for code.
 - Internal links: relative or root-based to existing pages; \`validate\` reports broken links and missing assets.

@@ -128,7 +128,7 @@ export default function rehypeDocslitIcons() {
 
       if (tag === 'wc-icon') {
         if (node.children?.some((c) => c.type === 'element' || c.type === 'raw')) return;
-        const spec = p.name ?? p.icon ?? p.src;
+        const spec = p.src ?? p.name ?? p.icon; // an explicit image src wins over a named fallback
         if (spec == null) return;
         const out = iconNodes(spec, undefined, iconType);
         if (out) node.children = [...out.children];

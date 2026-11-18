@@ -14,7 +14,7 @@ import { loadMintlifyConfig, convertMintlify } from './import/mintlify.js';
 import { findFernDir, convertFern } from './import/fern.js';
 import { convertGitbook, findGitbookRoot } from './import/gitbook.js';
 import { renderMigrationMd } from './import/report.js';
-import { buildThemeConfig } from './import/theme.js';
+import { buildThemeConfig, describeTheme } from './import/theme.js';
 import { OpenApiPages } from './import/nav.js';
 import { stringifyFrontmatter } from './frontmatter.js';
 
@@ -374,7 +374,7 @@ function printReport(r) {
     if (r.components.length > 24) console.log(pc.dim(`    … and ${r.components.length - 24} more`));
   }
   console.log(`\n  ${pc.bold('Config keys mapped:')} ${r.config.mapped.length}   ${pc.bold('not converted:')} ${r.config.unmapped.length}`);
-  if (r.theme) console.log(`  ${pc.bold('Theme:')} ${typeof r.theme === 'string' ? r.theme : JSON.stringify(r.theme).slice(0, 100)}`);
+  if (r.theme) console.log(`  ${pc.bold('Theme:')} ${describeTheme(r.theme)}`);
   const c = r.counts;
   console.log(`\n  ${pc.bold('Needs attention:')} ${c.error ? pc.red(c.error + ' errors') : '0 errors'}, ${c.warning ? pc.yellow(c.warning + ' warnings') : '0 warnings'}, ${c.info} notes`);
   for (const i of r.items.filter((x) => x.severity !== 'info').slice(0, 15)) {

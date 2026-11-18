@@ -147,6 +147,7 @@ Version 2.0 is now available.
       attr('version', 'string', 'Version number for this change.'),
       attr('type', 'string', 'Change type badge (boxed layout).', { values: ['added', 'changed', 'fixed', 'removed', 'deprecated', 'security'] }),
       attr('date', 'string', 'Release date (free-form text, boxed layout).'),
+      attr('id', 'string', 'Anchor id. Defaults to a slug of the label.'),
     ],
     'markdown', 'Description of the change.',
     `<wc-update label="2026-10-29" description="v1.2.0" tags="Feature, Fix">
@@ -227,6 +228,7 @@ Set \`DEBUG=1\` to enable verbose logs.
       attr('description', 'string', 'Smaller text under the title.'),
       attr('icon', 'string', 'Leading icon (see wc-icon for accepted values).'),
       attr('open', 'boolean', 'Expand the item by default.'),
+      attr('id', 'string', 'Anchor id for deep links. Defaults to a slug of the title.'),
     ],
     'markdown', 'Answer or detail content.',
     `<wc-accordion title="Which Node.js version do I need?" description="Short answer: 20.19 or later" icon="circle-help">
@@ -283,6 +285,8 @@ Run \`docslit init my-docs\`.
       attr('n', 'number', 'Override the auto-generated step number.'),
       attr('icon', 'string', 'Icon shown in the marker instead of the number (see wc-icon for accepted values).'),
       attr('title-size', 'string', 'Title level for this step (overrides wc-steps).', { values: ['p', 'h2', 'h3', 'h4'] }),
+      attr('id', 'string', 'Anchor id for deep links. Defaults to a slug of the title.'),
+
       attr('no-anchor', 'boolean', 'Hide the hover anchor link on a plain-text (p) title.'),
       attr('data-anchor', 'string', 'Set by the build step: the heading id when title-size is h2-h4.'),
       attr('data-title-level', 'string', 'Set by the build step: h2, h3 or h4 when the title is a heading.'),
@@ -326,6 +330,7 @@ pnpm add docslit
     [
       attr('label', 'string', 'Text of the tab button (inline Markdown). Also the deep-link id (slug of the label) unless id is set.', { required: true }),
       attr('icon', 'string', 'Icon shown before the label (see wc-icon for accepted values).'),
+      attr('id', 'string', 'Deep-link id. Defaults to a slug of the label.'),
     ],
     'markdown', 'Tab content (full Markdown). Leave blank lines around fenced code blocks.',
     `<wc-tabs>
@@ -425,6 +430,7 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
       attr('label', 'string', 'Tab label.', { required: true }),
       attr('language', 'string', 'Highlighting language for the snippet (also used for language sync between groups).'),
       attr('icon', 'string', 'Icon shown in the tab.'),
+      attr('for', 'string', 'Sync token (e.g. "npm"): groups whose tabs share a token switch together. Defaults to the label, then the language.'),
     ],
     'code', 'Raw code or command text (not parsed as Markdown).',
     `<wc-code-group>
@@ -436,11 +442,11 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
   def('wc-icon', 'media',
     'Inline icon. Names are resolved at BUILD time to inline SVG from Lucide (ISC) and Font Awesome Free 6 (CC BY 4.0): no CDN request, works offline, and unknown names are flagged by validate with a suggestion. Also accepts an emoji, an image URL/path or inline <svg>.',
     [
-      attr('name', 'string', 'Icon name: rocket, fa-solid fa-gear, fa-brands fa-github, lucide:zap, an emoji, an image URL/path, or inline <svg>. Bare names use the order set by docslit.json icons.library (auto | fontawesome | lucide).', { required: true }),
+      attr('name', 'string', 'Icon name: rocket, fa-solid fa-gear, fa-brands fa-github, lucide:zap, an emoji, an image URL/path, or inline <svg>. Bare names use the order set by docslit.json icons.library (auto | fontawesome | lucide). Give either name or src.'),
       attr('icon-type', 'string', 'Font Awesome style when the name is bare.', { values: ['solid', 'regular', 'brands'] }),
       attr('size', 'number', 'Icon size in pixels.', { default: '16' }),
       attr('color', 'string', 'Icon color (any CSS color).'),
-      attr('src', 'string', 'Image URL/path to use as the icon instead of a named one.'),
+      attr('src', 'string', 'Image URL/path to use as the icon (wins over name).'),
       attr('label', 'string', 'Accessible name. Icons are decorative (aria-hidden) unless you set this.'),
     ],
     'none', 'No content.',
@@ -527,7 +533,7 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
   def('wc-download', 'media',
     'Download link styled as a button. With sources it bundles several files into one ZIP in the browser (no dependency; files must be CORS-readable).',
     [
-      attr('href', 'string', 'URL or path of the file to download.', { required: true }),
+      attr('href', 'string', 'URL or path of the file to download (give href or sources).'),
       attr('filename', 'string', 'Suggested filename (for sources: the ZIP name, default download.zip).'),
       attr('label', 'string', 'Link text. Defaults to the element body, then the filename, then "Download".'),
       attr('size', 'string', 'File size text shown in parentheses, e.g. "2.4 MB".'),
@@ -829,8 +835,8 @@ Go from zero to a live site in minutes.
     [attr('cols', 'number', 'Number of columns. Defaults to automatic sizing.')],
     'children', 'wc-tile or wc-card elements.',
     `<wc-tiles cols="2">
-<wc-tile href="installation" icon-name="package" title="Installation" description="Install the CLI."></wc-tile>
-<wc-tile href="quickstart" icon-name="zap" title="Quickstart" description="Build your first site."></wc-tile>
+<wc-tile href="installation" icon="package" title="Installation" description="Install the CLI."></wc-tile>
+<wc-tile href="quickstart" icon="zap" title="Quickstart" description="Build your first site."></wc-tile>
 </wc-tiles>`,
     { children: ['wc-tile', 'wc-card'] }),
 

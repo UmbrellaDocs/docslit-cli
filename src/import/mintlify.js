@@ -69,7 +69,6 @@ export async function convertMintlify(imp, { file, cfg, legacy }, opts = {}) {
   const googleFamilies = [];
   for (const [role, f] of [['fontSans', body], ['fontHeading', heading]]) {
     if (!f) continue;
-    if (role === 'fontHeading') { unmapped('fonts.heading', 'DocsLit uses a single sans font; the heading font was not applied separately'); continue; }
     fonts[role] = `"${f.family}", ui-sans-serif, system-ui, sans-serif`;
     if (f.source) fontCss.push(`@font-face{font-family:"${f.family}";src:url("${f.source}")${f.format ? ` format("${f.format}")` : ''};font-weight:${f.weight || 400};font-display:swap}`);
     else googleFamilies.push(`${f.family.replace(/ /g, '+')}:wght@${f.weight || 400};600;700`);
@@ -77,11 +76,17 @@ export async function convertMintlify(imp, { file, cfg, legacy }, opts = {}) {
   if (googleFamilies.length) head.push(`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=${googleFamilies.join('&family=')}&display=swap" rel="stylesheet">`);
   if (cfg.fonts) mapped('fonts', 'theme.fonts');
   if (cfg.theme) unmapped('theme', `Mintlify theme "${cfg.theme}" is replaced by the DocsLit "${opts.themeOpt || 'peppermint'}" theme`);
-  if (cfg.appearance) unmapped('appearance', 'default colour mode is chosen by the reader (system) in DocsLit');
+  // appearance: "system" | "light" | "dark" or { default, strict }
+  let appearance; let strictMode;
+  if (cfg.appearance) {
+    if (typeof cfg.appearance === 'string') appearance = cfg.appearance;
+    else { appearance = cfg.appearance.default; strictMode = cfg.appearance.strict === true; }
+    mapped('appearance', 'theme.appearance / theme.strict');
+  }
   for (const k of ['styling', 'thumbnails', 'interaction', 'directory', 'eyebrow', 'backgroundImage']) if (cfg[k] !== undefined) unmapped(k, '');
   if (cfg.background?.image || cfg.background?.decoration) unmapped('background.image/decoration', 'decorative backgrounds are not supported');
   if (cfg.icons?.library) { out.icons = { library: cfg.icons.library === 'lucide' ? 'lucide' : 'fontawesome' }; mapped('icons.library', 'icons.library'); }
-  const theme = buildThemeConfig({ vendor: 'mintlify', brand, fonts, themeOpt: opts.themeOpt, report: (s, c, m, x) => rep(s, c, m, x) });
+  const theme = buildThemeConfig({ vendor: 'mintlify', brand, fonts, appearance, strict: strictMode, themeOpt: opts.themeOpt, report: (s, c, m, x) => rep(s, c, m, x) });
   if (theme !== undefined) out.theme = theme;
 
   // navigation
