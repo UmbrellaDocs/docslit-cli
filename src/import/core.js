@@ -11,7 +11,7 @@ import { Reporter } from './report.js';
 import { gitbookPreprocess } from './gitbook.js';
 import { attrString, isExpr, isJsx } from './jsx.js';
 import { convertPymdown, rewriteLinks, MATERIAL_COMPAT_CSS } from './pymdown.js';
-import { mkdocsFrontmatter, readMkdocsSnippet } from './mkdocs.js';
+import { mkdocsFrontmatter, readMkdocsSnippet, readMkdocsInclude, recordPythonDirectives } from './mkdocs.js';
 
 const posix = (p) => p.split(path.sep).join('/');
 const stripExt = (p) => p.replace(/\.(mdx?|markdown)$/i, '');
@@ -36,6 +36,7 @@ export class Importer {
     this.reusables = new Map();    // srcRel -> outName (relative to _reusables, with .md)
     this.attributes = {};          // global {{VARS}}
     this.redirects = {};
+    this.pageAppend = new Map();   // slug -> Markdown appended to the converted page (generated listings)
     this.stats = { pages: 0, pagesFailed: 0, snippets: 0 };
     this.moduleCache = new Map();
     this.openapiSpecs = [];
@@ -127,8 +128,9 @@ export class Importer {
     const mk = this.mkdocs;
     const lineIn = (needle) => { const i = raw.indexOf(needle); return i === -1 ? null : raw.slice(0, i).split('\n').length; };
     const r = convertPymdown(body, {
-      file: srcRel, lineOffset, exts: mk.exts, tabsSync: mk.tabsSync, macros: mk.macros,
+      file: srcRel, lineOffset, exts: mk.exts, tabsSync: mk.tabsSync, codeAnnotate: mk.codeAnnotate, macros: mk.macros,
       report: rep, count: (a, b) => this.reporter.count(a, b),
+      readInclude: (spec, o) => (this.lenient ? { skip: true } : readMkdocsInclude(this, spec, o.stack.length ? o.stack[o.stack.length - 1] : path.join(mk.docsDir, srcRel), path.join(mk.docsDir, srcRel), o)),
       readSnippet: (spec, o) => (this.lenient ? { error: 'snippets are not followed when converting a single page' } : readMkdocsSnippet(this, spec, srcRel, o)),
     });
     const n = r.notes;
@@ -139,8 +141,10 @@ export class Importer {
     });
     if (n.mkdocstrings.length) {
       const ids = n.mkdocstrings.map((x) => x.id);
-      rep('error', 'mkdocstrings', `${ids.length} mkdocstrings API block${ids.length === 1 ? '' : 's'} (${ids.slice(0, 4).join(', ')}${ids.length > 4 ? ', …' : ''}) became placeholder callouts.`, {
-        line: lineIn(':::'), action: 'Replaced each `::: id` with a warning callout.', fix: 'Write the API reference in Markdown, or generate Markdown from your docstrings (for example with griffe2md) and import it. Native Python API support is on the DocsLit roadmap.' });
+      rep('info', 'mkdocs-python-directives', `${ids.length} mkdocstrings \`::: id\` directive${ids.length === 1 ? '' : 's'} kept (${ids.slice(0, 4).join(', ')}${ids.length > 4 ? ', …' : ''}).`, {
+        line: lineIn(':::'), action: 'Kept each directive with its options normalised to mkdocstrings-python names.' });
+      if (n.mkdocstrings.some((x) => x.invalid)) rep('warning', 'mkdocs-python-options-invalid', 'The options block of a ::: directive is not valid YAML and was dropped.', { line: lineIn(':::') });
+      recordPythonDirectives(this, n.mkdocstrings, rep);
     }
     if (n.macros.length && mk.macros.enabled) {
       const ex = [...new Set(n.macros.map((x) => x.text))];
@@ -148,7 +152,7 @@ export class Importer {
         line: lineIn(n.macros[0].text), action: 'Left as written.', fix: 'Replace each with its value, a {{VAR}} from "attributes" in docslit.json, or <wc-if>/<wc-include>.' });
     }
     if (n.iconMiss.size) rep('info', 'mkdocs-icon-unmapped', `Icon${n.iconMiss.size === 1 ? '' : 's'} without a Lucide / Font Awesome match removed: ${[...n.iconMiss].slice(0, 6).join(', ')}${n.iconMiss.size > 6 ? ', …' : ''}.`, { action: 'Removed the shortcode.', fix: 'Add an icon with <wc-icon name="…"> (Lucide or Font Awesome names).' });
-    if (n.annotations) rep('info', 'mkdocs-code-annotations', 'Code annotations ((1) markers) are shown as plain comments followed by the numbered list.', { fix: 'Turn important annotations into prose or a callout.' });
+    if (n.annotations) rep('info', 'mkdocs-content-annotations', 'Annotations on regular content ({ .annotate } lists) are shown as plain (1) markers followed by the numbered list.', { fix: 'Turn important annotations into prose or a callout.' });
     if (n.critic) rep('warning', 'mkdocs-criticmarkup', 'CriticMarkup ({++ ++}, {-- --}, {== ==}) was left as written.', { line: lineIn('{'), fix: 'Resolve the suggested edits by hand.' });
     if (n.attrDropped) this.reporter.count('{ .class } attribute list', 'dropped');
     if (n.gridCards && !mk.compatCss) { mk.compatCss = true; this.extraCss = (this.extraCss || []).concat(MATERIAL_COMPAT_CSS); }

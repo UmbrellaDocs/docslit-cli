@@ -386,7 +386,7 @@ rsync -avz dist/ deploy@{{DOMAIN}}:/var/www/html/
     { selfClosing: false, selfClosingWith: 'value' }),
 
   def('wc-code-block', 'code',
-    'Syntax-highlighted code with copy button, optional filename header, icon, line numbers, line highlight / focus / diff marks, wrapping and a collapse toggle. Plain fenced code blocks (```lang) are usually preferred and take the same options in the fence meta (```js title="app.js" {1,3-5} lines wrap); use this tag when you want attributes. Shiki notation comments (// [!code ++], [!code --], [!code highlight], [!code focus], [!code error], [!code warning]) are stripped from the display and from Copy.',
+    'Syntax-highlighted code with copy button, optional filename header, icon, line numbers, line highlight / focus / diff marks, wrapping and a collapse toggle. Plain fenced code blocks (```lang) are usually preferred and take the same options in the fence meta (```js title="app.js" {1,3-5} lines wrap); use this tag when you want attributes. Shiki notation comments (// [!code ++], [!code --], [!code highlight], [!code focus], [!code error], [!code warning]) are stripped from the display and from Copy. Code annotations: add the `annotate` flag to a fence (```python annotate) and end a comment with (1), (2), ... (or (1)! to hide the comment characters); the ordered list directly after the block holds the notes, shown in a popover when the numbered badge is clicked.',
     [
       attr('language', 'string', 'Highlighting language, e.g. javascript, python, bash, json, html, css. Shown as a label in the header.'),
       attr('filename', 'string', 'Filename or title displayed in the header bar.'),

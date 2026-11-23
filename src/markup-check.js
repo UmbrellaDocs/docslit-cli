@@ -74,26 +74,29 @@ function blank(s) {
  * Blank out fenced code blocks (CommonMark-style): an opening fence of 3+
  * backticks or tildes (any indentation, optional info string; backtick fences
  * may not have backticks in the info string) runs until a closing fence of the
- * same character that is at least as long and has nothing after it. An
+ * same character that is at least as long, has nothing after it and is indented
+ * at most 3 columns more than the opener. An
  * unterminated fence runs to the end of the input. Newlines are preserved.
  */
 function maskFencedCode(src) {
   const lines = src.split('\n');
-  let open = null; // { ch, len }
+  let open = null; // { ch, len, ind }
+  const width = (ws) => { let w = 0; for (const c of ws) w += c === '\t' ? 4 - (w % 4) : 1; return w; };
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const line = raw.replace(/\r$/, '');
     if (open) {
-      const close = /^[ \t]*([`~]{3,})[ \t\r]*$/.exec(line);
-      if (close && close[1].length >= open.len && [...close[1]].every((c) => c === open.ch)) {
+      // a closing fence may be indented at most 3 columns more than its opener (an indented inner ``` is content)
+      const close = /^([ \t]*)([`~]{3,})[ \t\r]*$/.exec(line);
+      if (close && close[2].length >= open.len && [...close[2]].every((c) => c === open.ch) && width(close[1]) <= open.ind + 3) {
         open = null;
       }
       lines[i] = blank(raw);
       continue;
     }
-    const m = /^[ \t]*(`{3,}|~{3,})(.*)$/.exec(line);
-    if (m && !(m[1][0] === '`' && m[2].includes('`'))) {
-      open = { ch: m[1][0], len: m[1].length };
+    const m = /^([ \t]*)(`{3,}|~{3,})(.*)$/.exec(line);
+    if (m && !(m[2][0] === '`' && m[3].includes('`'))) {
+      open = { ch: m[2][0], len: m[2].length, ind: width(m[1]) };
       lines[i] = blank(raw);
     }
   }

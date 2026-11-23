@@ -200,3 +200,11 @@ describe('helpers', () => {
     expect(nearest('zzzzzz', ['wc-callout'])).toBeNull();
   });
 });
+
+describe('fenced code masking follows CommonMark closing rules', () => {
+  it('an indented inner fence inside a code example does not close the outer fence', async () => {
+    const { checkMarkup } = await import('./markup-check.js');
+    const md = '```markdown\n=== "C"\n\n    ```c\n    int x;\n    ```\n\n</wc-tab>\n```\n\nText.\n';
+    expect(checkMarkup(md).issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+});

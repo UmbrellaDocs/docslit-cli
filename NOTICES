@@ -78,3 +78,16 @@ Copyright 2024 Fonticons, Inc.
 Icons are licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); the SVG path data
 is modified only by repackaging into a JSON registry. Attribution: "Font Awesome Free by Fonticons, Inc.,
 https://fontawesome.com/license/free".
+
+-------------------------------------------------------------------------------
+
+Emoji shortcode table (src/import/emoji-shortcodes.js, generated from gemoji and emojibase-data)
+https://github.com/wooorm/gemoji
+Copyright (c) 2014 Titus Wormer <tituswormer@gmail.com>
+https://github.com/milesj/emojibase
+Copyright (c) 2017-2019 Miles Johnson
+Both are licensed under the MIT License: permission is hereby granted, free of charge, to any person
+obtaining a copy of the data and associated documentation files, to deal in them without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies, subject to the above copyright notices and this permission notice being included in
+all copies or substantial portions. THE DATA IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.

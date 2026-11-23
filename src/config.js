@@ -12,6 +12,7 @@ function warnOnce(msg) {
   console.warn(`  Warning: ${msg}`);
 }
 import { setMathConfig } from './math.js';
+import { initPythonApi } from './api-python/site.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -45,6 +46,7 @@ export async function loadConfig(cwd) {
       parsed.editUrl = await detectEditUrl(cwd);
     }
     setMathConfig(parsed.math);
+    await initPythonApi(parsed, cwd);
     return await expandAllSidebars(parsed, cwd, { warn: warnOnce });
   } catch (e) {
     console.error(`  Error: could not load docslit.json: ${e.message}`);

@@ -1,0 +1,5689 @@
+{
+ "httpx": {
+  "analysis": "static",
+  "exports": [
+   "AsyncClient",
+   "Client",
+   "Request",
+   "Response",
+   "Timeout",
+   "URL",
+   "USE_CLIENT_DEFAULT"
+  ],
+  "imports": {},
+  "kind": "module",
+  "members": {
+   "AsyncClient": {
+    "endlineno": 4,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 4,
+    "name": "AsyncClient",
+    "runtime": true,
+    "target_path": "httpx._client.AsyncClient"
+   },
+   "Client": {
+    "endlineno": 4,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 4,
+    "name": "Client",
+    "runtime": true,
+    "target_path": "httpx._client.Client"
+   },
+   "Request": {
+    "endlineno": 8,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 8,
+    "name": "Request",
+    "runtime": true,
+    "target_path": "httpx._models.Request"
+   },
+   "Response": {
+    "endlineno": 8,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 8,
+    "name": "Response",
+    "runtime": true,
+    "target_path": "httpx._models.Response"
+   },
+   "Timeout": {
+    "endlineno": 5,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 5,
+    "name": "Timeout",
+    "runtime": true,
+    "target_path": "httpx._config.Timeout"
+   },
+   "URL": {
+    "endlineno": 12,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 12,
+    "name": "URL",
+    "runtime": true,
+    "target_path": "httpx._urls.URL"
+   },
+   "USE_CLIENT_DEFAULT": {
+    "endlineno": 4,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 4,
+    "name": "USE_CLIENT_DEFAULT",
+    "runtime": true,
+    "target_path": "httpx._client.USE_CLIENT_DEFAULT"
+   },
+   "_client": {
+    "analysis": "static",
+    "exports": [
+     "USE_CLIENT_DEFAULT",
+     "AsyncClient",
+     "Client"
+    ],
+    "imports": {
+     "Auth": "httpx._auth.Auth",
+     "AuthTypes": "httpx._types.AuthTypes",
+     "BaseTransport": "httpx._transports.base.BaseTransport",
+     "CertTypes": "httpx._types.CertTypes",
+     "CookieTypes": "httpx._types.CookieTypes",
+     "Cookies": "httpx._models.Cookies",
+     "HTTPTransport": "httpx._transports.default.HTTPTransport",
+     "HeaderTypes": "httpx._types.HeaderTypes",
+     "Headers": "httpx._models.Headers",
+     "Limits": "httpx._config.Limits",
+     "Proxy": "httpx._config.Proxy",
+     "ProxyTypes": "httpx._types.ProxyTypes",
+     "QueryParamTypes": "httpx._types.QueryParamTypes",
+     "QueryParams": "httpx._urls.QueryParams",
+     "Request": "httpx._models.Request",
+     "RequestContent": "httpx._types.RequestContent",
+     "RequestData": "httpx._types.RequestData",
+     "RequestExtensions": "httpx._types.RequestExtensions",
+     "RequestFiles": "httpx._types.RequestFiles",
+     "Response": "httpx._models.Response",
+     "Timeout": "httpx._config.Timeout",
+     "TimeoutTypes": "httpx._types.TimeoutTypes",
+     "URL": "httpx._urls.URL"
+    },
+    "kind": "module",
+    "members": {
+     "Auth": {
+      "analysis": "static",
+      "endlineno": 13,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 13,
+      "name": "Auth",
+      "runtime": true,
+      "target_path": "httpx._auth.Auth"
+     },
+     "AuthTypes": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "AuthTypes",
+      "runtime": true,
+      "target_path": "httpx._types.AuthTypes"
+     },
+     "BaseClient": {
+      "analysis": "static",
+      "bases": [],
+      "decorators": [],
+      "endlineno": 591,
+      "kind": "class",
+      "lineno": 188,
+      "members": {
+       "__init__": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 221,
+        "kind": "function",
+        "lineno": 189,
+        "name": "__init__",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "AuthTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "TimeoutTypes"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "DEFAULT_TIMEOUT_CONFIG"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "bool"
+          },
+          "default": "False",
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "int"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "DEFAULT_MAX_REDIRECTS"
+          },
+          "kind": "keyword-only",
+          "name": "max_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": "None",
+           "operator": "|",
+           "right": {
+            "cls": "ExprSubscript",
+            "left": {
+             "cls": "ExprAttribute",
+             "values": [
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "typing"
+              },
+              {
+               "cls": "ExprName",
+               "member": null,
+               "name": "Mapping"
+              }
+             ]
+            },
+            "slice": {
+             "cls": "ExprTuple",
+             "elements": [
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "str"
+              },
+              {
+               "cls": "ExprSubscript",
+               "left": {
+                "cls": "ExprName",
+                "member": "__init__",
+                "name": "list"
+               },
+               "slice": {
+                "cls": "ExprName",
+                "member": "__init__",
+                "name": "EventHook"
+               }
+              }
+             ],
+             "implicit": true
+            }
+           }
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "event_hooks"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "str"
+           }
+          },
+          "default": "''",
+          "kind": "keyword-only",
+          "name": "base_url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "bool"
+          },
+          "default": "True",
+          "kind": "keyword-only",
+          "name": "trust_env"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "str"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprSubscript",
+            "left": {
+             "cls": "ExprAttribute",
+             "values": [
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "typing"
+              },
+              {
+               "cls": "ExprName",
+               "member": null,
+               "name": "Callable"
+              }
+             ]
+            },
+            "slice": {
+             "cls": "ExprTuple",
+             "elements": [
+              {
+               "cls": "ExprList",
+               "elements": [
+                {
+                 "cls": "ExprName",
+                 "member": "__init__",
+                 "name": "bytes"
+                }
+               ]
+              },
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "str"
+              }
+             ],
+             "implicit": true
+            }
+           }
+          },
+          "default": "'utf-8'",
+          "kind": "keyword-only",
+          "name": "default_encoding"
+         }
+        ],
+        "returns": "None",
+        "runtime": true
+       },
+       "_auth": {
+        "analysis": "static",
+        "endlineno": 208,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 208,
+        "name": "_auth",
+        "runtime": true,
+        "value": {
+         "arguments": [
+          {
+           "cls": "ExprName",
+           "member": null,
+           "name": "auth"
+          }
+         ],
+         "cls": "ExprCall",
+         "function": {
+          "cls": "ExprAttribute",
+          "values": [
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "self"
+           },
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "_build_auth"
+           }
+          ]
+         }
+        }
+       },
+       "_base_url": {
+        "analysis": "static",
+        "endlineno": 206,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 206,
+        "name": "_base_url",
+        "runtime": true,
+        "value": {
+         "arguments": [
+          {
+           "arguments": [
+            {
+             "cls": "ExprName",
+             "member": null,
+             "name": "base_url"
+            }
+           ],
+           "cls": "ExprCall",
+           "function": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "URL"
+           }
+          }
+         ],
+         "cls": "ExprCall",
+         "function": {
+          "cls": "ExprAttribute",
+          "values": [
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "self"
+           },
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "_enforce_trailing_slash"
+           }
+          ]
+         }
+        }
+       },
+       "_build_auth": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 455,
+        "kind": "function",
+        "lineno": 445,
+        "name": "_build_auth",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "_build_auth",
+            "name": "AuthTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "auth"
+         }
+        ],
+        "returns": {
+         "cls": "ExprBinOp",
+         "left": {
+          "cls": "ExprName",
+          "member": "_build_auth",
+          "name": "Auth"
+         },
+         "operator": "|",
+         "right": "None"
+        },
+        "runtime": true
+       },
+       "_build_redirect_request": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 479,
+         "lineno": 476,
+         "value": "Given a request and a redirect response, return a new request that\nshould be used to effect the redirect."
+        },
+        "endlineno": 492,
+        "kind": "function",
+        "lineno": 475,
+        "name": "_build_redirect_request",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_build_redirect_request",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_build_redirect_request",
+           "name": "Response"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "response"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_build_redirect_request",
+         "name": "Request"
+        },
+        "runtime": true
+       },
+       "_build_request_auth": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 473,
+        "kind": "function",
+        "lineno": 457,
+        "name": "_build_request_auth",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_build_request_auth",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprName",
+             "member": "_build_request_auth",
+             "name": "AuthTypes"
+            },
+            "operator": "|",
+            "right": {
+             "cls": "ExprName",
+             "member": "_build_request_auth",
+             "name": "UseClientDefault"
+            }
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "positional or keyword",
+          "name": "auth"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_build_request_auth",
+         "name": "Auth"
+        },
+        "runtime": true
+       },
+       "_cookies": {
+        "analysis": "static",
+        "endlineno": 211,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 211,
+        "name": "_cookies",
+        "runtime": true,
+        "value": {
+         "arguments": [
+          {
+           "cls": "ExprName",
+           "member": null,
+           "name": "cookies"
+          }
+         ],
+         "cls": "ExprCall",
+         "function": {
+          "cls": "ExprName",
+          "member": null,
+          "name": "Cookies"
+         }
+        }
+       },
+       "_default_encoding": {
+        "analysis": "static",
+        "endlineno": 220,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 220,
+        "name": "_default_encoding",
+        "runtime": true,
+        "value": {
+         "cls": "ExprName",
+         "member": null,
+         "name": "default_encoding"
+        }
+       },
+       "_enforce_trailing_slash": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 237,
+        "kind": "function",
+        "lineno": 234,
+        "name": "_enforce_trailing_slash",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_enforce_trailing_slash",
+           "name": "URL"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_enforce_trailing_slash",
+         "name": "URL"
+        },
+        "runtime": true
+       },
+       "_event_hooks": {
+        "analysis": "static",
+        "endlineno": 218,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 215,
+        "name": "_event_hooks",
+        "runtime": true,
+        "value": {
+         "cls": "ExprDict",
+         "keys": [
+          "'request'",
+          "'response'"
+         ],
+         "values": [
+          {
+           "arguments": [
+            {
+             "arguments": [
+              "'request'",
+              {
+               "cls": "ExprList",
+               "elements": []
+              }
+             ],
+             "cls": "ExprCall",
+             "function": {
+              "cls": "ExprAttribute",
+              "values": [
+               {
+                "cls": "ExprName",
+                "member": null,
+                "name": "event_hooks"
+               },
+               {
+                "cls": "ExprName",
+                "member": null,
+                "name": "get"
+               }
+              ]
+             }
+            }
+           ],
+           "cls": "ExprCall",
+           "function": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "list"
+           }
+          },
+          {
+           "arguments": [
+            {
+             "arguments": [
+              "'response'",
+              {
+               "cls": "ExprList",
+               "elements": []
+              }
+             ],
+             "cls": "ExprCall",
+             "function": {
+              "cls": "ExprAttribute",
+              "values": [
+               {
+                "cls": "ExprName",
+                "member": null,
+                "name": "event_hooks"
+               },
+               {
+                "cls": "ExprName",
+                "member": null,
+                "name": "get"
+               }
+              ]
+             }
+            }
+           ],
+           "cls": "ExprCall",
+           "function": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "list"
+           }
+          }
+         ]
+        }
+       },
+       "_get_proxy_map": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 251,
+        "kind": "function",
+        "lineno": 239,
+        "name": "_get_proxy_map",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "_get_proxy_map",
+            "name": "ProxyTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "proxy"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_get_proxy_map",
+           "name": "bool"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "allow_env_proxies"
+         }
+        ],
+        "returns": {
+         "cls": "ExprSubscript",
+         "left": {
+          "cls": "ExprName",
+          "member": "_get_proxy_map",
+          "name": "dict"
+         },
+         "slice": {
+          "cls": "ExprTuple",
+          "elements": [
+           {
+            "cls": "ExprName",
+            "member": "_get_proxy_map",
+            "name": "str"
+           },
+           {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprName",
+             "member": "_get_proxy_map",
+             "name": "Proxy"
+            },
+            "operator": "|",
+            "right": "None"
+           }
+          ],
+          "implicit": true
+         }
+        },
+        "runtime": true
+       },
+       "_merge_cookies": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 417,
+         "lineno": 414,
+         "value": "Merge a cookies argument together with any cookies on the client,\nto create the cookies used for the outgoing request."
+        },
+        "endlineno": 422,
+        "kind": "function",
+        "lineno": 413,
+        "name": "_merge_cookies",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "_merge_cookies",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "cookies"
+         }
+        ],
+        "returns": {
+         "cls": "ExprBinOp",
+         "left": {
+          "cls": "ExprName",
+          "member": "_merge_cookies",
+          "name": "CookieTypes"
+         },
+         "operator": "|",
+         "right": "None"
+        },
+        "runtime": true
+       },
+       "_merge_headers": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 428,
+         "lineno": 425,
+         "value": "Merge a headers argument together with any headers on the client,\nto create the headers used for the outgoing request."
+        },
+        "endlineno": 431,
+        "kind": "function",
+        "lineno": 424,
+        "name": "_merge_headers",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "_merge_headers",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "headers"
+         }
+        ],
+        "returns": {
+         "cls": "ExprBinOp",
+         "left": {
+          "cls": "ExprName",
+          "member": "_merge_headers",
+          "name": "HeaderTypes"
+         },
+         "operator": "|",
+         "right": "None"
+        },
+        "runtime": true
+       },
+       "_merge_queryparams": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 439,
+         "lineno": 436,
+         "value": "Merge a queryparams argument together with any queryparams on the client,\nto create the queryparams used for the outgoing request."
+        },
+        "endlineno": 443,
+        "kind": "function",
+        "lineno": 433,
+        "name": "_merge_queryparams",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "_merge_queryparams",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "params"
+         }
+        ],
+        "returns": {
+         "cls": "ExprBinOp",
+         "left": {
+          "cls": "ExprName",
+          "member": "_merge_queryparams",
+          "name": "QueryParamTypes"
+         },
+         "operator": "|",
+         "right": "None"
+        },
+        "runtime": true
+       },
+       "_merge_url": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 395,
+         "lineno": 392,
+         "value": "Merge a URL argument together with any 'base_url' on the client,\nto create the URL used for the outgoing request."
+        },
+        "endlineno": 411,
+        "kind": "function",
+        "lineno": 391,
+        "name": "_merge_url",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "_merge_url",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "_merge_url",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_merge_url",
+         "name": "URL"
+        },
+        "runtime": true
+       },
+       "_params": {
+        "analysis": "static",
+        "endlineno": 209,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 209,
+        "name": "_params",
+        "runtime": true,
+        "value": {
+         "arguments": [
+          {
+           "cls": "ExprName",
+           "member": null,
+           "name": "params"
+          }
+         ],
+         "cls": "ExprCall",
+         "function": {
+          "cls": "ExprName",
+          "member": null,
+          "name": "QueryParams"
+         }
+        }
+       },
+       "_redirect_headers": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 549,
+         "lineno": 547,
+         "value": "Return the headers that should be used for the redirect request."
+        },
+        "endlineno": 571,
+        "kind": "function",
+        "lineno": 546,
+        "name": "_redirect_headers",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_redirect_headers",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_redirect_headers",
+           "name": "URL"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_redirect_headers",
+           "name": "str"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "method"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_redirect_headers",
+         "name": "Headers"
+        },
+        "runtime": true
+       },
+       "_redirect_method": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 498,
+         "lineno": 495,
+         "value": "When being redirected we may want to change the method of the request\nbased on certain specs or browser behavior."
+        },
+        "endlineno": 515,
+        "kind": "function",
+        "lineno": 494,
+        "name": "_redirect_method",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_redirect_method",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_redirect_method",
+           "name": "Response"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "response"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_redirect_method",
+         "name": "str"
+        },
+        "runtime": true
+       },
+       "_redirect_stream": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 578,
+         "lineno": 576,
+         "value": "Return the body that should be used for the redirect request."
+        },
+        "endlineno": 582,
+        "kind": "function",
+        "lineno": 573,
+        "name": "_redirect_stream",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_redirect_stream",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_redirect_stream",
+           "name": "str"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "method"
+         }
+        ],
+        "returns": {
+         "cls": "ExprBinOp",
+         "left": {
+          "cls": "ExprBinOp",
+          "left": {
+           "cls": "ExprName",
+           "member": "_redirect_stream",
+           "name": "SyncByteStream"
+          },
+          "operator": "|",
+          "right": {
+           "cls": "ExprName",
+           "member": "_redirect_stream",
+           "name": "AsyncByteStream"
+          }
+         },
+         "operator": "|",
+         "right": "None"
+        },
+        "runtime": true
+       },
+       "_redirect_url": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 520,
+         "lineno": 518,
+         "value": "Return the URL for the redirect to follow."
+        },
+        "endlineno": 544,
+        "kind": "function",
+        "lineno": 517,
+        "name": "_redirect_url",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_redirect_url",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_redirect_url",
+           "name": "Response"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "response"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_redirect_url",
+         "name": "URL"
+        },
+        "runtime": true
+       },
+       "_set_timeout": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 591,
+        "kind": "function",
+        "lineno": 584,
+        "name": "_set_timeout",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_set_timeout",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         }
+        ],
+        "returns": "None",
+        "runtime": true
+       },
+       "_state": {
+        "analysis": "static",
+        "endlineno": 221,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 221,
+        "name": "_state",
+        "runtime": true,
+        "value": {
+         "cls": "ExprAttribute",
+         "values": [
+          {
+           "cls": "ExprName",
+           "member": null,
+           "name": "ClientState"
+          },
+          {
+           "cls": "ExprName",
+           "member": null,
+           "name": "UNOPENED"
+          }
+         ]
+        }
+       },
+       "_timeout": {
+        "analysis": "static",
+        "endlineno": 212,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 212,
+        "name": "_timeout",
+        "runtime": true,
+        "value": {
+         "arguments": [
+          {
+           "cls": "ExprName",
+           "member": null,
+           "name": "timeout"
+          }
+         ],
+         "cls": "ExprCall",
+         "function": {
+          "cls": "ExprName",
+          "member": null,
+          "name": "Timeout"
+         }
+        }
+       },
+       "_trust_env": {
+        "analysis": "static",
+        "endlineno": 219,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 219,
+        "name": "_trust_env",
+        "runtime": true,
+        "value": {
+         "cls": "ExprName",
+         "member": null,
+         "name": "trust_env"
+        }
+       },
+       "auth": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprBinOp",
+         "left": {
+          "cls": "ExprName",
+          "member": "auth",
+          "name": "Auth"
+         },
+         "operator": "|",
+         "right": "None"
+        },
+        "docstring": {
+         "endlineno": 280,
+         "lineno": 274,
+         "value": "Authentication class used when none is passed at the request-level.\n\nSee also [Authentication][0].\n\n[0]: /quickstart/#authentication"
+        },
+        "endlineno": 281,
+        "kind": "attribute",
+        "labels": [
+         "property",
+         "writable"
+        ],
+        "lineno": 273,
+        "name": "auth",
+        "runtime": true
+       },
+       "base_url": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": "base_url",
+         "name": "URL"
+        },
+        "docstring": {
+         "endlineno": 291,
+         "lineno": 289,
+         "value": "Base URL to use when sending requests with relative URLs."
+        },
+        "endlineno": 292,
+        "kind": "attribute",
+        "labels": [
+         "property",
+         "writable"
+        ],
+        "lineno": 288,
+        "name": "base_url",
+        "runtime": true
+       },
+       "build_request": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 365,
+         "lineno": 355,
+         "value": "Build and return a request instance.\n\n* The `params`, `headers` and `cookies` arguments\nare merged with any values set on the client.\n* The `url` argument is merged with any `base_url` set on the client.\n\nSee also: [Request instances][0]\n\n[0]: /advanced/clients/#request-instances"
+        },
+        "endlineno": 389,
+        "kind": "function",
+        "lineno": 340,
+        "name": "build_request",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "build_request",
+           "name": "str"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "method"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "RequestContent"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "content"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "RequestData"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "data"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "RequestFiles"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "files"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": "build_request",
+              "name": "typing"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "Any"
+             }
+            ]
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "json"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "build_request",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "build_request",
+         "name": "Request"
+        },
+        "runtime": true
+       },
+       "cookies": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": "cookies",
+         "name": "Cookies"
+        },
+        "docstring": {
+         "endlineno": 322,
+         "lineno": 320,
+         "value": "Cookie values to include when sending requests."
+        },
+        "endlineno": 323,
+        "kind": "attribute",
+        "labels": [
+         "property",
+         "writable"
+        ],
+        "lineno": 319,
+        "name": "cookies",
+        "runtime": true
+       },
+       "event_hooks": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprSubscript",
+         "left": {
+          "cls": "ExprName",
+          "member": "event_hooks",
+          "name": "dict"
+         },
+         "slice": {
+          "cls": "ExprTuple",
+          "elements": [
+           {
+            "cls": "ExprName",
+            "member": "event_hooks",
+            "name": "str"
+           },
+           {
+            "cls": "ExprSubscript",
+            "left": {
+             "cls": "ExprName",
+             "member": "event_hooks",
+             "name": "list"
+            },
+            "slice": {
+             "cls": "ExprName",
+             "member": "event_hooks",
+             "name": "EventHook"
+            }
+           }
+          ],
+          "implicit": true
+         }
+        },
+        "endlineno": 263,
+        "kind": "attribute",
+        "labels": [
+         "property",
+         "writable"
+        ],
+        "lineno": 262,
+        "name": "event_hooks",
+        "runtime": true
+       },
+       "follow_redirects": {
+        "analysis": "static",
+        "endlineno": 213,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 213,
+        "name": "follow_redirects",
+        "runtime": true,
+        "value": {
+         "cls": "ExprName",
+         "member": null,
+         "name": "follow_redirects"
+        }
+       },
+       "headers": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": "headers",
+         "name": "Headers"
+        },
+        "docstring": {
+         "endlineno": 302,
+         "lineno": 300,
+         "value": "HTTP headers to include when sending requests."
+        },
+        "endlineno": 303,
+        "kind": "attribute",
+        "labels": [
+         "property",
+         "writable"
+        ],
+        "lineno": 299,
+        "name": "headers",
+        "runtime": true
+       },
+       "is_closed": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": "is_closed",
+         "name": "bool"
+        },
+        "docstring": {
+         "endlineno": 227,
+         "lineno": 225,
+         "value": "Check if the client being closed"
+        },
+        "endlineno": 228,
+        "kind": "attribute",
+        "labels": [
+         "property"
+        ],
+        "lineno": 224,
+        "name": "is_closed",
+        "runtime": true
+       },
+       "max_redirects": {
+        "analysis": "static",
+        "endlineno": 214,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 214,
+        "name": "max_redirects",
+        "runtime": true,
+        "value": {
+         "cls": "ExprName",
+         "member": null,
+         "name": "max_redirects"
+        }
+       },
+       "params": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": "params",
+         "name": "QueryParams"
+        },
+        "docstring": {
+         "endlineno": 333,
+         "lineno": 331,
+         "value": "Query parameters to include in the URL when sending requests."
+        },
+        "endlineno": 334,
+        "kind": "attribute",
+        "labels": [
+         "property",
+         "writable"
+        ],
+        "lineno": 330,
+        "name": "params",
+        "runtime": true
+       },
+       "timeout": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": "timeout",
+         "name": "Timeout"
+        },
+        "endlineno": 255,
+        "kind": "attribute",
+        "labels": [
+         "property",
+         "writable"
+        ],
+        "lineno": 254,
+        "name": "timeout",
+        "runtime": true
+       },
+       "trust_env": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": "trust_env",
+         "name": "bool"
+        },
+        "endlineno": 232,
+        "kind": "attribute",
+        "labels": [
+         "property"
+        ],
+        "lineno": 231,
+        "name": "trust_env",
+        "runtime": true
+       }
+      },
+      "name": "BaseClient",
+      "runtime": true
+     },
+     "BaseTransport": {
+      "analysis": "static",
+      "endlineno": 31,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 31,
+      "name": "BaseTransport",
+      "runtime": true,
+      "target_path": "httpx._transports.base.BaseTransport"
+     },
+     "CertTypes": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "CertTypes",
+      "runtime": true,
+      "target_path": "httpx._types.CertTypes"
+     },
+     "Client": {
+      "analysis": "static",
+      "bases": [
+       {
+        "cls": "ExprName",
+        "member": "Client",
+        "name": "BaseClient"
+       }
+      ],
+      "decorators": [],
+      "docstring": {
+       "endlineno": 637,
+       "lineno": 595,
+       "value": "An HTTP client, with connection pooling, HTTP/2, redirects, cookie persistence, etc.\n\nIt can be shared between threads.\n\nUsage:\n\n```python\n>>> client = httpx.Client()\n>>> response = client.get('https://example.org')\n```\n\n**Parameters:**\n\n* **auth** - *(optional)* An authentication class to use when sending\nrequests.\n* **params** - *(optional)* Query parameters to include in request URLs, as\na string, dictionary, or sequence of two-tuples.\n* **headers** - *(optional)* Dictionary of HTTP headers to include when\nsending requests.\n* **cookies** - *(optional)* Dictionary of Cookie items to include when\nsending requests.\n* **verify** - *(optional)* Either `True` to use an SSL context with the\ndefault CA bundle, `False` to disable verification, or an instance of\n`ssl.SSLContext` to use a custom context.\n* **http2** - *(optional)* A boolean indicating if HTTP/2 support should be\nenabled. Defaults to `False`.\n* **proxy** - *(optional)* A proxy URL where all the traffic should be routed.\n* **timeout** - *(optional)* The timeout configuration to use when sending\nrequests.\n* **limits** - *(optional)* The limits configuration to use.\n* **max_redirects** - *(optional)* The maximum number of redirect responses\nthat should be followed.\n* **base_url** - *(optional)* A URL to use as the base when building\nrequest URLs.\n* **transport** - *(optional)* A transport class to use for sending requests\nover the network.\n* **trust_env** - *(optional)* Enables or disables usage of environment\nvariables for configuration.\n* **default_encoding** - *(optional)* The default encoding to use for decoding\nresponse text, if no charset information is included in a response Content-Type\nheader. Set to a callable for automatic character set detection. Default: \"utf-8\"."
+      },
+      "endlineno": 1304,
+      "kind": "class",
+      "lineno": 594,
+      "members": {
+       "__enter__": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 1291,
+        "kind": "function",
+        "lineno": 1275,
+        "name": "__enter__",
+        "parameters": [
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__enter__",
+           "name": "T"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "__enter__",
+         "name": "T"
+        },
+        "runtime": true
+       },
+       "__exit__": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 1304,
+        "kind": "function",
+        "lineno": 1293,
+        "name": "__exit__",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprSubscript",
+            "left": {
+             "cls": "ExprName",
+             "member": "__exit__",
+             "name": "type"
+            },
+            "slice": {
+             "cls": "ExprName",
+             "member": "__exit__",
+             "name": "BaseException"
+            }
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "exc_type"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__exit__",
+            "name": "BaseException"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "exc_value"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__exit__",
+            "name": "TracebackType"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "traceback"
+         }
+        ],
+        "returns": "None",
+        "runtime": true
+       },
+       "__init__": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 716,
+        "imports": {
+         "h2": "h2"
+        },
+        "kind": "function",
+        "lineno": 639,
+        "members": {
+         "h2": {
+          "analysis": "static",
+          "endlineno": 678,
+          "inherited": false,
+          "kind": "alias",
+          "lineno": 678,
+          "name": "h2",
+          "runtime": true,
+          "target_path": "h2"
+         }
+        },
+        "name": "__init__",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "AuthTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprAttribute",
+             "values": [
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "ssl"
+              },
+              {
+               "cls": "ExprName",
+               "member": null,
+               "name": "SSLContext"
+              }
+             ]
+            },
+            "operator": "|",
+            "right": {
+             "cls": "ExprName",
+             "member": "__init__",
+             "name": "str"
+            }
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "bool"
+           }
+          },
+          "default": "True",
+          "kind": "keyword-only",
+          "name": "verify"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "CertTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cert"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "bool"
+          },
+          "default": "True",
+          "kind": "keyword-only",
+          "name": "trust_env"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "bool"
+          },
+          "default": "True",
+          "kind": "keyword-only",
+          "name": "http1"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "bool"
+          },
+          "default": "False",
+          "kind": "keyword-only",
+          "name": "http2"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "ProxyTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "proxy"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": "None",
+           "operator": "|",
+           "right": {
+            "cls": "ExprSubscript",
+            "left": {
+             "cls": "ExprAttribute",
+             "values": [
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "typing"
+              },
+              {
+               "cls": "ExprName",
+               "member": null,
+               "name": "Mapping"
+              }
+             ]
+            },
+            "slice": {
+             "cls": "ExprTuple",
+             "elements": [
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "str"
+              },
+              {
+               "cls": "ExprBinOp",
+               "left": {
+                "cls": "ExprName",
+                "member": "__init__",
+                "name": "BaseTransport"
+               },
+               "operator": "|",
+               "right": "None"
+              }
+             ],
+             "implicit": true
+            }
+           }
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "mounts"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "TimeoutTypes"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "DEFAULT_TIMEOUT_CONFIG"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "bool"
+          },
+          "default": "False",
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "Limits"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "DEFAULT_LIMITS"
+          },
+          "kind": "keyword-only",
+          "name": "limits"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "int"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "DEFAULT_MAX_REDIRECTS"
+          },
+          "kind": "keyword-only",
+          "name": "max_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": "None",
+           "operator": "|",
+           "right": {
+            "cls": "ExprSubscript",
+            "left": {
+             "cls": "ExprAttribute",
+             "values": [
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "typing"
+              },
+              {
+               "cls": "ExprName",
+               "member": null,
+               "name": "Mapping"
+              }
+             ]
+            },
+            "slice": {
+             "cls": "ExprTuple",
+             "elements": [
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "str"
+              },
+              {
+               "cls": "ExprSubscript",
+               "left": {
+                "cls": "ExprName",
+                "member": "__init__",
+                "name": "list"
+               },
+               "slice": {
+                "cls": "ExprName",
+                "member": "__init__",
+                "name": "EventHook"
+               }
+              }
+             ],
+             "implicit": true
+            }
+           }
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "event_hooks"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "str"
+           }
+          },
+          "default": "''",
+          "kind": "keyword-only",
+          "name": "base_url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "BaseTransport"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "transport"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "__init__",
+            "name": "str"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprSubscript",
+            "left": {
+             "cls": "ExprAttribute",
+             "values": [
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "typing"
+              },
+              {
+               "cls": "ExprName",
+               "member": null,
+               "name": "Callable"
+              }
+             ]
+            },
+            "slice": {
+             "cls": "ExprTuple",
+             "elements": [
+              {
+               "cls": "ExprList",
+               "elements": [
+                {
+                 "cls": "ExprName",
+                 "member": "__init__",
+                 "name": "bytes"
+                }
+               ]
+              },
+              {
+               "cls": "ExprName",
+               "member": "__init__",
+               "name": "str"
+              }
+             ],
+             "implicit": true
+            }
+           }
+          },
+          "default": "'utf-8'",
+          "kind": "keyword-only",
+          "name": "default_encoding"
+         }
+        ],
+        "returns": "None",
+        "runtime": true
+       },
+       "_init_proxy_transport": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 758,
+        "kind": "function",
+        "lineno": 740,
+        "name": "_init_proxy_transport",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_init_proxy_transport",
+           "name": "Proxy"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "proxy"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprAttribute",
+             "values": [
+              {
+               "cls": "ExprName",
+               "member": "_init_proxy_transport",
+               "name": "ssl"
+              },
+              {
+               "cls": "ExprName",
+               "member": null,
+               "name": "SSLContext"
+              }
+             ]
+            },
+            "operator": "|",
+            "right": {
+             "cls": "ExprName",
+             "member": "_init_proxy_transport",
+             "name": "str"
+            }
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "_init_proxy_transport",
+            "name": "bool"
+           }
+          },
+          "default": "True",
+          "kind": "positional or keyword",
+          "name": "verify"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "_init_proxy_transport",
+            "name": "CertTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "cert"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_init_proxy_transport",
+           "name": "bool"
+          },
+          "default": "True",
+          "kind": "positional or keyword",
+          "name": "trust_env"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_init_proxy_transport",
+           "name": "bool"
+          },
+          "default": "True",
+          "kind": "positional or keyword",
+          "name": "http1"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_init_proxy_transport",
+           "name": "bool"
+          },
+          "default": "False",
+          "kind": "positional or keyword",
+          "name": "http2"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_init_proxy_transport",
+           "name": "Limits"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "DEFAULT_LIMITS"
+          },
+          "kind": "positional or keyword",
+          "name": "limits"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_init_proxy_transport",
+         "name": "BaseTransport"
+        },
+        "runtime": true
+       },
+       "_init_transport": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 738,
+        "kind": "function",
+        "lineno": 718,
+        "name": "_init_transport",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprAttribute",
+             "values": [
+              {
+               "cls": "ExprName",
+               "member": "_init_transport",
+               "name": "ssl"
+              },
+              {
+               "cls": "ExprName",
+               "member": null,
+               "name": "SSLContext"
+              }
+             ]
+            },
+            "operator": "|",
+            "right": {
+             "cls": "ExprName",
+             "member": "_init_transport",
+             "name": "str"
+            }
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "_init_transport",
+            "name": "bool"
+           }
+          },
+          "default": "True",
+          "kind": "positional or keyword",
+          "name": "verify"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "_init_transport",
+            "name": "CertTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "cert"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_init_transport",
+           "name": "bool"
+          },
+          "default": "True",
+          "kind": "positional or keyword",
+          "name": "trust_env"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_init_transport",
+           "name": "bool"
+          },
+          "default": "True",
+          "kind": "positional or keyword",
+          "name": "http1"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_init_transport",
+           "name": "bool"
+          },
+          "default": "False",
+          "kind": "positional or keyword",
+          "name": "http2"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_init_transport",
+           "name": "Limits"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "DEFAULT_LIMITS"
+          },
+          "kind": "positional or keyword",
+          "name": "limits"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "_init_transport",
+            "name": "BaseTransport"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "transport"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_init_transport",
+         "name": "BaseTransport"
+        },
+        "runtime": true
+       },
+       "_mounts": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprSubscript",
+         "left": {
+          "cls": "ExprName",
+          "member": null,
+          "name": "dict"
+         },
+         "slice": {
+          "cls": "ExprTuple",
+          "elements": [
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "URLPattern"
+           },
+           {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprName",
+             "member": null,
+             "name": "BaseTransport"
+            },
+            "operator": "|",
+            "right": "None"
+           }
+          ],
+          "implicit": true
+         }
+        },
+        "endlineno": 716,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 716,
+        "name": "_mounts",
+        "runtime": true,
+        "value": {
+         "arguments": [
+          {
+           "arguments": [
+            {
+             "arguments": [],
+             "cls": "ExprCall",
+             "function": {
+              "cls": "ExprAttribute",
+              "values": [
+               {
+                "cls": "ExprName",
+                "member": null,
+                "name": "self"
+               },
+               {
+                "cls": "ExprName",
+                "member": null,
+                "name": "_mounts"
+               },
+               {
+                "cls": "ExprName",
+                "member": null,
+                "name": "items"
+               }
+              ]
+             }
+            }
+           ],
+           "cls": "ExprCall",
+           "function": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "sorted"
+           }
+          }
+         ],
+         "cls": "ExprCall",
+         "function": {
+          "cls": "ExprName",
+          "member": null,
+          "name": "dict"
+         }
+        }
+       },
+       "_send_handling_auth": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 962,
+        "kind": "function",
+        "lineno": 930,
+        "name": "_send_handling_auth",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_send_handling_auth",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_send_handling_auth",
+           "name": "Auth"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_send_handling_auth",
+           "name": "bool"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprSubscript",
+           "left": {
+            "cls": "ExprName",
+            "member": "_send_handling_auth",
+            "name": "list"
+           },
+           "slice": {
+            "cls": "ExprName",
+            "member": "_send_handling_auth",
+            "name": "Response"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "history"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_send_handling_auth",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "_send_handling_redirects": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 999,
+        "kind": "function",
+        "lineno": 964,
+        "name": "_send_handling_redirects",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_send_handling_redirects",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_send_handling_redirects",
+           "name": "bool"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprSubscript",
+           "left": {
+            "cls": "ExprName",
+            "member": "_send_handling_redirects",
+            "name": "list"
+           },
+           "slice": {
+            "cls": "ExprName",
+            "member": "_send_handling_redirects",
+            "name": "Response"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "history"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_send_handling_redirects",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "_send_single_request": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 1004,
+         "lineno": 1002,
+         "value": "Sends a single request, without handling any redirections."
+        },
+        "endlineno": 1034,
+        "kind": "function",
+        "lineno": 1001,
+        "name": "_send_single_request",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_send_single_request",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_send_single_request",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "_transport": {
+        "analysis": "static",
+        "endlineno": 696,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 688,
+        "name": "_transport",
+        "runtime": true,
+        "value": {
+         "arguments": [
+          {
+           "cls": "ExprKeyword",
+           "function": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "self"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "_init_transport"
+             }
+            ]
+           },
+           "name": "verify",
+           "value": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "verify"
+           }
+          },
+          {
+           "cls": "ExprKeyword",
+           "function": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "self"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "_init_transport"
+             }
+            ]
+           },
+           "name": "cert",
+           "value": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "cert"
+           }
+          },
+          {
+           "cls": "ExprKeyword",
+           "function": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "self"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "_init_transport"
+             }
+            ]
+           },
+           "name": "trust_env",
+           "value": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "trust_env"
+           }
+          },
+          {
+           "cls": "ExprKeyword",
+           "function": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "self"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "_init_transport"
+             }
+            ]
+           },
+           "name": "http1",
+           "value": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "http1"
+           }
+          },
+          {
+           "cls": "ExprKeyword",
+           "function": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "self"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "_init_transport"
+             }
+            ]
+           },
+           "name": "http2",
+           "value": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "http2"
+           }
+          },
+          {
+           "cls": "ExprKeyword",
+           "function": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "self"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "_init_transport"
+             }
+            ]
+           },
+           "name": "limits",
+           "value": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "limits"
+           }
+          },
+          {
+           "cls": "ExprKeyword",
+           "function": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "self"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "_init_transport"
+             }
+            ]
+           },
+           "name": "transport",
+           "value": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "transport"
+           }
+          }
+         ],
+         "cls": "ExprCall",
+         "function": {
+          "cls": "ExprAttribute",
+          "values": [
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "self"
+           },
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "_init_transport"
+           }
+          ]
+         }
+        }
+       },
+       "_transport_for_url": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 764,
+         "lineno": 761,
+         "value": "Returns the transport instance that should be used for a given URL.\nThis will either be the standard connection pool, or a proxy."
+        },
+        "endlineno": 769,
+        "kind": "function",
+        "lineno": 760,
+        "name": "_transport_for_url",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "_transport_for_url",
+           "name": "URL"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "_transport_for_url",
+         "name": "BaseTransport"
+        },
+        "runtime": true
+       },
+       "close": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 1266,
+         "lineno": 1264,
+         "value": "Close transport and proxies."
+        },
+        "endlineno": 1273,
+        "kind": "function",
+        "lineno": 1263,
+        "name": "close",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         }
+        ],
+        "returns": "None",
+        "runtime": true
+       },
+       "delete": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 1250,
+         "lineno": 1246,
+         "value": "Send a `DELETE` request.\n\n**Parameters**: See `httpx.request`."
+        },
+        "endlineno": 1261,
+        "kind": "function",
+        "lineno": 1234,
+        "name": "delete",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "AuthTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "delete",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "delete",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "get": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 1052,
+         "lineno": 1048,
+         "value": "Send a `GET` request.\n\n**Parameters**: See `httpx.request`."
+        },
+        "endlineno": 1063,
+        "kind": "function",
+        "lineno": 1036,
+        "name": "get",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprName",
+             "member": "get",
+             "name": "AuthTypes"
+            },
+            "operator": "|",
+            "right": {
+             "cls": "ExprName",
+             "member": "get",
+             "name": "UseClientDefault"
+            }
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "get",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "get",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "head": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 1110,
+         "lineno": 1106,
+         "value": "Send a `HEAD` request.\n\n**Parameters**: See `httpx.request`."
+        },
+        "endlineno": 1121,
+        "kind": "function",
+        "lineno": 1094,
+        "name": "head",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "AuthTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "head",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "head",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "options": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 1081,
+         "lineno": 1077,
+         "value": "Send an `OPTIONS` request.\n\n**Parameters**: See `httpx.request`."
+        },
+        "endlineno": 1092,
+        "kind": "function",
+        "lineno": 1065,
+        "name": "options",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "AuthTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "options",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "options",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "patch": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 1217,
+         "lineno": 1213,
+         "value": "Send a `PATCH` request.\n\n**Parameters**: See `httpx.request`."
+        },
+        "endlineno": 1232,
+        "kind": "function",
+        "lineno": 1197,
+        "name": "patch",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "RequestContent"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "content"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "RequestData"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "data"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "RequestFiles"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "files"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": "patch",
+              "name": "typing"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "Any"
+             }
+            ]
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "json"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "AuthTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "patch",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "patch",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "post": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 1143,
+         "lineno": 1139,
+         "value": "Send a `POST` request.\n\n**Parameters**: See `httpx.request`."
+        },
+        "endlineno": 1158,
+        "kind": "function",
+        "lineno": 1123,
+        "name": "post",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "RequestContent"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "content"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "RequestData"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "data"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "RequestFiles"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "files"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": "post",
+              "name": "typing"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "Any"
+             }
+            ]
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "json"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "AuthTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "post",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "post",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "put": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 1180,
+         "lineno": 1176,
+         "value": "Send a `PUT` request.\n\n**Parameters**: See `httpx.request`."
+        },
+        "endlineno": 1195,
+        "kind": "function",
+        "lineno": 1160,
+        "name": "put",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "RequestContent"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "content"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "RequestData"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "data"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "RequestFiles"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "files"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": "put",
+              "name": "typing"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "Any"
+             }
+            ]
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "json"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "AuthTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "put",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "put",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "request": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 803,
+         "lineno": 788,
+         "value": "Build and send a request.\n\nEquivalent to:\n\n```python\nrequest = client.build_request(...)\nresponse = client.send(request, ...)\n```\n\nSee `Client.build_request()`, `Client.send()` and\n[Merging of configuration][0] for how the various parameters\nare merged with client-level configuration.\n\n[0]: /advanced/clients/#merging-of-configuration"
+        },
+        "endlineno": 825,
+        "kind": "function",
+        "lineno": 771,
+        "name": "request",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "request",
+           "name": "str"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "method"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "RequestContent"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "content"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "RequestData"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "data"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "RequestFiles"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "files"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": "request",
+              "name": "typing"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "Any"
+             }
+            ]
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "json"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprName",
+             "member": "request",
+             "name": "AuthTypes"
+            },
+            "operator": "|",
+            "right": {
+             "cls": "ExprName",
+             "member": "request",
+             "name": "UseClientDefault"
+            }
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "request",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "request",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "send": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 899,
+         "lineno": 887,
+         "value": "Send a request.\n\nThe request is sent as-is, unmodified.\n\nTypically you'll want to build one with `Client.build_request()`\nso that any client-level configuration is merged into the request,\nbut passing an explicit `httpx.Request()` is supported as well.\n\nSee also: [Request instances][0]\n\n[0]: /advanced/clients/#request-instances"
+        },
+        "endlineno": 928,
+        "kind": "function",
+        "lineno": 879,
+        "name": "send",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "send",
+           "name": "Request"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "request"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "send",
+           "name": "bool"
+          },
+          "default": "False",
+          "kind": "keyword-only",
+          "name": "stream"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprName",
+             "member": "send",
+             "name": "AuthTypes"
+            },
+            "operator": "|",
+            "right": {
+             "cls": "ExprName",
+             "member": "send",
+             "name": "UseClientDefault"
+            }
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "send",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "send",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "send",
+         "name": "Response"
+        },
+        "runtime": true
+       },
+       "stream": {
+        "analysis": "static",
+        "decorators": [
+         {
+          "endlineno": 827,
+          "lineno": 827,
+          "value": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "contextmanager"
+          }
+         }
+        ],
+        "docstring": {
+         "endlineno": 854,
+         "lineno": 845,
+         "value": "Alternative to `httpx.request()` that streams the response body\ninstead of loading it into memory at once.\n\n**Parameters**: See `httpx.request`.\n\nSee also: [Streaming Responses][0]\n\n[0]: /quickstart#streaming-responses"
+        },
+        "endlineno": 877,
+        "kind": "function",
+        "lineno": 827,
+        "name": "stream",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "stream",
+           "name": "str"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "method"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "URL"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "str"
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "url"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "RequestContent"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "content"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "RequestData"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "data"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "RequestFiles"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "files"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": "stream",
+              "name": "typing"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "Any"
+             }
+            ]
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "json"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "QueryParamTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "params"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "HeaderTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "headers"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "CookieTypes"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "cookies"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprBinOp",
+            "left": {
+             "cls": "ExprName",
+             "member": "stream",
+             "name": "AuthTypes"
+            },
+            "operator": "|",
+            "right": {
+             "cls": "ExprName",
+             "member": "stream",
+             "name": "UseClientDefault"
+            }
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "auth"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "bool"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "follow_redirects"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "TimeoutTypes"
+           },
+           "operator": "|",
+           "right": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "UseClientDefault"
+           }
+          },
+          "default": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "USE_CLIENT_DEFAULT"
+          },
+          "kind": "keyword-only",
+          "name": "timeout"
+         },
+         {
+          "annotation": {
+           "cls": "ExprBinOp",
+           "left": {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "RequestExtensions"
+           },
+           "operator": "|",
+           "right": "None"
+          },
+          "default": "None",
+          "kind": "keyword-only",
+          "name": "extensions"
+         }
+        ],
+        "returns": {
+         "cls": "ExprSubscript",
+         "left": {
+          "cls": "ExprAttribute",
+          "values": [
+           {
+            "cls": "ExprName",
+            "member": "stream",
+            "name": "typing"
+           },
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "Iterator"
+           }
+          ]
+         },
+         "slice": {
+          "cls": "ExprName",
+          "member": "stream",
+          "name": "Response"
+         }
+        },
+        "runtime": true
+       }
+      },
+      "name": "Client",
+      "runtime": true
+     },
+     "ClientState": {
+      "analysis": "static",
+      "bases": [
+       {
+        "cls": "ExprAttribute",
+        "values": [
+         {
+          "cls": "ExprName",
+          "member": "ClientState",
+          "name": "enum"
+         },
+         {
+          "cls": "ExprName",
+          "member": null,
+          "name": "Enum"
+         }
+        ]
+       }
+      ],
+      "decorators": [],
+      "endlineno": 136,
+      "kind": "class",
+      "lineno": 125,
+      "members": {
+       "CLOSED": {
+        "analysis": "static",
+        "endlineno": 136,
+        "kind": "attribute",
+        "labels": [
+         "class-attribute",
+         "instance-attribute"
+        ],
+        "lineno": 136,
+        "name": "CLOSED",
+        "runtime": true,
+        "value": "3"
+       },
+       "OPENED": {
+        "analysis": "static",
+        "endlineno": 132,
+        "kind": "attribute",
+        "labels": [
+         "class-attribute",
+         "instance-attribute"
+        ],
+        "lineno": 132,
+        "name": "OPENED",
+        "runtime": true,
+        "value": "2"
+       },
+       "UNOPENED": {
+        "analysis": "static",
+        "endlineno": 129,
+        "kind": "attribute",
+        "labels": [
+         "class-attribute",
+         "instance-attribute"
+        ],
+        "lineno": 129,
+        "name": "UNOPENED",
+        "runtime": true,
+        "value": "1"
+       }
+      },
+      "name": "ClientState",
+      "runtime": true
+     },
+     "CookieTypes": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "CookieTypes",
+      "runtime": true,
+      "target_path": "httpx._types.CookieTypes"
+     },
+     "Cookies": {
+      "analysis": "static",
+      "endlineno": 29,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 29,
+      "name": "Cookies",
+      "runtime": true,
+      "target_path": "httpx._models.Cookies"
+     },
+     "EventHook": {
+      "analysis": "static",
+      "endlineno": 185,
+      "kind": "attribute",
+      "labels": [
+       "module-attribute"
+      ],
+      "lineno": 185,
+      "name": "EventHook",
+      "runtime": true,
+      "value": {
+       "cls": "ExprSubscript",
+       "left": {
+        "cls": "ExprAttribute",
+        "values": [
+         {
+          "cls": "ExprName",
+          "member": null,
+          "name": "typing"
+         },
+         {
+          "cls": "ExprName",
+          "member": null,
+          "name": "Callable"
+         }
+        ]
+       },
+       "slice": {
+        "cls": "ExprTuple",
+        "elements": [
+         "...",
+         {
+          "cls": "ExprAttribute",
+          "values": [
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "typing"
+           },
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "Any"
+           }
+          ]
+         }
+        ],
+        "implicit": true
+       }
+      }
+     },
+     "HTTPTransport": {
+      "analysis": "static",
+      "endlineno": 32,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 32,
+      "name": "HTTPTransport",
+      "runtime": true,
+      "target_path": "httpx._transports.default.HTTPTransport"
+     },
+     "HeaderTypes": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "HeaderTypes",
+      "runtime": true,
+      "target_path": "httpx._types.HeaderTypes"
+     },
+     "Headers": {
+      "analysis": "static",
+      "endlineno": 29,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 29,
+      "name": "Headers",
+      "runtime": true,
+      "target_path": "httpx._models.Headers"
+     },
+     "Limits": {
+      "analysis": "static",
+      "endlineno": 21,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 14,
+      "name": "Limits",
+      "runtime": true,
+      "target_path": "httpx._config.Limits"
+     },
+     "Proxy": {
+      "analysis": "static",
+      "endlineno": 21,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 14,
+      "name": "Proxy",
+      "runtime": true,
+      "target_path": "httpx._config.Proxy"
+     },
+     "ProxyTypes": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "ProxyTypes",
+      "runtime": true,
+      "target_path": "httpx._types.ProxyTypes"
+     },
+     "QueryParamTypes": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "QueryParamTypes",
+      "runtime": true,
+      "target_path": "httpx._types.QueryParamTypes"
+     },
+     "QueryParams": {
+      "analysis": "static",
+      "endlineno": 48,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 48,
+      "name": "QueryParams",
+      "runtime": true,
+      "target_path": "httpx._urls.QueryParams"
+     },
+     "Request": {
+      "analysis": "static",
+      "endlineno": 29,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 29,
+      "name": "Request",
+      "runtime": true,
+      "target_path": "httpx._models.Request"
+     },
+     "RequestContent": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "RequestContent",
+      "runtime": true,
+      "target_path": "httpx._types.RequestContent"
+     },
+     "RequestData": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "RequestData",
+      "runtime": true,
+      "target_path": "httpx._types.RequestData"
+     },
+     "RequestExtensions": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "RequestExtensions",
+      "runtime": true,
+      "target_path": "httpx._types.RequestExtensions"
+     },
+     "RequestFiles": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "RequestFiles",
+      "runtime": true,
+      "target_path": "httpx._types.RequestFiles"
+     },
+     "Response": {
+      "analysis": "static",
+      "endlineno": 29,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 29,
+      "name": "Response",
+      "runtime": true,
+      "target_path": "httpx._models.Response"
+     },
+     "Timeout": {
+      "analysis": "static",
+      "endlineno": 21,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 14,
+      "name": "Timeout",
+      "runtime": true,
+      "target_path": "httpx._config.Timeout"
+     },
+     "TimeoutTypes": {
+      "analysis": "static",
+      "endlineno": 47,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 33,
+      "name": "TimeoutTypes",
+      "runtime": true,
+      "target_path": "httpx._types.TimeoutTypes"
+     },
+     "URL": {
+      "analysis": "static",
+      "endlineno": 48,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 48,
+      "name": "URL",
+      "runtime": true,
+      "target_path": "httpx._urls.URL"
+     },
+     "USE_CLIENT_DEFAULT": {
+      "analysis": "static",
+      "endlineno": 114,
+      "kind": "attribute",
+      "labels": [
+       "module-attribute"
+      ],
+      "lineno": 114,
+      "name": "USE_CLIENT_DEFAULT",
+      "runtime": true,
+      "value": {
+       "arguments": [],
+       "cls": "ExprCall",
+       "function": {
+        "cls": "ExprName",
+        "member": null,
+        "name": "UseClientDefault"
+       }
+      }
+     },
+     "UseClientDefault": {
+      "analysis": "static",
+      "bases": [],
+      "decorators": [],
+      "docstring": {
+       "endlineno": 111,
+       "lineno": 95,
+       "value": "For some parameters such as `auth=...` and `timeout=...` we need to be able\nto indicate the default \"unset\" state, in a way that is distinctly different\nto using `None`.\n\nThe default \"unset\" state indicates that whatever default is set on the\nclient should be used. This is different to setting `None`, which\nexplicitly disables the parameter, possibly overriding a client default.\n\nFor example we use `timeout=USE_CLIENT_DEFAULT` in the `request()` signature.\nOmitting the `timeout` parameter will send a request using whatever default\ntimeout has been configured on the client. Including `timeout=None` will\nensure no timeout is used.\n\nNote that user code shouldn't need to use the `USE_CLIENT_DEFAULT` constant,\nbut it is used internally when a parameter is not included."
+      },
+      "endlineno": 111,
+      "kind": "class",
+      "lineno": 94,
+      "name": "UseClientDefault",
+      "runtime": true
+     }
+    },
+    "name": "_client",
+    "runtime": true
+   },
+   "_config": {
+    "kind": "module",
+    "members": {
+     "Timeout": {
+      "analysis": "static",
+      "bases": [],
+      "decorators": [],
+      "docstring": {
+       "endlineno": 84,
+       "lineno": 73,
+       "value": "Timeout configuration.\n\n**Usage**:\n\nTimeout(None)               # No timeouts.\nTimeout(5.0)                # 5s timeout on all operations.\nTimeout(None, connect=5.0)  # 5s timeout on connect, no other timeouts.\nTimeout(5.0, connect=10.0)  # 10s timeout on connect. 5s timeout elsewhere.\nTimeout(5.0, pool=None)     # No timeout on acquiring connection from pool.\n                            # 5s timeout elsewhere."
+      },
+      "endlineno": 156,
+      "kind": "class",
+      "lineno": 72,
+      "members": {},
+      "name": "Timeout",
+      "runtime": true
+     }
+    },
+    "name": "_config"
+   },
+   "_models": {
+    "kind": "module",
+    "members": {
+     "Request": {
+      "analysis": "static",
+      "bases": [],
+      "decorators": [],
+      "endlineno": 512,
+      "kind": "class",
+      "lineno": 382,
+      "members": {},
+      "name": "Request",
+      "runtime": true
+     },
+     "Response": {
+      "analysis": "static",
+      "bases": [],
+      "decorators": [],
+      "endlineno": 1076,
+      "kind": "class",
+      "lineno": 515,
+      "members": {},
+      "name": "Response",
+      "runtime": true
+     }
+    },
+    "name": "_models"
+   },
+   "_urls": {
+    "kind": "module",
+    "members": {
+     "URL": {
+      "analysis": "static",
+      "bases": [],
+      "decorators": [],
+      "docstring": {
+       "endlineno": 75,
+       "lineno": 16,
+       "value": "url = httpx.URL(\"HTTPS://jo%40email.com:a%20secret@m\u00fcller.de:1234/pa%20th?search=ab#anchorlink\")\n\nassert url.scheme == \"https\"\nassert url.username == \"jo@email.com\"\nassert url.password == \"a secret\"\nassert url.userinfo == b\"jo%40email.com:a%20secret\"\nassert url.host == \"m\u00fcller.de\"\nassert url.raw_host == b\"xn--mller-kva.de\"\nassert url.port == 1234\nassert url.netloc == b\"xn--mller-kva.de:1234\"\nassert url.path == \"/pa th\"\nassert url.query == b\"?search=ab\"\nassert url.raw_path == b\"/pa%20th?search=ab\"\nassert url.fragment == \"anchorlink\"\n\nThe components of a URL are broken down like this:\n\n   https://jo%40email.com:a%20secret@m\u00fcller.de:1234/pa%20th?search=ab#anchorlink\n[scheme]   [  username  ] [password] [ host ][port][ path ] [ query ] [fragment]\n           [       userinfo        ] [   netloc   ][    raw_path    ]\n\nNote that:\n\n* `url.scheme` is normalized to always be lowercased.\n\n* `url.host` is normalized to always be lowercased. Internationalized domain\n  names are represented in unicode, without IDNA encoding applied. For instance:\n\n  url = httpx.URL(\"http://\u4e2d\u56fd.icom.museum\")\n  assert url.host == \"\u4e2d\u56fd.icom.museum\"\n  url = httpx.URL(\"http://xn--fiqs8s.icom.museum\")\n  assert url.host == \"\u4e2d\u56fd.icom.museum\"\n\n* `url.raw_host` is normalized to always be lowercased, and is IDNA encoded.\n\n  url = httpx.URL(\"http://\u4e2d\u56fd.icom.museum\")\n  assert url.raw_host == b\"xn--fiqs8s.icom.museum\"\n  url = httpx.URL(\"http://xn--fiqs8s.icom.museum\")\n  assert url.raw_host == b\"xn--fiqs8s.icom.museum\"\n\n* `url.port` is either None or an integer. URLs that include the default port for\n  \"http\", \"https\", \"ws\", \"wss\", and \"ftp\" schemes have their port\n  normalized to `None`.\n\n  assert httpx.URL(\"http://example.com\") == httpx.URL(\"http://example.com:80\")\n  assert httpx.URL(\"http://example.com\").port is None\n  assert httpx.URL(\"http://example.com:80\").port is None\n\n* `url.userinfo` is raw bytes, without URL escaping. Usually you'll want to work\n  with `url.username` and `url.password` instead, which handle the URL escaping.\n\n* `url.raw_path` is raw bytes of both the path and query, without URL escaping.\n  This portion is used as the target when constructing HTTP requests. Usually you'll\n  want to work with `url.path` instead.\n\n* `url.query` is raw bytes, without URL escaping. A URL query string portion can\n  only be properly URL escaped when decoding the parameter names and values\n  themselves."
+      },
+      "endlineno": 417,
+      "kind": "class",
+      "lineno": 15,
+      "members": {},
+      "name": "URL",
+      "runtime": true
+     }
+    },
+    "name": "_urls"
+   }
+  },
+  "name": "httpx",
+  "runtime": true
+ }
+}

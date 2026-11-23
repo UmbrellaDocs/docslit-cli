@@ -23,6 +23,10 @@ Press ++ctrl+c++ to stop the server. See [the guide](../index/) and
 
 --8<-- "includes/shared.md"
 
+{% include "includes/jinja-note.md" %}
+
+This sentence has a footnote.[^1]
+
 ``` python title="example.py" hl_lines="2"
 --8<-- "examples/hello.py"
 ```

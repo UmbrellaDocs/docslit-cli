@@ -1,5 +1,6 @@
 import path from 'path';
 import { mapLimit, DEFAULT_LIMIT } from './concurrency.js';
+import { writeObjectsInv } from './api-python/site.js';
 import fs from 'node:fs/promises';
 import { pathExists, ensureDir, emptyDir, writeFileIfChanged, copyFileIfChanged } from './fs-helpers.js';
 import pc from 'picocolors';
@@ -492,6 +493,8 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
     if (buildOptions.llmsTxt || buildOptions.searchIndex) {
       profiler.start('llms');
       await generateLlmsTxt({ config, pagesData, outDir, buildOptions });
+      const invCount = await writeObjectsInv(outDir, { project: config.name || 'Documentation' });
+      if (invCount) console.log(`  ${pc.green('✓')} Generated objects.inv (${invCount} Python objects)`);
       if (buildOptions.llmsTxt) {
         outputTracker.add(path.join(outDir, 'llms.txt'));
         outputTracker.add(path.join(outDir, 'llms-full.txt'));
@@ -718,6 +721,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     if (buildOptions.llmsTxt || buildOptions.searchIndex) {
       profiler.start('llms');
       await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir, version: defaultVersion, buildOptions });
+      await writeObjectsInv(defaultDir, { project: config.name || 'Documentation', version: String(defaultVersion || '') });
       profiler.end('llms');
       if (buildOptions.llmsTxt) {
         outputTracker.add(path.join(defaultDir, 'llms.txt'));

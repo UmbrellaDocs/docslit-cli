@@ -1,0 +1,1335 @@
+{
+ "shapes": {
+  "analysis": "static",
+  "docstring": {
+   "endlineno": 4,
+   "lineno": 1,
+   "value": "Shapes demo package.\n\nShows classes, functions and re-exports."
+  },
+  "exports": [
+   "Shape",
+   "Circle",
+   "area",
+   "Color",
+   "Point",
+   "scale",
+   "helper_alias",
+   "VERSION"
+  ],
+  "imports": {
+   "Circle": "shapes._core.Circle",
+   "Color": "shapes._core.Color",
+   "Point": "shapes._core.Point",
+   "Shape": "shapes._core.Shape",
+   "area": "shapes._core.area",
+   "helper_alias": "shapes.util.helper",
+   "scale": "shapes._core.scale"
+  },
+  "kind": "module",
+  "members": {
+   "Circle": {
+    "analysis": "static",
+    "endlineno": 6,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 6,
+    "name": "Circle",
+    "runtime": true,
+    "target_path": "shapes._core.Circle"
+   },
+   "Color": {
+    "analysis": "static",
+    "endlineno": 6,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 6,
+    "name": "Color",
+    "runtime": true,
+    "target_path": "shapes._core.Color"
+   },
+   "Point": {
+    "analysis": "static",
+    "endlineno": 6,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 6,
+    "name": "Point",
+    "runtime": true,
+    "target_path": "shapes._core.Point"
+   },
+   "Shape": {
+    "analysis": "static",
+    "endlineno": 6,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 6,
+    "name": "Shape",
+    "runtime": true,
+    "target_path": "shapes._core.Shape"
+   },
+   "VERSION": {
+    "analysis": "static",
+    "annotation": {
+     "cls": "ExprName",
+     "member": null,
+     "name": "str"
+    },
+    "docstring": {
+     "endlineno": 12,
+     "lineno": 12,
+     "value": "The package version."
+    },
+    "endlineno": 11,
+    "kind": "attribute",
+    "labels": [
+     "module-attribute"
+    ],
+    "lineno": 11,
+    "name": "VERSION",
+    "runtime": true,
+    "value": "'1.0'"
+   },
+   "__all__": {
+    "analysis": "static",
+    "endlineno": 9,
+    "kind": "attribute",
+    "labels": [
+     "module-attribute"
+    ],
+    "lineno": 9,
+    "name": "__all__",
+    "runtime": true,
+    "value": {
+     "cls": "ExprList",
+     "elements": [
+      "'Shape'",
+      "'Circle'",
+      "'area'",
+      "'Color'",
+      "'Point'",
+      "'scale'",
+      "'helper_alias'",
+      "'VERSION'"
+     ]
+    }
+   },
+   "_core": {
+    "analysis": "static",
+    "docstring": {
+     "endlineno": 1,
+     "lineno": 1,
+     "value": "Core module."
+    },
+    "imports": {
+     "Any": "typing.Any",
+     "Callable": "typing.Callable",
+     "Iterator": "typing.Iterator",
+     "Optional": "typing.Optional",
+     "Union": "typing.Union",
+     "annotations": "__future__.annotations",
+     "dataclass": "dataclasses.dataclass",
+     "enum": "enum",
+     "field": "dataclasses.field",
+     "overload": "typing.overload"
+    },
+    "kind": "module",
+    "members": {
+     "Any": {
+      "analysis": "static",
+      "endlineno": 6,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 6,
+      "name": "Any",
+      "runtime": true,
+      "target_path": "typing.Any"
+     },
+     "Callable": {
+      "analysis": "static",
+      "endlineno": 6,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 6,
+      "name": "Callable",
+      "runtime": true,
+      "target_path": "typing.Callable"
+     },
+     "Circle": {
+      "analysis": "static",
+      "bases": [
+       {
+        "cls": "ExprName",
+        "member": "Circle",
+        "name": "Shape"
+       }
+      ],
+      "decorators": [],
+      "docstring": {
+       "endlineno": 111,
+       "lineno": 107,
+       "value": "A circle.\n\nDeprecated:\n    Use something else (1.2)."
+      },
+      "endlineno": 133,
+      "kind": "class",
+      "lineno": 106,
+      "members": {
+       "__init__": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 114,
+        "kind": "function",
+        "lineno": 113,
+        "name": "__init__",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional-only",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "float"
+          },
+          "default": null,
+          "kind": "positional-only",
+          "name": "radius"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "str"
+          },
+          "default": "'circle'",
+          "kind": "positional or keyword",
+          "name": "name"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "int"
+          },
+          "default": "()",
+          "kind": "variadic positional",
+          "name": "args"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "bool"
+          },
+          "default": "False",
+          "kind": "keyword-only",
+          "name": "flag"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "str"
+          },
+          "default": "{}",
+          "kind": "variadic keyword",
+          "name": "kw"
+         }
+        ],
+        "returns": "None",
+        "runtime": true
+       },
+       "area": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 117,
+         "lineno": 117,
+         "value": "Circle area."
+        },
+        "endlineno": 118,
+        "kind": "function",
+        "lineno": 116,
+        "name": "area",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "area",
+         "name": "float"
+        },
+        "runtime": true
+       },
+       "grow": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 132,
+         "lineno": 121,
+         "value": "Grow the circle.\n\nArgs:\n    factor: By how much.\n    callback: Called per step.\n\nYields:\n    The successive radii.\n\nWarns:\n    UserWarning: When factor is huge."
+        },
+        "endlineno": 133,
+        "kind": "function",
+        "lineno": 120,
+        "name": "grow",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprSubscript",
+           "left": {
+            "cls": "ExprName",
+            "member": "grow",
+            "name": "Union"
+           },
+           "slice": {
+            "cls": "ExprTuple",
+            "elements": [
+             {
+              "cls": "ExprName",
+              "member": "grow",
+              "name": "int"
+             },
+             {
+              "cls": "ExprName",
+              "member": "grow",
+              "name": "float"
+             }
+            ],
+            "implicit": true
+           }
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "factor"
+         },
+         {
+          "annotation": {
+           "cls": "ExprSubscript",
+           "left": {
+            "cls": "ExprName",
+            "member": "grow",
+            "name": "Optional"
+           },
+           "slice": {
+            "cls": "ExprSubscript",
+            "left": {
+             "cls": "ExprName",
+             "member": "grow",
+             "name": "Callable"
+            },
+            "slice": {
+             "cls": "ExprTuple",
+             "elements": [
+              {
+               "cls": "ExprList",
+               "elements": [
+                {
+                 "cls": "ExprName",
+                 "member": "grow",
+                 "name": "float"
+                }
+               ]
+              },
+              "None"
+             ],
+             "implicit": true
+            }
+           }
+          },
+          "default": "None",
+          "kind": "positional or keyword",
+          "name": "callback"
+         }
+        ],
+        "returns": {
+         "cls": "ExprSubscript",
+         "left": {
+          "cls": "ExprName",
+          "member": "grow",
+          "name": "Iterator"
+         },
+         "slice": {
+          "cls": "ExprName",
+          "member": "grow",
+          "name": "float"
+         }
+        },
+        "runtime": true
+       }
+      },
+      "name": "Circle",
+      "runtime": true
+     },
+     "Color": {
+      "analysis": "static",
+      "bases": [
+       {
+        "cls": "ExprAttribute",
+        "values": [
+         {
+          "cls": "ExprName",
+          "member": "Color",
+          "name": "enum"
+         },
+         {
+          "cls": "ExprName",
+          "member": null,
+          "name": "Enum"
+         }
+        ]
+       }
+      ],
+      "decorators": [],
+      "docstring": {
+       "endlineno": 10,
+       "lineno": 10,
+       "value": "Available colors."
+      },
+      "endlineno": 14,
+      "kind": "class",
+      "lineno": 9,
+      "members": {
+       "BLUE": {
+        "analysis": "static",
+        "endlineno": 14,
+        "kind": "attribute",
+        "labels": [
+         "class-attribute",
+         "instance-attribute"
+        ],
+        "lineno": 14,
+        "name": "BLUE",
+        "runtime": true,
+        "value": "2"
+       },
+       "RED": {
+        "analysis": "static",
+        "docstring": {
+         "endlineno": 13,
+         "lineno": 13,
+         "value": "The red color."
+        },
+        "endlineno": 12,
+        "kind": "attribute",
+        "labels": [
+         "class-attribute",
+         "instance-attribute"
+        ],
+        "lineno": 12,
+        "name": "RED",
+        "runtime": true,
+        "value": "1"
+       }
+      },
+      "name": "Color",
+      "runtime": true
+     },
+     "Iterator": {
+      "analysis": "static",
+      "endlineno": 6,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 6,
+      "name": "Iterator",
+      "runtime": true,
+      "target_path": "typing.Iterator"
+     },
+     "Optional": {
+      "analysis": "static",
+      "endlineno": 6,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 6,
+      "name": "Optional",
+      "runtime": true,
+      "target_path": "typing.Optional"
+     },
+     "Point": {
+      "analysis": "static",
+      "bases": [],
+      "decorators": [
+       {
+        "endlineno": 17,
+        "lineno": 17,
+        "value": {
+         "cls": "ExprName",
+         "member": null,
+         "name": "dataclass"
+        }
+       }
+      ],
+      "docstring": {
+       "endlineno": 24,
+       "lineno": 19,
+       "value": "A 2D point.\n\nAttributes:\n    x: Horizontal position.\n    y: Vertical position."
+      },
+      "endlineno": 28,
+      "kind": "class",
+      "labels": [
+       "dataclass"
+      ],
+      "lineno": 17,
+      "members": {
+       "__init__": {
+        "decorators": [],
+        "endlineno": 0,
+        "kind": "function",
+        "lineno": 0,
+        "name": "__init__",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "float"
+          },
+          "default": "0.0",
+          "kind": "positional or keyword",
+          "name": "x"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "float"
+          },
+          "default": "0.0",
+          "kind": "positional or keyword",
+          "name": "y"
+         },
+         {
+          "annotation": {
+           "cls": "ExprSubscript",
+           "left": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "list"
+           },
+           "slice": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "str"
+           }
+          },
+          "default": {
+           "arguments": [],
+           "cls": "ExprCall",
+           "function": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "list"
+           }
+          },
+          "kind": "positional or keyword",
+          "name": "tags"
+         }
+        ],
+        "returns": "None",
+        "runtime": true
+       },
+       "tags": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprSubscript",
+         "left": {
+          "cls": "ExprName",
+          "member": null,
+          "name": "list"
+         },
+         "slice": {
+          "cls": "ExprName",
+          "member": null,
+          "name": "str"
+         }
+        },
+        "endlineno": 28,
+        "kind": "attribute",
+        "labels": [
+         "class-attribute",
+         "instance-attribute"
+        ],
+        "lineno": 28,
+        "name": "tags",
+        "runtime": true,
+        "value": {
+         "arguments": [
+          {
+           "cls": "ExprKeyword",
+           "function": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "field"
+           },
+           "name": "default_factory",
+           "value": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "list"
+           }
+          }
+         ],
+         "cls": "ExprCall",
+         "function": {
+          "cls": "ExprName",
+          "member": null,
+          "name": "field"
+         }
+        }
+       },
+       "x": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": null,
+         "name": "float"
+        },
+        "endlineno": 26,
+        "kind": "attribute",
+        "labels": [
+         "class-attribute",
+         "instance-attribute"
+        ],
+        "lineno": 26,
+        "name": "x",
+        "runtime": true,
+        "value": "0.0"
+       },
+       "y": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": null,
+         "name": "float"
+        },
+        "endlineno": 27,
+        "kind": "attribute",
+        "labels": [
+         "class-attribute",
+         "instance-attribute"
+        ],
+        "lineno": 27,
+        "name": "y",
+        "runtime": true,
+        "value": "0.0"
+       }
+      },
+      "name": "Point",
+      "runtime": true
+     },
+     "Shape": {
+      "analysis": "static",
+      "bases": [],
+      "decorators": [],
+      "docstring": {
+       "endlineno": 48,
+       "lineno": 32,
+       "value": "Base shape.\n\nA shape knows how to compute its area.\n\nNote:\n    Subclass it, don't instantiate it.\n\nWarning: Careful!\n    This is a custom-titled warning with `code`.\n\nTip:\n    Use `Circle` for round things.\n\nAttributes:\n    name: Shape name.\n    sides (int): Number of sides."
+      },
+      "endlineno": 103,
+      "kind": "class",
+      "lineno": 31,
+      "members": {
+       "__init__": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 63,
+         "lineno": 54,
+         "value": "Create a shape.\n\nParameters:\n    name: The shape name.\n    color: The color | with a pipe.\n    **extra: Extra options.\n\nRaises:\n    ValueError: If the name is empty."
+        },
+        "endlineno": 64,
+        "kind": "function",
+        "lineno": 53,
+        "name": "__init__",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "str"
+          },
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "name"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "Color"
+          },
+          "default": {
+           "cls": "ExprAttribute",
+           "values": [
+            {
+             "cls": "ExprName",
+             "member": null,
+             "name": "Color"
+            },
+            {
+             "cls": "ExprName",
+             "member": null,
+             "name": "RED"
+            }
+           ]
+          },
+          "kind": "keyword-only",
+          "name": "color"
+         },
+         {
+          "annotation": {
+           "cls": "ExprName",
+           "member": "__init__",
+           "name": "Any"
+          },
+          "default": "{}",
+          "kind": "variadic keyword",
+          "name": "extra"
+         }
+        ],
+        "returns": "None",
+        "runtime": true
+       },
+       "__repr__": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 98,
+        "kind": "function",
+        "lineno": 97,
+        "name": "__repr__",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "__repr__",
+         "name": "str"
+        },
+        "runtime": true
+       },
+       "_hidden": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 101,
+         "lineno": 101,
+         "value": "Private."
+        },
+        "endlineno": 101,
+        "kind": "function",
+        "lineno": 100,
+        "name": "_hidden",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         }
+        ],
+        "returns": "None",
+        "runtime": true
+       },
+       "area": {
+        "analysis": "static",
+        "decorators": [],
+        "docstring": {
+         "endlineno": 94,
+         "lineno": 82,
+         "value": "Compute area.\n\nReturns:\n    The area.\n\nExamples:\n    Basic usage:\n\n    >>> Shape(\"a\").area()\n    0.0\n\n    Another one."
+        },
+        "endlineno": 95,
+        "kind": "function",
+        "lineno": 81,
+        "name": "area",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "area",
+         "name": "float"
+        },
+        "runtime": true
+       },
+       "kinds": {
+        "analysis": "static",
+        "decorators": [
+         {
+          "endlineno": 76,
+          "lineno": 76,
+          "value": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "staticmethod"
+          }
+         }
+        ],
+        "docstring": {
+         "endlineno": 78,
+         "lineno": 78,
+         "value": "List the kinds."
+        },
+        "endlineno": 79,
+        "kind": "function",
+        "labels": [
+         "staticmethod"
+        ],
+        "lineno": 76,
+        "name": "kinds",
+        "parameters": [],
+        "returns": {
+         "cls": "ExprSubscript",
+         "left": {
+          "cls": "ExprName",
+          "member": "kinds",
+          "name": "list"
+         },
+         "slice": {
+          "cls": "ExprName",
+          "member": "kinds",
+          "name": "str"
+         }
+        },
+        "runtime": true
+       },
+       "label": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": "label",
+         "name": "str"
+        },
+        "docstring": {
+         "endlineno": 68,
+         "lineno": 68,
+         "value": "The display label."
+        },
+        "endlineno": 69,
+        "kind": "attribute",
+        "labels": [
+         "property"
+        ],
+        "lineno": 67,
+        "name": "label",
+        "runtime": true
+       },
+       "name": {
+        "analysis": "static",
+        "endlineno": 64,
+        "kind": "attribute",
+        "labels": [
+         "instance-attribute"
+        ],
+        "lineno": 64,
+        "name": "name",
+        "runtime": true,
+        "value": {
+         "cls": "ExprName",
+         "member": null,
+         "name": "name"
+        }
+       },
+       "sides": {
+        "analysis": "static",
+        "annotation": {
+         "cls": "ExprName",
+         "member": null,
+         "name": "int"
+        },
+        "docstring": {
+         "endlineno": 51,
+         "lineno": 51,
+         "value": "Number of sides."
+        },
+        "endlineno": 50,
+        "kind": "attribute",
+        "labels": [
+         "class-attribute",
+         "instance-attribute"
+        ],
+        "lineno": 50,
+        "name": "sides",
+        "runtime": true,
+        "value": "0"
+       },
+       "undocumented": {
+        "analysis": "static",
+        "decorators": [],
+        "endlineno": 103,
+        "kind": "function",
+        "lineno": 103,
+        "name": "undocumented",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "self"
+         }
+        ],
+        "returns": null,
+        "runtime": true
+       },
+       "unit": {
+        "analysis": "static",
+        "decorators": [
+         {
+          "endlineno": 71,
+          "lineno": 71,
+          "value": {
+           "cls": "ExprName",
+           "member": null,
+           "name": "classmethod"
+          }
+         }
+        ],
+        "docstring": {
+         "endlineno": 73,
+         "lineno": 73,
+         "value": "Build a unit shape."
+        },
+        "endlineno": 74,
+        "kind": "function",
+        "labels": [
+         "classmethod"
+        ],
+        "lineno": 71,
+        "name": "unit",
+        "parameters": [
+         {
+          "annotation": null,
+          "default": null,
+          "kind": "positional or keyword",
+          "name": "cls"
+         }
+        ],
+        "returns": {
+         "cls": "ExprName",
+         "member": "unit",
+         "name": "Shape"
+        },
+        "runtime": true
+       }
+      },
+      "name": "Shape",
+      "runtime": true
+     },
+     "Union": {
+      "analysis": "static",
+      "endlineno": 6,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 6,
+      "name": "Union",
+      "runtime": true,
+      "target_path": "typing.Union"
+     },
+     "annotations": {
+      "analysis": "static",
+      "endlineno": 2,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 2,
+      "name": "annotations",
+      "runtime": true,
+      "target_path": "__future__.annotations"
+     },
+     "area": {
+      "analysis": "static",
+      "decorators": [],
+      "docstring": {
+       "endlineno": 149,
+       "lineno": 141,
+       "value": "Compute the area of a shape.\n\nArgs:\n    shape: The shape.\n    precise: Be precise.\n\nReturns:\n    float: The area."
+      },
+      "endlineno": 150,
+      "kind": "function",
+      "lineno": 140,
+      "name": "area",
+      "parameters": [
+       {
+        "annotation": null,
+        "default": null,
+        "kind": "positional or keyword",
+        "name": "shape"
+       },
+       {
+        "annotation": null,
+        "default": "False",
+        "kind": "positional or keyword",
+        "name": "precise"
+       }
+      ],
+      "returns": null,
+      "runtime": true
+     },
+     "dataclass": {
+      "analysis": "static",
+      "endlineno": 5,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 5,
+      "name": "dataclass",
+      "runtime": true,
+      "target_path": "dataclasses.dataclass"
+     },
+     "enum": {
+      "analysis": "static",
+      "endlineno": 4,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 4,
+      "name": "enum",
+      "runtime": true,
+      "target_path": "enum"
+     },
+     "field": {
+      "analysis": "static",
+      "endlineno": 5,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 5,
+      "name": "field",
+      "runtime": true,
+      "target_path": "dataclasses.field"
+     },
+     "overload": {
+      "analysis": "static",
+      "endlineno": 6,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 6,
+      "name": "overload",
+      "runtime": true,
+      "target_path": "typing.overload"
+     },
+     "scale": {
+      "analysis": "static",
+      "decorators": [],
+      "docstring": {
+       "endlineno": 168,
+       "lineno": 154,
+       "value": "Scale a shape.\n\nArgs:\n    shape: The shape.\n    factor: The factor.\n    in_place: Mutate in place.\n    options: Misc options.\n    another_long_argument: Long.\n\nOther Parameters:\n    verbose (bool): Be verbose.\n\nReturns:\n    Shape: The scaled shape."
+      },
+      "endlineno": 169,
+      "kind": "function",
+      "lineno": 153,
+      "name": "scale",
+      "parameters": [
+       {
+        "annotation": {
+         "cls": "ExprName",
+         "member": "scale",
+         "name": "Shape"
+        },
+        "default": null,
+        "kind": "positional or keyword",
+        "name": "shape"
+       },
+       {
+        "annotation": {
+         "cls": "ExprName",
+         "member": "scale",
+         "name": "float"
+        },
+        "default": "2.0",
+        "kind": "positional or keyword",
+        "name": "factor"
+       },
+       {
+        "annotation": {
+         "cls": "ExprName",
+         "member": "scale",
+         "name": "bool"
+        },
+        "default": "False",
+        "kind": "keyword-only",
+        "name": "in_place"
+       },
+       {
+        "annotation": {
+         "cls": "ExprBinOp",
+         "left": {
+          "cls": "ExprSubscript",
+          "left": {
+           "cls": "ExprName",
+           "member": "scale",
+           "name": "dict"
+          },
+          "slice": {
+           "cls": "ExprTuple",
+           "elements": [
+            {
+             "cls": "ExprName",
+             "member": "scale",
+             "name": "str"
+            },
+            {
+             "cls": "ExprName",
+             "member": "scale",
+             "name": "int"
+            }
+           ],
+           "implicit": true
+          }
+         },
+         "operator": "|",
+         "right": "None"
+        },
+        "default": "None",
+        "kind": "keyword-only",
+        "name": "options"
+       },
+       {
+        "annotation": {
+         "cls": "ExprSubscript",
+         "left": {
+          "cls": "ExprName",
+          "member": "scale",
+          "name": "tuple"
+         },
+         "slice": {
+          "cls": "ExprTuple",
+          "elements": [
+           {
+            "cls": "ExprName",
+            "member": "scale",
+            "name": "int"
+           },
+           "..."
+          ],
+          "implicit": true
+         }
+        },
+        "default": {
+         "cls": "ExprTuple",
+         "elements": [
+          "1",
+          "2",
+          "3"
+         ],
+         "implicit": false
+        },
+        "kind": "keyword-only",
+        "name": "another_long_argument"
+       }
+      ],
+      "returns": {
+       "cls": "ExprName",
+       "member": "scale",
+       "name": "Shape"
+      },
+      "runtime": true
+     }
+    },
+    "name": "_core",
+    "runtime": true
+   },
+   "area": {
+    "analysis": "static",
+    "endlineno": 6,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 6,
+    "name": "area",
+    "runtime": true,
+    "target_path": "shapes._core.area"
+   },
+   "helper_alias": {
+    "analysis": "static",
+    "endlineno": 7,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 7,
+    "name": "helper_alias",
+    "runtime": true,
+    "target_path": "shapes.util.helper"
+   },
+   "scale": {
+    "analysis": "static",
+    "endlineno": 6,
+    "inherited": false,
+    "kind": "alias",
+    "lineno": 6,
+    "name": "scale",
+    "runtime": true,
+    "target_path": "shapes._core.scale"
+   },
+   "util": {
+    "analysis": "static",
+    "docstring": {
+     "endlineno": 1,
+     "lineno": 1,
+     "value": "Utilities."
+    },
+    "imports": {
+     "functools": "functools"
+    },
+    "kind": "module",
+    "members": {
+     "cached": {
+      "analysis": "static",
+      "decorators": [
+       {
+        "endlineno": 10,
+        "lineno": 10,
+        "value": {
+         "arguments": [
+          {
+           "cls": "ExprKeyword",
+           "function": {
+            "cls": "ExprAttribute",
+            "values": [
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "functools"
+             },
+             {
+              "cls": "ExprName",
+              "member": null,
+              "name": "lru_cache"
+             }
+            ]
+           },
+           "name": "maxsize",
+           "value": "None"
+          }
+         ],
+         "cls": "ExprCall",
+         "function": {
+          "cls": "ExprAttribute",
+          "values": [
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "functools"
+           },
+           {
+            "cls": "ExprName",
+            "member": null,
+            "name": "lru_cache"
+           }
+          ]
+         }
+        }
+       }
+      ],
+      "docstring": {
+       "endlineno": 12,
+       "lineno": 12,
+       "value": "Cached."
+      },
+      "endlineno": 13,
+      "kind": "function",
+      "labels": [
+       "cached"
+      ],
+      "lineno": 10,
+      "name": "cached",
+      "parameters": [
+       {
+        "annotation": {
+         "cls": "ExprName",
+         "member": "cached",
+         "name": "int"
+        },
+        "default": null,
+        "kind": "positional or keyword",
+        "name": "n"
+       }
+      ],
+      "returns": {
+       "cls": "ExprName",
+       "member": "cached",
+       "name": "int"
+      },
+      "runtime": true
+     },
+     "functools": {
+      "analysis": "static",
+      "endlineno": 2,
+      "inherited": false,
+      "kind": "alias",
+      "lineno": 2,
+      "name": "functools",
+      "runtime": true,
+      "target_path": "functools"
+     },
+     "helper": {
+      "analysis": "static",
+      "decorators": [],
+      "docstring": {
+       "endlineno": 6,
+       "lineno": 6,
+       "value": "Return x."
+      },
+      "endlineno": 7,
+      "kind": "function",
+      "lineno": 5,
+      "name": "helper",
+      "parameters": [
+       {
+        "annotation": {
+         "cls": "ExprName",
+         "member": "helper",
+         "name": "int"
+        },
+        "default": "1",
+        "kind": "positional or keyword",
+        "name": "x"
+       }
+      ],
+      "returns": {
+       "cls": "ExprName",
+       "member": "helper",
+       "name": "int"
+      },
+      "runtime": true
+     }
+    },
+    "name": "util",
+    "runtime": true
+   }
+  },
+  "name": "shapes",
+  "runtime": true
+ }
+}

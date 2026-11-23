@@ -9,11 +9,16 @@
 //   2. link pass: the result is parsed with remark (no MDX) and every link / image / raw HTML
 //      src|href is rewritten in place (see rewriteLinks).
 import { unified } from 'unified';
+import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
+import path from 'path';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { visit } from 'unist-util-visit';
 import { resolveIcon } from '../icons.js';
+import { mapShortcodeIcon } from './icon-map.js';
+import { findAnnotationMarker } from '../code-meta.js';
+import { EMOJI } from './emoji-shortcodes.js';
 
 // ─── small helpers ────────────────────────────────────────────────────────────
 const indentWidth = (s) => { let w = 0; for (const c of s) { if (c === ' ') w++; else if (c === '\t') w += 4 - (w % 4); else break; } return w; };
@@ -31,6 +36,16 @@ function dedent(l, n) {
   return (w > n ? ' '.repeat(w - n) : '') + l.slice(k);
 }
 const FENCE_OPEN = /^([ \t]*)(`{3,}|~{3,})(.*)$/;
+/** A fence opened by a FENCE_OPEN match: its character, length and indent. */
+const openFence = (m) => ({ ch: m[2][0], len: m[2].length, ind: indentWidth(m[1]) });
+/**
+ * CommonMark closing fence: same character, at least as long, nothing after it, and indented at most 3 columns
+ * more than the opener — so an indented inner ``` (e.g. inside a tab, shown in a code example) never closes it.
+ */
+function closesFence(line, f) {
+  const m = /^([ \t]*)(`{3,}|~{3,})[ \t]*$/.exec(line || '');
+  return !!m && m[2][0] === f.ch && m[2].length >= f.len && indentWidth(m[1]) <= f.ind + 3;
+}
 
 // Material admonition types -> wc-callout types (title keeps the Material label when they differ).
 const ADMONITION = {
@@ -42,26 +57,6 @@ const ADMONITION = {
 };
 const BLOCK_ADMONITIONS = new Set([...Object.keys(ADMONITION)]);
 
-// Material icon names with a different Lucide / Font Awesome name.
-const ICON_ALIASES = {
-  information: 'info', 'information-outline': 'info', 'alert': 'triangle-alert', 'alert-outline': 'triangle-alert', 'alert-circle': 'circle-alert',
-  'check-bold': 'check', 'check-circle': 'circle-check', 'close': 'x', 'close-circle': 'circle-x', 'cancel': 'ban', 'console': 'terminal',
-  'console-line': 'terminal', 'language-python': 'python', 'language-javascript': 'js', 'language-typescript': 'code', 'language-rust': 'rust',
-  'language-go': 'golang', 'language-java': 'java', 'language-markdown': 'markdown', 'language-html5': 'html5', 'language-css3': 'css3',
-  'pencil': 'pencil', 'lead-pencil': 'pencil', 'file-document': 'file-text', 'file-document-outline': 'file-text', 'book-open-page-variant': 'book-open',
-  'book-open-variant': 'book-open', 'cog': 'settings', 'cogs': 'settings', 'tools': 'wrench', 'lightning-bolt': 'zap', 'flash': 'zap', 'rocket-launch': 'rocket',
-  'scale-balance': 'scale', 'clock-fast': 'clock', 'clock-outline': 'clock', 'magnify': 'search', 'heart': 'heart', 'emoticon-happy': 'smile',
-  'account': 'user', 'account-group': 'users', 'home': 'house', 'web': 'globe', 'earth': 'globe', 'email': 'mail', 'link-variant': 'link',
-  'arrow-right-box': 'square-arrow-right', 'arrow-right-circle': 'circle-arrow-right', 'download': 'download', 'tag': 'tag', 'tag-outline': 'tag',
-  'github': 'github', 'gitlab': 'gitlab', 'docker': 'docker', 'puzzle': 'puzzle', 'shield-check': 'shield-check', 'lock': 'lock', 'api': 'webhook',
-  'format-list-bulleted': 'list', 'view-dashboard': 'layout-dashboard', 'database': 'database', 'test-tube': 'test-tube', 'chart-line': 'chart-line',
-  'robot': 'bot', 'brain': 'brain', 'school': 'graduation-cap', 'lightbulb': 'lightbulb', 'lightbulb-on': 'lightbulb', 'message': 'message-square',
-  'forum': 'messages-square', 'bug': 'bug', 'calendar': 'calendar', 'star': 'star', 'eye': 'eye', 'folder': 'folder', 'folder-open': 'folder-open',
-  'content-copy': 'copy', 'plus': 'plus', 'minus': 'minus', 'help-circle': 'circle-help', 'play': 'play', 'pause': 'pause', 'refresh': 'refresh-cw',
-  'sync': 'refresh-cw', 'server': 'server', 'cloud': 'cloud', 'package-variant': 'package', 'package-variant-closed': 'package', 'key': 'key',
-  'translate': 'languages', 'palette': 'palette', 'brush': 'brush', 'code-tags': 'code', 'code-braces': 'braces', 'xml': 'code', 'graph': 'network',
-  'sitemap': 'network', 'map-marker': 'map-pin', 'newspaper': 'newspaper', 'rss': 'rss', 'twitter': 'x-twitter', 'linkedin': 'linkedin', 'discord': 'discord',
-};
 const KEY_NAMES = {
   ctrl: 'Ctrl', control: 'Ctrl', alt: 'Alt', option: 'Option', opt: 'Option', shift: 'Shift', cmd: 'Cmd', command: 'Cmd', meta: 'Meta', win: 'Win',
   windows: 'Win', super: 'Super', fn: 'Fn', enter: 'Enter', return: 'Return', esc: 'Esc', escape: 'Esc', tab: 'Tab', space: 'Space', backspace: 'Backspace',
@@ -73,14 +68,15 @@ const KEY_NAMES = {
 // ─── entry ────────────────────────────────────────────────────────────────────
 /**
  * Convert one MkDocs page body.
- * opts: { file, lineOffset, report(sev, code, msg, extra), count(from, to), exts:Set, tabsSync:bool,
+ * opts: { file, lineOffset, report(sev, code, msg, extra), count(from, to), exts:Set, tabsSync:bool, codeAnnotate:bool,
  *         readSnippet(spec) -> {text}|{codeFile, lines}|{error}, macros:{enabled, vars:Map}, onIconMiss(name) }
  * Returns { body, notes } where notes collects per-page stats for the report.
  */
 export function convertPymdown(src, opts) {
-  const o = { exts: new Set(), tabsSync: false, report: () => {}, count: () => {}, lineOffset: 0, ...opts };
+  const o = { exts: new Set(), tabsSync: false, codeAnnotate: false, report: () => {}, count: () => {}, lineOffset: 0, ...opts };
   const st = { o, tabGroups: 0, codeImports: new Set(), notes: { mkdocstrings: [], macros: [], critic: 0, iconMiss: new Set(), annotations: 0, attrDropped: 0, gridCards: 0, mathRound: false } };
   let lines = src.replace(/\r\n?/g, '\n').split('\n');
+  lines = expandIncludes(lines, st, 0, []);
   lines = expandSnippets(lines, st, 0);
   lines = fastapiIncludes(lines, st);
   const abbr = collectAbbreviations(lines, st);
@@ -89,6 +85,114 @@ export function convertPymdown(src, opts) {
   let body = out.join('\n');
   body = tidyBlank(inlinePass(body, st, abbr.map));
   return { body, notes: st.notes };
+}
+
+// ─── Jinja block includes (mkdocs-macros `{% include %}`, include-markdown `{% include-markdown %}`) ──
+const INCLUDE_OPEN = /^([ \t]*)\{%[-+]?\s*(include-markdown|include)\b(.*)$/;
+const INCLUDE_MAX_DEPTH = 5;
+const fenceCloser = (fence) => ({ test: (l) => closesFence(l, fence) });
+const unq = (v) => v.replace(/\\(["'\\])/g, '$1');
+
+function parseIncludeTag(tagBody) {
+  // tagBody: everything after the tag name, up to and including the closing %}
+  const m = /^([\s\S]*?)[-+]?%\}\s*$/.exec(tagBody);
+  if (!m) return null;
+  const f = /^\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')([\s\S]*)$/.exec(m[1]);
+  if (!f) return null; // dynamic expression (a variable, ...)
+  const opts = {};
+  const re = /([\w-]+)\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|(\S+))/g;
+  let om;
+  while ((om = re.exec(f[3]))) opts[om[1]] = unq(om[2] ?? om[3] ?? om[4]);
+  return { spec: unq(f[1] ?? f[2]), opts };
+}
+
+function applyIncludeOptions(text, opts, fromAbs, includerAbs) {
+  let t = text.replace(/\r\n?/g, '\n');
+  if (opts.start !== undefined || opts.end !== undefined) {
+    let a = 0;
+    if (opts.start !== undefined) { const i = t.indexOf(opts.start); if (i === -1) return { error: `start marker "${opts.start}" not found` }; a = i + opts.start.length; }
+    let b = t.length;
+    if (opts.end !== undefined) { const j = t.indexOf(opts.end, a); if (j === -1) return { error: `end marker "${opts.end}" not found` }; b = j; }
+    t = t.slice(a, b);
+  }
+  let ls = t.split('\n');
+  while (ls.length && !ls[0].trim()) ls.shift();
+  while (ls.length && !ls[ls.length - 1].trim()) ls.pop();
+  if (/^(true|yes|1)$/i.test(String(opts.dedent))) {
+    const ind = Math.min(Infinity, ...ls.filter((l) => l.trim()).map((l) => /^[ \t]*/.exec(l)[0].length));
+    if (ind > 0 && ind !== Infinity) ls = ls.map((l) => l.slice(Math.min(ind, /^[ \t]*/.exec(l)[0].length)));
+  }
+  const off = Number(opts['heading-offset'] ?? 0) || 0;
+  const rewrite = !/^(false|no|0)$/i.test(String(opts['rewrite-relative-urls'] ?? 'true')) && path.dirname(fromAbs) !== path.dirname(includerAbs);
+  if (off || rewrite) {
+    let fence = null;
+    const fix = (u) => {
+      if (!u || /^([a-z][a-z0-9+.-]*:|#|\/|\{\{|\{%|<)/i.test(u)) return u;
+      const m2 = /^([^?#]*)([?#].*)?$/.exec(u);
+      let dec = m2[1];
+      try { dec = decodeURI(m2[1]); } catch { /* keep */ }
+      const rel = path.relative(path.dirname(includerAbs), path.resolve(path.dirname(fromAbs), dec)).split(path.sep).join('/');
+      return encodeURI(rel) + (m2[2] || '');
+    };
+    ls = ls.map((l) => {
+      const fm = FENCE_OPEN.exec(l);
+      if (fm && !fence) { fence = openFence(fm); return l; }
+      if (fence) { if (fenceCloser(fence).test(l)) fence = null; return l; }
+      let x = l;
+      if (off) x = x.replace(/^([ \t]*)(#{1,6})(?=\s)/, (m, ind, h) => ind + '#'.repeat(Math.max(1, Math.min(6, h.length + off))));
+      if (rewrite) {
+        x = x.replace(/(\]\()([^)\s]+)((?:\s+"[^"]*")?\))/g, (m, a, u, c) => a + fix(u) + c)
+          .replace(/^(\s*\[[^\]]+\]:\s*)(\S+)/, (m, a, u) => a + fix(u))
+          .replace(/(\b(?:src|href)=")([^"]+)(")/g, (m, a, u, c) => a + fix(u) + c);
+      }
+      return x;
+    });
+  }
+  return { lines: ls };
+}
+
+function expandIncludes(lines, st, depth, stack, topLine = null) {
+  const { o } = st;
+  if (!o.readInclude) return lines;
+  const out = [];
+  let fence = null;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const fm = FENCE_OPEN.exec(l);
+    if (fm && !fence) { fence = openFence(fm); out.push(l); continue; }
+    if (fence) { if (fenceCloser(fence).test(l)) fence = null; out.push(l); continue; }
+    const m = INCLUDE_OPEN.exec(l);
+    if (!m) { out.push(l); continue; }
+    // gather the whole tag (it may span lines); only a tag alone on its line(s) is a block include
+    let j = i;
+    let tag = l.slice(m[1].length);
+    while (!/%\}/.test(lines[j]) && j + 1 < lines.length && j - i < 12) { j++; tag += '\n' + lines[j]; }
+    const body = tag.replace(/^\{%[-+]?\s*(include-markdown|include)\b/, '');
+    const end = body.indexOf('%}');
+    if (end === -1 || body.slice(end + 2).trim()) { out.push(l); continue; } // inline Jinja: leave alone
+    const parsed = parseIncludeTag(body.slice(0, end + 2));
+    const kind = m[2];
+    const lineNo = topLine ?? (i + 1 + o.lineOffset);
+    const keep = (why) => {
+      o.report('warning', 'mkdocs-include-unresolved', `{% ${kind} "${parsed ? parsed.spec : '…'}" %} was left as written: ${why}.`, { line: lineNo, action: 'Left the tag in the page.', fix: 'Paste the content into the page, or put reusable text under docs/_reusables and use <wc-include>.' });
+      o.count(`{% ${kind} %} (left as written)`, 'unchanged');
+      out.push(...lines.slice(i, j + 1));
+      i = j;
+    };
+    const r = depth < INCLUDE_MAX_DEPTH ? o.readInclude(parsed ? parsed.spec : '', { kind, line: lineNo, stack }) : null;
+    if (r && r.skip) { out.push(...lines.slice(i, j + 1)); i = j; continue; }
+    if (!parsed) { keep('the path is not a plain string'); continue; }
+    if (depth >= INCLUDE_MAX_DEPTH) { keep('includes are nested too deeply'); continue; }
+    if (!r || r.error) { keep(r?.error || 'file not found'); continue; }
+    if (stack.includes(r.abs)) { keep('the include is circular'); continue; }
+    const a = applyIncludeOptions(r.text, parsed.opts, r.abs, r.includerAbs);
+    if (a.error) { keep(a.error); continue; }
+    const inner = expandIncludes(a.lines, st, depth + 1, [...stack, r.abs], lineNo);
+    o.count(`{% ${kind} %}`, 'inlined');
+    out.push(...inner.map((x) => (x ? m[1] + x : x)));
+    i = j;
+  }
+  return out;
 }
 
 // ─── pymdownx.snippets ────────────────────────────────────────────────────────
@@ -106,7 +210,7 @@ function expandSnippets(lines, st, depth) {
     if (fm && !fence) {
       // fence holding exactly one snippet line -> code import (file=), keeps a single source
       const one = SNIP_LINE.exec(lines[i + 1] || '');
-      const close = lines[i + 2] && new RegExp(`^[ \\t]*${fm[2][0] === '`' ? '`' : '~'}{${fm[2].length},}[ \\t]*$`).test(lines[i + 2]);
+      const close = lines[i + 2] && closesFence(lines[i + 2], openFence(fm));
       if (one && !one[2] && close && depth === 0) {
         const r = o.readSnippet(one[4], { line: i + 1 + o.lineOffset, code: true });
         if (r && r.codeFile) {
@@ -118,11 +222,11 @@ function expandSnippets(lines, st, depth) {
           continue;
         }
       }
-      fence = fm[2];
+      fence = openFence(fm);
       out.push(l);
       continue;
     }
-    if (fence && new RegExp(`^[ \\t]*${fence[0] === '`' ? '`' : '~'}{${fence.length},}[ \\t]*$`).test(l)) { fence = null; out.push(l); continue; }
+    if (fence && closesFence(l, fence)) { fence = null; out.push(l); continue; }
     if (SNIP_SECTION.test(l)) continue; // section markers never render
     let m = SNIP_LINE.exec(l);
     if (m) {
@@ -190,7 +294,7 @@ function collectAbbreviations(lines, st) {
   let fence = null;
   for (const l of lines) {
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence[0].repeat(fence.length)) && !l.trim().slice(fence.length).trim()) fence = null; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
     const m = !fence && /^\*\[([^\]]+)\]:\s*(.*)$/.exec(l);
     if (m) { map.set(m[1], m[2].trim()); continue; }
     out.push(l);
@@ -221,6 +325,60 @@ const TAB_RE = /^([ \t]*)===([!+]{0,2})[ \t]+(?:"(.*)"|'(.*)')[ \t]*$/;
 const BLOCK_OPEN = /^([ \t]*)(\/{3,})[ \t]*([\w-]+)[ \t]*(?:\|[ \t]*(.*?))?[ \t]*$/;
 const BLOCK_CLOSE = /^([ \t]*)(\/{3,})[ \t]*$/;
 const MKDOCSTRINGS = /^([ \t]*):::[ \t]+([\w.:-]+)[ \t]*$/;
+// Options of the DocsLit Python API directive (mkdocstrings-python names). Everything else is dropped on import.
+export const PYTHON_DIRECTIVE_OPTIONS = ['members', 'filters', 'show_root_heading', 'show_root_toc_entry', 'heading_level', 'show_source', 'show_signature',
+  'show_signature_annotations', 'separate_signature', 'members_order', 'inherited_members', 'docstring_section_style', 'show_if_no_docstring', 'show_bases', 'group_by_category'];
+const PY_OPT_SET = new Set(PYTHON_DIRECTIVE_OPTIONS);
+
+/**
+ * Normalise a parsed mkdocstrings options mapping to the supported names.
+ * Accepts `{options: {...}}`, the flat form (global handler options) and old mkdocstrings 0.x `selection:` / `rendering:` blocks;
+ * `handler:` is dropped silently. Returns { options, dropped: [unsupported keys] }.
+ */
+export function normalizePythonOptions(obj) {
+  const options = {};
+  const dropped = new Set();
+  const take = (src) => {
+    if (!src || typeof src !== 'object' || Array.isArray(src)) return;
+    for (const [k, v] of Object.entries(src)) {
+      if (PY_OPT_SET.has(k)) { if (v !== null && v !== undefined) options[k] = v; } else dropped.add(k);
+    }
+  };
+  if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === 'handler') continue;
+      if (k === 'options' || k === 'selection' || k === 'rendering') take(v);
+      else if (PY_OPT_SET.has(k)) take({ [k]: v });
+      else dropped.add(k);
+    }
+  }
+  return { options, dropped: [...dropped].sort() };
+}
+
+function normalizeDirectiveOptions(optLines) {
+  const text = optLines.join('\n');
+  if (!text.trim()) return { options: {}, dropped: [], invalid: false };
+  try { return { ...normalizePythonOptions(yamlLoad(text)), invalid: false }; } catch { return { options: {}, dropped: [], invalid: true }; }
+}
+
+// Docusaurus-style admonitions (`:::note Title` … `:::`), used by sites that also publish with Docusaurus
+const COLON_TYPES = 'note|tip|info|warning|caution|danger|important|success|secondary';
+const COLON_OPEN = new RegExp(`^([ \\t]*)(:{3,})(?:[ \\t]*)(${COLON_TYPES})(?:\\[([^\\]]*)\\])?(?:[ \\t]+(.*?))?[ \\t]*$`, 'i');
+function findColonClose(lines, start, n) {
+  let depth = 0;
+  let fence = null;
+  for (let j = start + 1; j < lines.length; j++) {
+    const l = lines[j];
+    const f = FENCE_OPEN.exec(l);
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; continue; }
+    if (fence) continue;
+    const o = COLON_OPEN.exec(l);
+    if (o && o[2].length === n) { depth++; continue; }
+    const c = /^[ \t]*(:{3,})[ \t]*$/.exec(l);
+    if (c && c[1].length === n) { if (depth === 0) return j; depth--; }
+  }
+  return -1;
+}
 const MD_HTML_OPEN = /^([ \t]*)<([a-zA-Z][\w-]*)\b([^>]*?)\s+markdown(?:=(?:"[^"]*"|'[^']*'|\w+))?([^>]*)>[ \t]*$/;
 
 function blocks(lines, st, firstLine) {
@@ -241,7 +399,8 @@ function blocks(lines, st, firstLine) {
     }
     const fm = FENCE_OPEN.exec(l);
     if (fm && !/`/.test(fm[3]) || (fm && fm[2][0] === '~')) {
-      const close = new RegExp(`^[ \\t]*${fm[2][0] === '`' ? '`' : '~'}{${fm[2].length},}[ \\t]*$`);
+      const opened = openFence(fm);
+      const close = { test: (x) => closesFence(x, opened) };
       const conv = convertFenceInfo(fm[3], st, lineNo);
       if (conv.mermaid) {
         fence = { close, mermaid: true, indent: fm[1] };
@@ -250,7 +409,13 @@ function blocks(lines, st, firstLine) {
         continue;
       }
       fence = { close };
-      out.push(`${fm[1]}${fm[2]}${conv.info}`);
+      let info = conv.info;
+      // theme feature content.code.annotate: every fence is annotatable; flag the ones that actually have markers
+      if (o.codeAnnotate && !/^(markdown|md|mdx)(\s|$)/i.test(info.trim()) && !/(^|\s)annotate(\s|$)/.test(info) && fenceHasMarker(lines, i + 1, close)) {
+        info = info.trim() ? `${info} annotate` : 'text annotate';
+        o.count('code annotations (content.code.annotate)', '`annotate` code block flag');
+      }
+      out.push(`${fm[1]}${fm[2]}${info}`);
       continue;
     }
 
@@ -292,14 +457,30 @@ function blocks(lines, st, firstLine) {
       }
     }
 
-    // ── mkdocstrings (::: package.module) ──
+    // ── Docusaurus-style admonitions (:::note Title … :::), reusing the callout conversion ──
+    if ((m = COLON_OPEN.exec(l))) {
+      const end = findColonClose(lines, i, m[2].length);
+      if (end !== -1) {
+        const ind = indentWidth(m[1]);
+        const body = lines.slice(i + 1, end).map((x) => (isBlank(x) ? '' : dedent(x, ind)));
+        const title = m[4] ?? (m[5] || undefined);
+        out.push(...wrap(m[1], calloutOpen(m[3].toLowerCase(), title, st, lineNo), blocks(body, st, firstLine + i + 1), '</wc-callout>'));
+        o.count(':::type admonition (Docusaurus style)', 'wc-callout');
+        i = end;
+        continue;
+      }
+    }
+
+    // ── mkdocstrings (::: package.module): kept, options normalised to mkdocstrings-python names ──
     if ((m = MKDOCSTRINGS.exec(l))) {
-      const { next } = takeIndented(lines, i + 1, indentWidth(m[1]) + 4); // options block
-      st.notes.mkdocstrings.push({ id: m[2], line: lineNo });
-      out.push(...wrap(m[1], `<wc-callout type="warning" title="API reference: ${escAttr(m[2])}">`, [
-        `This section was generated from Python docstrings by mkdocstrings (\`::: ${m[2]}\`). DocsLit does not run Python, so it was not rendered.`,
-      ], '</wc-callout>'));
-      o.count('::: mkdocstrings directive', 'placeholder callout');
+      const { body: optLines, next } = takeIndented(lines, i + 1, indentWidth(m[1]) + 1); // options block (any deeper indent)
+      const r = normalizeDirectiveOptions(optLines);
+      st.notes.mkdocstrings.push({ id: m[2], line: lineNo, dropped: r.dropped, invalid: r.invalid });
+      out.push(`${m[1]}::: ${m[2]}`);
+      if (Object.keys(r.options).length) {
+        for (const x of yamlDump({ options: r.options }, { lineWidth: -1, quotingType: '"' }).trimEnd().split('\n')) out.push(`${m[1]}    ${x}`);
+      }
+      o.count('::: mkdocstrings directive', '::: directive (kept)');
       i = next - 1;
       continue;
     }
@@ -309,8 +490,18 @@ function blocks(lines, st, firstLine) {
       const tag = m[2].toLowerCase();
       const end = findClosingTag(lines, i, tag);
       const attrs = (m[3] + m[4]).replace(/\s+$/, '');
-      if (/class="[^"]*\bgrid\b[^"]*"/.test(attrs)) { st.notes.gridCards++; o.count('<div class="grid cards" markdown>', 'grid (compat CSS)'); }
+      const isGrid = /class="[^"]*\bgrid\b[^"]*"/.test(attrs);
       const innerLines = end === -1 ? lines.slice(i + 1) : lines.slice(i + 1, end);
+      if (isGrid && end !== -1 && tag === 'div' && lines[end].trim() === '</div>') {
+        const cards = gridToCards(attrs, innerLines, st, firstLine + i + 1);
+        if (cards) {
+          out.push(...wrap(m[1], `<wc-tiles cols="${cards.cols}">`, cards.lines, '</wc-tiles>'));
+          o.count('<div class="grid cards" markdown>', 'wc-tiles + wc-card');
+          i = end;
+          continue;
+        }
+      }
+      if (isGrid) { st.notes.gridCards++; o.count('<div class="grid cards" markdown>', 'grid (compat CSS)'); }
       const inner = blocks(innerLines, st, firstLine + i + 1);
       out.push(`${m[1]}<${m[2]}${attrs}>`, '', ...inner, '');
       if (end !== -1) { out.push(lines[end]); i = end; } else i = lines.length;
@@ -327,6 +518,118 @@ function blocks(lines, st, firstLine) {
   }
   if (fence && fence.mermaid) out.push(`${fence.indent}</wc-mermaid>`);
   return out;
+}
+
+// ─── md_in_html grids -> wc-tiles / wc-card ───────────────────────────────────
+const GRID_ATTRS = /^\s*class\s*=\s*"grid(\s+cards)?"\s*$/;
+const GRID_ITEM = /^([-*+]|\d+[.)])([ \t]+)(.*)$/;
+const GRID_ICON = ':(material|fontawesome|octicons|simple)-([\\w-]+?):(?:\\{[^}]*\\})?';
+const CARD_TITLE = new RegExp(`^((?:${GRID_ICON}[ \\t]*)+)?(?:__(.+?)__|\\*\\*(.+?)\\*\\*)(?:[ \\t]+(\\S.*?))?[ \\t]*$`);
+const CARD_ARROW = ':(?:material|fontawesome|octicons)-[\\w-]*(?:arrow|chevron)[\\w-]*:(?:\\{[^}]*\\})?';
+const CARD_LINK = new RegExp(`^(?:${CARD_ARROW}[ \\t]*)?\\[(?:${CARD_ARROW}[ \\t]*)?([^\\]]+?)\\]\\(([^)\\s]+)\\)$`);
+
+/**
+ * Convert a `<div class="grid cards" markdown>` list, or a `<div class="grid" markdown>` whose children are all
+ * `{ .card }` blocks, to wc-tiles + wc-card. Returns { cols, lines } or null (grid kept as a div + compat CSS).
+ */
+function gridToCards(attrs, inner, st, firstLine) {
+  const m = GRID_ATTRS.exec(attrs);
+  if (!m) return null;
+  let items = gridListItems(inner);
+  if (!items) items = gridCardBlocks(inner);
+  else if (!m[1]) return null; // a bare list in a plain grid is not a card grid
+  if (!items || !items.length) return null;
+  const lines = [];
+  for (const it of items) { if (lines.length) lines.push(''); lines.push(...gridCard(it, st, firstLine)); }
+  // Material fills rows with 3+ cards on wide screens; mirror that when the count divides evenly into 3.
+  return { cols: items.length >= 3 && items.length % 3 === 0 ? 3 : 2, lines };
+}
+
+/** Split a pure Markdown list into items (each an array of dedented lines), or null if the content is not only a list. */
+function gridListItems(inner) {
+  const ls = inner.slice();
+  while (ls.length && isBlank(ls[0])) ls.shift();
+  while (ls.length && isBlank(ls[ls.length - 1])) ls.pop();
+  if (!ls.length) return null;
+  const base = indentWidth(leadOf(ls[0]));
+  const raw = [];
+  let fence = null;
+  for (const l0 of ls) {
+    const l = isBlank(l0) ? '' : dedent(l0, base);
+    const f = FENCE_OPEN.exec(l);
+    if (f && /^\s/.test(l)) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
+    const im = !fence && GRID_ITEM.exec(l);
+    if (im) raw.push({ first: im[3], col: im[1].length + im[2].length, rest: [] });
+    else if (!raw.length || (!isBlank(l) && !/^\s/.test(l))) return null;
+    else raw[raw.length - 1].rest.push(l);
+  }
+  return raw.map((r) => {
+    const widths = r.rest.filter((x) => !isBlank(x)).map((x) => indentWidth(leadOf(x)));
+    const d = widths.length ? Math.min(...widths) : 0;
+    return [r.first, ...r.rest.map((x) => (isBlank(x) ? '' : dedent(x, d)))];
+  });
+}
+
+/** Blank-line separated blocks that each end in `{ .card }`; anything else makes the grid unconvertible. */
+function gridCardBlocks(inner) {
+  const items = [];
+  let cur = [];
+  let fence = null;
+  const flush = () => {
+    if (!cur.length) return true;
+    const last = cur[cur.length - 1];
+    if (cur.length < 2 || !/^\s*\{\s*\.card\s*\}\s*$/.test(last)) return false;
+    items.push(cur.slice(0, -1).map((l) => l.trim() ? l : ''));
+    cur = [];
+    return true;
+  };
+  for (const l of inner) {
+    const f = FENCE_OPEN.exec(l);
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
+    if (!fence && isBlank(l)) { if (!flush()) return null; continue; }
+    cur.push(l);
+  }
+  if (!flush()) return null;
+  const base = Math.min(...items.map((it) => indentWidth(leadOf(it[0]))));
+  return items.map((it) => it.map((l) => (isBlank(l) ? '' : dedent(l, base))));
+}
+
+/** One card: leading icon + bold title, `---` separator, body, trailing single link -> href + cta. */
+function gridCard(item, st, firstLine) {
+  let body = item.slice();
+  while (body.length && isBlank(body[0])) body.shift();
+  const attrs = [];
+  const tm = CARD_TITLE.exec(body[0] || '');
+  if (tm && (body.length === 1 || isBlank(body[1]) || /^-{3}$/.test(body[1].trim()))) {
+    const title = (tm[4] ?? tm[5]).trim();
+    const im = tm[1] && new RegExp(GRID_ICON).exec(tm[1]);
+    attrs.push(['title', title]);
+    if (im) {
+      const tag = iconTag(im[1], im[2], st, im[0]);
+      const nm = /name="([^"]+)"(?: icon-type="(\w+)")?/.exec(tag);
+      if (nm) attrs.push(['icon', nm[2] ? `fa-${nm[2]} fa-${nm[1]}` : nm[1]]);
+    }
+    body.shift();
+    const tail = tm[6] ? [tm[6]] : []; // text after the bold title on the same line stays in the body
+    while (body.length && isBlank(body[0])) body.shift();
+    if (body.length && /^-{3}$/.test(body[0].trim())) body.shift();
+    while (body.length && isBlank(body[0])) body.shift();
+    if (tail.length) body = [...tail, ...(body.length ? ['', ...body] : [])];
+  }
+  while (body.length && isBlank(body[body.length - 1])) body.pop();
+  let k = body.length - 1;
+  while (k >= 0 && !isBlank(body[k])) k--;
+  if (body.length && body.length - 1 - k === 1 && (k < 0 || isBlank(body[k]))) {
+    const lm = CARD_LINK.exec(body[body.length - 1].trim());
+    const rest = body.slice(0, k + 1).join('\n');
+    if (lm && !/\]\(|\]\[|<a[\s>]|https?:\/\//.test(rest)) {
+      attrs.push(['href', lm[2]], ['cta', lm[1].trim()]);
+      body = body.slice(0, k + 1);
+      while (body.length && isBlank(body[body.length - 1])) body.pop();
+    }
+  }
+  const open = `<wc-card${attrs.map(([a, v]) => ` ${a}="${escAttr(v)}"`).join('')}>`;
+  return wrap('', open, blocks(body, st, firstLine), '</wc-card>');
 }
 
 /** A collapsible block: wc-accordion must sit inside a wc-accordion-group. */
@@ -381,10 +684,15 @@ function convertFenceInfo(info, st, line) {
     if (n > 1) meta.push(`startLine=${n}`);
   }
   if (classes.includes('no-copy') || attrs.nocopy) meta.push('nocopy');
-  if (classes.includes('annotate')) { st.notes.annotations++; st.o.count('code annotations (.annotate)', 'kept as comments + list'); }
+  if (classes.includes('annotate') || attrs.annotate === true || attrs.annotate === 'true') { meta.push('annotate'); st.o.count('code annotations (.annotate)', '`annotate` code block flag'); }
   if (attrs.title || attrs.hl_lines || attrs.linenums) st.o.count('code block title / hl_lines / linenums', 'code block meta');
   void line;
   return { info: [lang, ...meta].filter(Boolean).join(' ') };
+}
+
+function fenceHasMarker(lines, from, close) {
+  for (let k = from; k < lines.length && !close.test(lines[k]); k++) if (findAnnotationMarker(lines[k])) return true;
+  return false;
 }
 
 function tokenize(s) {
@@ -469,7 +777,7 @@ function takeBlock(lines, start) {
   for (; i < lines.length; i++) {
     const l = lines[i];
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim() === fence[0].repeat(l.trim().length) && l.trim().length >= fence.length) fence = null; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
     if (!fence && !f) {
       const o = BLOCK_OPEN.exec(l);
       if (o && o[2].length === slashes) depth++;
@@ -525,7 +833,7 @@ function renderBlock(m, blk, st, firstLine, lineNo) {
 
 // ─── definition lists ─────────────────────────────────────────────────────────
 const DEF_RE = /^:[ \t]{1,3}(\S.*)$/;
-function isTermLine(l) { return /^\S/.test(l) && !/^(#{1,6}\s|[-*+]\s|\d+[.)]\s|>|<|\||```|~~~|!!!|\?\?\?|===|\/\/\/|:)/.test(l); }
+function isTermLine(l) { return /^\S/.test(l) && !/^(#{1,6}\s|[-*+]\s|\d+[.)]\s|>|<(?!!--)|\||```|~~~|!!!|\?\?\?|===|\/\/\/|:)/.test(l); }
 function takeDefList(lines, start, st, firstLine, fromBlock = false) {
   if (fromBlock) {
     // /// define: plain lines are terms, "- " items are definitions
@@ -586,7 +894,7 @@ function findClosingTag(lines, start, tag) {
   for (let i = start; i < lines.length; i++) {
     const l = lines[i];
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence)) fence = null; continue; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; continue; }
     if (fence) continue;
     depth += (l.match(open) || []).filter((x) => !x.endsWith('/>')).length;
     depth -= (l.match(close) || []).length;
@@ -608,7 +916,7 @@ function inlinePass(body, st, abbr) {
     if (/^\s*<wc-mermaid>/.test(l)) { inMermaid = true; continue; }
     if (inMermaid) { if (/^\s*<\/wc-mermaid>/.test(l)) inMermaid = false; continue; }
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence[0].repeat(fence.length)) && !l.trim().replace(/[`~]/g, '')) fence = null; continue; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; continue; }
     if (fence) continue;
     if (/^\s*\$\$/.test(l)) { if (!/^\s*\$\$.*\$\$\s*$/.test(l.trim().length > 2 ? l : '')) inMath = !inMath; continue; }
     if (inMath) { if (/^\s*\\\]\s*$/.test(l)) { lines[n] = l.replace('\\]', '$$$$'); inMath = false; } continue; }
@@ -718,6 +1026,18 @@ function inlineSegment(seg, st, abbr, line) {
   // icons and emoji shortcodes: :material-x: :fontawesome-brands-github: :octicons-x-16: :simple-x:
   s = s.replace(/:(material|fontawesome|octicons|simple)-([\w-]+?):(?:\{[^}]*\})?/g, (m, set, name) => iconTag(set, name, st, m));
 
+  // GitHub-style emoji shortcodes (pymdownx.emoji twemoji index): :smile: -> 😄. Unknown names, times (12:30:45), URLs
+  // and icon shortcodes stay as written.
+  if (o.exts.has('pymdownx.emoji') && s.includes(':')) {
+    s = s.replace(/(?<![\w:/.#&=-]):([a-z0-9_+-]+):(?![\w:])/gi, (m, name) => {
+      if (/^(material|fontawesome|octicons|simple)-/.test(name)) return m;
+      const ch = EMOJI.get(name.toLowerCase());
+      if (!ch) return m;
+      o.count(':emoji: shortcode', 'Unicode emoji');
+      return ch;
+    });
+  }
+
   // keys: ++ctrl+alt+del++
   if (o.exts.has('pymdownx.keys')) {
     s = s.replace(/\+\+([\w-]+(?:\+[\w-]+)*)\+\+/g, (m, keys) => {
@@ -755,7 +1075,7 @@ function tidyBlank(text) {
   let blank = 0;
   for (const l of text.split('\n')) {
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence[0].repeat(fence.length)) && !l.trim().replace(/[`~]/g, '')) fence = null; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
     if (!fence && !f && !l.trim()) { if (++blank > 1) continue; } else blank = 0;
     out.push(l);
   }
@@ -767,25 +1087,12 @@ function splitOutsideTags(s, fn) {
   return s.split(/(<[^>]+>|\]\([^)]*\))/g).map((p, i) => (i % 2 ? p : fn(p))).join('');
 }
 
-function iconTag(set, name, st, raw) {
+export function iconTag(set, name, st, raw) {
   const { o } = st;
-  let candidates = [];
-  let iconType = null;
-  if (set === 'fontawesome') {
-    const m = /^(solid|regular|brands)-(.+)$/.exec(name);
-    if (m) { iconType = m[1]; candidates = [m[2]]; } else candidates = [name];
-  } else if (set === 'octicons') candidates = [name.replace(/-(12|16|24|48)$/, '')];
-  else if (set === 'simple') { iconType = 'brands'; candidates = [name, name.replace(/dotjs$|js$/, '')]; }
-  else {
-    const base = name.replace(/-(outline|box|circle-outline|variant)$/, '');
-    candidates = [ICON_ALIASES[name], ICON_ALIASES[base], name, base].filter(Boolean);
-  }
-  for (const c of candidates) {
-    const r = resolveIcon(iconType && iconType !== 'solid' ? `fa-${iconType} fa-${c}` : c);
-    if (r.kind === 'svg') {
-      o.count(`:${set}-…: icon`, 'wc-icon');
-      return `<wc-icon name="${c}"${iconType && iconType !== 'solid' ? ` icon-type="${iconType}"` : ''}></wc-icon>`;
-    }
+  const r = mapShortcodeIcon(set, name);
+  if (r && resolveIcon(r.type ? `fa-${r.type} fa-${r.name}` : r.name).kind === 'svg') {
+    o.count(`:${set}-…: icon`, 'wc-icon');
+    return `<wc-icon name="${r.name}"${r.type ? ` icon-type="${r.type}"` : ''}></wc-icon>`;
   }
   st.notes.iconMiss.add(`${set}-${name}`);
   void raw;
@@ -809,7 +1116,7 @@ export function rewriteLinks(body, opts) {
   let fence = null;
   for (let i = 0; i < lines.length; i++) {
     const f = FENCE_OPEN.exec(lines[i]);
-    if (f) { if (!fence) fence = f[2]; else if (lines[i].trim().startsWith(fence[0].repeat(fence.length)) && !lines[i].trim().replace(/[`~]/g, '')) fence = null; continue; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(lines[i], fence)) fence = null; continue; }
     if (!fence && i - start >= 150 && /^#{1,6}\s/.test(lines[i])) { chunks.push([start, i]); start = i; }
   }
   chunks.push([start, lines.length]);

@@ -15,7 +15,7 @@
  */
 
 const FLAG_WORDS = new Set([
-  'lines', 'linenumbers', 'showlinenumbers', 'expandable', 'wrap', 'wordwrap', 'nocopy', 'twoslash',
+  'lines', 'linenumbers', 'showlinenumbers', 'expandable', 'wrap', 'wordwrap', 'nocopy', 'twoslash', 'annotate',
 ]);
 
 /** Languages whose grammar has no comment syntax: Shiki would never see a notation comment there. */
@@ -138,7 +138,7 @@ function toInt(value) {
  * `linenumbers` is undefined when the meta does not say (so a site default can apply).
  */
 export function parseCodeMeta(meta) {
-  const o = { highlight: [], focus: [], wrap: false, expandable: false, nocopy: false, twoslash: false };
+  const o = { highlight: [], focus: [], wrap: false, expandable: false, nocopy: false, twoslash: false, annotate: false };
   const titleWords = [];
   let explicitTitle;
   for (const t of tokenizeMeta(meta)) {
@@ -155,6 +155,7 @@ export function parseCodeMeta(meta) {
         else if (low === 'wrap' || low === 'wordwrap') o.wrap = true;
         else if (low === 'nocopy') o.nocopy = true;
         else if (low === 'twoslash') o.twoslash = true;
+        else if (low === 'annotate') o.annotate = true;
         continue;
       }
       titleWords.push(t.value);
@@ -181,6 +182,7 @@ export function parseCodeMeta(meta) {
       case 'expandable': o.expandable = toBool(v); break;
       case 'nocopy': o.nocopy = toBool(v); break;
       case 'twoslash': o.twoslash = toBool(v); break;
+      case 'annotate': o.annotate = toBool(v); break;
       case 'for': if (v) o.for = v; break;
       case 'theme': if (v === 'dark' || v === 'light') o.theme = v; break; // Mintlify's theme={null} is dropped
       default: break; // unknown key=value: ignored (never part of the title)
@@ -258,6 +260,39 @@ export function diffLineMarks(code) {
   return marks;
 }
 
+// ── code annotations ────────────────────────────────────────────────────────────
+
+// A marker is `(N)` / `(N)!` (N = 1..99) at the END of a comment: `# (1)`, `// note (2)`, `/* (3) */`,
+// `<!-- (4) -->`, `-- (5)`, `; (6)`, `% (7)!`. `!` means "show only the badge" (the comment characters go away).
+const ANNOTATION_RE = /(^|[ \t])(\/\/+|\/\*+|<!--|#+|--+|;+|%+)([^\n]*?)(?<![\w)\]])\(([1-9]\d?)\)(!)?([ \t]*(?:\*+\/|-->))?[ \t]*$/;
+
+/**
+ * Find the annotation marker on one line of code (plain text).
+ * Returns null, or { n, bang, ops } where ops are non-overlapping edits on the plain line, in order:
+ * { start, end, marker: true } (the `(N)` / `(N)!` text, replaced by the badge) or { start, end } (deleted:
+ * comment characters and the whitespace around them, only for `(N)!`).
+ */
+export function findAnnotationMarker(line) {
+  const text = String(line);
+  if (!text.includes('(')) return null;
+  const m = text.match(ANNOTATION_RE);
+  if (!m) return null;
+  const delimStart = m.index + m[1].length;
+  const delimEnd = delimStart + m[2].length;
+  const mStart = delimEnd + m[3].length;
+  const mEnd = mStart + m[4].length + 2 + (m[5] ? 1 : 0);
+  const n = Number(m[4]);
+  const bang = !!m[5];
+  if (!bang) return { n, bang, ops: [{ start: mStart, end: mEnd, marker: true }] };
+  const ops = [];
+  const inner = m[3];
+  const innerStart = delimEnd + (inner.length - inner.trimStart().length);
+  ops.push({ start: delimStart, end: inner.trim() ? innerStart : mStart });
+  ops.push({ start: mStart, end: mEnd, marker: true });
+  if (mEnd < text.length) ops.push({ start: mEnd, end: text.length });
+  return { n, bang, ops };
+}
+
 // ── generated Markdown / llms output ──────────────────────────────────────────
 
 const FENCE_OPEN_RE = /^([ \t]*)(`{3,}|~{3,})(.*)$/;
@@ -271,7 +306,34 @@ const FENCE_OPEN_RE = /^([ \t]*)(`{3,}|~{3,})(.*)$/;
  * (fence meta, code, prose) is left verbatim.
  */
 export function cleanNotationForMarkdown(md) {
-  const text = String(md ?? '');
+  return cleanNotationOnly(cleanAnnotationsForMarkdown(String(md ?? '')));
+}
+
+/** In fences flagged `annotate`, `(N)!` markers become plain `(N)` so the text reads as a normal comment + the list below. */
+function cleanAnnotationsForMarkdown(text) {
+  if (!/\(\d{1,2}\)!/.test(text)) return text;
+  const src = text.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < src.length) {
+    const open = src[i].match(FENCE_OPEN_RE);
+    if (!open) { out.push(src[i]); i++; continue; }
+    const [, , fence, info] = open;
+    const ch = fence[0];
+    if (ch === '`' && info.includes('`')) { out.push(src[i]); i++; continue; }
+    const closeRe = new RegExp(`^[ \\t]*${ch === '`' ? '`' : '~'}{${fence.length},}[ \\t]*$`);
+    let j = i + 1;
+    while (j < src.length && !closeRe.test(src[j])) j++;
+    const annotate = parseCodeMeta(info.trim().split(/\s+/).slice(1).join(' ')).annotate;
+    out.push(src[i]);
+    for (const l of src.slice(i + 1, j)) out.push(annotate ? l.replace(/(\(\d{1,2}\))!(?=[ \t]*(?:\*+\/|-->)?[ \t]*$)/, '$1') : l);
+    if (j < src.length) out.push(src[j]);
+    i = j < src.length ? j + 1 : src.length;
+  }
+  return out.join('\n');
+}
+
+function cleanNotationOnly(text) {
   if (!text.includes('[!code')) return text;
   const src = text.split('\n');
   const out = [];
