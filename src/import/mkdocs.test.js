@@ -188,9 +188,10 @@ describe('end-to-end: MkDocs / Material project', () => {
     expect(cfg.theme).toMatchObject({ name: 'default', colors: { primary: '#009485' }, fonts: { sans: 'Inter' }, appearance: 'system' });
     expect(cfg.sidebar.map((g) => g.group)).toEqual(['Acme Docs', 'Guide', 'API', 'Blog', 'GitHub', 'Not in navigation']);
     expect(cfg.sidebar[1]).toMatchObject({ group: 'Guide', root: 'guide/index', pages: [{ id: 'guide/setup', title: 'Setup' }, 'guide/syntax'] });
-    expect(cfg.sidebar[3]).toMatchObject({ root: 'blog/index', pages: ['blog/posts/hello'] });
+    expect(cfg.sidebar[3].root).toBe('blog/index');
+    expect(cfg.sidebar[3].pages.slice(0, 3)).toEqual(['blog/posts/team-update', 'blog/posts/hello', 'blog/posts/version-2']);
     expect(cfg.sidebar[5]).toMatchObject({ hidden: true, pages: ['orphan'] });
-    expect(cfg.redirects).toEqual({ '/old-start': '/guide/setup' });
+    expect(cfg.redirects['/old-start']).toBe('/guide/setup');
     expect(cfg.analytics).toEqual({ provider: 'ga4', measurementId: 'G-ABC123' });
     expect(cfg.footer).toEqual({ copyright: 'Copyright © 2026 Acme', socials: { github: 'https://github.com/acme' } });
     expect(cfg.attributes).toEqual({ VERSION: '2.4' });
@@ -230,7 +231,7 @@ describe('end-to-end: MkDocs / Material project', () => {
     process.chdir(out);
     console.log = () => {};
     try { await build({ out: 'dist' }); } finally { console.log = log; process.chdir(cwd); }
-    for (const p of ['index.html', 'guide/index.html', 'blog/index.html', 'guide/setup.html', 'blog/posts/hello.html', 'orphan.html', 'old-start.html']) expect(await fs.pathExists(path.join(out, 'dist', p)), p).toBe(true);
+    for (const p of ['index.html', 'guide/index.html', 'blog/index.html', 'blog/category/news.html', 'blog/archive/2025.html', 'blog/posts/version-2.html', 'blog/2025/11/05/big-release.html', 'guide/setup.html', 'blog/posts/hello.html', 'orphan.html', 'old-start.html']) expect(await fs.pathExists(path.join(out, 'dist', p)), p).toBe(true);
   }, 120000);
 });
 
@@ -290,5 +291,112 @@ describe('MkDocs config discovery and --config', () => {
       expect(l.cfg.site_name).toBe('X');
       expect(l.dir).toBe(path.join(dir, 'a', 'b'));
     } finally { await fs.remove(dir); }
+  });
+});
+
+describe('MkDocs blog plugin (Material)', () => {
+  let tmp; let out; let r; let cfg;
+  const read = (f) => fs.readFile(path.join(out, 'docs', f), 'utf8');
+  beforeAll(async () => {
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'docslit-mkdocs-blog-'));
+    out = path.join(tmp, 'out');
+    r = await runImport({ sourceDir: FIX, outDir: out, fetchText: null });
+    cfg = await fs.readJson(path.join(out, 'docslit.json'));
+  }, 120000);
+  afterAll(async () => { await fs.remove(tmp); });
+
+  it('maps post frontmatter: date kept, date.updated -> updated, layout post, readtime, draft', async () => {
+    const v2 = yamlLoad((await read('blog/posts/version-2.md')).split('---')[1]);
+    expect(v2).toMatchObject({ title: 'Version 2 is here', layout: 'post', date: '2025-11-05', updated: '2026-02-01', readtime: '4 min read', authors: ['jane', 'joe'], categories: ['News', 'Release Notes'] });
+    const hello = yamlLoad((await read('blog/posts/hello.md')).split('---')[1]);
+    expect(hello).toMatchObject({ layout: 'post', date: '2026-01-15' });
+    expect(yamlLoad((await read('blog/posts/unreleased.md')).split('---')[1]).draft).toBe(true);
+  });
+
+  it('appends a newest-first post list to the blog index with bylines, categories and excerpts', async () => {
+    const idx = await read('blog/index.md');
+    expect(idx.startsWith('---\ntitle: Blog\n---')).toBe(true);
+    expect(idx.indexOf('Team update')).toBeLessThan(idx.indexOf('Hello world'));
+    expect(idx.indexOf('Hello world')).toBeLessThan(idx.indexOf('Version 2 is here'));
+    expect(idx).toContain('## [Version 2 is here](/blog/posts/version-2)');
+    expect(idx).toContain('*November 5, 2025 · by Jane Doe, Joe Roe · in [News](/blog/category/news), [Release Notes](/blog/category/release-notes)*');
+    expect(idx).toContain('The **big** release, with links.'); // content before <!-- more -->, links flattened, admonition left out
+    expect(idx).not.toContain('Not in the excerpt');
+    expect(idx).toContain('A short note from the team.'); // description when there is no separator
+    expect(idx).not.toContain('Unreleased'); // drafts are not listed
+  });
+
+  it('generates category and archive pages (drafts excluded)', async () => {
+    const news = await read('blog/category/news.md');
+    expect(news).toContain('title: "News"');
+    expect(news).toContain('[Team update](/blog/posts/team-update)');
+    expect(news).toContain('[Hello world](/blog/posts/hello)');
+    expect(news).not.toContain('Release Notes');
+    expect(await fs.pathExists(path.join(out, 'docs/blog/category/release-notes.md'))).toBe(true);
+    expect(await fs.pathExists(path.join(out, 'docs/blog/category/secret.md'))).toBe(false);
+    const y2026 = await read('blog/archive/2026.md');
+    expect(y2026).toContain('Team update');
+    expect(y2026).not.toContain('Version 2');
+    expect(await read('blog/archive/2025.md')).toContain('Version 2 is here');
+  });
+
+  it('lists posts, then collapsed Categories and Archive subgroups, in the blog sidebar group', () => {
+    const blog = cfg.sidebar.find((g) => g.root === 'blog/index');
+    expect(blog.pages).toEqual([
+      'blog/posts/team-update', 'blog/posts/hello', 'blog/posts/version-2',
+      { group: 'Categories', collapsed: true, pages: ['blog/category/news', 'blog/category/release-notes'] },
+      { group: 'Archive', collapsed: true, pages: ['blog/archive/2026', 'blog/archive/2025'] },
+    ]);
+    expect(JSON.stringify(cfg.sidebar)).not.toContain('unreleased');
+  });
+
+  it('redirects old Material post URLs (date/slug, with a slug override) to the new pages', () => {
+    expect(cfg.redirects).toMatchObject({
+      '/blog/2025/11/05/big-release': '/blog/posts/version-2',
+      '/blog/2026/01/15/hello-world': '/blog/posts/hello',
+      '/blog/2026/03/10/team-update': '/blog/posts/team-update',
+    });
+    expect(Object.keys(cfg.redirects).some((k) => k.includes('unreleased') || k.includes('2026/04'))).toBe(false);
+  });
+
+  it('reports what was generated and what is unsupported, and validates cleanly', () => {
+    const byCode = Object.fromEntries(r.items.map((i) => [i.code, i]));
+    expect(byCode['mkdocs-blog-posts'].message).toMatch(/4 blog post\(s\) mapped.*1 draft.*2 category page\(s\).*2 archive page\(s\).*3 old post URL/);
+    expect(byCode['mkdocs-blog-unsupported'].message).toContain('pinned posts');
+    expect(byCode['mkdocs-blog-authors']).toBeTruthy();
+    expect(r.validation.issues).toEqual([]);
+    expect(r.markup.errors).toBe(0);
+  });
+});
+
+describe('MkDocs blog plugin options', () => {
+  const mk = async (files) => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mk-blog-'));
+    for (const [f, c] of Object.entries(files)) await fs.outputFile(path.join(dir, f), c);
+    return dir;
+  };
+
+  it('honours blog_dir, post_url_format, archive/categories switches, and generates a missing index', async () => {
+    const dir = await mk({
+      'mkdocs.yml': 'site_name: S\nplugins:\n  - blog:\n      blog_dir: news\n      post_url_format: "{date}/{file}"\n      post_date_format: yyyy-MM\n      archive: false\n      categories: false\nnav:\n  - Home: index.md\n',
+      'docs/index.md': '# Home\n',
+      'docs/news/posts/a.md': '---\ndate: 2025-02-03\ncategories: [X]\n---\n\n# Post A\n\nHi.\n',
+    });
+    const out = dir + '-out';
+    try {
+      const r = await runImport({ sourceDir: dir, outDir: out, fetchText: null });
+      const cfg = await fs.readJson(path.join(out, 'docslit.json'));
+      expect(cfg.redirects).toEqual({ '/news/2025-02/a': '/news/posts/a' });
+      expect(await fs.pathExists(path.join(out, 'docs/news/category'))).toBe(false);
+      expect(await fs.pathExists(path.join(out, 'docs/news/archive'))).toBe(false);
+      expect(await fs.readFile(path.join(out, 'docs/news/index.md'), 'utf8')).toContain('[Post A](/news/posts/a)');
+      expect(JSON.stringify(cfg.sidebar)).toContain('"root":"news/index"');
+      expect(r.validation.issues).toEqual([]);
+    } finally { await fs.remove(dir); await fs.remove(out); }
+  });
+
+  it('mkdocsFrontmatter: plain date on a non-post stays updated; numeric readtime becomes text', () => {
+    expect(mkdocsFrontmatter({ date: '2024-05-06 10:00' })).toEqual({ updated: '2024-05-06' });
+    expect(mkdocsFrontmatter({ date: { created: '2024-01-01', updated: '2024-02-02' }, readtime: 7 })).toEqual({ updated: '2024-02-02', readtime: '7 min read' });
   });
 });

@@ -9,6 +9,7 @@ import { load as yamlLoad } from 'js-yaml';
 import { parseToml } from './toml.js';
 import { buildThemeConfig } from './theme.js';
 import { resolveIcon } from '../icons.js';
+import { readBlog, postOverride, listingPages, renderPostList } from './mkdocs-blog.js';
 
 const posix = (p) => p.split(path.sep).join('/');
 const isMd = (f) => /\.(md|markdown)$/i.test(f);
@@ -44,8 +45,8 @@ const PLUGIN_NOTES = {
   exclude: ['mapped', 'excluded files are skipped'],
   tags: ['unmapped', 'tag index pages are not generated (tags are kept in frontmatter)'],
   'material/tags': ['unmapped', 'tag index pages are not generated (tags are kept in frontmatter)'],
-  blog: ['unmapped', 'posts are imported as pages under blog/ with an RSS feed; category and archive pages are not generated yet'],
-  'material/blog': ['unmapped', 'posts are imported as pages under blog/ with an RSS feed; category and archive pages are not generated yet'],
+  blog: ['partial', 'posts are imported with date and layout: post (RSS feed); the blog index lists them, category and archive pages are generated, old post URLs redirect; pagination, pinning and related links are not supported'],
+  'material/blog': ['partial', 'posts are imported with date and layout: post (RSS feed); the blog index lists them, category and archive pages are generated, old post URLs redirect; pagination, pinning and related links are not supported'],
   rss: ['mapped', 'DocsLit writes an RSS/Atom feed for pages under blog/ and changelog/'],
   i18n: ['unmapped', 'translations need the DocsLit layout docs.<locale>/ (see the i18n docs)'],
   'static-i18n': ['unmapped', 'translations need the DocsLit layout docs.<locale>/ (see the i18n docs)'],
@@ -413,6 +414,10 @@ export async function convertMkdocs(imp, loaded, opts = {}) {
   }
   if ([...all].some((f) => /\.ipynb$/i.test(f))) rep('warning', 'mkdocs-notebooks', 'Jupyter notebooks (.ipynb) were not imported.', { fix: 'Export them with `jupyter nbconvert --to markdown` and re-run the import.' });
   for (const f of pageFiles) imp.registerPage(f, mkdocsSlug(f, dirsWithIndex.has(path.posix.dirname(f))), {});
+  // Material blog plugin: map posts, generate the index list, category and archive pages, redirect old URLs
+  const blogOpts = plugins.get('blog') || plugins.get('material/blog');
+  const blog = blogOpts ? readBlog({ docsDir, configDir: loaded.dir, opts: blogOpts, pageFiles, slugOf: (f) => imp.pages.get(f).slug }) : null;
+  if (blog) applyBlog(imp, blog);
   if (imp.mkdocs.snippetSources.size) rep('info', 'mkdocs-snippet-files', `${imp.mkdocs.snippetSources.size} Markdown file(s) in snippet folders were treated as include-only and not published as pages.`);
 
   // ── nav ──
@@ -435,22 +440,25 @@ export async function convertMkdocs(imp, loaded, opts = {}) {
   if (listed.size) {
     // DocsLit builds the pages its sidebar lists, so pages outside the nav must still be listed.
     let unlisted = [...imp.pages].filter(([, info]) => !listed.has(info.slug)).map(([src, i]) => ({ src, slug: i.slug }));
-    // blog posts (Material blog plugin): listed under the blog's group, newest first
-    const blogOpts = plugins.get('blog') || plugins.get('material/blog');
-    if (blogOpts) {
-      const blogDir = String(blogOpts.blog_dir || 'blog').replace(/^\.?\/|\/$/g, '');
-      const posts = unlisted.filter((u) => u.slug.startsWith(blogDir + '/'));
-      if (posts.length) {
-        const dated = posts.map((u) => ({ ...u, date: postDate(path.join(docsDir, u.src)) })).sort((a, b) => String(b.date).localeCompare(String(a.date)) || a.slug.localeCompare(b.slug));
-        const target = findGroup(out.tabs ? out.tabs.flatMap((t) => t.sidebar || []) : out.sidebar, (g) => g.root === `${blogDir}/index` || (g.pages || []).some((p) => (typeof p === 'string' ? p : p.id) === `${blogDir}/index`));
-        const ids = dated.map((u) => u.slug);
-        if (target) target.pages.push(...ids);
-        else if (out.tabs) out.tabs.push({ tab: 'Blog', sidebar: [{ group: 'Blog', pages: ids }] });
-        else out.sidebar.push({ group: 'Blog', pages: ids });
-        for (const u of posts) listed.add(u.slug);
-        unlisted = unlisted.filter((u) => !listed.has(u.slug));
-        rep('info', 'mkdocs-blog-posts', `${posts.length} blog post(s) were added to the sidebar under the blog section, newest first.`, { fix: 'Material\'s archive, category and pagination pages are not generated; the RSS feed covers pages under blog/.' });
+    // blog posts (Material blog plugin): listed under the blog's group, newest first, then Categories / Archive subgroups
+    if (blog) {
+      const { cfg: bc } = blog;
+      for (const p of blog.posts) if (p.draft) listed.add(p.slug); // drafts are hidden by DocsLit; keep them out of the sidebar
+      const ids = blog.live.filter((p) => !listed.has(p.slug)).map((p) => p.slug);
+      const strays = unlisted.filter((u) => u.slug.startsWith(bc.prefix) && !blog.posts.some((p) => p.slug === u.slug)).map((u) => u.slug);
+      const sub = [];
+      if (blog.categories.length) sub.push({ group: bc.categoriesName, collapsed: true, pages: blog.categories.map((c) => c.slug) });
+      if (blog.archive.length) sub.push({ group: bc.archiveName, collapsed: true, pages: blog.archive.map((a) => a.slug) });
+      const indexSlug = `${bc.prefix}index`;
+      const target = findGroup(out.tabs ? out.tabs.flatMap((t) => t.sidebar || []) : out.sidebar, (g) => g.root === indexSlug || (g.pages || []).some((p) => (typeof p === 'string' ? p : p.id) === indexSlug));
+      const pages = [...ids, ...strays, ...sub];
+      if (target) target.pages.push(...pages);
+      else {
+        const g = { group: 'Blog', ...(imp.slugs.has(indexSlug) ? { root: indexSlug } : {}), pages };
+        if (out.tabs) out.tabs.push({ tab: 'Blog', sidebar: [g] }); else out.sidebar.push(g);
       }
+      for (const id of [...ids, ...strays]) listed.add(id);
+      unlisted = unlisted.filter((u) => !listed.has(u.slug));
     }
     if (unlisted.length) {
       const hidden = { group: 'Not in navigation', hidden: true, pages: unlisted.map((u) => u.slug) };
@@ -458,6 +466,8 @@ export async function convertMkdocs(imp, loaded, opts = {}) {
       rep('info', 'mkdocs-not-in-nav', `${unlisted.length} page(s) are not in the nav. They are built and linkable through a hidden sidebar group, but are left out of search and the sitemap: ${unlisted.slice(0, 8).map((u) => u.slug).join(', ')}${unlisted.length > 8 ? ', …' : ''}.`, { fix: 'Move them into a visible sidebar group in docslit.json if readers should find them.' });
     }
   }
+
+  if (blog) reportBlog(rep, blog);
 
   // ── redirects plugin ──
   const redirectMaps = plugins.get('redirects')?.redirect_maps;
@@ -480,6 +490,52 @@ export async function convertMkdocs(imp, loaded, opts = {}) {
   if (useDirUrls) rep('info', 'mkdocs-url-style', 'MkDocs served pages at /page/ (with a trailing slash); DocsLit serves /page. Page paths are unchanged, but whether /page/ still answers depends on your host (Vercel and Cloudflare Pages redirect it to /page).', { fix: 'After deploying, open a few old /page/ URLs. If your host returns 404 for them (GitHub Pages does), enable its trailing-slash redirect or deploy to a host that has one.' });
   if (cfg.strict) mapped('strict', 'docslit validate (run it in CI to fail on broken links)');
   return out;
+}
+
+/** Register post metadata, write the generated pages, extend the index and add the old-URL redirects. */
+function applyBlog(imp, blog) {
+  const { cfg: bc } = blog;
+  for (const p of blog.posts) imp.pages.get(p.src).override = postOverride(p);
+  const add = (slug, content) => {
+    if (imp.slugs.has(slug) || imp.outFiles.has(`docs/${slug}.md`)) return false;
+    imp.outFiles.set(`docs/${slug}.md`, content);
+    imp.slugs.add(slug);
+    imp.stats.pages++;
+    return true;
+  };
+  blog.generated = listingPages(blog).filter((g) => add(g.slug, g.content)).map((g) => g.slug);
+  // the blog index: Material appends the post list to the page's own content; convertFile writes the page later, so wrap that write
+  const indexSlug = `${bc.prefix}index`;
+  const listing = renderPostList(blog.live, { showCats: true });
+  if (imp.slugs.has(indexSlug)) {
+    const key = `docs/${indexSlug}.md`;
+    const set = imp.outFiles.set.bind(imp.outFiles);
+    imp.outFiles.set = (k, v) => set(k, k === key && typeof v === 'string' ? v.replace(/\n*$/, '\n\n') + listing : v);
+  } else if (add(indexSlug, `---\ntitle: Blog\n---\n\n${listing}`)) blog.generatedIndex = true;
+  blog.redirects = 0;
+  for (const p of blog.live) {
+    const from = '/' + (bc.prefix + p.urlPath).replace(/\/$/, '');
+    const to = '/' + p.slug.replace(/\/index$/, '');
+    if (from !== to && !(from in imp.redirects)) { imp.redirects[from] = to; blog.redirects++; }
+  }
+}
+
+function reportBlog(rep, blog) {
+  const { cfg: bc } = blog;
+  const drafts = blog.posts.length - blog.live.length;
+  const parts = [`${blog.posts.length} blog post(s) mapped (date, layout: post${blog.posts.some((p) => p.updated) ? ', updated' : ''}${drafts ? `, ${drafts} draft(s) kept hidden` : ''})`];
+  parts.push(blog.generatedIndex ? 'a blog index page was generated' : 'the post list was appended to the blog index, newest first');
+  if (blog.categories.length) parts.push(`${blog.categories.length} category page(s) generated`);
+  if (blog.archive.length) parts.push(`${blog.archive.length} archive page(s) generated`);
+  if (blog.redirects) parts.push(`${blog.redirects} old post URL(s) redirect to the new pages`);
+  rep('info', 'mkdocs-blog-posts', parts.join('; ') + '.', { fix: 'Post URLs changed from the dated Material form to their page path; check inbound links that bypass the redirects.' });
+  const unsupported = [];
+  if (blog.posts.some((p) => p.pinned)) unsupported.push('pinned posts');
+  if (blog.posts.some((p) => p.links)) unsupported.push('related links');
+  if (blog.live.length > bc.perPage) unsupported.push(`pagination (all ${blog.live.length} posts are listed on one page)`);
+  if (unsupported.length) rep('info', 'mkdocs-blog-unsupported', `Not supported by DocsLit: ${unsupported.join(', ')}.`, { action: 'Dropped them.', fix: 'Reorder or trim the generated list by hand if needed.' });
+  if (blog.posts.some((p) => p.ids.length || p.categories.length)) rep('info', 'mkdocs-blog-authors', 'DocsLit has no author or tags frontmatter: authors and categories appear on the generated listing pages and stay as plain "authors" / "categories" keys in each post.', { fix: 'Names come from the blog authors file; profile avatars and descriptions are not carried over.' });
+  if (blog.undated.length) rep('warning', 'mkdocs-blog-undated', `${blog.undated.length} file(s) under the posts folder have no date and were treated as plain pages: ${blog.undated.slice(0, 5).join(', ')}.`, { fix: 'Material requires a date on every post.' });
 }
 
 function findGroup(groups, pred) {
@@ -601,7 +657,16 @@ export function mkdocsFrontmatter(fm, report = () => {}) {
     if (resolveIcon(name).kind === 'svg') out.icon = name;
     delete d.icon;
   }
-  if (d.date !== undefined) { const v = d.date && typeof d.date === 'object' && !(d.date instanceof Date) ? (d.date.updated || d.date.created) : d.date; if (v) out.updated = v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10); delete d.date; }
+  if (d.date !== undefined) {
+    // Blog posts keep the created date as `date` (set by the importer from the blog plugin); date.updated -> updated.
+    const obj = d.date && typeof d.date === 'object' && !(d.date instanceof Date);
+    const post = obj || ['authors', 'categories', 'pin', 'links', 'readtime'].some((k) => d[k] !== undefined);
+    const v = obj ? d.date.updated : (post ? null : d.date);
+    if (v) out.updated = v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10);
+    delete d.date;
+  }
+  for (const k of ['slug', 'pin', 'links', 'authors', 'categories', 'author']) delete d[k]; // blog keys: handled by the importer, not dropped silently
+  if (typeof d.readtime === 'number') { out.readtime = `${d.readtime} min read`; delete d.readtime; }
   if (d.draft !== undefined) { out.draft = d.draft; delete d.draft; }
   void report;
   return { ...out, ...d };

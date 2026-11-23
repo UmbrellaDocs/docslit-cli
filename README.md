@@ -234,7 +234,7 @@ Full guides and a table of every component conversion are in the [DocsLit docume
 | `--8<--` snippets, FastAPI-style `{* file *}` includes | inlined text, or `file=` code imports |
 | fence `title=`, `hl_lines=`, `linenums=`, ```` ```mermaid ```` | `title=`, `{1,3}`, `lines startLine=`, `<wc-mermaid>` |
 | `{ #id }`, `{ .md-button }`, `{ width= }`, `++ctrl+c++`, `==mark==`, `:material-*:` / `:fontawesome-*:` icons, definition lists, abbreviations, `\( \)` math, `{{ extra }}` macros | anchors, `<wc-button>`, `<img width>`, `<kbd>`, `<mark>`, `<wc-icon>`, `<dl>`, `<abbr>`, KaTeX, `{{VARS}}` |
-| `redirects` plugin, blog posts, pages outside `nav` | `redirects`, a blog group (newest first), a hidden sidebar group |
+| `redirects` plugin, blog posts, pages outside `nav` | `redirects`, a blog group (newest first) with generated index list, category and archive pages and old-URL redirects, a hidden sidebar group |
 
 Pages stay plain Markdown (never MDX), so a stray `<` or `{` never breaks the import. Anything that cannot be carried over is listed in `MIGRATION.md`, never dropped silently: mkdocstrings `:::` blocks (replaced by placeholder callouts), Jinja macros, theme overrides, Material-specific CSS and JavaScript, mike versions and every plugin without an equivalent.
 
