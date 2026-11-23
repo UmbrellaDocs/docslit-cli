@@ -1,13 +1,17 @@
 import { createHighlighter, bundledLanguages } from 'shiki';
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { ensureDir } from './fs-helpers.js';
 
 let highlighter = null;
+let initPromise = null;
+let beforeExitRegistered = false;
 const highlightCache = new Map();
 let cacheDirty = 0;
 const FLUSH_THRESHOLD = 20;
 
 const STARTUP_LANGS = ['javascript', 'typescript', 'bash', 'json', 'html', 'css', 'yaml'];
+const CODE_BLOCK_RE = /^`{3,}(\S+)/gm;
 
 function getCachePath() {
   return path.join(process.cwd(), 'node_modules', '.cache', 'docslit', 'shiki.json');
@@ -30,22 +34,39 @@ async function saveDiskCache() {
     obj[k] = v;
   }
   const p = getCachePath();
-  await fs.ensureDir(path.dirname(p));
+  await ensureDir(path.dirname(p));
   await fs.writeFile(p, JSON.stringify(obj));
   cacheDirty = 0;
 }
 
+async function ensureHighlighter() {
+  if (highlighter) return;
+  if (!initPromise) {
+    initPromise = (async () => {
+      await loadDiskCache();
+      highlighter = await createHighlighter({
+        themes: ['github-dark', 'github-light'],
+        langs: STARTUP_LANGS,
+      });
+      if (!beforeExitRegistered) {
+        beforeExitRegistered = true;
+        process.on('beforeExit', () => { saveDiskCache().catch(() => {}); });
+      }
+    })();
+  }
+  await initPromise;
+}
+
+/** @deprecated Lazy — highlighter initializes on first code block. Kept for API compat. */
 export async function initHighlighter() {
-  await loadDiskCache();
-  highlighter = await createHighlighter({
-    themes: ['github-dark', 'github-light'],
-    langs: STARTUP_LANGS,
-  });
-  process.on('beforeExit', () => { saveDiskCache().catch(() => {}); });
+  return;
 }
 
 export async function ensureLangs(src) {
-  if (!highlighter) return;
+  CODE_BLOCK_RE.lastIndex = 0;
+  if (!CODE_BLOCK_RE.test(src)) return;
+
+  await ensureHighlighter();
   const needed = new Set();
   const want = (raw) => {
     // "js{1,3}" (no space before the line spec) -> "js"

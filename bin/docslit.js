@@ -59,13 +59,33 @@ if (command === 'init') {
   const pdf = args.includes('--pdf');
   const noPdf = args.includes('--no-pdf');
   const pdfDir = getFlag(args, '--pdf-dir');
+  const incremental = args.includes('--incremental');
+  const noOgImages = args.includes('--no-og-images');
+  const ogImages = args.includes('--og-images');
+  const noSearchIndex = args.includes('--no-search-index');
+  const noLlmsTxt = args.includes('--no-llms-txt');
+  const noMcp = args.includes('--no-mcp');
+  const noSitemap = args.includes('--no-sitemap');
+  const profile = args.includes('--profile');
+  const verbose = args.includes('--verbose');
   const { build } = await import('../src/build.js');
-  await build({ out, offline, minify, pdf, noPdf, pdfDir });
+  await build({
+    out, offline, minify, pdf, noPdf, pdfDir,
+    incremental, ogImages, noOgImages, noSearchIndex, noLlmsTxt, noMcp, noSitemap, profile, verbose,
+  });
+} else if (command === 'cache') {
+  if (args[1] !== 'clean' || args.length !== 2) {
+    console.error('  Usage: docslit cache clean');
+    process.exit(1);
+  }
+  const { clearBuildCache } = await import('../src/build-cache.js');
+  await clearBuildCache();
+  console.log('  Build cache cleared.');
 } else if (command === 'import') {
   const restArgs = args.slice(1);
   if (!restArgs[0] || restArgs[0].startsWith('--')) {
     console.error('  Error: Please provide a source directory.\n');
-    console.error('  Usage: docslit import <source-dir> [--from mintlify|fern|gitbook] [--out <dir>] [--dry-run] [--theme <name>|--no-theme] [--json] [--force]\n');
+    console.error('  Usage: docslit import <source-dir> [--from mintlify|fern|gitbook|mkdocs] [--config <mkdocs-file>] [--out <dir>] [--dry-run] [--theme <name>|--no-theme] [--json] [--force]\n');
     process.exit(1);
   }
   const { importDocs } = await import('../src/import.js');

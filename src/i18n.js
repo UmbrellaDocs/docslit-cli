@@ -2,7 +2,7 @@
  * Lightweight i18n: docs/ default + docs.fr/, docs.ja/ locale trees.
  */
 import path from 'path';
-import fs from 'fs-extra';
+import { pathExists } from './fs-helpers.js';
 
 export function getI18nConfig(config) {
   const i18n = config.i18n;
@@ -46,7 +46,7 @@ export async function discoverLocales(cwd, i18n) {
   for (const locale of i18n.locales) {
     if (locale === i18n.defaultLocale) continue;
     const dir = localeDocsDir(cwd, locale, i18n.defaultLocale);
-    if (await fs.pathExists(dir)) found.add(locale);
+    if (await pathExists(dir)) found.add(locale);
   }
   return [...found];
 }

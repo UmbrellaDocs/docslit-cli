@@ -508,13 +508,13 @@ export function createAuthoringDefinition({ dir, version = '1.0.0' }) {
     },
     {
       name: 'convert_mdx',
-      title: 'Convert MDX from Mintlify/Fern/GitBook',
-      description: 'Convert ONE page or snippet written for Mintlify (MDX), Fern (MDX) or GitBook (`{% hint %}` blocks) into DocsLit Markdown with wc-* components, WITHOUT writing anything. Returns the converted `markdown` (frontmatter included), `issues` (each with severity, code, line, what was done instead and how to fix it: unknown/custom components are kept inside a clearly marked "Unconverted component" callout, never dropped) and `components` converted. Run check_markup on the result, fix the listed issues, then create_page. For a whole project use `docslit import` instead.',
+      title: 'Convert MDX from Mintlify/Fern/GitBook/MkDocs',
+      description: 'Convert ONE page or snippet written for Mintlify (MDX), Fern (MDX), GitBook (`{% hint %}` blocks) or MkDocs / Material for MkDocs (`!!!` admonitions, `===` tabs, `///` blocks) into DocsLit Markdown with wc-* components, WITHOUT writing anything. Returns the converted `markdown` (frontmatter included), `issues` (each with severity, code, line, what was done instead and how to fix it: unknown/custom components are kept inside a clearly marked "Unconverted component" callout, never dropped) and `components` converted. Run check_markup on the result, fix the listed issues, then create_page. For a whole project use `docslit import` instead.',
       inputSchema: {
         type: 'object',
         properties: {
           source: { type: 'string', description: 'The page source (optionally with frontmatter).' },
-          from: { type: 'string', enum: ['mintlify', 'fern', 'gitbook'], description: 'Source platform (default mintlify). Fern adds default code line numbers and Fern-only components; gitbook converts `{% %}` blocks.' },
+          from: { type: 'string', enum: ['mintlify', 'fern', 'gitbook', 'mkdocs'], description: 'Source platform (default mintlify). Fern adds default code line numbers and Fern-only components; gitbook converts `{% %}` blocks; mkdocs converts Material for MkDocs / PyMdown syntax (admonitions, tabs, blocks, icons, code options).' },
         },
         required: ['source'],
         additionalProperties: false,

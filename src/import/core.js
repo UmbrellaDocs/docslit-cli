@@ -10,6 +10,8 @@ import { componentFromEstree } from './custom.js';
 import { Reporter } from './report.js';
 import { gitbookPreprocess } from './gitbook.js';
 import { attrString, isExpr, isJsx } from './jsx.js';
+import { convertPymdown, rewriteLinks, MATERIAL_COMPAT_CSS } from './pymdown.js';
+import { mkdocsFrontmatter, readMkdocsSnippet } from './mkdocs.js';
 
 const posix = (p) => p.split(path.sep).join('/');
 const stripExt = (p) => p.replace(/\.(mdx?|markdown)$/i, '');
@@ -65,12 +67,16 @@ export class Importer {
     const rest = m[2] || '';
     if (!p) return url;
     try { p = decodeURI(p); } catch { /* keep */ }
+    if (this.vendor === 'mkdocs') p = p.replace(/\.(md|markdown)\/$/i, '.$1');
     let slug = null;
     if (this.vendor === 'fern') slug = this.fernResolve(p, fromRel);
+    // MkDocs: a link without .md is relative to the page's rendered URL (/page/ with use_directory_urls)
+    const urlRel = this.vendor === 'mkdocs' && !p.startsWith('/') && !/\.(md|markdown)$/i.test(p) ? this.mkdocsUrlBase(fromRel) : null;
+    if (slug == null && urlRel) slug = this.resolveSlug(p, urlRel);
     if (slug == null) slug = this.resolveSlug(p, fromRel);
     if (slug != null) return (slug === '' ? '/index' : '/' + slug) + rest;
     // maybe a file (asset)
-    const asset = this.tryAsset(p, fromRel);
+    const asset = this.tryAsset(p, fromRel) || (urlRel ? this.tryAsset(p, urlRel) : null);
     if (asset) return asset + rest;
     if (!quiet) this.report('warning', 'broken-link', `Link "${url}" does not match any converted page.`, {
       file: fromRel, line, action: 'Left the link as written.', fix: 'Point the link at an existing page (/path/without/extension) or create the page.' });
@@ -108,6 +114,47 @@ export class Importer {
     return null;
   }
 
+  /** Fake "file" whose directory is the page's rendered URL directory in MkDocs (for URL-relative links). */
+  mkdocsUrlBase(fromRel) {
+    if (!this.mkdocs?.useDirUrls) return null;
+    const stem = stripExt(posix(fromRel));
+    if (/(^|\/)(index|README)$/i.test(stem)) return null;
+    return stem + '/_';
+  }
+
+  // ── MkDocs page body ───────────────────────────────────────────────────────
+  convertMkdocsBody(body, raw, srcRel, lineOffset, rep) {
+    const mk = this.mkdocs;
+    const lineIn = (needle) => { const i = raw.indexOf(needle); return i === -1 ? null : raw.slice(0, i).split('\n').length; };
+    const r = convertPymdown(body, {
+      file: srcRel, lineOffset, exts: mk.exts, tabsSync: mk.tabsSync, macros: mk.macros,
+      report: rep, count: (a, b) => this.reporter.count(a, b),
+      readSnippet: (spec, o) => (this.lenient ? { error: 'snippets are not followed when converting a single page' } : readMkdocsSnippet(this, spec, srcRel, o)),
+    });
+    const n = r.notes;
+    const templated = (u) => /\{\{|\{%/.test(u); // Jinja values are reported with the macros item
+    const out = this.lenient ? r.body : rewriteLinks(r.body, {
+      link: (url, o) => (templated(url) ? url : this.rewriteLink(url, srcRel, lineIn(url), o.html)),
+      asset: (url) => (templated(url) ? url : this.rewriteAsset(url, srcRel, lineIn(url))),
+    });
+    if (n.mkdocstrings.length) {
+      const ids = n.mkdocstrings.map((x) => x.id);
+      rep('error', 'mkdocstrings', `${ids.length} mkdocstrings API block${ids.length === 1 ? '' : 's'} (${ids.slice(0, 4).join(', ')}${ids.length > 4 ? ', …' : ''}) became placeholder callouts.`, {
+        line: lineIn(':::'), action: 'Replaced each `::: id` with a warning callout.', fix: 'Write the API reference in Markdown, or generate Markdown from your docstrings (for example with griffe2md) and import it. Native Python API support is on the DocsLit roadmap.' });
+    }
+    if (n.macros.length && mk.macros.enabled) {
+      const ex = [...new Set(n.macros.map((x) => x.text))];
+      rep('warning', 'mkdocs-macros', `${n.macros.length} Jinja/macros expression${n.macros.length === 1 ? '' : 's'} could not be evaluated: ${ex.slice(0, 3).map((x) => x.length > 40 ? x.slice(0, 40) + '…' : x).join(', ')}${ex.length > 3 ? ', …' : ''}.`, {
+        line: lineIn(n.macros[0].text), action: 'Left as written.', fix: 'Replace each with its value, a {{VAR}} from "attributes" in docslit.json, or <wc-if>/<wc-include>.' });
+    }
+    if (n.iconMiss.size) rep('info', 'mkdocs-icon-unmapped', `Icon${n.iconMiss.size === 1 ? '' : 's'} without a Lucide / Font Awesome match removed: ${[...n.iconMiss].slice(0, 6).join(', ')}${n.iconMiss.size > 6 ? ', …' : ''}.`, { action: 'Removed the shortcode.', fix: 'Add an icon with <wc-icon name="…"> (Lucide or Font Awesome names).' });
+    if (n.annotations) rep('info', 'mkdocs-code-annotations', 'Code annotations ((1) markers) are shown as plain comments followed by the numbered list.', { fix: 'Turn important annotations into prose or a callout.' });
+    if (n.critic) rep('warning', 'mkdocs-criticmarkup', 'CriticMarkup ({++ ++}, {-- --}, {== ==}) was left as written.', { line: lineIn('{'), fix: 'Resolve the suggested edits by hand.' });
+    if (n.attrDropped) this.reporter.count('{ .class } attribute list', 'dropped');
+    if (n.gridCards && !mk.compatCss) { mk.compatCss = true; this.extraCss = (this.extraCss || []).concat(MATERIAL_COMPAT_CSS); }
+    return out;
+  }
+
   // ── assets ─────────────────────────────────────────────────────────────────
   assetFn(fromRel) {
     return (url, { line = null } = {}) => this.rewriteAsset(url, fromRel, line);
@@ -143,7 +190,8 @@ export class Importer {
     const m = /^([^?#]*)([?#].*)?$/.exec(s);
     let p = m[1];
     try { p = decodeURI(p); } catch { /* keep */ }
-    const hit = this.tryAsset(p, fromRel);
+    let hit = this.tryAsset(p, fromRel);
+    if (!hit && this.vendor === 'mkdocs' && !p.startsWith('/')) { const u = this.mkdocsUrlBase(fromRel); if (u) hit = this.tryAsset(p, u); }
     if (hit) return hit + (m[2] || '');
     this.report('error', 'missing-asset', `Asset "${url}" was not found in the source project.`, {
       file: fromRel, line, action: 'Left the reference as written.', fix: 'Add the file to the output docs/ folder (or fix the path); the source project did not contain it.' });
@@ -315,11 +363,17 @@ export class Importer {
 
     if (this.vendor === 'gitbook') body = gitbookPreprocess(body, rep);
     let converted;
-    const res = convertBody(body, ctx);
-    if (res.ok) converted = res.body;
-    else {
-      converted = rewriteMdxTags(body.replace(/^(import|export)\s.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, ''));
-      rep('warning', 'legacy-conversion', 'This page was converted with the legacy tag rewriter because it is not valid MDX.', { fix: 'Review the converted page carefully.' });
+    if (this.vendor === 'mkdocs') {
+      // MkDocs pages are plain Markdown, never MDX: dedicated converter, no remark-mdx parse.
+      converted = this.convertMkdocsBody(body, raw, srcRel, lineOffset, rep);
+      fm = mkdocsFrontmatter(fm, rep);
+    } else {
+      const res = convertBody(body, ctx);
+      if (res.ok) converted = res.body;
+      else {
+        converted = rewriteMdxTags(body.replace(/^(import|export)\s.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, ''));
+        rep('warning', 'legacy-conversion', 'This page was converted with the legacy tag rewriter because it is not valid MDX.', { fix: 'Review the converted page carefully.' });
+      }
     }
 
     const { fm: newFm, title: fmTitle } = convertFrontmatter(fm, this.vendor, { report: rep, isSnippet });
@@ -331,7 +385,7 @@ export class Importer {
     }
     if (!isSnippet && !newFm.title) {
       const h1 = /^#\s+(.+?)\s*#*\s*$/m.exec(converted);
-      if (h1) { newFm.title = h1[1].replace(/[`*_]/g, ''); converted = converted.replace(h1[0], '').replace(/^\n+/, ''); }
+      if (h1) { newFm.title = h1[1].replace(/<[^>]+>/g, '').replace(/[`*_]/g, '').trim(); converted = converted.replace(h1[0], '').replace(/^\n+/, ''); }
       else if (fmTitle) newFm.title = fmTitle;
       else newFm.title = titleFromPath(srcRel);
     }

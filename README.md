@@ -38,6 +38,8 @@ docslit lint --format json                        # is it good?
 
 ## Quick start
 
+Requires Node.js 22.22.0 or later.
+
 ```bash
 npm install -g docslit
 docslit init my-docs
@@ -54,7 +56,8 @@ Or run it without installing: `npx docslit init my-docs`. Requires Node.js 20.19
 | `docslit init [dir]` | Scaffold a new docs project (also writes `AGENTS.md`; `--no-agents` to skip; `--theme <name>`) |
 | `docslit new <page-id>` | Create a page and add it to the sidebar. `--title`, `--group`, `--description`, `--position`, `--json` |
 | `docslit dev` | Start the local dev server with hot reload (`--port`, default 3000; `--theme-picker` to try every theme live) |
-| `docslit build` | Build a static site to `./dist` (`--out`, `--offline`, `--no-minify`, `--pdf`, `--no-pdf`, `--pdf-dir`) |
+| `docslit build` | Build a static site to `./dist` (`--out`, `--offline`, `--no-minify`, `--incremental`, `--profile`, `--pdf`, `--no-pdf`, `--pdf-dir`) |
+| `docslit cache clean` | Remove the current project's build cache |
 | `docslit deploy` | Write hosting recipes: `--github-pages`, `--netlify`, `--cloudflare`, `--out <dir>` |
 | `docslit import <dir>` | Migrate a Mintlify, Fern or GitBook project (`--out`, `--from`, `--dry-run`, `--theme`, `--no-theme`, `--versions`, `--force`, `--json`) |
 | `docslit validate [dir]` | Check for broken links, missing assets, frontmatter errors, unknown components. `--strict`, `--external`, `--format pretty\|github\|json` |
@@ -118,6 +121,55 @@ Existing configs (`"theme": "ocean"`, theme objects and files) render exactly as
 - **Synced tabs:** `<wc-tabs sync="pkg">` switches every tab group with the same key.
 - **Feedback widget:** `"feedback": true` adds "Was this page helpful?" with analytics events and an optional endpoint.
 
+## Build performance
+
+Static builds generate a search index, `llms.txt` and `llms-full.txt`, an MCP
+server and agent manifest, and (when `url` is set) a sitemap and robots file by
+default. Disable individual generators with `--no-search-index`,
+`--no-llms-txt`, `--no-mcp`, or `--no-sitemap`.
+
+Open Graph images (one PNG social card per page) are opt-in: build with
+`--og-images`, or set `"ogImage": true` (or `build.ogImages: true`) in
+`docslit.json`. They render in a worker pool, are cached by `--incremental`,
+and `--no-og-images` turns them off again for a single build. Disabling the search index also disables site search and the
+MCP search tool. Offline builds retain their offline search.
+
+The same options can be set persistently in `docslit.json`:
+
+```json
+{
+  "build": {
+    "ogImages": true,
+    "searchIndex": false,
+    "llmsTxt": false,
+    "mcp": false,
+    "sitemap": false,
+    "cache": true
+  }
+}
+```
+
+Use `--incremental` (or `build.cache`) to reuse parsed and rendered pages,
+minified shared assets, OG images, and unchanged documentation indexes.
+Reusable `<wc-include>` content is tracked by content hash, so changes
+invalidate affected pages. Unchanged page, asset, and media files are not
+rewritten. Shared configuration changes can require all pages to be rendered
+again. Hooks, some generators, offline output, and PDFs still run.
+
+Incremental builds preserve the output directory. DocsLit records ownership
+per output directory and removes stale generated pages, OG images, redirects,
+and tracked optional generator outputs only when their contents have not been
+modified. Modified or untracked files are preserved; other stale files,
+including output from older DocsLit versions, may remain. Use a clean build
+when a guaranteed clean output is needed. `docslit cache clean` removes cached
+build results without removing generated output or its ownership records.
+
+Use `--profile` for phase timings. To benchmark a project, run
+`npm run benchmark -- warm-minimal --project /path/to/project --out bench-minimal --runs 3`.
+The warm scenario performs an untimed warm-up; its incremental builds preserve
+the output directory. Choose an initially empty `--out` directory for a
+minimal output; non-incremental scenarios empty their output directory.
+
 ## Validating and linting
 
 ```bash
@@ -172,7 +224,21 @@ Full guides and a table of every component conversion are in the [DocsLit docume
 | `<Visibility for="agents">` / Fern `<llms-only>` | `<wc-if for="agents">` |
 | `import X from '/snippets/x.mdx'` | `docs/_reusables/x.md` + `<wc-include src="x.md" />` |
 
-Other Markdown or MDX folders (Docusaurus, MkDocs, Sphinx, VitePress, Starlight, Nextra) import as plain folders with an automatic sidebar.
+**MkDocs, Material for MkDocs and Zensical** (`mkdocs.yml`, `mkdocs-*.yml`, `docs/mkdocs.yml` or `zensical.toml`; use `--config <file>` to pick another config) are converted too:
+
+| MkDocs / Material | DocsLit |
+|---|---|
+| `nav`, `docs_dir`, `site_*`, `repo_url`, `copyright`, `extra.social`, `extra.analytics`, palette, font, logo, favicon | `sidebar` (or `tabs` with `navigation.tabs`), `name`, `url` + `basePath`, `navbar`, `footer`, `analytics`, `theme`, `logo`, `favicon` |
+| `!!!` admonitions, `???` / `???+` collapsibles, `/// note` and `/// details` blocks | `<wc-callout>`, `<wc-accordion>` |
+| `=== "Tab"` content tabs and `/// tab` (synced with `content.tabs.link`) | `<wc-tabs>` / `<wc-tab>` |
+| `--8<--` snippets, FastAPI-style `{* file *}` includes | inlined text, or `file=` code imports |
+| fence `title=`, `hl_lines=`, `linenums=`, ```` ```mermaid ```` | `title=`, `{1,3}`, `lines startLine=`, `<wc-mermaid>` |
+| `{ #id }`, `{ .md-button }`, `{ width= }`, `++ctrl+c++`, `==mark==`, `:material-*:` / `:fontawesome-*:` icons, definition lists, abbreviations, `\( \)` math, `{{ extra }}` macros | anchors, `<wc-button>`, `<img width>`, `<kbd>`, `<mark>`, `<wc-icon>`, `<dl>`, `<abbr>`, KaTeX, `{{VARS}}` |
+| `redirects` plugin, blog posts, pages outside `nav` | `redirects`, a blog group (newest first), a hidden sidebar group |
+
+Pages stay plain Markdown (never MDX), so a stray `<` or `{` never breaks the import. Anything that cannot be carried over is listed in `MIGRATION.md`, never dropped silently: mkdocstrings `:::` blocks (replaced by placeholder callouts), Jinja macros, theme overrides, Material-specific CSS and JavaScript, mike versions and every plugin without an equivalent.
+
+Other Markdown or MDX folders (Docusaurus, Sphinx, VitePress, Starlight, Nextra) import as plain folders with an automatic sidebar.
 
 ## docslit.json
 

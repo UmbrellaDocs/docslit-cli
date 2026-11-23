@@ -1,8 +1,8 @@
-// `docslit import` — convert a Mintlify, Fern or GitBook project (or any folder of
+// `docslit import` — convert a Mintlify, Fern, GitBook or MkDocs (Material, Zensical) project (or any folder of
 // Markdown/MDX) into a DocsLit project, validate the result and write a migration report.
 //
 //   Engine:   src/import/mdx.js (remark-mdx AST + source splicing), src/import/components.js
-//   Config:   src/import/{mintlify,fern,gitbook}.js
+//   Config:   src/import/{mintlify,fern,gitbook,mkdocs}.js (MkDocs bodies: src/import/pymdown.js)
 //   Report:   src/import/report.js (MIGRATION.md / --json)
 import fs from 'fs-extra';
 import path from 'path';
@@ -13,6 +13,7 @@ import { Importer, titleFromPath } from './import/core.js';
 import { loadMintlifyConfig, convertMintlify } from './import/mintlify.js';
 import { findFernDir, convertFern } from './import/fern.js';
 import { convertGitbook, findGitbookRoot } from './import/gitbook.js';
+import { loadMkdocsConfig, convertMkdocs, mkdocsPageDefaults } from './import/mkdocs.js';
 import { renderMigrationMd } from './import/report.js';
 import { buildThemeConfig, describeTheme } from './import/theme.js';
 import { OpenApiPages } from './import/nav.js';
@@ -21,9 +22,35 @@ import { stringifyFrontmatter } from './frontmatter.js';
 const posix = (p) => p.split(path.sep).join('/');
 const FORMAT_LABEL = { mintlify: 'Mintlify', fern: 'Fern', gitbook: 'GitBook', docusaurus: 'Docusaurus', mkdocs: 'MkDocs', sphinx: 'Sphinx', readme: 'ReadMe', vuepress: 'VuePress', vitepress: 'VitePress', starlight: 'Starlight (Astro)', nextra: 'Nextra (Next.js)', generic: 'Markdown folder' };
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.next', '__pycache__', '.docslit']);
-const KEY_ORDER = ['$schema', 'name', 'description', 'url', 'logo', 'favicon', 'theme', 'layout', 'navbar', 'tabs', 'sidebar', 'anchors', 'footer', 'announcement', 'contextual', 'analytics', 'feedback', 'redirects', 'head', 'css', 'openapi', 'icons', 'attributes'];
+const VENDORS = ['mintlify', 'fern', 'gitbook', 'mkdocs'];
+const KEY_ORDER = ['$schema', 'name', 'description', 'url', 'basePath', 'logo', 'favicon', 'theme', 'layout', 'navbar', 'tabs', 'sidebar', 'anchors', 'footer', 'announcement', 'contextual', 'analytics', 'feedback', 'redirects', 'head', 'css', 'openapi', 'icons', 'attributes'];
 
 // ─── detection ────────────────────────────────────────────────────────────────
+// mkdocs-online.yml, mkdocs-offline.yml, ... at the top level, or docs/mkdocs.yml. Nav-only fragments
+// (no site_name and no INHERIT) are skipped. Ties: names with "online" first, then shortest, then alphabetical.
+async function findAltMkdocsConfig(dir) {
+  let names = [];
+  try { names = await fs.readdir(dir); } catch { return null; }
+  const cands = [];
+  for (const n of names) {
+    if (!/^mkdocs.*\.ya?ml$/i.test(n) || n === 'mkdocs.yml' || n === 'mkdocs.yaml') continue;
+    try {
+      const txt = await fs.readFile(path.join(dir, n), 'utf8');
+      if (/^\s*(site_name|INHERIT)\s*:/m.test(txt)) cands.push(n);
+    } catch { /* unreadable: skip */ }
+  }
+  cands.sort((a, b) => (Number(/online/i.test(b)) - Number(/online/i.test(a))) || a.length - b.length || a.localeCompare(b));
+  if (cands.length) return cands[0];
+  for (const n of ['docs/mkdocs.yml', 'docs/mkdocs.yaml']) if (await fs.pathExists(path.join(dir, n))) return n;
+  // per-language configs (FastAPI: docs/en/mkdocs.yml, docs/es/mkdocs.yml, ...): prefer English
+  let langs = [];
+  try { langs = (await fs.readdir(path.join(dir, 'docs'), { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name).sort(); } catch { /* no docs/ */ }
+  const withCfg = [];
+  for (const l of langs) if (await fs.pathExists(path.join(dir, 'docs', l, 'mkdocs.yml'))) withCfg.push(l);
+  if (withCfg.length) return `docs/${withCfg.includes('en') ? 'en' : withCfg[0]}/mkdocs.yml`;
+  return null;
+}
+
 export async function detectFormat(dir) {
   const has = (rel) => fs.pathExists(path.join(dir, rel));
   if (await has('docs.json') || await has('mint.json')) return { format: 'mintlify', why: (await has('docs.json')) ? 'docs.json' : 'mint.json (legacy)' };
@@ -31,7 +58,10 @@ export async function detectFormat(dir) {
   if (await has('.gitbook.yaml') || await has('.gitbook.yml') || await has('SUMMARY.md') || await has('docs/SUMMARY.md')) return { format: 'gitbook', why: 'SUMMARY.md / .gitbook.yaml' };
   if (await has('.mintlifyignore') || await has('.mintlify')) return { format: 'mintlify', why: '.mintlify marker' };
   for (const ext of ['js', 'ts', 'mjs', 'mts', 'cjs']) if (await has(`docusaurus.config.${ext}`)) return { format: 'docusaurus', why: `docusaurus.config.${ext}` };
-  if (await has('mkdocs.yml') || await has('mkdocs.yaml')) return { format: 'mkdocs', why: 'mkdocs.yml' };
+  if (await has('mkdocs.yml') || await has('mkdocs.yaml')) return { format: 'mkdocs', why: (await has('mkdocs.yml')) ? 'mkdocs.yml' : 'mkdocs.yaml' };
+  if (await has('zensical.toml')) return { format: 'mkdocs', why: 'zensical.toml (Zensical)' };
+  const alt = await findAltMkdocsConfig(dir);
+  if (alt) return { format: 'mkdocs', why: alt, config: alt };
   if (await has('conf.py')) return { format: 'sphinx', why: 'conf.py' };
   return { format: 'generic', why: 'no known config file' };
 }
@@ -54,7 +84,7 @@ const isSnippetPath = (f) => /(^|\/)(snippets|_snippets)\//.test(f);
 
 // ─── programmatic API ─────────────────────────────────────────────────────────
 export async function runImport(options) {
-  const { sourceDir: srcIn, outDir: outIn, from = null, dryRun = false, themeOpt, force = false, versions = 'tabs', fetchText: fetchOpt, log = () => {}, validateOutput = true } = options;
+  const { sourceDir: srcIn, outDir: outIn, from: fromOpt = null, config: configOpt = null, dryRun = false, themeOpt, force = false, versions = 'tabs', fetchText: fetchOpt, log = () => {}, validateOutput = true } = options;
   const sourceDir = path.resolve(srcIn);
   const outDir = path.resolve(outIn);
   if (!(await fs.pathExists(sourceDir))) throw new ImportError(`Source directory not found: ${sourceDir}`);
@@ -64,8 +94,11 @@ export async function runImport(options) {
     if (existing.length && !force) throw new ImportError(`Output directory is not empty: ${outDir} (use --force to overwrite, or --out another folder)`);
   }
 
-  const detected = from ? { format: from, why: `--from ${from}` } : await detectFormat(sourceDir);
-  const vendor = ['mintlify', 'fern', 'gitbook'].includes(detected.format) ? detected.format : 'generic';
+  const from = configOpt ? 'mkdocs' : fromOpt;
+  if (configOpt && fromOpt && fromOpt !== 'mkdocs') throw new ImportError('--config is only valid for MkDocs (--from mkdocs).');
+  const detected = configOpt ? { format: 'mkdocs', why: `--config ${configOpt}`, config: configOpt }
+    : from ? { format: from, why: `--from ${from}` } : await detectFormat(sourceDir);
+  const vendor = VENDORS.includes(detected.format) ? detected.format : 'generic';
   log(`Detected: ${FORMAT_LABEL[detected.format] || detected.format} (${detected.why})`);
 
   const fetchText = fetchOpt === undefined ? defaultFetch : fetchOpt;
@@ -74,6 +107,13 @@ export async function runImport(options) {
   let gitbook = null;
   if (vendor === 'fern') { fernDir = await findFernDir(sourceDir); if (!fernDir) throw new ImportError('No fern/docs.yml found in the source directory.'); root = fernDir; }
   if (vendor === 'gitbook') { gitbook = await findGitbookRoot(sourceDir); root = gitbook.root; }
+  let mk = null;
+  if (vendor === 'mkdocs') {
+    mk = await loadMkdocsConfig(sourceDir, detected.config ? { file: detected.config } : {});
+    if (!mk.cfg) throw new ImportError(`Could not read ${mk.file || 'mkdocs.yml'}: ${mk.error}`);
+    root = path.resolve(mk.dir, String(mk.cfg.docs_dir || 'docs'));
+    if (!(await fs.pathExists(root))) throw new ImportError(`docs_dir "${mk.cfg.docs_dir || 'docs'}" from ${mk.file} was not found.`);
+  }
   const imp = new Importer({ sourceDir: root, outDir, vendor, opts: { versions }, fetchText });
   { const rel = posix(path.relative(process.cwd(), sourceDir)); imp.displaySource = rel && !rel.startsWith('..') ? rel : posix(sourceDir); }
   const themeVal = options.noTheme ? false : (themeOpt || null);
@@ -92,6 +132,8 @@ export async function runImport(options) {
     config = (await convertFern(imp, fernDir, popts)).config;
   } else if (vendor === 'gitbook') {
     config = await convertGitbook(imp, gitbook, popts);
+  } else if (vendor === 'mkdocs') {
+    config = await convertMkdocs(imp, mk, popts);
   } else {
     config = { name: path.basename(sourceDir), sidebar: 'auto' };
     const t = buildThemeConfig({ vendor: 'generic', brand: {}, fonts: {}, themeOpt: themeVal, report: (s, c, m, x) => imp.report(s, c, m, x) });
@@ -103,6 +145,7 @@ export async function runImport(options) {
   const snippetFiles = [];
   for (const f of all) {
     if (!isMd(f)) continue;
+    if (vendor === 'mkdocs') continue; // pages were registered from docs_dir by the adapter
     if (/^(README|CHANGELOG|LICENSE|CONTRIBUTING|CODE_OF_CONDUCT)\.md$/i.test(f) && vendor === 'mintlify') { imp.report('info', 'file-skipped', `${f} looks like a repository file, not a docs page; skipped.`, { file: f }); continue; }
     if (f === 'SUMMARY.md' && vendor === 'gitbook') continue;
     if (isSnippetPath(f)) { snippetFiles.push(f); continue; }
@@ -112,7 +155,8 @@ export async function runImport(options) {
     let slug = vendor === 'fern' ? `_unlisted/${stem.replace(/^(docs\/)?pages\//, '')}` : stem;
     if (vendor === 'gitbook' && /(^|\/)README$/i.test(stem)) slug = stem.replace(/README$/i, 'index').replace(/^\/?index$/, 'index');
     if (imp.slugs.has(slug)) continue;
-    imp.registerPage(f, slug, { hidden: true, unlisted: true });
+    // generic folders get an auto sidebar: their pages must be listed, not hidden
+    imp.registerPage(f, slug, vendor === 'generic' ? {} : { hidden: true, unlisted: true });
   }
   if (!imp.slugs.size && !snippetFiles.length && !imp.openapi?.specs?.size && !/\.(json|ya?ml)$/.test(String(config.openapi || ''))) throw new ImportError('No .md or .mdx files found in the source directory.');
 
@@ -142,7 +186,7 @@ export async function runImport(options) {
       imp.report('error', 'page-failed', `Page could not be converted: ${e.message}`, { file: srcRel, action: 'Skipped the page.', fix: 'Convert this page by hand.' });
     }
   }
-  if (unlisted.length && vendor !== 'generic' && vendor !== 'gitbook') {
+  if (unlisted.length && vendor !== 'generic' && vendor !== 'gitbook' && vendor !== 'mkdocs') {
     imp.report('info', 'pages-unlisted', `${unlisted.length} page(s) are not in the source navigation. They were converted as hidden pages (built, but not in the sidebar): ${unlisted.slice(0, 8).join(', ')}${unlisted.length > 8 ? ', …' : ''}.`, { fix: 'Add them to the sidebar in docslit.json if they should be listed.' });
   }
 
@@ -178,8 +222,8 @@ export async function runImport(options) {
   }
   // OpenAPI spec file(s) referenced from config were copied via configAsset.
 
-  // ── bundled assets in conventional folders ──
-  for (const f of all) {
+  // ── bundled assets in conventional folders (MkDocs: every static file in docs_dir was registered) ──
+  for (const f of vendor === 'mkdocs' ? [] : all) {
     if (isMd(f)) continue;
     if (/^(images?|img|static|assets|logo|logos|fonts|public|media)\//i.test(f) && /\.(png|jpe?g|gif|svg|webp|avif|ico|mp4|webm|woff2?|ttf|otf|pdf)$/i.test(f)) {
       const abs = path.join(root, f);
@@ -306,9 +350,10 @@ export class ImportError extends Error {}
  * Used by the MCP `convert_mdx` tool. Returns { markdown, frontmatter, body, issues, components }.
  */
 export async function convertMdxSource(source, { from = 'mintlify', file = 'page.mdx' } = {}) {
-  const vendor = ['mintlify', 'fern', 'gitbook'].includes(from) ? from : 'mintlify';
+  const vendor = VENDORS.includes(from) ? from : 'mintlify';
   const imp = new Importer({ sourceDir: os.tmpdir(), outDir: os.tmpdir(), vendor, fetchText: null });
   imp.lenient = true;
+  if (vendor === 'mkdocs') imp.mkdocs = mkdocsPageDefaults();
   const res = await imp.convertSource(String(source), { srcRel: file });
   const body = res.body.endsWith('\n') ? res.body : res.body + '\n';
   const fm = orderFm(Object.fromEntries(Object.entries(res.frontmatter).filter(([k]) => !k.startsWith('__'))));
@@ -325,7 +370,7 @@ export async function convertMdxSource(source, { from = 'mintlify', file = 'page
 // ─── CLI ──────────────────────────────────────────────────────────────────────
 function parseImportArgs(args) {
   const o = { positional: [], flags: new Set(), opts: {} };
-  const withValue = new Set(['--out', '--from', '--theme', '--versions']);
+  const withValue = new Set(['--out', '--from', '--config', '--theme', '--versions']);
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a.startsWith('--')) {
@@ -342,14 +387,15 @@ export async function importDocs(args) {
   const sourceDir = path.resolve(process.cwd(), p.positional[0] ?? '.');
   const outDir = path.resolve(process.cwd(), p.opts['--out'] ?? sourceDir.replace(/\/$/, '') + '-docslit');
   const from = p.opts['--from'] || null;
-  if (from && !['mintlify', 'fern', 'gitbook'].includes(from)) { console.error(pc.red(`  Error: --from must be mintlify, fern or gitbook (got "${from}").`)); process.exit(1); }
+  if (from && !VENDORS.includes(from)) { console.error(pc.red(`  Error: --from must be mintlify, fern, gitbook or mkdocs (got "${from}").`)); process.exit(1); }
+  const config = p.opts['--config'] ? path.resolve(process.cwd(), p.opts['--config']) : null;
   const versions = p.opts['--versions'] || 'tabs';
   if (!['tabs', 'latest'].includes(versions)) { console.error(pc.red('  Error: --versions must be tabs or latest.')); process.exit(1); }
   const say = (s) => { if (!json) console.log(s); };
   say(`\n  ${pc.bold('DocsLit')} — importing from ${pc.cyan(path.relative(process.cwd(), sourceDir) || '.')}`);
   let report;
   try {
-    report = await runImport({ sourceDir, outDir, from, dryRun: p.flags.has('--dry-run'), themeOpt: p.opts['--theme'] || null, noTheme: p.flags.has('--no-theme'), force: p.flags.has('--force'), versions, log: (m) => say(`  ${m}`) });
+    report = await runImport({ sourceDir, outDir, from, config, dryRun: p.flags.has('--dry-run'), themeOpt: p.opts['--theme'] || null, noTheme: p.flags.has('--no-theme'), force: p.flags.has('--force'), versions, log: (m) => say(`  ${m}`) });
   } catch (e) {
     if (e instanceof ImportError) {
       if (json) console.log(JSON.stringify({ tool: 'docslit import', ok: false, error: e.message }, null, 2));

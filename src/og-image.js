@@ -2,7 +2,15 @@
  * Build-time Open Graph / Twitter card images (SVG → PNG via @resvg/resvg-js).
  */
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { ensureDir, writeFileIfChanged } from './fs-helpers.js';
+import { renderSvgToPng } from './og-image-pool.js';
+import {
+  ogImageCacheKey,
+  readOgImageCache,
+  writeOgImageCache,
+} from './build-cache.js';
+export { encodePng } from './png-encode.js';
 
 function escXml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -42,6 +50,7 @@ export function buildOgSvg({ title, siteName, colors = {} }) {
       <stop offset="100%" stop-color="${escXml(accent)}" stop-opacity="0.35"/>
     </linearGradient>
   </defs>
+  <rect width="1200" height="630" fill="${escXml(bg)}"/>
   <rect width="1200" height="630" fill="url(#g)"/>
   <rect x="0" y="0" width="16" height="630" fill="${escXml(accent)}"/>
   <text x="80" y="200" fill="${escXml(fg)}" font-family="system-ui,Segoe UI,sans-serif" font-size="48" font-weight="700">${titleTspans}</text>
@@ -49,20 +58,62 @@ export function buildOgSvg({ title, siteName, colors = {} }) {
 </svg>`;
 }
 
-export async function generateOgImage({ title, siteName, colors, outFile }) {
+async function renderAndWrite({ title, siteName, colors, outFile, incremental = false }) {
   const svg = buildOgSvg({ title, siteName, colors });
-  await fs.ensureDir(path.dirname(outFile));
+  await ensureDir(path.dirname(outFile));
+
+  if (incremental) {
+    const cacheKey = ogImageCacheKey({ title, siteName, colors });
+    const cached = await readOgImageCache(cacheKey);
+    if (cached) {
+      await writeFileIfChanged(outFile, cached, true);
+      return { success: true, outFile };
+    }
+    try {
+      const png = await renderSvgToPng(svg);
+      await fs.writeFile(outFile, png);
+      await writeOgImageCache(cacheKey, png);
+      return { success: true, outFile };
+    } catch {
+      const svgFile = outFile.replace(/\.png$/, '.svg');
+      await fs.writeFile(svgFile, svg);
+      return { success: false, outFile: svgFile };
+    }
+  }
+
   try {
-    const { Resvg } = await import('@resvg/resvg-js');
-    const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: 1200 } });
-    const png = resvg.render().asPng();
+    const png = await renderSvgToPng(svg);
     await fs.writeFile(outFile, png);
-    return true;
+    return { success: true, outFile };
   } catch {
-    await fs.writeFile(outFile.replace(/\.png$/, '.svg'), svg);
-    return false;
+    const svgFile = outFile.replace(/\.png$/, '.svg');
+    await fs.writeFile(svgFile, svg);
+    return { success: false, outFile: svgFile };
   }
 }
+
+export async function generateOgImage({ title, siteName, colors, outFile, incremental = false }) {
+  return (await renderAndWrite({ title, siteName, colors, outFile, incremental })).success;
+}
+
+/**
+ * Batch-generate OG images using the worker pool.
+ * @param {Array<{ title, siteName, colors, outFile }>} jobs
+ * @param {{ incremental?: boolean }} opts
+ * @returns {Promise<number>} count of successfully rendered PNGs
+ */
+export async function generateOgImages(jobs, { incremental = false, onOutput = null } = {}) {
+  if (!jobs.length) return 0;
+  let count = 0;
+  await Promise.all(jobs.map(async (job) => {
+    const result = await renderAndWrite({ ...job, incremental });
+    if (onOutput) onOutput(result.outFile);
+    if (result.success) count++;
+  }));
+  return count;
+}
+
+export { shutdownOgImagePool } from './og-image-pool.js';
 
 export function ogColorsFromTheme(siteTheme) {
   const colors = siteTheme?.colors || siteTheme?.light || {};

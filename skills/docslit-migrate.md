@@ -67,7 +67,7 @@ After each fix run `docslit validate` (zero errors is the goal) and `docslit com
 
 ## 5. One page or snippet at a time
 
-Use the MCP tool `convert_mdx { source, from }` (or the `migrate-page` prompt): it returns converted Markdown plus the same kind of `issues` list. Then `check_markup`, fix, and `create_page`. Other platforms (Docusaurus, MkDocs, ...) are imported as plain Markdown/MDX folders with an auto-generated sidebar; convert their admonitions to `wc-callout` by hand.
+Use the MCP tool `convert_mdx { source, from }` (or the `migrate-page` prompt): it returns converted Markdown plus the same kind of `issues` list. Then `check_markup`, fix, and `create_page`. MkDocs / Material for MkDocs / Zensical projects import with `docslit import` (`--from mkdocs`): admonitions, tabs, blocks, snippets, code options, icons and the nav are converted; mkdocstrings `:::` blocks become placeholder callouts to rewrite. Other platforms (Docusaurus, Sphinx, ...) are imported as plain Markdown/MDX folders with an auto-generated sidebar; convert their admonitions to `wc-callout` by hand.
 
 ## Manual conversion reference
 

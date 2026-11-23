@@ -3,7 +3,8 @@
  */
 import { visit } from 'unist-util-visit';
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists } from '../fs-helpers.js';
 import sizeOf from 'image-size';
 
 function parseHash(url) {
@@ -50,7 +51,7 @@ export default function rehypeDocslitImages(opts = {}) {
         const alt = path.resolve(cwd, src.replace(/^\//, ''));
         for (const candidate of [local, alt]) {
           try {
-            if (await fs.pathExists(candidate)) {
+            if (await pathExists(candidate)) {
               const buf = await fs.readFile(candidate);
               const dim = sizeOf(buf);
               if (dim.width && !node.properties.width) node.properties.width = dim.width;

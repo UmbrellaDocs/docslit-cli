@@ -1,0 +1,27 @@
+{
+  "scenarios": [
+    {
+      "name": "cold-full",
+      "description": "Clean dist, all default generators enabled",
+      "args": []
+    },
+    {
+      "name": "warm-minimal",
+      "description": "Incremental rebuild with optional generators disabled",
+      "args": [
+        "--incremental",
+        "--no-og-images",
+        "--no-search-index",
+        "--no-llms-txt",
+        "--no-mcp",
+        "--no-sitemap",
+        "--profile"
+      ]
+    },
+    {
+      "name": "cold-no-og",
+      "description": "Clean build without OG images",
+      "args": ["--no-og-images", "--profile"]
+    }
+  ]
+}

@@ -27,39 +27,44 @@ import {
   faviconLinks,
 } from './site-config.js';
 import { buildLocaleSwitcherHtml, buildHreflangTags, getI18nConfig } from './i18n.js';
+import { assetCacheKey, readAssetCache, writeAssetCache } from './build-cache.js';
 
 const require = createRequire(import.meta.url);
 
 // ── Minification helpers ──────────────────────────────────────────────────
 // Used by build.js (default on) but bypassed by tests and dev mode so the
 // served output stays readable for debugging. esbuild is loaded lazily via
-// createRequire so dev/npx installs without esbuild still work; transformSync
-// keeps these calls synchronous so renderShell/renderPage don't need to go async.
+// createRequire so dev/npx installs without esbuild still work.
 function _getEsbuild() {
-  return require('esbuild');
-}
-
-export function isEsbuildAvailable() {
   try {
-    _getEsbuild();
-    return true;
-  } catch {
-    return false;
+    return require('esbuild');
+  } catch (error) {
+    if (error.code === 'MODULE_NOT_FOUND' && error.message.startsWith("Cannot find module 'esbuild'")) return null;
+    throw error;
   }
 }
 
-function _minifyJS(code) {
-  try {
-    const esbuild = _getEsbuild();
-    return esbuild.transformSync(code, { loader: 'js', minify: true, legalComments: 'none' }).code;
-  } catch { return code; }
+export function isEsbuildAvailable() {
+  return _getEsbuild() !== null;
 }
-function _minifyCSS(code) {
-  try {
-    const esbuild = _getEsbuild();
-    return esbuild.transformSync(code, { loader: 'css', minify: true }).code;
-  } catch { return code; }
+
+async function _minify(code, loader, incremental) {
+  const esbuild = _getEsbuild();
+  if (!esbuild) return code;
+  const key = incremental ? assetCacheKey(code, loader, esbuild.version) : null;
+  if (key) {
+    const cached = await readAssetCache(key);
+    if (cached !== null) return cached;
+  }
+  const options = loader === 'js'
+    ? { loader, minify: true, legalComments: 'none' }
+    : { loader, minify: true };
+  const result = await esbuild.transform(code, options);
+  if (key) await writeAssetCache(key, result.code);
+  return result.code;
 }
+const _minifyJS = (code, incremental = false) => _minify(code, 'js', incremental);
+const _minifyCSS = (code, incremental = false) => _minify(code, 'css', incremental);
 
 export async function renderShell({ config: baseConfig, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null, locale = null, titleMap = null, navMeta = null }) {
   const config = withApiTab(baseConfig, !!specData);
@@ -125,14 +130,15 @@ export async function renderShell({ config: baseConfig, siteTheme = null, mode =
   const htmlTag = buildHtmlTag(resolvedTheme, currentLocale);
 
   if (offline) {
-    const offlineStyles = minify
-      ? `<style>${_minifyCSS(buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
-      : buildStyles(resolvedTheme);
-    const offlineComponents = minify ? _minifyJS(buildComponents()) : buildComponents();
+    const rawStyles = buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
     const offlineLoaderScript = buildOfflineLoader();
-    const offlineApp = minify
-      ? _minifyJS(buildAppScript('static', offlineLoaderScript, '', true))
-      : buildAppScript('static', offlineLoaderScript, '', true);
+    const rawApp = buildAppScript('static', offlineLoaderScript, '', true);
+    const [minStyles, minComponents, minApp] = minify
+      ? await Promise.all([_minifyCSS(rawStyles), _minifyJS(buildComponents()), _minifyJS(rawApp)])
+      : [rawStyles, buildComponents(), rawApp];
+    const offlineStyles = minify ? `<style>${minStyles}</style>` : buildStyles(resolvedTheme);
+    const offlineComponents = minComponents;
+    const offlineApp = minApp;
 
     return `<!DOCTYPE html>
 ${htmlTag}
@@ -181,14 +187,17 @@ ${offlineApp}
 
   const wsScript = mode === 'dev' ? buildWsScript(port) : '';
   const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
+  const rawStyles = buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
+  const rawComponents = buildComponents();
+  const rawApp = buildAppScript(mode, loaderScript, wsScript, false);
 
-  const stylesBlock = minify
-    ? `<style>${_minifyCSS(buildStyles(resolvedTheme).replace(/^<style>\n?/, '').replace(/<\/style>$/, ''))}</style>`
-    : buildStyles(resolvedTheme);
-  const componentsBlock = minify ? _minifyJS(buildComponents()) : buildComponents();
-  const appBlock = minify
-    ? _minifyJS(buildAppScript(mode, loaderScript, wsScript, false))
-    : buildAppScript(mode, loaderScript, wsScript, false);
+  const [minStyles, minComponents, minApp] = minify
+    ? await Promise.all([_minifyCSS(rawStyles), _minifyJS(rawComponents), _minifyJS(rawApp)])
+    : [rawStyles, rawComponents, rawApp];
+
+  const stylesBlock = minify ? `<style>${minStyles}</style>` : buildStyles(resolvedTheme);
+  const componentsBlock = minComponents;
+  const appBlock = minApp;
 
   return `<!DOCTYPE html>
 ${htmlTag}
@@ -238,7 +247,7 @@ ${appBlock}
 </html>`;
 }
 
-export async function renderPage({ config: baseConfig, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null, titleMap = null, navMeta = null, untranslated = false }) {
+export async function renderPage({ config: baseConfig, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null, titleMap = null, navMeta = null, untranslated = false, searchEnabled = true, llmsEnabled = baseConfig.build?.llmsTxt !== false }) {
   const config = withApiTab(baseConfig, !!specData);
   const basePath = normalizeBasePath(config.basePath);
   const i18n = getI18nConfig(config);
@@ -340,7 +349,7 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
   const announcementChrome = await buildAnnouncementChrome({ config, versionConfig, currentVersion });
   const resolvedTheme = siteTheme ?? resolveSiteThemeSync(config);
   const htmlTag = buildHtmlTag(resolvedTheme, currentLocale);
-  const agentDirective = buildAgentDirectiveHtml(config, currentVersion);
+  const agentDirective = buildAgentDirectiveHtml(config, currentVersion, llmsEnabled);
   const siteUrl = (config.url || '').replace(/\/$/, '');
   const header = pageHeaderHtml(config, id, meta);
   const metaBarHtml = header.after + injectPageMeta(config, meta, id, pdfManifest, assetPrefix, siteUrl, hrefPrefix);
@@ -372,9 +381,9 @@ ${htmlTag}
 <body class="${bodyClasses}">
 ${agentDirective}
 ${announcementChrome.html}
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, { navbarCta: chrome.navbarCta, navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath, logo, nav })}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, { navbarCta: chrome.navbarCta, navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath, logo, nav, searchEnabled })}
 ${renderTabsBar(nav)}
-${buildSearchOverlayHtml()}
+${searchEnabled ? buildSearchOverlayHtml() : ''}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
 ${buildMainLayoutHtml(docsSidebarHtml, siteTitle, pageContent, breadcrumbText, isApiPage, apiSidebarHtml, false, pageOptions.hideFeedback ? ' data-feedback-off' : '', { nav, pageAttrs, mobileExtras: chrome.navbarMobile })}
@@ -398,30 +407,30 @@ ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)}
 </html>`;
 }
 
-export function buildStylesFile({ minify = false, siteTheme = null } = {}) {
+export async function buildStylesFile({ minify = false, siteTheme = null, incremental = false } = {}) {
   const resolved = siteTheme ?? resolveSiteThemeSync(null);
   const raw = buildStyles(resolved).replace(/^<style>\n?/, '').replace(/<\/style>$/, '');
-  return minify ? _minifyCSS(raw) : raw;
+  return minify ? _minifyCSS(raw, incremental) : raw;
 }
 
-export function buildComponentsFile(mode = 'static', { minify = false } = {}) {
+export async function buildComponentsFile(mode = 'static', { minify = false, incremental = false } = {}) {
   const raw = buildComponents();
-  return minify ? _minifyJS(raw) : raw;
+  return minify ? _minifyJS(raw, incremental) : raw;
 }
 
-export function buildAppFile(mode = 'static', { minify = false } = {}) {
+export async function buildAppFile(mode = 'static', { minify = false, incremental = false } = {}) {
   const loaderScript = mode === 'dev' ? buildDevLoader() : buildStaticLoader();
   const wsScript = mode === 'dev' ? buildWsScript(3000) : '';
   const raw = buildAppScript(mode, loaderScript, wsScript);
-  return minify ? _minifyJS(raw) : raw;
+  return minify ? _minifyJS(raw, incremental) : raw;
 }
 
-export function buildOfflineThemeInitFile({ minify = false, siteTheme = null } = {}) {
+export async function buildOfflineThemeInitFile({ minify = false, siteTheme = null } = {}) {
   const raw = buildThemeInitCode(siteTheme) + buildA11yInitCode();
   return minify ? _minifyJS(raw) : raw;
 }
 
-export function buildOfflineAppFile({ minify = false } = {}) {
+export async function buildOfflineAppFile({ minify = false } = {}) {
   const loaderScript = buildOfflineLoader();
   const raw = buildAppScript('static', loaderScript, '', true);
   return minify ? _minifyJS(raw) : raw;
@@ -566,7 +575,7 @@ function buildSiteChrome(config, { basePath = '', offline = false, locale = 'en'
 }
 
 function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false, extra = {}) {
-  const { navbarLinks = '', navbarCta = '', localeSwitcher = '', basePath = '', logo = {} } = extra;
+  const { navbarLinks = '', navbarCta = '', localeSwitcher = '', basePath = '', logo = {}, searchEnabled = true } = extra;
   const { nav = null } = extra;
   // The offline shell is opened from file://, where "/" is the filesystem root.
   const homeHref = logo.href || (offline ? 'index.html' : (basePath || '/'));
@@ -601,11 +610,11 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
   <div class="nav-links">
     ${modeLinksHtml}
     ${navbarLinks}
-    <button class="search-trigger"${searchClick} id="search-trigger" title="Search (⌘K)">
+    ${searchEnabled ? `<button class="search-trigger"${searchClick} id="search-trigger" title="Search (⌘K)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
       <span class="search-trigger-text">Search…</span>
       <span class="search-trigger-kbd"><kbd>⌘</kbd><kbd>K</kbd></span>
-    </button>
+    </button>` : ''}
     ${localeSwitcher}
     ${versionSelectorHtml}
     <button class="a11y-btn" id="a11y-btn"${offline ? '' : ' onclick="toggleA11yPanel()"'} aria-label="Accessibility settings">
@@ -1223,7 +1232,7 @@ function _show404(id) {
     '<p class="not-found-desc">The page' + (id ? ' <code>' + _escHtml(id) + '</code>' : '') + ' doesn\\u2019t exist or may have been moved.</p>' +
     '<div class="not-found-actions">' +
     '<a class="not-found-btn" href="#"' + (_OFFLINE ? '' : ' onclick="var f=document.querySelector(\\'.sidebar-item\\');if(f)loadPage(f.dataset.page,f);return false;"') + '>Go to first page</a>' +
-    '<button class="not-found-btn not-found-btn-alt"' + (_OFFLINE ? '' : ' onclick="openSearch()"') + '>Search docs</button>' +
+    (document.getElementById('search-trigger') ? '<button class="not-found-btn not-found-btn-alt"' + (_OFFLINE ? '' : ' onclick="openSearch()"') + '>Search docs</button>' : '') +
     '</div></div>';
 }
 
@@ -2275,6 +2284,7 @@ function _prefetchSearch() {
 
 function openSearch() {
   var overlay = document.getElementById('search-overlay');
+  if (!overlay) return;
   overlay.classList.add('open');
   var input = document.getElementById('search-input');
   input.value = '';
@@ -2494,8 +2504,9 @@ function selectSearchItem(el) {
 
 document.addEventListener('keydown', function(e) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    e.preventDefault();
     var overlay = document.getElementById('search-overlay');
+    if (!overlay) return;
+    e.preventDefault();
     if (overlay.classList.contains('open')) closeSearch();
     else openSearch();
   }
@@ -2511,7 +2522,7 @@ document.addEventListener('keydown', function(e) {
     trigger.addEventListener('pointerenter', _prefetchSearch, { once: true });
     trigger.addEventListener('focus', _prefetchSearch, { once: true });
   }
-  _prefetchSearch();
+  if (trigger) _prefetchSearch();
 })();
 
 window.openSearch = openSearch;

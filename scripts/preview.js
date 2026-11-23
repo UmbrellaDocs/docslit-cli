@@ -9,7 +9,8 @@
 
 import express from 'express';
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists } from '../src/fs-helpers.js';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
@@ -58,12 +59,18 @@ function broadcast(event) {
 // Watch both preview markdown files and component source files — any change
 // triggers a browser reload so edits to components are instantly visible.
 const watcher = chokidar.watch([
-  path.join(PREVIEW_DIR, '**/*.md'),
-  path.join(ROOT, 'src/components/**/*.js'),
+  PREVIEW_DIR,
+  path.join(ROOT, 'src/components'),
   path.join(ROOT, 'src/template.js'),
 ], { ignoreInitial: true });
 
 watcher.on('all', (event, filePath) => {
+  if (event.endsWith('Dir')) return;
+  const resolved = path.resolve(filePath);
+  const componentsDir = path.join(ROOT, 'src/components');
+  if (!(resolved.startsWith(PREVIEW_DIR + path.sep) && resolved.endsWith('.md')) &&
+      !(resolved.startsWith(componentsDir + path.sep) && resolved.endsWith('.js')) &&
+      resolved !== path.join(ROOT, 'src/template.js')) return;
   const rel = path.relative(ROOT, filePath);
   console.log(`  ${pc.cyan('~')} ${rel} changed — reloading`);
   broadcast({ type: 'reload' });
@@ -81,7 +88,7 @@ app.get('/api/pages', (_req, res) => {
 app.get('/api/page/:id', async (req, res) => {
   const id = req.params.id;
   const mdPath = path.join(PREVIEW_DIR, `${id}.md`);
-  if (!await fs.pathExists(mdPath)) {
+  if (!await pathExists(mdPath)) {
     return res.status(404).json({ error: `Preview page "${id}" not found` });
   }
   const raw = await fs.readFile(mdPath, 'utf8');

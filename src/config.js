@@ -1,6 +1,6 @@
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists } from './fs-helpers.js';
 import path from 'path';
-import git from 'isomorphic-git';
 import nodeFs from 'node:fs';
 import { expandAllSidebars, expandSidebarValue, expandTabsValue, hasTabAutogenerate, createFileListSource, hasAutogenerate } from './auto-sidebar.js';
 import { applyNavigation, collectIds } from './navigation.js';
@@ -12,10 +12,19 @@ function warnOnce(msg) {
   console.warn(`  Warning: ${msg}`);
 }
 import { setMathConfig } from './math.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+
+async function getGit() {
+  const mod = await import('isomorphic-git');
+  return mod.default;
+}
 
 export async function loadConfig(cwd) {
   const configPath = path.join(cwd, 'docslit.json');
-  if (!await fs.pathExists(configPath)) {
+  if (!await pathExists(configPath)) {
     console.error(`  Error: docslit.json not found in ${cwd}`);
     console.error(`  Run "docslit init" to create a new project.`);
     process.exit(1);
@@ -45,24 +54,47 @@ export async function loadConfig(cwd) {
 
 export async function detectEditUrl(dir) {
   try {
-    const remotes = await git.listRemotes({ fs: nodeFs, dir });
-    const remote = remotes.find(r => r.remote === 'upstream')
-                || remotes.find(r => r.remote === 'origin');
-    if (!remote || !remote.url) return null;
-    let url = remote.url;
+    if (!await pathExists(path.join(dir, '.git'))) return null;
+    let remoteName;
+    let url;
+    let branch;
+    try {
+      const { stdout } = await execFileAsync('git', ['config', '--local', '--null', '--get-regexp', '^remote\\.(upstream|origin)\\.url$'], { cwd: dir });
+      const remotes = stdout.split('\0').map(entry => entry.match(/^remote\.(upstream|origin)\.url\n([\s\S]*)$/)).filter(Boolean);
+      const remote = remotes.find(r => r[1] === 'upstream') || remotes.find(r => r[1] === 'origin');
+      if (!remote?.[2]) return null;
+      [, remoteName, url] = remote;
+      try {
+        await execFileAsync('git', ['show-ref', '--verify', '--quiet', `refs/remotes/${remoteName}/main`], { cwd: dir });
+        branch = 'main';
+      } catch {
+        branch = 'master';
+      }
+    } catch (error) {
+      if (error.code !== 'ENOENT') return null;
+      const git = await getGit();
+      const remotes = await git.listRemotes({ fs: nodeFs, dir });
+      const remote = remotes.find(r => r.remote === 'upstream') || remotes.find(r => r.remote === 'origin');
+      if (!remote?.url) return null;
+      remoteName = remote.remote;
+      url = remote.url;
+      try {
+        await git.resolveRef({ fs: nodeFs, dir, ref: 'refs/remotes/' + remoteName + '/main' });
+        branch = 'main';
+      } catch {
+        branch = 'master';
+      }
+    }
     url = url.replace(/^git@github\.com:/, 'https://github.com/');
     url = url.replace(/\.git$/, '');
     if (!url.includes('github.com')) return null;
-    let branch = 'main';
-    try { await git.resolveRef({ fs: nodeFs, dir, ref: 'refs/remotes/' + remote.remote + '/main' }); }
-    catch { branch = 'master'; }
     return `https://www.draftview.app/edit?url=${url}/blob/${branch}/docs`;
   } catch { return null; }
 }
 
 export function getAllPageIds(config) {
   const ids = [];
-  for (const group of (config.sidebar || [])) ids.push(...collectIds(group.pages));
+  for (const group of (config.sidebar || [])) ids.push(...collectIds([group]));
   return ids;
 }
 
@@ -81,6 +113,7 @@ export function getVersionConfig(config) {
 
 export async function gitReadFile(branch, filePath, dir) {
   try {
+    const git = await getGit();
     const oid = await git.resolveRef({ fs: nodeFs, dir, ref: branch });
     const { blob } = await git.readBlob({ fs: nodeFs, dir, oid, filepath: path.posix.normalize(filePath.replace(/\\/g, '/')) });
     return new TextDecoder().decode(blob);
@@ -131,6 +164,7 @@ export async function getVersionSidebar(branch, dir) {
 
 export async function getChangedDocs(defaultBranch, versionBranch, dir) {
   try {
+    const git = await getGit();
     await git.resolveRef({ fs: nodeFs, dir, ref: defaultBranch });
     await git.resolveRef({ fs: nodeFs, dir, ref: versionBranch });
     const changed = [];

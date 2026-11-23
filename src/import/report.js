@@ -55,10 +55,25 @@ export function renderMigrationMd(r) {
   L.push('');
   const bySev = { error: [], warning: [], info: [] };
   for (const i of r.items) bySev[i.severity].push(i);
+  const GROUP_AT = 6; // this many items with one code are listed once, with every location
   for (const sev of ['error', 'warning', 'info']) {
     if (!bySev[sev].length) continue;
     L.push(`## ${SEV_TITLE[sev]}`, '');
+    const byCode = new Map();
+    for (const i of bySev[sev]) { if (!byCode.has(i.code)) byCode.set(i.code, []); byCode.get(i.code).push(i); }
+    const done = new Set();
     for (const i of bySev[sev]) {
+      const group = byCode.get(i.code);
+      if (group.length >= GROUP_AT) {
+        if (done.has(i.code)) continue;
+        done.add(i.code);
+        const files = new Set(group.map((g) => g.file).filter(Boolean));
+        L.push(`- **${group.length} items** [\`${i.code}\`] in ${files.size} file${files.size === 1 ? '' : 's'}. First: ${i.message}`);
+        if (i.action) L.push(`  - Done instead: ${i.action}`);
+        if (i.fix) L.push(`  - How to fix: ${i.fix}`);
+        L.push(`  - Where: ${group.map((g) => `\`${g.file || 'project'}${g.line ? ':' + g.line : ''}\``).join(', ')}`);
+        continue;
+      }
       const where = i.file ? `\`${i.file}${i.line ? ':' + i.line : ''}\`` : 'project';
       L.push(`- **${where}** [\`${i.code}\`]${i.component ? ` <${i.component}>` : ''} ${i.message}`);
       if (i.action) L.push(`  - Done instead: ${i.action}`);

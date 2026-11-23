@@ -1,9 +1,8 @@
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { ensureDir } from './fs-helpers.js';
 import http from 'node:http';
 import pc from 'picocolors';
-import express from 'express';
-import { PDFDocument } from 'pdf-lib';
 import { collectPageIds, toLabel } from './sidebar.js';
 import { collectHiddenIds, isHiddenMeta } from './navigation.js';
 
@@ -180,7 +179,8 @@ async function loadPlaywright() {
   }
 }
 
-function startStaticServer(outDir) {
+async function startStaticServer(outDir) {
+  const { default: express } = await import('express');
   const app = express();
   app.use(express.static(outDir, { extensions: ['html'] }));
   return new Promise((resolve, reject) => {
@@ -221,6 +221,7 @@ function formatBytes(b) {
 }
 
 async function mergePdfs(inputPaths, outputPath, label) {
+  const { PDFDocument } = await import('pdf-lib');
   const t0 = performance.now();
   process.stdout.write(`    ${pc.dim('→')} ${label}: merging ${inputPaths.length} PDFs...`);
   const merged = await PDFDocument.create();
@@ -242,7 +243,7 @@ export async function generatePdfs({ outDir, config, pagesData, pdfOptions }) {
 
   const pdfRoot = path.join(outDir, pdfOptions.outputDir);
   const pagesDir = path.join(pdfRoot, 'pages');
-  await fs.ensureDir(pagesDir);
+  await ensureDir(pagesDir);
 
   const { chapters, pageToChapter } = getChapterManifest(config, pagesData, pdfOptions);
   const manifest = buildPdfManifest({
@@ -319,7 +320,7 @@ export async function generatePdfs({ outDir, config, pagesData, pdfOptions }) {
   }
 
   if (!pdfOptions.include.pages) {
-    await fs.remove(pagesDir);
+    await fs.rm(pagesDir, { recursive: true, force: true });
   }
 
   await fs.writeFile(path.join(pdfRoot, 'manifest.json'), JSON.stringify(manifest, null, 2));

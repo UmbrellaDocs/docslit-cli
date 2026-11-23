@@ -1,4 +1,5 @@
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists, ensureDir } from './fs-helpers.js';
 import path from 'path';
 import pc from 'picocolors';
 import { detectEditUrl } from './config.js';
@@ -21,14 +22,14 @@ export async function init(args) {
   const writeAgents = !args.includes('--no-agents');
   const target = path.resolve(process.cwd(), dirName);
 
-  if (await fs.pathExists(target)) {
+  if (await pathExists(target)) {
     console.error(pc.red(`  Error: Directory "${dirName}" already exists.`));
     process.exit(1);
   }
 
   console.log(`\n  ${pc.bold('DocsLit')} — Scaffolding new project in ${pc.cyan(dirName)}/\n`);
 
-  await fs.ensureDir(path.join(target, 'docs'));
+  await ensureDir(path.join(target, 'docs'));
 
   // docslit.json
   const editUrl = await detectEditUrl(process.cwd());
@@ -107,7 +108,7 @@ DocsLit is an npm CLI. Install it globally or run it directly with \`npx\` — n
 
 ## Requirements
 
-- **Node.js** \`>=20.19.0\` — check with \`node --version\`
+- **Node.js** \`>=22.22.0\` — check with \`node --version\`
 - Any package manager: npm, pnpm, or yarn
 
 ## Install the CLI

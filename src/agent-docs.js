@@ -38,13 +38,19 @@ export function prependAgentDirectiveToMarkdown(markdown, directive) {
   return directive + markdown;
 }
 
-export function buildAgentDirectiveMarkdown(config, slug, version = null) {
+export function buildAgentDirectiveMarkdown(config, slug, version = null, llmsEnabled = config.build?.llmsTxt !== false) {
   const llmsUrl = getLlmsTxtUrl(config, version);
   const mdUrl = getMarkdownUrl(config, slug, version);
+  if (!llmsEnabled) {
+    return `> For AI agents: this page as Markdown: [${slug}.md](${mdUrl}).\n\n`;
+  }
   return `> For AI agents: the complete documentation index is at [llms.txt](${llmsUrl}). This page as Markdown: [${slug}.md](${mdUrl}).\n\n`;
 }
 
-export function buildAgentDirectiveHtml(config, version = null) {
+export function buildAgentDirectiveHtml(config, version = null, llmsEnabled = config.build?.llmsTxt !== false) {
+  if (!llmsEnabled) {
+    return `<p class="agent-docs-directive" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">For AI agents: request any page with <code>Accept: text/markdown</code> or append <code>.md</code> to the URL for Markdown.</p>`;
+  }
   const llmsPath = getLlmsTxtPath(version);
   const llmsUrl = getLlmsTxtUrl(config, version);
   const href = config.url ? llmsUrl : llmsPath;
