@@ -1,6 +1,7 @@
 import { bundle, createConfig } from '@redocly/openapi-core';
 import { applyOverlay } from 'openapi-overlays-js/src/overlay.js';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists } from './fs-helpers.js';
 import path from 'path';
 import { parseWithPointers } from '@stoplight/yaml';
 
@@ -95,7 +96,7 @@ function resolveType(schema) {
 
 export async function loadSpec(specPath, overlayPath = null) {
   const abs = path.resolve(specPath);
-  if (!await fs.pathExists(abs)) {
+  if (!await pathExists(abs)) {
     throw new Error(`OpenAPI spec not found: ${specPath}`);
   }
 
@@ -114,7 +115,7 @@ export async function loadSpec(specPath, overlayPath = null) {
 
   if (overlayPath) {
     const overlayAbs = path.resolve(overlayPath);
-    if (!await fs.pathExists(overlayAbs)) {
+    if (!await pathExists(overlayAbs)) {
       throw new Error(`OpenAPI overlay not found: ${overlayPath}`);
     }
     const overlayRaw = await fs.readFile(overlayAbs, 'utf8');

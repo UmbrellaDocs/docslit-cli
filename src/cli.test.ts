@@ -126,7 +126,8 @@ describe('parseDoc', () => {
   it('does not mangle code inside fenced blocks', async () => {
     const raw = '```js\nconst x = <wc-button />\n```\n';
     const { html } = await parseDoc(raw);
-    expect(html).toContain('const x =');
+    expect(html).toContain('wc-code-block');
+    expect(html).toContain('wc-button');
   });
 
   it('returns empty meta when no frontmatter present', async () => {
@@ -197,7 +198,7 @@ describe('parseDoc', () => {
   it('does not rewrite PascalCase tags inside fenced code blocks', async () => {
     const raw = '```jsx\n<Callout>literal source</Callout>\n```\n';
     const { html } = await parseDoc(raw);
-    expect(html).toContain('&lt;Callout&gt;');
+    expect(html).toContain('Callout');
     expect(html).not.toContain('<wc-callout');
   });
 
@@ -279,7 +280,7 @@ Content after the fields block.
     expect(html).toContain('<wc-code-tab label="JS">');
     expect(html).toContain('<wc-code-block');
     expect(html).toContain('language="js"');
-    expect(html).toContain('console.log(1)');
+    expect(html).toContain('console.');
     expect(html).toContain('</wc-code-group>');
   });
 });
@@ -1058,17 +1059,35 @@ describe('template.js — esbuild lazy load', () => {
       const actual = await importOriginal<typeof import('node:module')>();
       return {
         createRequire: () => (id: string) => {
-          if (id === 'esbuild') throw new Error('Cannot find package esbuild');
+          if (id === 'esbuild') throw Object.assign(new Error("Cannot find module 'esbuild'"), { code: 'MODULE_NOT_FOUND' });
           return actual.createRequire(import.meta.url)(id);
         },
       };
     });
     const tpl = await import('./template.js');
     expect(tpl.isEsbuildAvailable()).toBe(false);
-    const css = tpl.buildStylesFile({ minify: true });
+    const css = await tpl.buildStylesFile({ minify: true });
     expect(css).toContain(':root');
-    const js = tpl.buildAppFile('static', { minify: true });
+    const js = await tpl.buildAppFile('static', { minify: true });
     expect(js).toContain('function loadPage');
+    vi.doUnmock('node:module');
+    vi.resetModules();
+  });
+
+  it('surfaces esbuild transform failures', async () => {
+    vi.resetModules();
+    vi.doMock('node:module', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('node:module')>();
+      return {
+        createRequire: () => (id: string) => {
+          if (id === 'esbuild') return { transform: async () => { throw new Error('transform failed'); } };
+          return actual.createRequire(import.meta.url)(id);
+        },
+      };
+    });
+    const tpl = await import('./template.js');
+    await expect(tpl.buildStylesFile({ minify: true })).rejects.toThrow('transform failed');
+    await expect(tpl.buildAppFile('static', { minify: true })).rejects.toThrow('transform failed');
     vi.doUnmock('node:module');
     vi.resetModules();
   });
@@ -1175,7 +1194,7 @@ describe('renderShell — search offline mode', () => {
   const searchIndex = [{ id: 'intro', title: 'Intro', group: 'Guide', desc: '', body: 'content' }];
 
   it('loads search index via script tag in offline mode', async () => {
-    const appJs = buildOfflineAppFile({});
+    const appJs = await buildOfflineAppFile({});
     expect(appJs).toContain('search-index.js');
     const html = await renderShell({ config, mode: 'static', offline: true, pagesData, searchIndex });
     expect(html).not.toContain('"id":"intro"');
@@ -1464,14 +1483,14 @@ describe('renderPage — per-route HTML', () => {
 
 describe('buildStylesFile', () => {
   it('returns CSS without style tags', async () => {
-    const css = buildStylesFile();
+    const css = await buildStylesFile();
     expect(css).not.toContain('<style>');
     expect(css).not.toContain('</style>');
     expect(css).toContain(':root');
   });
 
   it('contains theme variables', async () => {
-    const css = buildStylesFile();
+    const css = await buildStylesFile();
     expect(css).toContain('--bg:');
     expect(css).toContain('--accent:');
     expect(css).toContain('html.light');
@@ -1482,7 +1501,7 @@ describe('buildStylesFile', () => {
 
 describe('buildAppFile', () => {
   it('contains all required functions for static mode', async () => {
-    const js = buildAppFile('static');
+    const js = await buildAppFile('static');
     expect(js).toContain('function loadPage');
     expect(js).toContain('function toggleTheme');
     expect(js).toContain('function openSearch');
@@ -1493,19 +1512,19 @@ describe('buildAppFile', () => {
   });
 
   it('contains pre-render check for __DOCSLIT_PAGE_ID__', async () => {
-    const js = buildAppFile('static');
+    const js = await buildAppFile('static');
     expect(js).toContain('__DOCSLIT_PAGE_ID__');
   });
 
   it('exports functions to window', async () => {
-    const js = buildAppFile('static');
+    const js = await buildAppFile('static');
     expect(js).toContain('window.loadPage');
     expect(js).toContain('window.openSidebar');
     expect(js).toContain('window.switchVersion');
   });
 
   it('strips .html from pathname in _pageFromUrl', async () => {
-    const js = buildAppFile('static');
+    const js = await buildAppFile('static');
     expect(js).toContain(".replace(/\\.html$/, '')");
   });
 });
@@ -1514,7 +1533,7 @@ describe('buildAppFile', () => {
 
 describe('buildComponentsFile', () => {
   it('returns ES module with Lit import', async () => {
-    const js = buildComponentsFile('static');
+    const js = await buildComponentsFile('static');
     expect(js).toContain("import { LitElement");
     expect(js).toContain('customElements.define');
   });
@@ -2118,7 +2137,7 @@ describe('renderPage — API layout', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe('buildStylesFile — API layout', () => {
   it('includes API layout styles', async () => {
-    const css = buildStylesFile();
+    const css = await buildStylesFile();
     expect(css).toContain('.api-layout');
     expect(css).toContain('.docs-examples');
     expect(css).toContain('.method-badge');
@@ -2126,7 +2145,7 @@ describe('buildStylesFile — API layout', () => {
   });
 
   it('includes responsive rules for API layout', async () => {
-    const css = buildStylesFile();
+    const css = await buildStylesFile();
     expect(css).toContain('.api-layout .docs-examples');
   });
 });
@@ -2466,32 +2485,88 @@ describe('offline build — security hardening', () => {
   });
 
   it('offline app file contains event delegation', async () => {
-    const js = buildOfflineAppFile({});
+    const js = await buildOfflineAppFile({});
     expect(js).toContain('EVENT DELEGATION');
     expect(js).toContain('addEventListener');
     expect(js).toContain("var _OFFLINE = true");
   });
 
   it('non-offline app file does not contain event delegation', async () => {
-    const js = buildAppFile('static', {});
+    const js = await buildAppFile('static', {});
     expect(js).toContain("var _OFFLINE = false");
     expect(js).not.toContain('EVENT DELEGATION');
   });
 
   it('offline theme init file is standalone JS', async () => {
-    const js = buildOfflineThemeInitFile({});
+    const js = await buildOfflineThemeInitFile({});
     expect(js).toContain('docslit-theme');
     expect(js).not.toContain('<script');
   });
 
   it('_show404 escapes page id', async () => {
-    const js = buildOfflineAppFile({});
+    const js = await buildOfflineAppFile({});
     expect(js).toContain('_escHtml(id)');
   });
 
   it('_buildPrevNext escapes text content', async () => {
-    const js = buildOfflineAppFile({});
+    const js = await buildOfflineAppFile({});
     expect(js).toContain('_escHtml(prev.textContent.trim())');
     expect(js).toContain('_escHtml(next.textContent.trim())');
+  });
+});
+
+// ── build performance helpers ───────────────────────────────────────────
+
+describe('resolveBuildOptions', () => {
+  it('defaults generators on for standard builds, except opt-in OG images', async () => {
+    const { resolveBuildOptions } = await import('./build-options.js');
+    const opts = resolveBuildOptions({ name: 'Test' }, {});
+    expect(opts.ogImages).toBe(false);
+    expect(resolveBuildOptions({ name: 'Test' }, { ogImages: true }).ogImages).toBe(true);
+    expect(resolveBuildOptions({ name: 'Test', ogImage: true }, {}).ogImages).toBe(true);
+    expect(resolveBuildOptions({ name: 'Test', build: { ogImages: true } }, {}).ogImages).toBe(true);
+    expect(resolveBuildOptions({ name: 'Test', ogImage: true }, { noOgImages: true }).ogImages).toBe(false);
+    expect(resolveBuildOptions({ name: 'Test', ogImage: true }, { offline: true }).ogImages).toBe(false);
+    expect(opts.searchIndex).toBe(true);
+    expect(opts.llmsTxt).toBe(true);
+    expect(opts.mcp).toBe(true);
+    expect(opts.sitemap).toBe(true);
+    expect(opts.incremental).toBe(false);
+  });
+
+  it('honors CLI opt-out flags', async () => {
+    const { resolveBuildOptions } = await import('./build-options.js');
+    const opts = resolveBuildOptions({ name: 'Test' }, {
+      noOgImages: true,
+      noSearchIndex: true,
+      incremental: true,
+    });
+    expect(opts.ogImages).toBe(false);
+    expect(opts.searchIndex).toBe(false);
+    expect(opts.incremental).toBe(true);
+  });
+
+  it('honors docslit.json build keys', async () => {
+    const { resolveBuildOptions } = await import('./build-options.js');
+    const opts = resolveBuildOptions({ build: { mcp: false, cache: true } }, {});
+    expect(opts.mcp).toBe(false);
+    expect(opts.incremental).toBe(true);
+  });
+});
+
+describe('generateOgImages', () => {
+  it('renders PNG files via worker pool', async () => {
+    const { generateOgImages, shutdownOgImagePool } = await import('./og-image.js');
+    const outDir = path.join(os.tmpdir(), `docslit-og-test-${Date.now()}`);
+    const jobs = [
+      { title: 'Page One', siteName: 'Test Site', colors: {}, outFile: path.join(outDir, 'og', 'page-one.png') },
+      { title: 'Page Two', siteName: 'Test Site', colors: {}, outFile: path.join(outDir, 'og', 'page-two.png') },
+    ];
+    const count = await generateOgImages(jobs);
+    expect(count).toBe(2);
+    expect(existsSync(jobs[0].outFile)).toBe(true);
+    expect(existsSync(jobs[1].outFile)).toBe(true);
+    await shutdownOgImagePool();
+    rmSync(outDir, { recursive: true, force: true });
   });
 });

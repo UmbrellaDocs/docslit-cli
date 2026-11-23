@@ -2,7 +2,7 @@
  * RSS / Atom feed generation for changelog and blog posts.
  */
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
 
 export function isFeedPage(meta = {}, id = '') {
   const layout = meta.layout;

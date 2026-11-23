@@ -1,7 +1,9 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { pathExists } from './fs-helpers.js';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import chokidar from 'chokidar';
@@ -23,25 +25,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function dev({ port = 3000, themePicker = false } = {}) {
   const cwd = process.cwd();
-  const [config] = await Promise.all([loadConfig(cwd), initHighlighter()]);
+  const config = await loadConfig(cwd);
   let siteTheme = await resolveSiteTheme(config, cwd);
   if (themePicker) siteTheme.picker = true;
 
   console.log(`\n  ${pc.bold('DocsLit')} dev server starting...\n`);
 
-  // Load OpenAPI spec if configured
   let specData = null;
   let apiMeta = null;
+  let resolveSpecRefs = null;
+  let buildApiPageMarkdown = null;
   async function reloadSpec() {
     const openapiConfig = getOpenAPIConfig(config);
     if (!openapiConfig?.spec) return;
     try {
-      const spec = await loadSpec(
+      const openapi = await import('./openapi.js');
+      const spec = await openapi.loadSpec(
         path.resolve(cwd, openapiConfig.spec),
         openapiConfig.overlay ? path.resolve(cwd, openapiConfig.overlay) : null,
       );
-      specData = getEndpoints(spec);
-      apiMeta = getApiMeta(spec);
+      specData = openapi.getEndpoints(spec);
+      apiMeta = openapi.getApiMeta(spec);
+      resolveSpecRefs = openapi.resolveSpecRefs;
+      buildApiPageMarkdown = openapi.buildApiPageMarkdown;
       console.log(`  ${pc.green('✓')} Loaded OpenAPI spec (${specData.length} endpoints)`);
     } catch (e) {
       console.log(`  ${pc.yellow('⚠')} Failed to load OpenAPI spec: ${e.message}`);
@@ -131,6 +137,8 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
   }
 
   // Watch for changes
+  const docsDir = path.join(cwd, 'docs');
+  const componentsDir = path.join(cwd, 'components');
   const watchPaths = [
     // chokidar >=4 has no glob support: watch directories and filter in the handler.
     path.join(cwd, 'docs'),
@@ -221,7 +229,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
         const entry = vc.list.find(v => v.version === version);
         const docsDir = path.join(cwd, 'docs');
         const mdPath = path.resolve(docsDir, `${id}.md`);
-        if (mdPath.startsWith(docsDir + path.sep) && await fs.pathExists(mdPath)) {
+        if (mdPath.startsWith(docsDir + path.sep) && await pathExists(mdPath)) {
           const raw = await fs.readFile(mdPath, 'utf8');
           let { meta, html } = await cachedParseDoc(mdPath, raw, {
             docsRoot: path.join(cwd, 'docs'),
@@ -265,7 +273,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
       if (!mdPath.startsWith(docsDir + path.sep)) {
         return res.status(400).json({ error: 'Invalid page id' });
       }
-      if (!await fs.pathExists(mdPath)) {
+      if (!await pathExists(mdPath)) {
         return res.status(404).json({ error: `Page "${id}" not found` });
       }
       const raw = await fs.readFile(mdPath, 'utf8');
@@ -339,14 +347,14 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
       }
     }
     if (mdRaw == null) {
-      if (!await fs.pathExists(mdPath)) return res.status(404).send('Not found');
+      if (!await pathExists(mdPath)) return res.status(404).send('Not found');
       mdRaw = await fs.readFile(mdPath, 'utf8');
     }
 
     const { preprocessedMarkdown } = await parseDoc(mdRaw, parseOpts);
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
     const isApiPage = slug.startsWith('api/') || /^---\n[\s\S]*?layout:\s*api[\s\S]*?\n---/.test(mdRaw);
-    res.send(isApiPage && specData ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
+    res.send(isApiPage && specData && buildApiPageMarkdown ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
   });
 
   // API: search index
@@ -369,7 +377,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
     for (const id of pageIds) {
       const mdPath = path.resolve(docsDir, `${id}.md`);
       if (!mdPath.startsWith(docsDir + path.sep)) continue;
-      if (!await fs.pathExists(mdPath)) continue;
+      if (!await pathExists(mdPath)) continue;
       const raw = await fs.readFile(mdPath, 'utf8');
       const { meta } = await cachedParseDoc(mdPath, raw, {
         docsRoot: path.join(cwd, 'docs'),
@@ -416,7 +424,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
     const rel = req.path.replace(/^\//, '');
     if (!logoFiles(config).some((f) => f.replace(/^\/+/, '') === rel)) return next();
     const resolved = path.resolve(cwd, rel);
-    if (!resolved.startsWith(cwd + path.sep) || !fs.pathExistsSync(resolved)) return next();
+    if (!resolved.startsWith(cwd + path.sep) || !existsSync(resolved)) return next();
     res.sendFile(resolved);
   });
 
@@ -427,7 +435,7 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
     if (!['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.mp4', '.webm'].includes(ext)) return next();
     const resolved = path.resolve(docsStaticDir, req.path.replace(/^\//, ''));
     if (!resolved.startsWith(docsStaticDir + path.sep)) return next();
-    if (!fs.pathExistsSync(resolved)) return next();
+    if (!existsSync(resolved)) return next();
     res.sendFile(resolved);
   });
 
@@ -486,13 +494,13 @@ export async function dev({ port = 3000, themePicker = false } = {}) {
           }
         }
         if (mdRaw == null) {
-          if (!await fs.pathExists(mdPath)) return res.status(404).send('Not found');
+          if (!await pathExists(mdPath)) return res.status(404).send('Not found');
           mdRaw = await fs.readFile(mdPath, 'utf8');
         }
         const { preprocessedMarkdown } = await parseDoc(mdRaw, parseOpts);
         const isApi = slug.startsWith('api/') || /^---\n[\s\S]*?layout:\s*api[\s\S]*?\n---/.test(mdRaw);
         res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-        return res.send(isApi && specData ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
+        return res.send(isApi && specData && buildApiPageMarkdown ? buildApiPageMarkdown(preprocessedMarkdown, specData) : preprocessedMarkdown);
       }
       return res.status(404).send('Not found');
     }

@@ -25,6 +25,7 @@ export async function parseDoc(rawContent, opts = {}) {
     pathExists: opts.pathExists,
     strictFsSafety: opts.strictFsSafety !== false,
     projectRoot: opts.projectRoot || null,
+    onDependencyRead: opts.onDependencyRead,
   });
   assertNoPreprocessErrors(preprocess);
   if (typeof opts.onWarning === 'function') {

@@ -2,7 +2,8 @@
  * Site and frontmatter redirect generation for static hosts.
  */
 import path from 'path';
-import fs from 'fs-extra';
+import fs from 'node:fs/promises';
+import { pathExists, ensureDir, writeFileIfChanged } from './fs-helpers.js';
 
 function normalizeFrom(p) {
   let s = String(p || '').trim();
@@ -65,7 +66,7 @@ export function redirectStubHtml(to, { canonical = to, fileHref = null } = {}) {
 `;
 }
 
-export async function writeRedirectArtifacts({ redirects, outDir, basePath = '' }) {
+export async function writeRedirectArtifacts({ redirects, outDir, basePath = '', incremental = false }) {
   if (!redirects.length) return { stubs: 0 };
 
   const netlify = [];
@@ -76,8 +77,8 @@ export async function writeRedirectArtifacts({ redirects, outDir, basePath = '' 
     const fromPath = from === '/' ? '/index' : from;
     const rel = fromPath.replace(/^\//, '') + '.html';
     const dest = path.join(outDir, rel);
-    await fs.ensureDir(path.dirname(dest));
-    await fs.writeFile(dest, redirectStubHtml(to));
+    await ensureDir(path.dirname(dest));
+    await writeFileIfChanged(dest, redirectStubHtml(to), incremental);
     stubs++;
 
     const fromNetlify = basePath ? (basePath + from).replace(/\/+/g, '/') : from;
@@ -87,19 +88,21 @@ export async function writeRedirectArtifacts({ redirects, outDir, basePath = '' 
 
   const redirectsPath = path.join(outDir, '_redirects');
   let existing = '';
-  if (await fs.pathExists(redirectsPath)) {
+  if (await pathExists(redirectsPath)) {
     existing = await fs.readFile(redirectsPath, 'utf8');
-    if (existing && !existing.endsWith('\n')) existing += '\n';
   }
-  await fs.writeFile(redirectsPath, existing + netlify.join('\n') + (netlify.length ? '\n' : ''));
+  existing = existing.replace(/^# BEGIN DocsLit redirects\r?\n[\s\S]*?^# END DocsLit redirects(?:\r?\n|$)/gm, '');
+  if (existing && !existing.endsWith('\n')) existing += '\n';
+  const generated = `# BEGIN DocsLit redirects\n${netlify.join('\n')}\n# END DocsLit redirects\n`;
+  await writeFileIfChanged(redirectsPath, existing + generated, incremental);
 
   const vercelPath = path.join(outDir, 'vercel.json');
   let vercel = {};
-  if (await fs.pathExists(vercelPath)) {
+  if (await pathExists(vercelPath)) {
     try { vercel = JSON.parse(await fs.readFile(vercelPath, 'utf8')); } catch { vercel = {}; }
   }
   vercel.redirects = [...(vercel.redirects || []), ...vercelRedirects];
   await fs.writeFile(vercelPath, JSON.stringify(vercel, null, 2) + '\n');
 
-  return { stubs };
+  return { stubs, ownsRedirects: !existing };
 }

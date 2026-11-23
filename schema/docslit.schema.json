@@ -246,7 +246,7 @@
     },
     "ogImage": {
       "type": "boolean",
-      "description": "Set to false to disable generated Open Graph images for every page. Pages can opt out individually with ogImage: false in frontmatter."
+      "description": "Set to true to generate an Open Graph image for every page (off by default; same as build.ogImages: true or `docslit build --og-images`). Pages can opt out individually with ogImage: false in frontmatter."
     },
     "analytics": {
       "type": "object",

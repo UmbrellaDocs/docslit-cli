@@ -25,8 +25,8 @@ const MATERIAL_COLORS = {
 const PLUGIN_NOTES = {
   search: ['mapped', 'built-in search (FlexSearch, works offline)'],
   offline: ['mapped', 'DocsLit sites work offline and from file:// by default'],
-  social: ['mapped', 'DocsLit generates Open Graph images for every page (ogImage)'],
-  'material/social': ['mapped', 'DocsLit generates Open Graph images for every page (ogImage)'],
+  social: ['mapped', 'Open Graph images for every page ("ogImage": true)'],
+  'material/social': ['mapped', 'Open Graph images for every page ("ogImage": true)'],
   redirects: ['mapped', 'redirects'],
   minify: ['mapped', 'DocsLit output is already minified'],
   'minify-html': ['mapped', 'DocsLit output is already minified'],
@@ -378,6 +378,8 @@ export async function convertMkdocs(imp, loaded, opts = {}) {
   if (extNames.has('pymdownx.arithmatex')) { out.math = { singleDollar: true }; mapped('pymdownx.arithmatex', 'math (KaTeX, $…$ and $$…$$)'); }
 
   // ── plugins: loud, never silent ──
+  // Material social cards -> DocsLit generated OG images (opt-in in DocsLit)
+  if (plugins.has('social') || plugins.has('material/social')) out.ogImage = true;
   for (const [name] of plugins) {
     const note = PLUGIN_NOTES[name];
     if (!note) { rep('warning', 'mkdocs-plugin-not-carried', `Plugin "${name}" has no DocsLit equivalent and was not run.`, { action: 'Ignored.', fix: 'Check what the plugin added to your pages (generated pages, injected HTML) and recreate the parts you still need.' }); unmapped(`plugins.${name}`, 'not carried over'); continue; }

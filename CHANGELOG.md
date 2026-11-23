@@ -4,6 +4,18 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
+## 0.2.1 (unreleased)
+
+### Breaking / behaviour changes
+
+- **Node.js 22.22.0 or later is required**; the optional Playwright peer requires 1.65.1 or later. Dependencies were updated to their latest releases.
+- **Open Graph images are opt-in.** `docslit build` no longer renders a PNG per page unless you ask for it with `--og-images`, `"ogImage": true` or `"build": { "ogImages": true }` in docslit.json (`--no-og-images` still turns them off). They were the slowest and largest build output; pages keep their `og:title` / `og:description` tags either way. `docslit import` enables them for MkDocs sites that used Material's social cards.
+
+### What's new
+
+- **Faster, leaner builds.** `--incremental` (or `"build": { "cache": true }`) reuses unchanged pages and assets; `--no-search-index`, `--no-llms-txt`, `--no-mcp` and `--no-sitemap` skip individual generators; `--profile` prints per-phase timings and `docslit cache clean` clears the build cache. OG images render in a worker pool, are cached, and are written as lossless RGB PNGs about 5x smaller than before. Pages are parsed with bounded concurrency, so very large sites (750+ pages with big changelogs) no longer run out of memory, and sidebar group `root` pages are always built.
+- **Faster `docslit validate`.** Each page is parsed once and shared across checks, and very large pages are parsed per heading section: about 4x faster on large sites with identical results.
+
 ## 0.2.0
 
 ### Breaking / behaviour changes

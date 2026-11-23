@@ -1,4 +1,4 @@
-import fs from 'fs-extra';
+import { pathExists, readJson } from './fs-helpers.js';
 import path from 'path';
 import { THEMES, THEME_ALIASES, canonicalThemeId, themeSelector, deriveTonal } from './theme-defs.js';
 import { buildBaseTokensCss, listTokens } from './theme-tokens.js';
@@ -472,12 +472,12 @@ const stripUndefined = (o) => Object.fromEntries(Object.entries(o).filter(([, v]
 
 export async function loadThemeFile(filePath, cwd) {
   const resolved = path.resolve(cwd, filePath);
-  if (!await fs.pathExists(resolved)) {
+  if (!await pathExists(resolved)) {
     throw new Error(`Theme file not found: ${filePath}`);
   }
   let data;
   try {
-    data = await fs.readJson(resolved);
+    data = await readJson(resolved);
   } catch (e) {
     throw new Error(`Theme file is not valid JSON (${filePath}): ${e.message}`);
   }

@@ -2,13 +2,13 @@
  * Optional ESM hooks from docslit.config.js (or .mjs).
  */
 import path from 'path';
-import fs from 'fs-extra';
+import { pathExists } from './fs-helpers.js';
 import { pathToFileURL } from 'url';
 
 export async function loadHooks(cwd) {
   for (const name of ['docslit.config.js', 'docslit.config.mjs']) {
     const file = path.join(cwd, name);
-    if (!(await fs.pathExists(file))) continue;
+    if (!(await pathExists(file))) continue;
     const mod = await import(pathToFileURL(file).href);
     return {
       transformPage: typeof mod.transformPage === 'function' ? mod.transformPage : (mod.default?.transformPage),
