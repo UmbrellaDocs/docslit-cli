@@ -42,6 +42,12 @@ async function findAltMkdocsConfig(dir) {
   cands.sort((a, b) => (Number(/online/i.test(b)) - Number(/online/i.test(a))) || a.length - b.length || a.localeCompare(b));
   if (cands.length) return cands[0];
   for (const n of ['docs/mkdocs.yml', 'docs/mkdocs.yaml']) if (await fs.pathExists(path.join(dir, n))) return n;
+  // per-language configs (FastAPI: docs/en/mkdocs.yml, docs/es/mkdocs.yml, ...): prefer English
+  let langs = [];
+  try { langs = (await fs.readdir(path.join(dir, 'docs'), { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name).sort(); } catch { /* no docs/ */ }
+  const withCfg = [];
+  for (const l of langs) if (await fs.pathExists(path.join(dir, 'docs', l, 'mkdocs.yml'))) withCfg.push(l);
+  if (withCfg.length) return `docs/${withCfg.includes('en') ? 'en' : withCfg[0]}/mkdocs.yml`;
   return null;
 }
 

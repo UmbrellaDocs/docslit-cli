@@ -1,4 +1,5 @@
 import path from 'path';
+import { mapLimit, DEFAULT_LIMIT } from './concurrency.js';
 import fs from 'fs-extra';
 import pc from 'picocolors';
 import { fileURLToPath } from 'url';
@@ -303,7 +304,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     }
   }
 
-  const parseResults = await Promise.all(pageIds.map(async (id) => {
+  const parseResults = await mapLimit(pageIds, DEFAULT_LIMIT, async (id) => {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
     if (!await fs.pathExists(mdPath)) return { id, notFound: true };
     const raw = await fs.readFile(mdPath, 'utf8');
@@ -314,7 +315,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
       globalAttributes: getRuntimeAttributes(config),
     });
     return { id, ...parsed };
-  }));
+  });
 
   for (const result of parseResults) {
     if (result.notFound) {
@@ -388,15 +389,15 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     const hasRegularDocs = (config.sidebar || []).length > 0;
     const isHybrid = specData && hasRegularDocs;
 
-    // Generate OG images for each page
+    // Generate OG images for each page (bounded: each render holds a full image in memory)
     const ogPromises = [];
     for (const [id, { meta }] of Object.entries(pagesData)) {
       if (config.ogImage === false || meta.ogImage === false) continue;
       const safeId = id.replace(/\//g, '--');
       const outFile = path.join(outDir, 'og', `${safeId}.png`);
-      ogPromises.push(generateOgImage({ title: meta.title || toLabel(id), siteName, colors: ogColors, outFile }).catch(() => {}));
+      ogPromises.push(() => generateOgImage({ title: meta.title || toLabel(id), siteName, colors: ogColors, outFile }).catch(() => {}));
     }
-    await Promise.all(ogPromises);
+    await mapLimit(ogPromises, DEFAULT_LIMIT, (job) => job());
     if (ogPromises.length) {
       console.log(`  ${pc.green('✓')} Generated ${ogPromises.length} OG image${ogPromises.length !== 1 ? 's' : ''}`);
     }
@@ -506,7 +507,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   const draftPageIds = [];
   let built = 0;
 
-  const defaultParseResults = await Promise.all(defaultPageIds.map(async (id) => {
+  const defaultParseResults = await mapLimit(defaultPageIds, DEFAULT_LIMIT, async (id) => {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
     if (!await fs.pathExists(mdPath)) return null;
     const raw = await fs.readFile(mdPath, 'utf8');
@@ -518,7 +519,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       basePath,
     });
     return { id, ...parsed };
-  }));
+  });
 
   for (const result of defaultParseResults) {
     if (!result) continue;
@@ -585,9 +586,9 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     for (const [id, { meta }] of Object.entries(defaultPagesData)) {
       if (config.ogImage === false || meta.ogImage === false) continue;
       const safeId = id.replace(/\//g, '--');
-      ogPromises.push(generateOgImage({ title: meta.title || toLabel(id), siteName, colors: ogColors, outFile: path.join(defaultDir, 'og', `${safeId}.png`) }).catch(() => {}));
+      ogPromises.push(() => generateOgImage({ title: meta.title || toLabel(id), siteName, colors: ogColors, outFile: path.join(defaultDir, 'og', `${safeId}.png`) }).catch(() => {}));
     }
-    await Promise.all(ogPromises);
+    await mapLimit(ogPromises, DEFAULT_LIMIT, (job) => job());
 
     for (const [id, { meta, html, isApiPage }] of Object.entries(defaultPagesData)) {
       const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
