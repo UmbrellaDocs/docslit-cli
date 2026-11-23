@@ -1,0 +1,113 @@
+{
+ "sphinx_pkg": {
+  "analysis": "static",
+  "docstring": {
+   "endlineno": 1,
+   "lineno": 1,
+   "parsed": [
+    {
+     "kind": "text",
+     "value": "Sphinx style package."
+    }
+   ],
+   "value": "Sphinx style package."
+  },
+  "is_class_private": false,
+  "is_deprecated": false,
+  "is_exported": false,
+  "is_imported": false,
+  "is_private": false,
+  "is_public": true,
+  "is_special": false,
+  "is_wildcard_exposed": false,
+  "kind": "module",
+  "members": {
+   "f": {
+    "analysis": "static",
+    "decorators": [],
+    "docstring": {
+     "endlineno": 13,
+     "lineno": 5,
+     "parsed": [
+      {
+       "kind": "text",
+       "value": "Do f."
+      },
+      {
+       "kind": "parameters",
+       "value": [
+        {
+         "annotation": {
+          "cls": "ExprName",
+          "member": null,
+          "name": "int"
+         },
+         "description": "First arg.",
+         "name": "a"
+        },
+        {
+         "annotation": null,
+         "description": "Second arg.",
+         "name": "b",
+         "value": "2"
+        }
+       ]
+      },
+      {
+       "kind": "returns",
+       "value": [
+        {
+         "annotation": "int",
+         "description": "The sum.",
+         "name": ""
+        }
+       ]
+      },
+      {
+       "kind": "raises",
+       "value": [
+        {
+         "annotation": "ValueError",
+         "description": "If bad."
+        }
+       ]
+      }
+     ],
+     "value": "Do f.\n\n:param a: First arg.\n:type a: int\n:param b: Second arg.\n:returns: The sum.\n:rtype: int\n:raises ValueError: If bad."
+    },
+    "endlineno": 14,
+    "is_class_private": false,
+    "is_deprecated": false,
+    "is_exported": false,
+    "is_imported": false,
+    "is_private": false,
+    "is_public": true,
+    "is_special": false,
+    "is_wildcard_exposed": true,
+    "kind": "function",
+    "lineno": 4,
+    "name": "f",
+    "parameters": [
+     {
+      "annotation": null,
+      "default": null,
+      "kind": "positional or keyword",
+      "name": "a"
+     },
+     {
+      "annotation": null,
+      "default": "2",
+      "kind": "positional or keyword",
+      "name": "b"
+     }
+    ],
+    "path": "sphinx_pkg.f",
+    "returns": null,
+    "runtime": true
+   }
+  },
+  "name": "sphinx_pkg",
+  "path": "sphinx_pkg",
+  "runtime": true
+ }
+}
