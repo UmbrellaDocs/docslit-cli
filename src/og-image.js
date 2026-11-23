@@ -149,6 +149,7 @@ export function buildOgSvg({ title, siteName, colors = {} }) {
       <stop offset="100%" stop-color="${escXml(accent)}" stop-opacity="0.35"/>
     </linearGradient>
   </defs>
+  <rect width="1200" height="630" fill="${escXml(bg)}"/>
   <rect width="1200" height="630" fill="url(#g)"/>
   <rect x="0" y="0" width="16" height="630" fill="${escXml(accent)}"/>
   <text x="80" y="200" fill="${escXml(fg)}" font-family="system-ui,Segoe UI,sans-serif" font-size="48" font-weight="700">${titleTspans}</text>
