@@ -132,6 +132,9 @@ if (command === 'init') {
 } else if (command === 'theme') {
   const { theme } = await import('../src/theme-cmd.js');
   await theme(args.slice(1));
+} else if (command === 'api') {
+  const { apiCmd } = await import('../src/api-python-cmd.js');
+  await apiCmd(args.slice(1));
 } else if (command === 'openapi') {
   const subCmd = args[1];
   if (subCmd === 'scaffold') {

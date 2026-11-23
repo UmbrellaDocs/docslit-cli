@@ -1,0 +1,478 @@
+{
+  "tinylib": {
+    "analysis": "static",
+    "docstring": {
+      "endlineno": 1,
+      "lineno": 1,
+      "parsed": [
+        {
+          "kind": "text",
+          "value": "Tiny library."
+        }
+      ],
+      "value": "Tiny library."
+    },
+    "exports": [
+      "Greeter"
+    ],
+    "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/__init__.py",
+    "imports": {
+      "Greeter": "tinylib.core.Greeter"
+    },
+    "is_class_private": false,
+    "is_deprecated": false,
+    "is_exported": false,
+    "is_imported": false,
+    "is_private": false,
+    "is_public": true,
+    "is_special": false,
+    "is_wildcard_exposed": false,
+    "kind": "module",
+    "members": {
+      "Greeter": {
+        "analysis": "static",
+        "endlineno": 2,
+        "inherited": false,
+        "is_class_private": false,
+        "is_deprecated": false,
+        "is_exported": true,
+        "is_imported": true,
+        "is_private": false,
+        "is_public": true,
+        "is_special": false,
+        "is_wildcard_exposed": true,
+        "kind": "alias",
+        "lineno": 2,
+        "name": "Greeter",
+        "path": "tinylib.Greeter",
+        "runtime": true,
+        "target_path": "tinylib.core.Greeter"
+      },
+      "__all__": {
+        "analysis": "static",
+        "endlineno": 3,
+        "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/__init__.py",
+        "is_class_private": false,
+        "is_deprecated": false,
+        "is_exported": false,
+        "is_imported": false,
+        "is_private": false,
+        "is_public": false,
+        "is_special": true,
+        "is_wildcard_exposed": false,
+        "kind": "attribute",
+        "labels": [
+          "module-attribute"
+        ],
+        "lineno": 3,
+        "name": "__all__",
+        "path": "tinylib.__all__",
+        "relative_filepath": "src/tinylib/__init__.py",
+        "relative_package_filepath": "tinylib/__init__.py",
+        "runtime": true,
+        "value": {
+          "cls": "ExprList",
+          "elements": [
+            "'Greeter'"
+          ]
+        }
+      },
+      "_private": {
+        "analysis": "static",
+        "docstring": {
+          "endlineno": 1,
+          "lineno": 1,
+          "parsed": [
+            {
+              "kind": "text",
+              "value": "Private."
+            }
+          ],
+          "value": "Private."
+        },
+        "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/_private.py",
+        "is_class_private": false,
+        "is_deprecated": false,
+        "is_exported": false,
+        "is_imported": false,
+        "is_private": true,
+        "is_public": false,
+        "is_special": false,
+        "is_wildcard_exposed": false,
+        "kind": "module",
+        "members": {
+          "X": {
+            "analysis": "static",
+            "endlineno": 2,
+            "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/_private.py",
+            "is_class_private": false,
+            "is_deprecated": false,
+            "is_exported": false,
+            "is_imported": false,
+            "is_private": false,
+            "is_public": true,
+            "is_special": false,
+            "is_wildcard_exposed": true,
+            "kind": "attribute",
+            "labels": [
+              "module-attribute"
+            ],
+            "lineno": 2,
+            "name": "X",
+            "path": "tinylib._private.X",
+            "relative_filepath": "src/tinylib/_private.py",
+            "relative_package_filepath": "tinylib/_private.py",
+            "runtime": true,
+            "value": "1"
+          }
+        },
+        "name": "_private",
+        "path": "tinylib._private",
+        "relative_filepath": "src/tinylib/_private.py",
+        "relative_package_filepath": "tinylib/_private.py",
+        "runtime": true
+      },
+      "core": {
+        "analysis": "static",
+        "docstring": {
+          "endlineno": 1,
+          "lineno": 1,
+          "parsed": [
+            {
+              "kind": "text",
+              "value": "Core module."
+            }
+          ],
+          "value": "Core module."
+        },
+        "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/core.py",
+        "is_class_private": false,
+        "is_deprecated": false,
+        "is_exported": false,
+        "is_imported": false,
+        "is_private": false,
+        "is_public": true,
+        "is_special": false,
+        "is_wildcard_exposed": false,
+        "kind": "module",
+        "members": {
+          "Greeter": {
+            "analysis": "static",
+            "bases": [],
+            "decorators": [],
+            "docstring": {
+              "endlineno": 8,
+              "lineno": 4,
+              "parsed": [
+                {
+                  "kind": "text",
+                  "value": "Greets people."
+                },
+                {
+                  "kind": "attributes",
+                  "value": [
+                    {
+                      "annotation": {
+                        "cls": "ExprName",
+                        "member": null,
+                        "name": "str"
+                      },
+                      "description": "Who we greet.",
+                      "name": "name"
+                    }
+                  ]
+                }
+              ],
+              "value": "Greets people.\n\nAttributes:\n    name: Who we greet."
+            },
+            "endlineno": 20,
+            "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/core.py",
+            "is_class_private": false,
+            "is_deprecated": false,
+            "is_exported": false,
+            "is_imported": false,
+            "is_private": false,
+            "is_public": true,
+            "is_special": false,
+            "is_wildcard_exposed": true,
+            "kind": "class",
+            "lineno": 3,
+            "members": {
+              "greet": {
+                "analysis": "static",
+                "decorators": [],
+                "docstring": {
+                  "endlineno": 19,
+                  "lineno": 12,
+                  "parsed": [
+                    {
+                      "kind": "text",
+                      "value": "Return a greeting."
+                    },
+                    {
+                      "kind": "parameters",
+                      "value": [
+                        {
+                          "annotation": {
+                            "cls": "ExprName",
+                            "member": "greet",
+                            "name": "str"
+                          },
+                          "description": "Trailing punctuation.",
+                          "name": "punct",
+                          "value": "'!'"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "returns",
+                      "value": [
+                        {
+                          "annotation": {
+                            "cls": "ExprName",
+                            "member": "greet",
+                            "name": "str"
+                          },
+                          "description": "The greeting.",
+                          "name": ""
+                        }
+                      ]
+                    }
+                  ],
+                  "value": "Return a greeting.\n\nArgs:\n    punct: Trailing punctuation.\n\nReturns:\n    The greeting."
+                },
+                "endlineno": 20,
+                "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/core.py",
+                "is_class_private": false,
+                "is_deprecated": false,
+                "is_exported": false,
+                "is_imported": false,
+                "is_private": false,
+                "is_public": true,
+                "is_special": false,
+                "is_wildcard_exposed": false,
+                "kind": "function",
+                "lineno": 11,
+                "name": "greet",
+                "parameters": [
+                  {
+                    "annotation": null,
+                    "default": null,
+                    "kind": "positional or keyword",
+                    "name": "self"
+                  },
+                  {
+                    "annotation": {
+                      "cls": "ExprName",
+                      "member": "greet",
+                      "name": "str"
+                    },
+                    "default": "'!'",
+                    "kind": "positional or keyword",
+                    "name": "punct"
+                  }
+                ],
+                "path": "tinylib.core.Greeter.greet",
+                "relative_filepath": "src/tinylib/core.py",
+                "relative_package_filepath": "tinylib/core.py",
+                "returns": {
+                  "cls": "ExprName",
+                  "member": "greet",
+                  "name": "str"
+                },
+                "runtime": true
+              },
+              "name": {
+                "analysis": "static",
+                "annotation": {
+                  "cls": "ExprName",
+                  "member": null,
+                  "name": "str"
+                },
+                "endlineno": 9,
+                "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/core.py",
+                "is_class_private": false,
+                "is_deprecated": false,
+                "is_exported": false,
+                "is_imported": false,
+                "is_private": false,
+                "is_public": true,
+                "is_special": false,
+                "is_wildcard_exposed": false,
+                "kind": "attribute",
+                "labels": [
+                  "class-attribute",
+                  "instance-attribute"
+                ],
+                "lineno": 9,
+                "name": "name",
+                "path": "tinylib.core.Greeter.name",
+                "relative_filepath": "src/tinylib/core.py",
+                "relative_package_filepath": "tinylib/core.py",
+                "runtime": true,
+                "value": "'world'"
+              }
+            },
+            "name": "Greeter",
+            "path": "tinylib.core.Greeter",
+            "relative_filepath": "src/tinylib/core.py",
+            "relative_package_filepath": "tinylib/core.py",
+            "runtime": true
+          }
+        },
+        "name": "core",
+        "path": "tinylib.core",
+        "relative_filepath": "src/tinylib/core.py",
+        "relative_package_filepath": "tinylib/core.py",
+        "runtime": true
+      },
+      "tests": {
+        "analysis": "static",
+        "docstring": {
+          "endlineno": 1,
+          "lineno": 1,
+          "parsed": [
+            {
+              "kind": "text",
+              "value": "t"
+            }
+          ],
+          "value": "t"
+        },
+        "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/tests/__init__.py",
+        "is_class_private": false,
+        "is_deprecated": false,
+        "is_exported": false,
+        "is_imported": false,
+        "is_private": false,
+        "is_public": true,
+        "is_special": false,
+        "is_wildcard_exposed": false,
+        "kind": "module",
+        "name": "tests",
+        "path": "tinylib.tests",
+        "relative_filepath": "src/tinylib/tests/__init__.py",
+        "relative_package_filepath": "tinylib/tests/__init__.py",
+        "runtime": true
+      },
+      "util": {
+        "analysis": "static",
+        "docstring": {
+          "endlineno": 1,
+          "lineno": 1,
+          "parsed": [
+            {
+              "kind": "text",
+              "value": "Utilities."
+            }
+          ],
+          "value": "Utilities."
+        },
+        "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/util.py",
+        "is_class_private": false,
+        "is_deprecated": false,
+        "is_exported": false,
+        "is_imported": false,
+        "is_private": false,
+        "is_public": true,
+        "is_special": false,
+        "is_wildcard_exposed": false,
+        "kind": "module",
+        "members": {
+          "add": {
+            "analysis": "static",
+            "decorators": [],
+            "docstring": {
+              "endlineno": 9,
+              "lineno": 4,
+              "parsed": [
+                {
+                  "kind": "text",
+                  "value": "Add numbers."
+                },
+                {
+                  "kind": "parameters",
+                  "value": [
+                    {
+                      "annotation": {
+                        "cls": "ExprName",
+                        "member": "add",
+                        "name": "int"
+                      },
+                      "description": "First.",
+                      "name": "a"
+                    },
+                    {
+                      "annotation": {
+                        "cls": "ExprName",
+                        "member": "add",
+                        "name": "int"
+                      },
+                      "description": "Second.",
+                      "name": "b"
+                    }
+                  ]
+                }
+              ],
+              "value": "Add numbers.\n\nArgs:\n    a: First.\n    b: Second."
+            },
+            "endlineno": 10,
+            "filepath": "/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/pk/src/tinylib/util.py",
+            "is_class_private": false,
+            "is_deprecated": false,
+            "is_exported": false,
+            "is_imported": false,
+            "is_private": false,
+            "is_public": true,
+            "is_special": false,
+            "is_wildcard_exposed": true,
+            "kind": "function",
+            "lineno": 3,
+            "name": "add",
+            "parameters": [
+              {
+                "annotation": {
+                  "cls": "ExprName",
+                  "member": "add",
+                  "name": "int"
+                },
+                "default": null,
+                "kind": "positional or keyword",
+                "name": "a"
+              },
+              {
+                "annotation": {
+                  "cls": "ExprName",
+                  "member": "add",
+                  "name": "int"
+                },
+                "default": null,
+                "kind": "positional or keyword",
+                "name": "b"
+              }
+            ],
+            "path": "tinylib.util.add",
+            "relative_filepath": "src/tinylib/util.py",
+            "relative_package_filepath": "tinylib/util.py",
+            "returns": {
+              "cls": "ExprName",
+              "member": "add",
+              "name": "int"
+            },
+            "runtime": true
+          }
+        },
+        "name": "util",
+        "path": "tinylib.util",
+        "relative_filepath": "src/tinylib/util.py",
+        "relative_package_filepath": "tinylib/util.py",
+        "runtime": true
+      }
+    },
+    "name": "tinylib",
+    "path": "tinylib",
+    "relative_filepath": "src/tinylib/__init__.py",
+    "relative_package_filepath": "tinylib/__init__.py",
+    "runtime": true
+  }
+}

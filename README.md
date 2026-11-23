@@ -68,6 +68,7 @@ Or run it without installing: `npx docslit init my-docs`. Requires Node.js 20.19
 | `docslit mcp [url]` | MCP server over stdio: authoring tools in a project (`--dir`), or read and search a published site. `--print-config` |
 | `docslit theme list\|use\|tokens\|init` | List themes and palettes, switch the theme, print the design tokens, or scaffold a brand theme file |
 | `docslit openapi scaffold <spec>` | Generate API reference pages from an OpenAPI spec (`--overlay`, `--new-only`) |
+| `docslit api python <package>` | Set up a Python API reference: dump the package with Griffe to `api/python/<package>.json` (`--docstyle`, `--search`, `--from`, `--pages`, `--json`) |
 | `docslit login` | Log in to DocsLit Cloud with email and password, or `--token <token>`. In CI set `DOCSLIT_TOKEN` |
 | `docslit logout` | Remove stored credentials and revoke the token |
 | `docslit publish` | Build and publish to DocsLit Cloud (`--project`, `--out`, `--build`) |
@@ -239,6 +240,10 @@ Full guides and a table of every component conversion are in the [DocsLit docume
 Pages stay plain Markdown (never MDX), so a stray `<` or `{` never breaks the import. Anything that cannot be carried over is listed in `MIGRATION.md`, never dropped silently: mkdocstrings `:::` blocks (replaced by placeholder callouts), Jinja macros, theme overrides, Material-specific CSS and JavaScript, mike versions and every plugin without an equivalent.
 
 Other Markdown or MDX folders (Docusaurus, Sphinx, VitePress, Starlight, Nextra) import as plain folders with an automatic sidebar.
+
+## Python API reference
+
+`docslit api python mypkg --pages` runs [Griffe](https://mkdocstrings.github.io/griffe/) (`griffe`, `uvx griffe` or `python -m griffe`; install with `pip install griffe` or `uv tool install griffe`) and writes `api/python/mypkg.json`, adds `mypkg` to `python.packages` in docslit.json, and with `--pages` scaffolds `docs/api/mypkg/` (one page per public module containing a `::: mypkg.module` line, plus an index) and an "API reference" sidebar group. Commit the JSON: builds never run Python. Re-run the command to refresh it, or pass `--from dump.json` to use an existing Griffe dump. Existing pages are never overwritten. Defaults live under `python` in docslit.json (`docstringStyle`: `google`, `numpy` or `sphinx`; `options`: mkdocstrings-style directive options).
 
 ## docslit.json
 

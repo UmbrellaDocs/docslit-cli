@@ -464,6 +464,133 @@
         }
       ]
     },
+    "python": {
+      "type": "object",
+      "description": "Python API reference. Packages are documented from a committed Griffe JSON dump (api/python/<package>.json, created by `docslit api python <package>`); no Python runs at build time. Render objects with a `::: dotted.path` line in any page.",
+      "properties": {
+        "packages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Top-level package names; each has a dump at api/python/<name>.json."
+        },
+        "docstringStyle": {
+          "enum": [
+            "google",
+            "numpy",
+            "sphinx"
+          ],
+          "default": "google",
+          "description": "Docstring style used when (re)generating the dump."
+        },
+        "options": {
+          "type": "object",
+          "description": "Default `:::` directive options (mkdocstrings-python names). A directive's own options override these. Unknown options are ignored with a build warning.",
+          "properties": {
+            "members": {
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "const": false
+                }
+              ],
+              "description": "Members to render: a list of names, or false for none (default: all that pass filters)."
+            },
+            "filters": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "!^_[^_]"
+              ],
+              "description": "Regexes on member names; a leading ! negates."
+            },
+            "show_root_heading": {
+              "type": "boolean",
+              "description": "Render a heading for the object itself.",
+              "default": false
+            },
+            "show_root_toc_entry": {
+              "type": "boolean",
+              "description": "Include the root heading in the page table of contents.",
+              "default": true
+            },
+            "heading_level": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6,
+              "default": 2,
+              "description": "Heading level of the root object."
+            },
+            "show_source": {
+              "type": "boolean",
+              "description": "Show source code when the dump includes it.",
+              "default": false
+            },
+            "show_signature": {
+              "type": "boolean",
+              "description": "Show the signature of functions and classes.",
+              "default": true
+            },
+            "show_signature_annotations": {
+              "type": "boolean",
+              "description": "Show type annotations in signatures.",
+              "default": false
+            },
+            "separate_signature": {
+              "type": "boolean",
+              "description": "Put the signature in its own code block below the heading.",
+              "default": false
+            },
+            "members_order": {
+              "enum": [
+                "alphabetical",
+                "source"
+              ],
+              "default": "source",
+              "description": "Order of members."
+            },
+            "inherited_members": {
+              "type": "boolean",
+              "description": "Include members inherited from base classes.",
+              "default": false
+            },
+            "docstring_section_style": {
+              "enum": [
+                "table",
+                "list"
+              ],
+              "default": "table",
+              "description": "How Parameters, Returns and similar sections are rendered."
+            },
+            "show_if_no_docstring": {
+              "type": "boolean",
+              "description": "Render members that have no docstring.",
+              "default": false
+            },
+            "show_bases": {
+              "type": "boolean",
+              "description": "List base classes under a class heading.",
+              "default": true
+            },
+            "group_by_category": {
+              "type": "boolean",
+              "description": "Group members as attributes, classes, functions, modules.",
+              "default": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
     "playground": {
       "type": "object",
       "description": "API playground (wc-playground) settings.",

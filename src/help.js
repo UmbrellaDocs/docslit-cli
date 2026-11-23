@@ -72,6 +72,19 @@ export const COMMANDS = [
     ],
   },
   {
+    name: 'api', group: 'Create and write',
+    usage: ['docslit api python <package> [options]'],
+    summary: 'Set up a Python API reference. Runs Griffe (griffe, uvx griffe or python -m griffe) to write api/python/<package>.json, adds the package to docslit.json `python.packages`, and renders `::: package.module` directives at build time (no Python needed to build).',
+    options: [
+      ['--docstyle <style>', 'Docstring style: google (default), numpy or sphinx; saved as python.docstringStyle'],
+      ['--search <dir>', 'Directory Griffe searches for the package; repeatable (default: src if it exists, else .)'],
+      ['--from <file.json>', 'Copy an existing Griffe dump instead of running Griffe'],
+      ['--pages', 'Scaffold docs/api/<package>/ pages (one `::: module` page per public module plus an index) and an "API reference" sidebar group; never overwrites pages'],
+      ['--json', 'Machine-readable result: package, json path, modules, pages written and skipped'],
+    ],
+    examples: ['docslit api python mypkg', 'docslit api python mypkg --docstyle numpy --search src --pages', 'docslit api python mypkg --from griffe.json --json'],
+  },
+  {
     name: 'theme', group: 'Create and write',
     usage: ['docslit theme list [--json]', 'docslit theme use <theme> [--palette <palette>]', 'docslit theme tokens [--json] [--theme <id>]', 'docslit theme init [file]'],
     summary: 'Pick a prebuilt look. A theme (default, peppermint, frond, tonal, folio, ledger) sets layout, type and shape; a palette (teal, ocean, mint, ...) sets colours; any theme works with any palette. `use` edits docslit.json in place, `tokens` prints the design-token reference, `init` scaffolds a brand theme file (default: brand-theme.json).',
