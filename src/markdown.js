@@ -41,6 +41,7 @@ export async function parseDoc(rawContent, opts = {}) {
     ...meta,
     ...(opts.pagePath ? { pagePath: opts.pagePath } : {}),
     ...(versionSlug ? { versionSlug } : {}),
+    ...(versionSlug && opts.basePath ? { basePath: opts.basePath } : {}),
   };
   const html = await renderMarkdown(preprocess.content, preprocess.passBlocks || [], renderMeta);
   const mdSource = cleanNotationForMarkdown(preprocess.agentContent ?? preprocess.content);

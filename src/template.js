@@ -84,15 +84,15 @@ export async function renderShell({ config: baseConfig, siteTheme = null, mode =
   let sidebarHtml;
 
   if (tabsOn) {
-    if (specData) nav.apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta, offline);
+    if (specData) nav.apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta, offline, nav.hrefFor);
     sidebarHtml = buildSidebarHtml(config, draftPageIds, null, null, offline, titleMap, nav);
   } else if (isHybrid) {
     const firstApiPage = getFirstApiPageId(specData);
     const firstDocPage = getFirstDocPageId(config);
     sidebarHtml = buildSidebarHtml(config, draftPageIds, null, 'api/', offline, titleMap, nav)
-      + (firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon, offline) : '');
-    apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta, offline)
-      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon, offline) : '');
+      + (firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon, offline, nav.hrefFor) : '');
+    apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta, offline, nav.hrefFor)
+      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon, offline, nav.hrefFor) : '');
     hybridLinks = firstApiPage && firstDocPage ? { apiPage: firstApiPage, docsPage: firstDocPage, initialMode: 'docs' } : null;
   } else {
     sidebarHtml = buildSidebarHtml(config, draftPageIds, null, null, offline, titleMap, nav);
@@ -238,7 +238,7 @@ ${appBlock}
 </html>`;
 }
 
-export async function renderPage({ config: baseConfig, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null, titleMap = null, navMeta = null }) {
+export async function renderPage({ config: baseConfig, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null, titleMap = null, navMeta = null, untranslated = false }) {
   const config = withApiTab(baseConfig, !!specData);
   const basePath = normalizeBasePath(config.basePath);
   const i18n = getI18nConfig(config);
@@ -249,7 +249,7 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
   const hrefPrefix = `${basePath}${localePrefixEarly}${currentVersion ? `/${currentVersion}` : ''}`;
   const pageOptions = resolvePageOptions(config, meta);
   const nav = buildNavState({ config, activePageId: id, activeMeta: meta, locale: currentLocale, basePath, hrefPrefix, offline: false, navMeta, knownIds: new Set(getAllPageIds(config)) });
-  if (tabsOn && specData) nav.apiSidebarHtml = buildApiSidebarHtml(specData, id.startsWith('api/') || meta.layout === 'api' ? id : null, apiMeta);
+  if (tabsOn && specData) nav.apiSidebarHtml = buildApiSidebarHtml(specData, id.startsWith('api/') || meta.layout === 'api' ? id : null, apiMeta, false, nav.hrefFor);
   const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null, false, titleMap, nav);
   const siteTitle = config.name || 'DocsLit';
   const logo = resolveLogo(config, { basePath });
@@ -277,7 +277,9 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
   const localePrefix = currentLocale !== i18n.defaultLocale ? `/${currentLocale}` : '';
   const versionPrefix = currentVersion ? `/${currentVersion}` : '';
   const pathPrefix = `${basePath}${localePrefix}${versionPrefix}`;
-  const canonicalUrl = baseUrl ? `${baseUrl}${pathPrefix}/${id}` : '';
+  // An untranslated page served in a locale folder is a copy of the default-locale page.
+  const canonicalPrefix = untranslated ? `${basePath}${versionPrefix}` : pathPrefix;
+  const canonicalUrl = baseUrl ? `${baseUrl}${canonicalPrefix}/${id}` : '';
 
   const depth = id.split('/').length - 1;
   const assetPrefix = '../'.repeat(depth);
@@ -326,12 +328,12 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
   if (isHybrid) {
     const firstApiPage = getFirstApiPageId(specData);
     const firstDocPage = getFirstDocPageId(config);
-    apiSidebarHtml = buildApiSidebarHtml(specData, isApiPage ? id : null, apiMeta)
-      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon) : '');
-    docsSidebarHtml += firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon) : '';
+    apiSidebarHtml = buildApiSidebarHtml(specData, isApiPage ? id : null, apiMeta, false, nav.hrefFor)
+      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon, false, nav.hrefFor) : '');
+    docsSidebarHtml += firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon, false, nav.hrefFor) : '';
     hybridLinks = firstApiPage && firstDocPage ? { apiPage: firstApiPage, docsPage: firstDocPage, initialMode: isApiPage ? 'api' : 'docs' } : null;
   } else if (isApiPage && specData && !tabsOn) {
-    docsSidebarHtml = buildApiSidebarHtml(specData, id, apiMeta);
+    docsSidebarHtml = buildApiSidebarHtml(specData, id, apiMeta, false, nav.hrefFor);
     apiSidebarHtml = null;
   }
 
@@ -501,7 +503,7 @@ async function buildAnnouncementChrome({ config, versionConfig, currentVersion, 
   const messageHtml = (await renderMarkdown(
     announcement.message,
     [],
-    currentVersion ? { versionSlug: currentVersion } : {},
+    currentVersion ? { versionSlug: currentVersion, basePath: normalizeBasePath(config.basePath) } : {},
   )).trim();
   const type = escHtml(announcement.type || 'neutral');
   const dismissible = announcement.dismissible !== false;
@@ -565,7 +567,10 @@ function buildSiteChrome(config, { basePath = '', offline = false, locale = 'en'
 
 function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false, extra = {}) {
   const { navbarLinks = '', navbarCta = '', localeSwitcher = '', basePath = '', logo = {} } = extra;
-  const homeHref = logo.href || basePath || '/';
+  const { nav = null } = extra;
+  // The offline shell is opened from file://, where "/" is the filesystem root.
+  const homeHref = logo.href || (offline ? 'index.html' : (basePath || '/'));
+  const pageHref = (id) => (nav ? nav.hrefFor(id) : (offline ? '#' + id : (basePath || '') + '/' + id));
   const logoImgs = logo.variants
     ? `<img class="nav-logo-icon nav-logo-light" src="${escHtml(logo.light)}" alt="${escHtml(siteTitle)}"><img class="nav-logo-icon nav-logo-dark" src="${escHtml(logo.dark)}" alt="" aria-hidden="true">`
     : `<img class="nav-logo-icon" src="${escHtml(logo.light || '/favicon-32x32.png')}" alt="${escHtml(siteTitle)}">`;
@@ -577,8 +582,8 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
     const showDocs = hybridLinks.initialMode === 'api' ? '' : ' style="display:none"';
     const modeClick = offline ? '' : ` onclick="loadPage('${escHtml(hybridLinks.apiPage)}');return false;"`;
     const modeClick2 = offline ? '' : ` onclick="loadPage('${escHtml(hybridLinks.docsPage)}');return false;"`;
-    modeLinksHtml = `<a id="nav-api-link" class="nav-mode-link" href="${escHtml(hybridLinks.apiPage)}"${modeClick}${showApi}>API Reference</a>` +
-      `<a id="nav-docs-link" class="nav-mode-link" href="${escHtml(hybridLinks.docsPage)}"${modeClick2}${showDocs}>Documentation</a>`;
+    modeLinksHtml = `<a id="nav-api-link" class="nav-mode-link" data-page="${escHtml(hybridLinks.apiPage)}" href="${escHtml(pageHref(hybridLinks.apiPage))}"${modeClick}${showApi}>API Reference</a>` +
+      `<a id="nav-docs-link" class="nav-mode-link" data-page="${escHtml(hybridLinks.docsPage)}" href="${escHtml(pageHref(hybridLinks.docsPage))}"${modeClick2}${showDocs}>Documentation</a>`;
   }
   const searchClick = offline ? '' : ' onclick="openSearch()"';
   const themeClick = offline ? '' : ' onclick="toggleTheme()"';
@@ -733,9 +738,9 @@ function buildEventDelegation() {
   if (sidebarOverlay) sidebarOverlay.addEventListener('click', function() { closeSidebar(); });
 
   var apiLink = document.getElementById('nav-api-link');
-  if (apiLink) apiLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.getAttribute('href')); });
+  if (apiLink) apiLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.dataset.page); });
   var docsLink = document.getElementById('nav-docs-link');
-  if (docsLink) docsLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.getAttribute('href')); });
+  if (docsLink) docsLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.dataset.page); });
 
   var searchTrigger = document.getElementById('search-trigger');
   if (searchTrigger) searchTrigger.addEventListener('click', function() { openSearch(); });
@@ -769,7 +774,7 @@ function buildEventDelegation() {
     var navBtn = e.target.closest('.page-nav-btn');
     if (navBtn) {
       e.preventDefault();
-      loadPage(navBtn.getAttribute('href'));
+      loadPage(navBtn.dataset.page);
       if (window.innerWidth <= 1024) closeSidebar();
       return;
     }
@@ -1258,15 +1263,15 @@ function _buildPrevNext(id) {
   h += '<nav class="page-nav">';
   if (prev) {
     const pid = _escHtml(prev.dataset.page);
-    const phref = _escHtml(_OFFLINE ? prev.dataset.page : _docsBase() + prev.dataset.page);
+    const phref = _escHtml(_OFFLINE ? '#' + prev.dataset.page : _docsBase() + prev.dataset.page);
     const ptxt = _escHtml(prev.textContent.trim());
-    h += '<a class="page-nav-btn" href="' + phref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + pid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">← Previous</span><span class="page-nav-title">' + ptxt + '</span></a>';
+    h += '<a class="page-nav-btn" data-page="' + pid + '" href="' + phref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + pid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">← Previous</span><span class="page-nav-title">' + ptxt + '</span></a>';
   } else { h += '<span></span>'; }
   if (next) {
     const nid = _escHtml(next.dataset.page);
-    const nhref = _escHtml(_OFFLINE ? next.dataset.page : _docsBase() + next.dataset.page);
+    const nhref = _escHtml(_OFFLINE ? '#' + next.dataset.page : _docsBase() + next.dataset.page);
     const ntxt = _escHtml(next.textContent.trim());
-    h += '<a class="page-nav-btn next" href="' + nhref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + nid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">Next →</span><span class="page-nav-title">' + ntxt + '</span></a>';
+    h += '<a class="page-nav-btn next" data-page="' + nid + '" href="' + nhref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + nid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">Next →</span><span class="page-nav-title">' + ntxt + '</span></a>';
   } else { h += '<span></span>'; }
   h += '</nav>';
   return h;
@@ -1327,8 +1332,10 @@ function closeSidebar() {
 function switchVersion(v) {
   var vc = window.__DOCSLIT_VERSIONS__;
   if (!vc) return;
-  var pageId = _pageFromUrl() || 'introduction';
-  window.location.href = '/' + v + '/' + pageId;
+  var pageId = window.__DOCSLIT_CURRENT_PAGE__ || _pageFromUrl() || 'introduction';
+  // Offline version shells are sibling folders opened from file://.
+  if (_OFFLINE) { window.location.href = '../' + v + '/index.html#' + pageId; return; }
+  window.location.href = _docsRoot() + v + '/' + pageId;
 }
 
 // ── SIDEBAR FILTER ───────────────────────────────────────────────────────
@@ -1507,7 +1514,7 @@ function _docsRoot() {
   if (!vc) return base;
   var marker = '/' + vc.current + '/';
   var ix = base.lastIndexOf(marker);
-  if (ix < 0) return '/';
+  if (ix < 0) return (window.__DOCSLIT_BASE_PATH__ || '') + '/';
   return base.slice(0, ix + 1);
 }
 function _pageFromUrl() {
@@ -1752,7 +1759,7 @@ function injectPageMeta(config, meta, id, pdfManifest = null, assetPrefix = '', 
   return `<div class="page-meta">${parts.join('')}</div>`;
 }
 
-function buildApiSidebarHtml(specData, activePageId, apiMeta, offline = false) {
+function buildApiSidebarHtml(specData, activePageId, apiMeta, offline = false, hrefFor = (id) => id) {
   const byTag = new Map();
   for (const ep of specData) {
     const tag = ep.tags[0] || 'Default';
@@ -1768,7 +1775,7 @@ function buildApiSidebarHtml(specData, activePageId, apiMeta, offline = false) {
     const methodClass = ep.method.toLowerCase();
     const label = ep.summary || ep.path;
     const click = offline ? '' : ` onclick="loadPage('${escHtml(pageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"`;
-    return `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(pageId)}" href="${escHtml(pageId)}"${click}><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${ep.method}</span></a>`;
+    return `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(pageId)}" href="${escHtml(hrefFor(pageId))}"${click}><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${ep.method}</span></a>`;
   }
 
   function renderTagSection(tagName) {
@@ -1853,9 +1860,9 @@ function getFirstApiPageId(specData) {
 const _apiIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>';
 const _docsIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>';
 
-function buildSidebarModeLink(targetPageId, label, icon, offline = false) {
+function buildSidebarModeLink(targetPageId, label, icon, offline = false, hrefFor = (id) => id) {
   const click = offline ? '' : ` onclick="loadPage('${escHtml(targetPageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"`;
-  return `<div class="sidebar-mode-link"><a class="sidebar-item sidebar-mode-item" data-page="${escHtml(targetPageId)}" href="${escHtml(targetPageId)}"${click}>${icon} ${escHtml(label)}</a></div>`;
+  return `<div class="sidebar-mode-link"><a class="sidebar-item sidebar-mode-item" data-page="${escHtml(targetPageId)}" href="${escHtml(hrefFor(targetPageId))}"${click}>${icon} ${escHtml(label)}</a></div>`;
 }
 
 function buildWsScript(port) {

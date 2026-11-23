@@ -34,16 +34,29 @@ export function collectRedirects(config, pagesData = {}, basePath = '') {
   return [...map.entries()].map(([from, to]) => ({ from, to }));
 }
 
-function stubHtml(to) {
-  const esc = String(to).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+function escAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+/**
+ * A static redirect page: meta refresh + script redirect + canonical to the target.
+ * `canonical` defaults to `to` (pass an absolute URL when the site URL is known).
+ * `fileHref`, when set, is used instead of `to` when the page is opened from file://
+ * (an absolute path like "/guide/intro" would resolve to the filesystem root there).
+ */
+export function redirectStubHtml(to, { canonical = to, fileHref = null } = {}) {
+  const esc = escAttr(to);
+  const script = fileHref
+    ? `location.replace(location.protocol === 'file:' ? ${JSON.stringify(fileHref)} : ${JSON.stringify(to)});`
+    : `location.replace(${JSON.stringify(to)});`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="refresh" content="0;url=${esc}">
-  <link rel="canonical" href="${esc}">
+  <link rel="canonical" href="${escAttr(canonical)}">
   <title>Redirecting…</title>
-  <script>location.replace(${JSON.stringify(to)});</script>
+  <script>${script}</script>
 </head>
 <body>
   <p>Redirecting to <a href="${esc}">${esc}</a>…</p>
@@ -64,7 +77,7 @@ export async function writeRedirectArtifacts({ redirects, outDir, basePath = '' 
     const rel = fromPath.replace(/^\//, '') + '.html';
     const dest = path.join(outDir, rel);
     await fs.ensureDir(path.dirname(dest));
-    await fs.writeFile(dest, stubHtml(to));
+    await fs.writeFile(dest, redirectStubHtml(to));
     stubs++;
 
     const fromNetlify = basePath ? (basePath + from).replace(/\/+/g, '/') : from;

@@ -8,7 +8,7 @@
  *     → /0.1/getting-started/getting-started/quickstart  ❌
  *
  * Resolves each href against the current page directory (from `meta.pagePath`), then
- * prepends `/{versionSlug}/`. Also rewrites `<a href>` inside raw HTML nodes produced
+ * prepends `{basePath}/{versionSlug}/`. Also rewrites `<a href>` inside raw HTML nodes produced
  * by `rehypeDocslitWcContent` (e.g. `<wc-update>`, `<wc-field>`).
  */
 
@@ -115,7 +115,8 @@ export default function rehypeDocslitLinkFix(meta = {}) {
   return function transformer(tree) {
     if (!meta?.versionSlug) return;
 
-    const prefix = `/${String(meta.versionSlug)}/`;
+    const base = meta.basePath && meta.basePath !== '/' ? '/' + String(meta.basePath).replace(/^\/+|\/+$/g, '') : '';
+    const prefix = `${base}/${String(meta.versionSlug)}/`;
     const pageDir = getPageDir(meta.pagePath);
 
     for (const node of tree.children) {

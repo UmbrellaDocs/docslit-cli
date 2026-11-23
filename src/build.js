@@ -21,7 +21,7 @@ import {
   prependAgentDirectiveToMarkdown,
 } from './agent-docs.js';
 import { normalizeBasePath, withBasePath, logoFiles } from './site-config.js';
-import { collectRedirects, writeRedirectArtifacts } from './redirects.js';
+import { collectRedirects, writeRedirectArtifacts, redirectStubHtml } from './redirects.js';
 import { writeFeeds } from './feeds.js';
 import { generateOgImage, ogColorsFromTheme } from './og-image.js';
 import { buildSearchEntries } from './search-index.js';
@@ -75,6 +75,21 @@ function firstVisibleId(config, pagesData) {
     }
   }
   return ids.find((id) => !hidden.has(id)) || ids[0];
+}
+
+/**
+ * The index.html of a site, version or locale root. It redirects to the first page
+ * instead of duplicating it: a copy would carry the first page's canonical while
+ * the URL is "/", and its relative content links were written for the page's own
+ * folder, so they 404 from the root. `urlPrefix` is basePath + locale + version.
+ */
+async function writeRootIndexStub({ dir, firstId, urlPrefix = '', config }) {
+  const to = `${urlPrefix}/${firstId}`;
+  const baseUrl = (config.url || '').replace(/\/$/, '');
+  await fs.writeFile(path.join(dir, 'index.html'), redirectStubHtml(to, {
+    canonical: baseUrl ? `${baseUrl}${to}` : to,
+    fileHref: `${firstId}.html`,
+  }));
 }
 
 function getRuntimeAttributes(config, version = null, branch = null) {
@@ -396,7 +411,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     }
 
     if (publishedIds.length) {
-      await fs.copyFile(path.join(outDir, `${firstVisibleId(config, pagesData)}.html`), path.join(outDir, 'index.html'));
+      await writeRootIndexStub({ dir: outDir, firstId: firstVisibleId(config, pagesData), urlPrefix: basePath, config });
     }
 
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} + shared assets${draftNote}${skippedNote}`);
@@ -499,6 +514,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       docsRoot: path.join(cwd, 'docs'),
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultBranch),
+      basePath,
     });
     return { id, ...parsed };
   }));
@@ -583,7 +599,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     }
 
     if (publishedIds.length) {
-      await fs.copyFile(path.join(defaultDir, `${firstVisibleId(config, defaultPagesData)}.html`), path.join(defaultDir, 'index.html'));
+      await writeRootIndexStub({ dir: defaultDir, firstId: firstVisibleId(config, defaultPagesData), urlPrefix: `${basePath}/${defaultVersion}`, config });
     }
     await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir, version: defaultVersion });
     if (pdfOptions.enabled) {
@@ -633,6 +649,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
           docsRoot: path.join(cwd, 'docs'),
           pagePath: `docs/${id}.md@${versionBranch}`,
           globalAttributes: getRuntimeAttributes(config, entry.version, versionBranch),
+          basePath,
           readFile: readFromVersion,
           pathExists: existsFromVersion,
           strictFsSafety: false,
@@ -694,7 +711,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       }
 
       if (vPublishedIds.length) {
-        await fs.copyFile(path.join(versionDir, `${firstVisibleId(versionConf, versionPagesData)}.html`), path.join(versionDir, 'index.html'));
+        await writeRootIndexStub({ dir: versionDir, firstId: firstVisibleId(versionConf, versionPagesData), urlPrefix: `${basePath}/${entry.version}`, config: versionConf });
       }
       if (pdfOptions.enabled) {
         await generatePdfs({ outDir: versionDir, config: versionConf, pagesData: versionPagesData, pdfOptions });
@@ -714,9 +731,12 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   const defaultFirstId = firstVisibleId(config, defaultPagesData) || 'introduction';
   const redirectUrl = offline
     ? `${defaultVersion}/index.html#${defaultFirstId}`
-    : `/${defaultVersion}/${defaultFirstId}`;
-  const rootRedirect = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${redirectUrl}"><script>location.replace('${redirectUrl}');</script></head></html>`;
-  await fs.writeFile(path.join(outDir, 'index.html'), rootRedirect);
+    : `${basePath}/${defaultVersion}/${defaultFirstId}`;
+  const siteUrl = (config.url || '').replace(/\/$/, '');
+  await fs.writeFile(path.join(outDir, 'index.html'), redirectStubHtml(redirectUrl, {
+    canonical: !offline && siteUrl ? `${siteUrl}${redirectUrl}` : redirectUrl,
+    fileHref: offline ? null : `${defaultVersion}/${defaultFirstId}.html`,
+  }));
 
   if (!offline) {
     const allPagesData = {};
@@ -904,7 +924,7 @@ async function generateRootLlmsIndex({ config, versionConfig, outDir }) {
 }
 
 async function generateRobotsTxt({ config, outDir, versionConfig = null }) {
-  const baseUrl = (config.url || '').replace(/\/$/, '');
+  const baseUrl = (config.url || '').replace(/\/$/, '') + normalizeBasePath(config.basePath);
   const lines = [
     'User-agent: *',
     'Allow: /',
@@ -937,8 +957,6 @@ async function generateRobotsTxt({ config, outDir, versionConfig = null }) {
     } else {
       lines.push(`Sitemap: ${baseUrl}/sitemap.xml`);
     }
-
-    lines.push(`Sitemap: ${baseUrl}/llms.txt`);
   }
 
   lines.push('');
@@ -947,7 +965,9 @@ async function generateRobotsTxt({ config, outDir, versionConfig = null }) {
 }
 
 async function generateSitemap({ config, pagesData, outDir, versionConfig = null, defaultVersion = null, lastmods = {} }) {
-  const baseUrl = (config.url || '').replace(/\/$/, '');
+  // Page URLs match each page's canonical: <url><basePath>[/<version>]/<id>. Roots
+  // ("/", "/<version>/") are redirect stubs to the first page, so they are not listed.
+  const baseUrl = (config.url || '').replace(/\/$/, '') + normalizeBasePath(config.basePath);
   if (!baseUrl) {
     console.log(`  ${pc.dim('○')} Skipped sitemap.xml — no url in docslit.json`);
     return;
@@ -962,10 +982,8 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
     for (const entry of versionConfig.list) {
       const versionDir = path.join(outDir, entry.version);
       const isDefault = entry.version === defaultVersion;
-      const priority = isDefault ? '1.0' : '0.6';
       const urls = [];
 
-      urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(entry.version)}/</loc>\n    <lastmod>${today}</lastmod>\n    <priority>${priority}</priority>\n  </url>`);
 
       for (const id of sitemapIds) {
         const lastmod = lastmods[id] || today;
@@ -979,7 +997,6 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
   } else {
     const urls = [];
 
-    urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/</loc>\n    <lastmod>${today}</lastmod>\n    <priority>1.0</priority>\n  </url>`);
 
     for (const id of sitemapIds) {
       const lastmod = lastmods[id] || today;
@@ -1500,13 +1517,21 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
   const localePagesData = {};
   const localeParsed = [];
 
+  const defaultDocsDir = path.join(cwd, 'docs');
   for (const id of pageIds) {
-    const mdPath = path.join(docsDir, `${id}.md`);
-    if (!await fs.pathExists(mdPath)) continue;
+    // Untranslated pages fall back to the default-locale source so every sidebar link
+    // in the locale site resolves; their canonical points at the default-locale page.
+    let mdPath = path.join(docsDir, `${id}.md`);
+    let untranslated = false;
+    if (!await fs.pathExists(mdPath)) {
+      mdPath = path.join(defaultDocsDir, `${id}.md`);
+      untranslated = true;
+      if (!await fs.pathExists(mdPath)) continue;
+    }
     const raw = await fs.readFile(mdPath, 'utf8');
     let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
-      onWarning: warnPage,
-      docsRoot: docsDir,
+      onWarning: untranslated ? () => {} : warnPage,
+      docsRoot: untranslated ? defaultDocsDir : docsDir,
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config),
     });
@@ -1519,30 +1544,30 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
 
     const isApiPage = id.startsWith('api/') || meta.layout === 'api';
     localePagesData[id] = { meta, html, isApiPage };
-    localeParsed.push({ id, meta, html, isApiPage, preprocessedMarkdown });
+    localeParsed.push({ id, meta, html, isApiPage, preprocessedMarkdown, untranslated });
   }
 
   const localeTitleMap = buildTitleMap(localePagesData);
   const localeNavMeta = buildNavMeta(localePagesData);
 
-  for (const { id, meta, html, isApiPage, preprocessedMarkdown } of localeParsed) {
+  for (const { id, meta, html, isApiPage, preprocessedMarkdown, untranslated } of localeParsed) {
     const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
     const safeId = id.replace(/\//g, '--');
     const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
 
-    const pageHtml = await renderPage({ config: localeConfig, siteTheme, id, meta, html, draftPageIds, specData, apiMeta, pdfManifest, locale, ogImagePath, titleMap: localeTitleMap, navMeta: localeNavMeta });
+    const pageHtml = await renderPage({ config: localeConfig, siteTheme, id, meta, html, draftPageIds, specData, apiMeta, pdfManifest, locale, ogImagePath, titleMap: localeTitleMap, navMeta: localeNavMeta, untranslated });
     const destHtml = path.join(localeOutDir, `${id}.html`);
     await fs.ensureDir(path.dirname(destHtml));
     await fs.writeFile(destHtml, pageHtml);
 
     const destMd = path.join(localeOutDir, `${id}.md`);
     await writePageMarkdown(destMd, preprocessedMarkdown, config, id);
-    built++;
+    if (!untranslated) built++;
   }
 
   const publishedIds = Object.keys(localePagesData);
   if (publishedIds.length) {
-    await fs.copyFile(path.join(localeOutDir, `${firstVisibleId(localeConfig, localePagesData)}.html`), path.join(localeOutDir, 'index.html'));
+    await writeRootIndexStub({ dir: localeOutDir, firstId: firstVisibleId(localeConfig, localePagesData), urlPrefix: localeUrlPrefix(locale, i18n.defaultLocale, basePath), config });
   }
 
   if (pagesUseMath(localePagesData)) await writeKatexAssets(localeOutDir);

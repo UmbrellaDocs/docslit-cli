@@ -182,7 +182,9 @@ export function buildSidebarHtml(config, draftIds = [], activePageId = null, exc
   const draftSet = new Set(draftIds);
   const hiddenSet = nav?.hidden || new Set();
   const navMeta = nav?.navMeta || {};
-  const hrefFor = (id) => (nav && !offline ? nav.hrefFor(id) : id);
+  // Real URLs so crawlers and "open in new tab" resolve them from any page depth:
+  // absolute "${basePath}${locale}${version}/id" when static, "#id" for the single offline shell.
+  const hrefFor = (id) => (nav ? nav.hrefFor(id) : (offline ? `#${id}` : `/${id}`));
   const isExcluded = (id) => draftSet.has(id) || hiddenSet.has(id) || (excludePrefix && id.startsWith(excludePrefix));
   const sidebarClick = (id) => (offline ? '' : ` onclick="loadPage('${esc(id)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"`);
   const iconOf = (name) => (name ? renderIcon(name, { size: 16, className: 'nav-icon', resolveSrc: (s) => (s.startsWith('/') ? withBasePath(nav?.basePath || '', s) : s) }) : '');

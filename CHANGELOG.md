@@ -79,6 +79,16 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 - **`wc-icon`** documented Font Awesome class strings (`fa-brands fa-github`) but fetched by bare name only. Class strings (`fa-solid`/`fas`, `fa-regular`/`far`, `fa-brands`/`fab`) are now understood, and the manifest describes the built-in set and the CDN fallback accurately.
 - **Offline and versioned builds** no longer copy an unused `flexsearch.js` to the output root.
 
+#### Search engine fixes (404s and canonical warnings in Google Search Console)
+
+- **Every link the build generates now resolves from any page depth.** Sidebar items, OpenAPI sidebar items, the Docs/API Reference mode links in the sidebar and navbar, and tab links use absolute paths that include `basePath`, the locale and the version (`/docs/fr/1.0/get-started/sign-in`). Before, some of them used the bare page id, which crawlers resolve against the current folder, so `/reference/limits` linked to `/reference/get-started/sign-in` and every page produced a 404 for every other page.
+- **The site root no longer duplicates the first page.** `index.html` (and each `<version>/index.html` and `<locale>/index.html`) is now a redirect to the first page with a canonical link to it. The old copy kept the first page's canonical while the sitemap listed `/`, and its relative content links pointed one folder too high. The sitemap no longer lists `/` or `/<version>/`; every URL in it is the canonical URL of a page.
+- **`robots.txt` no longer lists `llms.txt` as a sitemap.** `llms.txt` stays at its well-known path.
+- **`basePath` is applied everywhere.** `sitemap.xml` URLs, the `Sitemap:` lines in `robots.txt`, the versioned root redirect, the version switcher and version-rewritten content links now include `basePath`, so they match each page's canonical URL.
+- **Locale sites link only to pages that exist.** Pages without a translation are built into the locale folder from the default-locale source, with a canonical link to the default-locale page, instead of being linked to and missing.
+- **Offline builds** use `#page-id` links for the sidebar, previous/next buttons and mode links, and `index.html` for the logo, so they work from `file://` and when opened in a new tab.
+- **`scripts/crawl-dist.js`** crawls a built site the way a search engine does and reports every link whose target is missing: `node scripts/crawl-dist.js dist [--base /docs] [--file]`.
+
 ---
 
 ## 0.1.11
