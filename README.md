@@ -172,7 +172,21 @@ Full guides and a table of every component conversion are in the [DocsLit docume
 | `<Visibility for="agents">` / Fern `<llms-only>` | `<wc-if for="agents">` |
 | `import X from '/snippets/x.mdx'` | `docs/_reusables/x.md` + `<wc-include src="x.md" />` |
 
-Other Markdown or MDX folders (Docusaurus, MkDocs, Sphinx, VitePress, Starlight, Nextra) import as plain folders with an automatic sidebar.
+**MkDocs, Material for MkDocs and Zensical** (`mkdocs.yml` or `zensical.toml`) are converted too:
+
+| MkDocs / Material | DocsLit |
+|---|---|
+| `nav`, `docs_dir`, `site_*`, `repo_url`, `copyright`, `extra.social`, `extra.analytics`, palette, font, logo, favicon | `sidebar` (or `tabs` with `navigation.tabs`), `name`, `url` + `basePath`, `navbar`, `footer`, `analytics`, `theme`, `logo`, `favicon` |
+| `!!!` admonitions, `???` / `???+` collapsibles, `/// note` and `/// details` blocks | `<wc-callout>`, `<wc-accordion>` |
+| `=== "Tab"` content tabs and `/// tab` (synced with `content.tabs.link`) | `<wc-tabs>` / `<wc-tab>` |
+| `--8<--` snippets, FastAPI-style `{* file *}` includes | inlined text, or `file=` code imports |
+| fence `title=`, `hl_lines=`, `linenums=`, ```` ```mermaid ```` | `title=`, `{1,3}`, `lines startLine=`, `<wc-mermaid>` |
+| `{ #id }`, `{ .md-button }`, `{ width= }`, `++ctrl+c++`, `==mark==`, `:material-*:` / `:fontawesome-*:` icons, definition lists, abbreviations, `\( \)` math, `{{ extra }}` macros | anchors, `<wc-button>`, `<img width>`, `<kbd>`, `<mark>`, `<wc-icon>`, `<dl>`, `<abbr>`, KaTeX, `{{VARS}}` |
+| `redirects` plugin, blog posts, pages outside `nav` | `redirects`, a blog group (newest first), a hidden sidebar group |
+
+Pages stay plain Markdown (never MDX), so a stray `<` or `{` never breaks the import. Anything that cannot be carried over is listed in `MIGRATION.md`, never dropped silently: mkdocstrings `:::` blocks (replaced by placeholder callouts), Jinja macros, theme overrides, Material-specific CSS and JavaScript, mike versions and every plugin without an equivalent.
+
+Other Markdown or MDX folders (Docusaurus, Sphinx, VitePress, Starlight, Nextra) import as plain folders with an automatic sidebar.
 
 ## docslit.json
 

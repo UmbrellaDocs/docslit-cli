@@ -3,7 +3,7 @@
 import { isThemeName, isValidThemePreset, suggestName, allThemeIds, allPaletteIds } from '../themes.js';
 
 /** Theme picked for each source platform when --theme is not given. */
-export const DEFAULT_PRESET = { mintlify: 'peppermint', fern: 'frond', gitbook: 'folio' };
+export const DEFAULT_PRESET = { mintlify: 'peppermint', fern: 'frond', gitbook: 'folio', mkdocs: 'default' };
 
 const FONT_KEYS = { fontSans: 'sans', fontHeading: 'heading', fontMono: 'mono', sans: 'sans', heading: 'heading', mono: 'mono' };
 

@@ -685,10 +685,19 @@ async function checkLinks(files, slugs, dir, issues) {
     const off = bodyOffset(raw, body);
     const tree = parseMdast(body);
 
+    // links to files (images, PDFs, downloads) and query-only links are not page links
+    const isFileOrQuery = (t) => {
+      if (t.startsWith('?')) return true;
+      if (!/\.[a-z0-9]{1,5}$/i.test(t) || /\.mdx?$/i.test(t)) return false;
+      let p = t;
+      try { p = decodeURI(t); } catch { /* keep */ }
+      const abs = p.startsWith('/') ? path.join(docsDir, p) : path.resolve(path.dirname(file), p);
+      return fs.existsSync(abs);
+    };
     visit(tree, 'link', (node) => {
       const target = (node.url || '').trim().split('#')[0];
       if (!target || /^https?:\/\//.test(target) || /^mailto:/.test(target)) return;
-      if (isExternalish(target)) return;
+      if (isExternalish(target) || isFileOrQuery(target)) return;
       const resolved = resolveLinkSlug(target, currentSlug, slugs);
       if (!resolved.ok) {
         issues.push(issue('error', rel, posLine(node, off),
@@ -704,7 +713,7 @@ async function checkLinks(files, slugs, dir, issues) {
       if (node.tagName === 'a') {
         const target = href.trim().split('#')[0];
         if (!target || /^https?:\/\//.test(target) || target.startsWith('#') ||
-            target.startsWith('javascript') || target.startsWith('mailto')) return;
+            target.startsWith('javascript') || target.startsWith('mailto') || isFileOrQuery(target)) return;
         const resolved = resolveLinkSlug(target, currentSlug, slugs);
         if (!resolved.ok) {
           issues.push(issue('warning', rel, posLine(node, off),

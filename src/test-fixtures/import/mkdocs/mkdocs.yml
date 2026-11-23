@@ -1,0 +1,89 @@
+site_name: Acme Docs
+site_description: Docs for the Acme toolkit.
+site_url: https://acme.example.com/docs/
+repo_url: https://github.com/acme/toolkit
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Acme
+
+theme:
+  name: material
+  custom_dir: overrides
+  logo: img/logo.svg
+  features:
+    - content.tabs.link
+    - content.code.copy
+    - navigation.indexes
+    - navigation.instant
+  palette:
+    - scheme: default
+      primary: teal
+    - scheme: slate
+      primary: teal
+  font:
+    text: Inter
+    code: Roboto Mono
+
+extra:
+  version: "2.4"
+  analytics:
+    provider: google
+    property: G-ABC123
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/acme
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+  - blog
+  - macros
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+  - redirects:
+      redirect_maps:
+        old-start.md: guide/setup.md
+  - some-custom-plugin
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - footnotes
+  - pymdownx.details
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.snippets:
+      base_path: [".", "includes"]
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Guide:
+      - guide/index.md
+      - Setup: guide/setup.md
+      - guide/syntax.md
+  - API: api.md
+  - Blog:
+      - blog/index.md
+  - GitHub: https://github.com/acme/toolkit
