@@ -309,8 +309,18 @@ function blocks(lines, st, firstLine) {
       const tag = m[2].toLowerCase();
       const end = findClosingTag(lines, i, tag);
       const attrs = (m[3] + m[4]).replace(/\s+$/, '');
-      if (/class="[^"]*\bgrid\b[^"]*"/.test(attrs)) { st.notes.gridCards++; o.count('<div class="grid cards" markdown>', 'grid (compat CSS)'); }
+      const isGrid = /class="[^"]*\bgrid\b[^"]*"/.test(attrs);
       const innerLines = end === -1 ? lines.slice(i + 1) : lines.slice(i + 1, end);
+      if (isGrid && end !== -1 && tag === 'div' && lines[end].trim() === '</div>') {
+        const cards = gridToCards(attrs, innerLines, st, firstLine + i + 1);
+        if (cards) {
+          out.push(...wrap(m[1], `<wc-tiles cols="${cards.cols}">`, cards.lines, '</wc-tiles>'));
+          o.count('<div class="grid cards" markdown>', 'wc-tiles + wc-card');
+          i = end;
+          continue;
+        }
+      }
+      if (isGrid) { st.notes.gridCards++; o.count('<div class="grid cards" markdown>', 'grid (compat CSS)'); }
       const inner = blocks(innerLines, st, firstLine + i + 1);
       out.push(`${m[1]}<${m[2]}${attrs}>`, '', ...inner, '');
       if (end !== -1) { out.push(lines[end]); i = end; } else i = lines.length;
@@ -327,6 +337,118 @@ function blocks(lines, st, firstLine) {
   }
   if (fence && fence.mermaid) out.push(`${fence.indent}</wc-mermaid>`);
   return out;
+}
+
+// ─── md_in_html grids -> wc-tiles / wc-card ───────────────────────────────────
+const GRID_ATTRS = /^\s*class\s*=\s*"grid(\s+cards)?"\s*$/;
+const GRID_ITEM = /^([-*+]|\d+[.)])([ \t]+)(.*)$/;
+const GRID_ICON = ':(material|fontawesome|octicons|simple)-([\\w-]+?):(?:\\{[^}]*\\})?';
+const CARD_TITLE = new RegExp(`^((?:${GRID_ICON}[ \\t]*)+)?(?:__(.+?)__|\\*\\*(.+?)\\*\\*)(?:[ \\t]+(\\S.*?))?[ \\t]*$`);
+const CARD_ARROW = ':(?:material|fontawesome|octicons)-[\\w-]*(?:arrow|chevron)[\\w-]*:(?:\\{[^}]*\\})?';
+const CARD_LINK = new RegExp(`^(?:${CARD_ARROW}[ \\t]*)?\\[(?:${CARD_ARROW}[ \\t]*)?([^\\]]+?)\\]\\(([^)\\s]+)\\)$`);
+
+/**
+ * Convert a `<div class="grid cards" markdown>` list, or a `<div class="grid" markdown>` whose children are all
+ * `{ .card }` blocks, to wc-tiles + wc-card. Returns { cols, lines } or null (grid kept as a div + compat CSS).
+ */
+function gridToCards(attrs, inner, st, firstLine) {
+  const m = GRID_ATTRS.exec(attrs);
+  if (!m) return null;
+  let items = gridListItems(inner);
+  if (!items) items = gridCardBlocks(inner);
+  else if (!m[1]) return null; // a bare list in a plain grid is not a card grid
+  if (!items || !items.length) return null;
+  const lines = [];
+  for (const it of items) { if (lines.length) lines.push(''); lines.push(...gridCard(it, st, firstLine)); }
+  // Material fills rows with 3+ cards on wide screens; mirror that when the count divides evenly into 3.
+  return { cols: items.length >= 3 && items.length % 3 === 0 ? 3 : 2, lines };
+}
+
+/** Split a pure Markdown list into items (each an array of dedented lines), or null if the content is not only a list. */
+function gridListItems(inner) {
+  const ls = inner.slice();
+  while (ls.length && isBlank(ls[0])) ls.shift();
+  while (ls.length && isBlank(ls[ls.length - 1])) ls.pop();
+  if (!ls.length) return null;
+  const base = indentWidth(leadOf(ls[0]));
+  const raw = [];
+  let fence = null;
+  for (const l0 of ls) {
+    const l = isBlank(l0) ? '' : dedent(l0, base);
+    const f = FENCE_OPEN.exec(l);
+    if (f && /^\s/.test(l)) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence)) fence = null; }
+    const im = !fence && GRID_ITEM.exec(l);
+    if (im) raw.push({ first: im[3], col: im[1].length + im[2].length, rest: [] });
+    else if (!raw.length || (!isBlank(l) && !/^\s/.test(l))) return null;
+    else raw[raw.length - 1].rest.push(l);
+  }
+  return raw.map((r) => {
+    const widths = r.rest.filter((x) => !isBlank(x)).map((x) => indentWidth(leadOf(x)));
+    const d = widths.length ? Math.min(...widths) : 0;
+    return [r.first, ...r.rest.map((x) => (isBlank(x) ? '' : dedent(x, d)))];
+  });
+}
+
+/** Blank-line separated blocks that each end in `{ .card }`; anything else makes the grid unconvertible. */
+function gridCardBlocks(inner) {
+  const items = [];
+  let cur = [];
+  let fence = null;
+  const flush = () => {
+    if (!cur.length) return true;
+    const last = cur[cur.length - 1];
+    if (cur.length < 2 || !/^\s*\{\s*\.card\s*\}\s*$/.test(last)) return false;
+    items.push(cur.slice(0, -1).map((l) => l.trim() ? l : ''));
+    cur = [];
+    return true;
+  };
+  for (const l of inner) {
+    const f = FENCE_OPEN.exec(l);
+    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence)) fence = null; }
+    if (!fence && isBlank(l)) { if (!flush()) return null; continue; }
+    cur.push(l);
+  }
+  if (!flush()) return null;
+  const base = Math.min(...items.map((it) => indentWidth(leadOf(it[0]))));
+  return items.map((it) => it.map((l) => (isBlank(l) ? '' : dedent(l, base))));
+}
+
+/** One card: leading icon + bold title, `---` separator, body, trailing single link -> href + cta. */
+function gridCard(item, st, firstLine) {
+  let body = item.slice();
+  while (body.length && isBlank(body[0])) body.shift();
+  const attrs = [];
+  const tm = CARD_TITLE.exec(body[0] || '');
+  if (tm && (body.length === 1 || isBlank(body[1]) || /^-{3}$/.test(body[1].trim()))) {
+    const title = (tm[4] ?? tm[5]).trim();
+    const im = tm[1] && new RegExp(GRID_ICON).exec(tm[1]);
+    attrs.push(['title', title]);
+    if (im) {
+      const tag = iconTag(im[1], im[2], st, im[0]);
+      const nm = /name="([^"]+)"(?: icon-type="(\w+)")?/.exec(tag);
+      if (nm) attrs.push(['icon', nm[2] ? `fa-${nm[2]} fa-${nm[1]}` : nm[1]]);
+    }
+    body.shift();
+    const tail = tm[6] ? [tm[6]] : []; // text after the bold title on the same line stays in the body
+    while (body.length && isBlank(body[0])) body.shift();
+    if (body.length && /^-{3}$/.test(body[0].trim())) body.shift();
+    while (body.length && isBlank(body[0])) body.shift();
+    if (tail.length) body = [...tail, ...(body.length ? ['', ...body] : [])];
+  }
+  while (body.length && isBlank(body[body.length - 1])) body.pop();
+  let k = body.length - 1;
+  while (k >= 0 && !isBlank(body[k])) k--;
+  if (body.length && body.length - 1 - k === 1 && (k < 0 || isBlank(body[k]))) {
+    const lm = CARD_LINK.exec(body[body.length - 1].trim());
+    const rest = body.slice(0, k + 1).join('\n');
+    if (lm && !/\]\(|\]\[|<a[\s>]|https?:\/\//.test(rest)) {
+      attrs.push(['href', lm[2]], ['cta', lm[1].trim()]);
+      body = body.slice(0, k + 1);
+      while (body.length && isBlank(body[body.length - 1])) body.pop();
+    }
+  }
+  const open = `<wc-card${attrs.map(([a, v]) => ` ${a}="${escAttr(v)}"`).join('')}>`;
+  return wrap('', open, blocks(body, st, firstLine), '</wc-card>');
 }
 
 /** A collapsible block: wc-accordion must sit inside a wc-accordion-group. */

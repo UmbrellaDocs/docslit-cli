@@ -54,10 +54,10 @@ describe('pymdown: block syntax', () => {
   });
 
   it('definition lists, mermaid, md_in_html', () => {
-    const out = conv('Term\n:   Meaning\n\n```mermaid\ngraph LR\n  A --> B\n```\n\n<div class="grid cards" markdown>\n- one\n</div>\n', ['def_list']);
+    const out = conv('Term\n:   Meaning\n\n```mermaid\ngraph LR\n  A --> B\n```\n\n<div class="grid" markdown>\n- one\n</div>\n', ['def_list']);
     expect(out).toContain('<dl>\n<dt>\n\nTerm\n\n</dt>\n<dd>\n\nMeaning\n\n</dd>\n</dl>');
     expect(out).toContain('<wc-mermaid>\ngraph LR\n  A --> B\n</wc-mermaid>');
-    expect(out).toContain('<div class="grid cards">\n\n- one\n\n</div>');
+    expect(out).toContain('<div class="grid">\n\n- one\n\n</div>');
   });
 
   it('code fence options map to DocsLit meta', () => {
@@ -290,5 +290,42 @@ describe('MkDocs config discovery and --config', () => {
       expect(l.cfg.site_name).toBe('X');
       expect(l.dir).toBe(path.join(dir, 'a', 'b'));
     } finally { await fs.remove(dir); }
+  });
+});
+
+describe('pymdown: md_in_html grids become wc-tiles / wc-card', () => {
+  it('list-card grid: icon, bold title, --- dropped, trailing arrow link becomes href + cta', () => {
+    const out = conv('<div class="grid cards" markdown>\n\n-   :material-clock-fast:{ .lg .middle } __Set up in 5 minutes__\n\n    ---\n\n    Install it with `pip`.\n\n    * nested one\n    * nested two\n\n    [:octicons-arrow-right-24: Getting started](getting-started.md)\n\n-   :fontawesome-brands-markdown:{ .lg .middle } **Just Markdown**\n\n    ---\n\n    Plain text.\n\n</div>\n');
+    expect(out).toMatch(/^<wc-tiles cols="2">\n/);
+    expect(out).toContain('<wc-card title="Set up in 5 minutes" icon="clock" href="getting-started.md" cta="Getting started">\n\nInstall it with `pip`.\n\n* nested one\n* nested two\n\n</wc-card>');
+    expect(out).toContain('<wc-card title="Just Markdown" icon="fa-brands fa-markdown">');
+    expect(out).not.toContain('---');
+    expect(out).not.toContain('class="grid');
+  });
+
+  it('a card without a bold title keeps all its content as the body', () => {
+    const out = conv('<div class="grid cards" markdown>\n\n*   Field validators\n\n    * [a](#a)\n    * [b](#b)\n\n</div>\n');
+    expect(out).toContain('<wc-card>\n\nField validators\n\n* [a](#a)\n* [b](#b)\n\n</wc-card>');
+  });
+
+  it('a link-only last paragraph stays in the body when the body has other links', () => {
+    const out = conv('<div class="grid cards" markdown>\n\n- __T__\n\n    See [x](x.md).\n\n    [Go](go.md)\n\n</div>\n');
+    expect(out).toContain('<wc-card title="T">');
+    expect(out).toContain('[Go](go.md)');
+  });
+
+  it('`{ .card }` blocks in a plain grid become cards; three cards use 3 columns', () => {
+    const out = conv('<div class="grid" markdown>\n\n:fontawesome-brands-html5: __HTML__ for content\n{ .card }\n\n:fontawesome-brands-js: __JS__ for fun\n{ .card }\n\n:fontawesome-brands-css3: __CSS__\n{ .card }\n\n</div>\n');
+    expect(out).toMatch(/^<wc-tiles cols="3">/);
+    expect(out).toContain(`<wc-card title="HTML" icon="fa-brands fa-html5">\n\nfor content\n\n</wc-card>`);
+    expect(out.match(/<wc-card /g)).toHaveLength(3);
+  });
+
+  it('a plain grid (mixed blocks) and raw HTML grids stay untouched', () => {
+    const notes = convertPymdown('<div class="grid" markdown>\n\n> quote\n\n!!! note\n    hi\n\n</div>\n\n<div class="grid cards">\n<ul><li>x</li></ul>\n</div>\n', { exts: new Set(), report: () => {}, count: () => {}, macros: { enabled: false } });
+    expect(notes.body).toContain('<div class="grid">');
+    expect(notes.body).toContain('<div class="grid cards">\n<ul>');
+    expect(notes.body).not.toContain('wc-tiles');
+    expect(notes.notes.gridCards).toBe(1);
   });
 });
