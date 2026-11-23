@@ -243,7 +243,12 @@ Other Markdown or MDX folders (Docusaurus, Sphinx, VitePress, Starlight, Nextra)
 
 ## Python API reference
 
-`docslit api python mypkg --pages` runs [Griffe](https://mkdocstrings.github.io/griffe/) (`griffe`, `uvx griffe` or `python -m griffe`; install with `pip install griffe` or `uv tool install griffe`) and writes `api/python/mypkg.json`, adds `mypkg` to `python.packages` in docslit.json, and with `--pages` scaffolds `docs/api/mypkg/` (one page per public module containing a `::: mypkg.module` line, plus an index) and an "API reference" sidebar group. Commit the JSON: builds never run Python. Re-run the command to refresh it, or pass `--from dump.json` to use an existing Griffe dump. Existing pages are never overwritten. Defaults live under `python` in docslit.json (`docstringStyle`: `google`, `numpy` or `sphinx`; `options`: mkdocstrings-style directive options).
+Document a Python package with mkdocstrings-style directives and no Python at build time. `docslit api python mypkg --pages` runs [Griffe](https://mkdocstrings.github.io/griffe/) (`griffe`, `uvx griffe` or `python -m griffe`; install with `pip install griffe` or `uv tool install griffe`), writes `api/python/mypkg.json`, adds `mypkg` to `python.packages` in docslit.json, and with `--pages` scaffolds `docs/api/mypkg/` (one page per public module, plus an index) and an "API reference" sidebar group. Commit the JSON: builds never run Python. Re-run the command to refresh it, or pass `--from dump.json` to use an existing dump. Existing pages are never overwritten.
+
+- **Directives.** A line `::: mypkg.module.Class` alone in a page, optionally followed by an indented `options:` YAML block, renders headings, signatures, parameter tables, examples and admonition callouts. Option names match mkdocstrings-python (`members`, `filters`, `show_root_heading`, `heading_level`, `members_order`, `show_source`, ...); defaults live under `python.options`, and `python.docstringStyle` is `google`, `numpy` or `sphinx`.
+- **Autorefs.** `[text][mypkg.Class]` and `[mypkg.Class][]` link to the page that renders the object; type annotations link too.
+- **`objects.inv`.** The build writes a Sphinx v2 inventory so other projects can link to your reference with intersphinx.
+- **Validation.** `docslit validate` warns with `api-data-missing`, `api-object-missing`, `api-ref-unresolved` or `api-render`; a directive without data shows a placeholder callout instead of failing.
 
 ## docslit.json
 
