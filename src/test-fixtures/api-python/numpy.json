@@ -1,0 +1,183 @@
+{
+ "numpy_pkg": {
+  "analysis": "static",
+  "docstring": {
+   "endlineno": 1,
+   "lineno": 1,
+   "parsed": [
+    {
+     "kind": "text",
+     "value": "Numpy style package."
+    }
+   ],
+   "value": "Numpy style package."
+  },
+  "is_class_private": false,
+  "is_deprecated": false,
+  "is_exported": false,
+  "is_imported": false,
+  "is_private": false,
+  "is_public": true,
+  "is_special": false,
+  "is_wildcard_exposed": false,
+  "kind": "module",
+  "members": {
+   "Stats": {
+    "analysis": "static",
+    "bases": [],
+    "decorators": [],
+    "docstring": {
+     "endlineno": 11,
+     "lineno": 5,
+     "parsed": [
+      {
+       "kind": "text",
+       "value": "Stats helper."
+      },
+      {
+       "kind": "parameters",
+       "value": [
+        {
+         "annotation": "list of float",
+         "description": "The data.",
+         "name": "data"
+        }
+       ]
+      }
+     ],
+     "value": "Stats helper.\n\nParameters\n----------\ndata : list of float\n    The data."
+    },
+    "endlineno": 38,
+    "is_class_private": false,
+    "is_deprecated": false,
+    "is_exported": false,
+    "is_imported": false,
+    "is_private": false,
+    "is_public": true,
+    "is_special": false,
+    "is_wildcard_exposed": true,
+    "kind": "class",
+    "lineno": 4,
+    "members": {
+     "mean": {
+      "analysis": "static",
+      "decorators": [],
+      "docstring": {
+       "endlineno": 37,
+       "lineno": 14,
+       "parsed": [
+        {
+         "kind": "text",
+         "value": "Compute the mean."
+        },
+        {
+         "kind": "parameters",
+         "value": [
+          {
+           "annotation": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "int"
+           },
+           "description": "Axis to use.",
+           "name": "axis",
+           "value": "None"
+          },
+          {
+           "annotation": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "array_like"
+           },
+           "description": "Weights | pipes.",
+           "name": "weights",
+           "value": "None"
+          }
+         ]
+        },
+        {
+         "kind": "returns",
+         "value": [
+          {
+           "annotation": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "float"
+           },
+           "description": "The mean.\n",
+           "name": ""
+          }
+         ]
+        },
+        {
+         "kind": "raises",
+         "value": [
+          {
+           "annotation": {
+            "cls": "ExprName",
+            "member": null,
+            "name": "ValueError"
+           },
+           "description": "If empty.\n"
+          }
+         ]
+        },
+        {
+         "kind": "examples",
+         "value": [
+          [
+           "examples",
+           ">>> Stats().mean()\n1.0"
+          ]
+         ]
+        }
+       ],
+       "value": "Compute the mean.\n\nParameters\n----------\naxis : int, optional\n    Axis to use.\nweights : array_like\n    Weights | pipes.\n\nReturns\n-------\nfloat\n    The mean.\n\nRaises\n------\nValueError\n    If empty.\n\nExamples\n--------\n>>> Stats().mean()\n1.0"
+      },
+      "endlineno": 38,
+      "is_class_private": false,
+      "is_deprecated": false,
+      "is_exported": false,
+      "is_imported": false,
+      "is_private": false,
+      "is_public": true,
+      "is_special": false,
+      "is_wildcard_exposed": false,
+      "kind": "function",
+      "lineno": 13,
+      "name": "mean",
+      "parameters": [
+       {
+        "annotation": null,
+        "default": null,
+        "kind": "positional or keyword",
+        "name": "self"
+       },
+       {
+        "annotation": null,
+        "default": "None",
+        "kind": "positional or keyword",
+        "name": "axis"
+       },
+       {
+        "annotation": null,
+        "default": "None",
+        "kind": "keyword-only",
+        "name": "weights"
+       }
+      ],
+      "path": "numpy_pkg.Stats.mean",
+      "returns": null,
+      "runtime": true
+     }
+    },
+    "name": "Stats",
+    "path": "numpy_pkg.Stats",
+    "runtime": true
+   }
+  },
+  "name": "numpy_pkg",
+  "path": "numpy_pkg",
+  "runtime": true
+ }
+}
