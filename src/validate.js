@@ -15,6 +15,7 @@ import { checkMarkup } from './markup-check.js';
 import { listCustomComponentTags } from './custom-components.js';
 import { findMathErrors, resolveMathConfig } from './math.js';
 import { parseArgs, assertCleanArgs, resolveFormat } from './cli-args.js';
+import { parseMaybeChunked } from './chunked-parse.js';
 import { expandAllSidebars } from './auto-sidebar.js';
 import { expandCodeImports, CODE_IMPORT_FIXES } from './code-import.js';
 import { parseThemeConfig, loadThemeFile, resolveSiteTheme, diagnoseTheme, contrastIssues, looksLikeThemeFile } from './themes.js';
@@ -233,7 +234,7 @@ async function checkAuthoringPreprocessor(files, dir, config, issues) {
 
   for (const file of files) {
     const rel = path.relative(dir, file);
-    const raw = await fs.readFile(file, 'utf8');
+    const raw = (await getFile(file)).raw;
     const parsed = matter(raw);
     const pageAttrs = (parsed.data?.attributes && typeof parsed.data.attributes === 'object') ? parsed.data.attributes : {};
     const body = parsed.content;
@@ -585,7 +586,7 @@ async function checkFrontmatter(files, dir, issues, config = null) {
   for (const file of files) {
     if (isReusableDocFile(file, dir)) continue;
     const rel = path.relative(dir, file);
-    const src = await fs.readFile(file, 'utf8');
+    const src = (await getFile(file)).raw;
     let fm;
     try {
       fm = matter(src);
@@ -655,11 +656,38 @@ function getHastProcessor() {
 }
 
 function parseMdast(src) {
-  return getMdastProcessor().parse(src);
+  return parseMaybeChunked(src, (t) => getMdastProcessor().parse(t));
 }
 
 function parseHast(src) {
-  return getHastProcessor().runSync(getHastProcessor().parse(src));
+  const proc = getHastProcessor();
+  return parseMaybeChunked(src, (t) => proc.runSync(proc.parse(t)));
+}
+
+// Per-run cache of file contents and parse results. Every check that needs a file's raw text,
+// frontmatter-stripped body, mdast or hast gets it from here, so each file is read, split and
+// parsed at most once per validation run. Released at the end of runValidation.
+let fileCache = null;
+
+async function getFile(file) {
+  if (!fileCache) fileCache = new Map();
+  let rec = fileCache.get(file);
+  if (!rec) {
+    rec = { file, raw: await fs.readFile(file, 'utf8'), _body: undefined, _bodyErr: null };
+    rec.body = function body() {
+      if (rec._bodyErr) throw rec._bodyErr;
+      if (rec._body === undefined) {
+        try { rec._body = matter(rec.raw).content; } catch (e) { rec._bodyErr = e; throw e; }
+      }
+      return rec._body;
+    };
+    rec.off = () => bodyOffset(rec.raw, rec.body());
+    rec.mdast = () => (rec._mdast ||= parseMdast(rec.body()));
+    rec.rewritten = () => (rec._rewritten ??= rewriteMdxTags(rec.body()));
+    rec.hast = () => (rec._hast ||= parseHast(rec.rewritten()));
+    fileCache.set(file, rec);
+  }
+  return rec;
 }
 
 function posLine(node, offset = 0) {
@@ -679,11 +707,10 @@ async function checkLinks(files, slugs, dir, issues) {
   for (const file of files) {
     if (isReusableDocFile(file, dir)) continue;
     const rel = path.relative(dir, file);
-    const raw = await fs.readFile(file, 'utf8');
-    const body = matter(raw).content;
+    const rec = await getFile(file);
     const currentSlug = toPosixFileSlug(file, docsDir);
-    const off = bodyOffset(raw, body);
-    const tree = parseMdast(body);
+    const off = rec.off();
+    const tree = rec.mdast();
 
     // links to files (images, PDFs, downloads) and query-only links are not page links
     const isFileOrQuery = (t) => {
@@ -705,8 +732,7 @@ async function checkLinks(files, slugs, dir, issues) {
       }
     });
 
-    const rewritten = rewriteMdxTags(body);
-    const hast = parseHast(rewritten);
+    const hast = rec.hast();
     visit(hast, 'element', (node) => {
       const href = node.properties?.href;
       if (!href || typeof href !== 'string') return;
@@ -756,10 +782,9 @@ function assetCandidates(rawTarget, fileDir, dir) {
 async function checkAssets(files, dir, issues) {
   for (const file of files) {
     const rel = path.relative(dir, file);
-    const raw = await fs.readFile(file, 'utf8');
-    const body = matter(raw).content;
+    const rec = await getFile(file);
     const fileDir = path.dirname(file);
-    const off = bodyOffset(raw, body);
+    const off = rec.off();
     // Markdown images appear both as mdast `image` and (after remark-rehype) as hast
     // `img`; report each distinct reference once.
     const reported = new Set();
@@ -774,9 +799,9 @@ async function checkAssets(files, dir, issues) {
       issues.push(issue('error', rel, line, `Missing asset: "${found.target}" (resolved to ${path.relative(dir, found.candidates[0])})`));
     };
 
-    visit(parseMdast(body), 'image', (node) => check(node.url, posLine(node, off)));
+    visit(rec.mdast(), 'image', (node) => check(node.url, posLine(node, off)));
 
-    const hast = parseHast(rewriteMdxTags(body));
+    const hast = rec.hast();
     visit(hast, 'element', (node) => {
       if (node.tagName !== 'img') return;
       check(node.properties?.src, posLine(node, off));
@@ -790,12 +815,10 @@ async function checkComponents(files, dir, issues) {
 
   for (const file of files) {
     const rel = path.relative(dir, file);
-    const raw = await fs.readFile(file, 'utf8');
-    const body = matter(raw).content;
-
-    const off = bodyOffset(raw, body);
-    const rewritten = rewriteMdxTags(body);
-    const hast = parseHast(rewritten);
+    const rec = await getFile(file);
+    const body = rec.body();
+    const off = rec.off();
+    const hast = rec.hast();
 
     const seenWc = new Set();
     const seenPascal = new Map();
@@ -837,6 +860,8 @@ async function checkComponents(files, dir, issues) {
           `<${name}> will render as <${fallback}>, which isn't a built-in and isn't in components/`));
       }
     }
+    // the hast is only needed by this check (checkLinks/checkAssets ran before it); free it now
+    rec._hast = rec._rewritten = undefined;
   }
 }
 
@@ -856,7 +881,7 @@ async function checkComponentMarkup(files, dir, issues) {
   for (const file of files) {
     if (isReusableDocFile(file, dir)) continue; // reusables are fragments; checked where included
     const rel = path.relative(dir, file);
-    const raw = await fs.readFile(file, 'utf8');
+    const raw = (await getFile(file)).raw;
     // checkMarkup masks frontmatter itself, so line numbers are whole-file.
     const result = checkMarkup(raw, { customTags });
     for (const m of result.issues) {
@@ -873,10 +898,11 @@ async function checkMath(files, dir, config, issues) {
   if (!cfg.enabled) return;
   for (const file of files) {
     const rel = path.relative(dir, file);
-    const raw = await fs.readFile(file, 'utf8');
+    const rec = await getFile(file);
+    const raw = rec.raw;
     let body;
-    try { body = matter(raw).content; } catch { continue; } // reported by the frontmatter check
-    const off = bodyOffset(raw, body);
+    try { body = rec.body(); } catch { continue; } // reported by the frontmatter check
+    const off = rec.off();
     for (const e of findMathErrors(body, cfg)) {
       issues.push(issue('warning', rel, e.line + off, `Invalid math: ${e.message}`, {
         code: 'math-invalid',
@@ -906,7 +932,7 @@ async function checkOpenAPIRefs(files, dir, config, issues) {
 
     const pageRefs = new Set();
     for (const file of files) {
-      const content = await fs.readFile(file, 'utf8');
+      const content = (await getFile(file)).raw;
       const re = /<wc-endpoint[^>]*ref="([^"]+)"/g;
       let m;
       while ((m = re.exec(content)) !== null) {
@@ -950,7 +976,7 @@ async function checkOrphans(files, slugs, dir, issues) {
     const slug = rel.replace(/\.(md|mdx)$/, '').replace(/\\/g, '/');
     if (!slugs.has(slug)) {
       try {
-        if (matter(await fs.readFile(file, 'utf8')).data?.sidebar === false) continue; // intentionally unlisted
+        if (matter((await getFile(file)).raw).data?.sidebar === false) continue; // intentionally unlisted
       } catch { /* frontmatter errors are reported elsewhere */ }
       issues.push(issue('info', path.relative(dir, file), null,
         `Orphaned page — not referenced in any sidebar group (slug: "${slug}")`));
@@ -1017,10 +1043,9 @@ async function checkExternalLinks(files, dir, issues) {
   const urls = new Map();
   for (const file of files) {
     const rel = path.relative(dir, file);
-    const raw = await fs.readFile(file, 'utf8');
-    const body = matter(raw).content;
-    const off = bodyOffset(raw, body);
-    const tree = parseMdast(body);
+    const rec = await getFile(file);
+    const off = rec.off();
+    const tree = rec.mdast();
     visit(tree, 'link', (node) => {
       const target = (node.url || '').trim().split('#')[0];
       if (/^https?:\/\//i.test(target)) {
@@ -1081,7 +1106,16 @@ function renderGithubFormat(allIssues) {
  *   issues: Array<{ level: 'error'|'warning'|'info', code: string, message: string, file: string|null, line?: number, fix?: string }>,
  *   elapsedMs: number }>}
  */
-export async function runValidation(dir, { strict = false, external = false, onExternalStart } = {}) {
+export async function runValidation(dir, opts = {}) {
+  fileCache = new Map();
+  try {
+    return await runValidationInner(dir, opts);
+  } finally {
+    fileCache = null; // release cached file contents and parse trees
+  }
+}
+
+async function runValidationInner(dir, { strict = false, external = false, onExternalStart } = {}) {
   const t0 = Date.now();
   dir = path.resolve(dir || '.');
   const allIssues = [];
@@ -1103,15 +1137,15 @@ export async function runValidation(dir, { strict = false, external = false, onE
   // 3. Discover markdown files
   const files = await discoverFiles(dir);
 
-  // 4–8. Per-file checks (in parallel)
-  const [fmIssues, linkIssues, assetIssues, compIssues, markupIssues, mathIssues] = await Promise.all([
-    (async () => { const a = []; await checkFrontmatter(files, dir, a, loadedConfig); return a; })(),
-    (async () => { const a = []; await checkLinks(files, slugs, dir, a); return a; })(),
-    (async () => { const a = []; await checkAssets(files, dir, a); return a; })(),
-    (async () => { const a = []; await checkComponents(files, dir, a); return a; })(),
-    (async () => { const a = []; await checkComponentMarkup(files, dir, a); return a; })(),
-    (async () => { const a = []; await checkMath(files, dir, loadedConfig, a); return a; })(),
-  ]);
+  // 4–7. Per-file checks. They are synchronous CPU work apart from file reads (served from the
+  // per-run file cache), so they run one after another and share parsed trees.
+  const fmIssues = [], linkIssues = [], assetIssues = [], compIssues = [], markupIssues = [], mathIssues = [];
+  await checkFrontmatter(files, dir, fmIssues, loadedConfig);
+  await checkLinks(files, slugs, dir, linkIssues);
+  await checkAssets(files, dir, assetIssues);
+  await checkComponents(files, dir, compIssues);
+  await checkComponentMarkup(files, dir, markupIssues);
+  await checkMath(files, dir, loadedConfig, mathIssues);
   allIssues.push(...fmIssues, ...linkIssues, ...assetIssues, ...compIssues, ...markupIssues, ...mathIssues);
 
   // 8. OpenAPI refs
