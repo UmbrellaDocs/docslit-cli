@@ -104,7 +104,28 @@ export async function initPythonApi(config, cwd) {
       }
     }
   }
+  addAliasSymbols();
   return { packages, missing, symbols: state.symbols.size };
+}
+
+/**
+ * Re-exports (`agents.Agent` -> `agents.agent.Agent`) and their members resolve to the page that renders the
+ * canonical object, like mkdocs-autorefs does. Only fills ids no page rendered itself.
+ */
+function addAliasSymbols() {
+  for (const idx of state.indexes.values()) {
+    for (const n of idx.nodes.values()) {
+      if (n.kind !== 'alias' || state.symbols.has(n.path)) continue;
+      let target = n.raw.target_path;
+      for (let hop = 0; target && hop < 10; hop++) {
+        const t = idx.nodes.get(target);
+        if (!t || t.kind !== 'alias') break;
+        target = t.raw.target_path;
+      }
+      const sym = target && state.symbols.get(target);
+      if (sym) state.symbols.set(n.path, { href: sym.href, kind: sym.kind });
+    }
+  }
 }
 
 function indexFor(id) {
@@ -154,16 +175,33 @@ export function resolveAutorefs(body, { warn = null } = {}) {
     const f = FENCE.exec(l);
     if (f) { if (!fence) fence = f[1]; else if (l.trim().startsWith(fence) && !l.trim().slice(fence.length).trim()) fence = null; continue; }
     if (fence || !l.includes('][')) continue;
-    // keep inline code spans intact
-    lines[n] = l.split(/(`[^`]*`(?!\]))/).map((seg, k) => (k % 2 ? seg : seg.replace(/\[((?:[^\[\]]|`[^`]*`)+)\]\[([^\]]*)\]/g, (m, label, ref) => {
-      const id = (ref || label).replace(/`/g, '').trim();
+    // inline code spans become opaque atoms (CommonMark pairing: a backtick run closes on a run of equal length),
+    // so `[`Name`][path]` labels survive and code never gets rewritten
+    const spans = [];
+    const masked = l.replace(/(`+)(?!`)([\s\S]*?[^`])\1(?!`)/g, (m) => { spans.push(m); return `\uE000${spans.length - 1}\uE001`; });
+    const unmask = (t) => t.replace(/\uE000(\d+)\uE001/g, (_, i) => spans[+i]);
+    const mergeCode = (t) => {
+      // adjacent plain code spans (an unresolved link falls back to its code label) become one span
+      let prev;
+      do {
+        prev = t;
+        t = t.replace(/\uE000(\d+)\uE001\uE000(\d+)\uE001/g, (m, a, b) => {
+          if (!/^`[^`]*`$/.test(spans[+a]) || !/^`[^`]*`$/.test(spans[+b])) return m;
+          spans.push(`\`${spans[+a].slice(1, -1)}${spans[+b].slice(1, -1)}\``);
+          return `\uE000${spans.length - 1}\uE001`;
+        });
+      } while (t !== prev);
+      return t;
+    };
+    lines[n] = unmask(mergeCode(masked.replace(/\[((?:[^\[\]])+)\]\[([^\]]*)\]/g, (m, label, ref) => {
+      const id = unmask(ref || label).replace(/`/g, '').trim();
       if (!/^[A-Za-z_][\w]*(\.[A-Za-z_][\w]*)+$/.test(id)) return m;
-      if (defined.has((ref || label).toLowerCase())) return m;
+      if (defined.has(unmask(ref || label).toLowerCase())) return m;
       const sym = state.symbols.get(id);
       if (sym) return `[${label}](${sym.href})`;
       if (warn && state.indexes.has(id.split('.')[0])) warn(id, n + 1);
       return label;
-    }))).join('');
+    })));
   }
   return lines.join('\n');
 }

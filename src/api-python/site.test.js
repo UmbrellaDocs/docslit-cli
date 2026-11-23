@@ -55,6 +55,17 @@ describe('site integration with a real Griffe dump', () => {
     expect(warned).toEqual([`${pkg}.Missing`]);
   });
 
+  it('keeps [`Name`][path] links intact next to other code spans in one table cell', () => {
+    const id = `${pkg}.${firstClass}`;
+    const out = resolveAutorefs(`| \`x\` | \`Callable[[\`[\`${firstClass}\`][${id}] \`\\|\` [\`${firstClass}\`][${id}]\`], int]\` |`);
+    expect(out).toBe(`| \`x\` | \`Callable[[\`[\`${firstClass}\`](/reference#${id}) \`\\|\` [\`${firstClass}\`](/reference#${id})\`], int]\` |`);
+  });
+
+  it('merges the code label of an unresolved ref into its neighbouring code spans', () => {
+    const out = resolveAutorefs('| `Foo[`[`T`][zzz.Missing]`]` |');
+    expect(out).toBe('| `Foo[T]` |');
+  });
+
   it('shows a placeholder (and warns) when a package has no generated data', () => {
     const w = [];
     const out = expandPythonApi('::: notgenerated.thing\n', { warn: (x) => w.push(x.code) });
@@ -71,5 +82,23 @@ describe('site integration with a real Griffe dump', () => {
     expect(head[0]).toBe('# Sphinx inventory version 2');
     const body = zlib.inflateSync(buf.subarray(head.join('\n').length + 1)).toString();
     expect(body).toContain(`${pkg}.${firstClass} py:class 1 reference#${pkg}.${firstClass} -`);
+  });
+});
+
+describe('re-exports resolve to the page rendering the canonical object', () => {
+  let dir;
+  beforeAll(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'docslit-pyapi-alias-'));
+    await fs.copy(path.join(FIX, 'shapes.json'), path.join(dir, 'api', 'python', 'shapes.json'));
+    await fs.outputFile(path.join(dir, 'docs', 'ref', 'core.md'), '# Core\n\n::: shapes._core\n');
+    await initPythonApi({ python: { packages: ['shapes'] } }, dir);
+  });
+  afterAll(async () => { resetPythonApi(); await fs.remove(dir); });
+
+  it('links shapes.Circle (alias) to the canonical anchor on the core page without warning', () => {
+    const warned = [];
+    const out = resolveAutorefs('See [`Circle`][shapes.Circle].', { warn: (id) => warned.push(id) });
+    expect(out).toMatch(/\(\/ref\/core#shapes\.(_core\.)?Circle\)/);
+    expect(warned).toEqual([]);
   });
 });

@@ -513,6 +513,9 @@ const SECTION_TITLES = {
 function escapeCell(text) {
   return String(text ?? '')
     .trim()
+    // a literal `a | b` code span: the renderer shows the backslash of `\|` inside code, so emit <code> with an entity instead
+    .replace(/(`+)(?!`)([^`][\s\S]*?[^`]|[^`])\1(?!`)/g, (m, _t, code) => (code.includes('|')
+      ? `<code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\|/g, '&#124;')}</code>` : m))
     .replace(/(?<!\\)\|/g, '\\|')
     .replace(/\s*\n\s*/g, '<br>');
 }
@@ -591,8 +594,12 @@ function renderParamSection(rc, node, sec, opts, kind) {
 }
 
 function renderReturnSection(rc, node, sec, opts) {
-  const items = Array.isArray(sec.value) ? sec.value : [];
+  let items = Array.isArray(sec.value) ? sec.value : [];
   if (!items.length) return '';
+  // Griffe splits an unnamed multi-line "Returns:" body into one item per line; a single (non-tuple) return type is one value
+  if (sec.kind === 'returns' && items.length > 1 && node.raw.returns && !isTupleAnnotation(node.raw.returns) && items.every(it => !it.name)) {
+    items = [{ ...items[0], description: items.map(it => it.description || '').join('\n') }];
+  }
   const fallback = sec.kind === 'returns' && node.raw.returns ? node.raw.returns : null;
   const rows = items.map(it => {
     let name = it.name || '';
@@ -619,6 +626,13 @@ function renderReturnSection(rc, node, sec, opts) {
   const named = rows.some(r => r.name);
   const headers = [...(named ? ['Name'] : []), 'Type', 'Description'];
   return table(headers, rows.map(r => [...(named ? [r.name ? codeSpan(r.name) : ''] : []), r.type, r.desc]));
+}
+
+function isTupleAnnotation(ann) {
+  if (!ann || typeof ann !== 'object') return false;
+  if (ann.cls === 'ExprTuple') return true;
+  const left = ann.cls === 'ExprSubscript' ? ann.left : null;
+  return !!(left && /^(tuple|Tuple)$/.test(left.name || ''));
 }
 
 function annotationText(rc, node, ann) {
