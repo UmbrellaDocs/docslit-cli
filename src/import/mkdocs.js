@@ -244,6 +244,7 @@ export async function convertMkdocs(imp, loaded, opts = {}) {
     useDirUrls,
     exts: extNames,
     tabsSync: features.has('content.tabs.link'),
+    codeAnnotate: features.has('content.code.annotate'),
     snippetBases,
     snippetSources: new Set(),
     macros: {
@@ -628,7 +629,7 @@ function buildTabs(items, siteName) {
 /** Page-conversion settings when no mkdocs.yml is available (single-page MCP conversion): common extensions on. */
 export function mkdocsPageDefaults() {
   return {
-    configDir: process.cwd(), docsDir: process.cwd(), useDirUrls: true, snippetBases: [], snippetSources: new Set(), tabsSync: false,
+    configDir: process.cwd(), docsDir: process.cwd(), useDirUrls: true, snippetBases: [], snippetSources: new Set(), tabsSync: false, codeAnnotate: false,
     exts: new Set(['admonition', 'attr_list', 'def_list', 'md_in_html', 'footnotes', 'abbr', 'pymdownx.details', 'pymdownx.tabbed', 'pymdownx.superfences', 'pymdownx.keys', 'pymdownx.mark', 'pymdownx.caret', 'pymdownx.tilde', 'pymdownx.arithmatex', 'pymdownx.emoji']),
     macros: { enabled: false, resolve: () => null },
   };

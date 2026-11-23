@@ -1,7 +1,7 @@
 import { visit, EXIT } from 'unist-util-visit';
 import { highlightLines } from '../highlighter.js';
 import {
-  parseCodeMeta, parseLineSpec, applyNotation, diffLineMarks,
+  parseCodeMeta, parseLineSpec, applyNotation, diffLineMarks, findAnnotationMarker,
 } from '../code-meta.js';
 
 /**
@@ -45,6 +45,51 @@ function dedentBlock(text) {
   return (common ? lines.map((l) => (l.startsWith(common) ? l.slice(common.length) : l.trimStart())) : lines).join('\n');
 }
 
+const decodeEntities = (s) => String(s).replace(/&(#x[0-9a-f]+|#\d+|lt|gt|amp|quot|apos);/gi, (m, e) => {
+  const k = e.toLowerCase();
+  if (k === 'lt') return '<';
+  if (k === 'gt') return '>';
+  if (k === 'amp') return '&';
+  if (k === 'quot') return '"';
+  if (k === 'apos') return "'";
+  const cp = k[1] === 'x' ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10);
+  return Number.isFinite(cp) ? String.fromCodePoint(cp) : m;
+});
+
+const annotationButton = (n) => `<button class="code-annotation" data-annotation="${n}" aria-label="Annotation ${n}">${n}</button>`;
+
+/**
+ * Turn the annotation marker on one highlighted line (`<span class="line">…</span>`) into a badge button.
+ * Works on the plain text of the line (tags skipped, entities decoded) and rebuilds the HTML around the edits,
+ * so the surrounding token spans keep their colours. Returns { html, n } or null when the line has no marker.
+ */
+export function annotateLineHtml(lineHtml) {
+  const parts = String(lineHtml).split(/(<[^>]*>)/).filter((p) => p !== '');
+  const segs = parts.map((p) => (p.startsWith('<') ? { tag: p } : { text: decodeEntities(p) }));
+  const plain = segs.map((x) => x.text ?? '').join('');
+  const found = findAnnotationMarker(plain);
+  if (!found) return null;
+  let pos = 0;
+  let out = '';
+  for (const seg of segs) {
+    if (seg.tag !== undefined) { out += seg.tag; continue; }
+    const a = pos;
+    const b = pos + seg.text.length;
+    pos = b;
+    let cur = a;
+    for (const op of found.ops) {
+      if (op.end <= a || op.start >= b) continue;
+      const s0 = Math.max(op.start, a);
+      const e0 = Math.min(op.end, b);
+      out += escapeHtml(seg.text.slice(cur - a, s0 - a));
+      if (op.marker && op.start >= a) out += annotationButton(found.n);
+      cur = e0;
+    }
+    out += escapeHtml(seg.text.slice(cur - a));
+  }
+  return { html: out, n: found.n };
+}
+
 const KIND_CLASS = { hl: 'hl', focus: 'focus', add: 'add', remove: 'remove', hunk: 'hunk', error: 'error', warning: 'warning' };
 
 /**
@@ -60,7 +105,7 @@ const KIND_CLASS = { hl: 'hl', focus: 'focus', add: 'add', remove: 'remove', hun
  * fallback lines are all baked in at build time, so the page reads correctly before any JS runs.
  * Returns the element HTML.
  */
-export function renderCodeBlockParts({ code, lang = '', meta = '', opts, passthrough = '' }) {
+export function renderCodeBlockParts({ code, lang = '', meta = '', opts, passthrough = '', annotate = false }) {
   const o = opts || parseCodeMeta(meta);
   const note = applyNotation(String(code), lang);
   const text = note.code;
@@ -100,6 +145,17 @@ export function renderCodeBlockParts({ code, lang = '', meta = '', opts, passthr
   }
   if (!lines) lines = withTokens.split('\n').map((l) => `<span class="line">${escapeHtml(l)}</span>`);
 
+  // code annotations: only when the fence asked for them AND the caller found the list that explains them
+  const annotated = new Set();
+  if (annotate && o.annotate) {
+    lines = lines.map((l) => {
+      const r = annotateLineHtml(l);
+      if (!r) return l;
+      annotated.add(r.n);
+      return r.html;
+    });
+  }
+
   const inner = lines.map((l, i) => {
     const kinds = marks.get(i + 1);
     let line = restoreVars(l);
@@ -129,7 +185,7 @@ export function renderCodeBlockParts({ code, lang = '', meta = '', opts, passthr
   if (ml) attrs.push(`style="--cb-ml:${ml}"`);
   attrs.push('highlighted');
   const extra = passthrough ? ' ' + passthrough.trim() : '';
-  return { html: `<wc-code-block ${attrs.join(' ')}${extra}>${inner}</wc-code-block>`, lines: ml || lineCount };
+  return { html: `<wc-code-block ${attrs.join(' ')}${extra}>${inner}</wc-code-block>`, lines: ml || lineCount, annotations: [...annotated].sort((a, b) => a - b) };
 }
 
 export function renderCodeBlock(args) {
@@ -193,7 +249,20 @@ function classList(node) {
   return Array.isArray(c) ? c : typeof c === 'string' ? c.split(/\s+/) : [];
 }
 
-export default function rehypeDocslitCode() {
+const isBlankText = (n) => n.type === 'text' && !n.value.trim();
+
+/** The `<ol>` right after a code block (whitespace-only text between them is ignored): its index in parent.children, or -1. */
+function followingListIndex(parent, index) {
+  for (let k = index + 1; k < parent.children.length; k++) {
+    const sib = parent.children[k];
+    if (isBlankText(sib)) continue;
+    return sib.type === 'element' && sib.tagName === 'ol' ? k : -1;
+  }
+  return -1;
+}
+
+export default function rehypeDocslitCode(options = {}) {
+  const warn = typeof options.onWarning === 'function' ? options.onWarning : () => {};
   return (tree) => {
     visit(tree, 'element', (node, index, parent) => {
       // <wc-code-group><wc-code-tab label=".." language="..">plain text</wc-code-tab>: build a block inside
@@ -233,7 +302,33 @@ export default function rehypeDocslitCode() {
       const glued = lang.match(/^([^{]+)(\{.*)$/);
       if (glued) { lang = glued[1]; meta = `${glued[2]} ${meta}`; }
 
-      const r = renderCodeBlockParts({ code: text, lang, meta });
+      const wantsAnnotations = parseCodeMeta(meta).annotate;
+      const listAt = wantsAnnotations ? followingListIndex(parent, index) : -1;
+      const r = renderCodeBlockParts({ code: text, lang, meta, annotate: listAt !== -1 });
+      if (wantsAnnotations && listAt === -1) {
+        warn({ code: 'code-annotation-no-list', file: options.pagePath || null, line: null, message: 'Code block has the `annotate` flag but no ordered list directly after it; markers are left as plain text.' });
+      }
+      if (listAt !== -1) {
+        // The list moves inside the block as <ol slot="annotations">; the raw open/close tags wrap it.
+        const closeTag = '</wc-code-block>';
+        const ol = parent.children[listAt];
+        const items = (ol.children || []).filter((c) => c.type === 'element' && c.tagName === 'li').length;
+        const maxN = r.annotations.length ? r.annotations[r.annotations.length - 1] : 0;
+        if (!r.annotations.length) {
+          warn({ code: 'code-annotation-no-marker', file: options.pagePath || null, line: null, message: 'Code block has the `annotate` flag but no (N) markers in its comments; the list stays below the code.' });
+        } else if (maxN > items) {
+          warn({ code: 'code-annotation-missing-item', file: options.pagePath || null, line: null, message: `Code annotation (${maxN}) has no matching list item (the list has ${items}).` });
+        }
+        if (r.annotations.length) {
+          ol.properties = { ...(ol.properties || {}), slot: 'annotations' };
+          parent.children.splice(listAt, 1);
+          parent.children[index] = { type: 'raw', value: r.html.slice(0, -closeTag.length), data: { cbLines: r.lines } };
+          parent.children.splice(index + 1, 0, ol, { type: 'raw', value: closeTag });
+          return index + 3;
+        }
+        parent.children[index] = { type: 'raw', value: r.html, data: { cbLines: r.lines } };
+        return undefined;
+      }
       parent.children[index] = { type: 'raw', value: r.html, data: { cbLines: r.lines } };
     });
 

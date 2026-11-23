@@ -437,3 +437,26 @@ describe('MkDocs blog plugin options', () => {
     expect(mkdocsFrontmatter({ date: { created: '2024-01-01', updated: '2024-02-02' }, readtime: 7 })).toEqual({ updated: '2024-02-02', readtime: '7 min read' });
   });
 });
+
+describe('pymdown: code annotations', () => {
+  const doc = '``` { .yaml .annotate }\na: 1  # (1)\n```\n\n1.  The note\n';
+  it('.annotate on a fence becomes the annotate flag and keeps markers and list', () => {
+    const counts = [];
+    const out = conv(doc, [], { count: (a) => counts.push(a) });
+    expect(out).toBe('```yaml annotate\na: 1  # (1)\n```\n\n1.  The note\n');
+    expect(counts.some((c) => /code annotations/.test(c))).toBe(true);
+    expect(conv('```py title="a.py" { .annotate }\nx # (1)\n```\n\n1. n\n')).toContain('```py title="a.py" annotate\n');
+  });
+  it('content.code.annotate flags only fences that contain markers', () => {
+    const out = conv('```yaml\na: 1  # (1)\n```\n\n1. n\n\n```yaml\nb: 2\n```\n', [], { codeAnnotate: true });
+    expect(out).toContain('```yaml annotate\na: 1');
+    expect(out).toContain('```yaml\nb: 2');
+    expect(conv('```yaml\na: 1  # (1)\n```\n')).toContain('```yaml\na: 1');
+    // markdown fences only show example source: never flagged by the global feature
+    expect(conv('````markdown\n# (1)\n````\n', [], { codeAnnotate: true })).toContain('````markdown\n');
+  });
+  it('a standalone { .annotate } line after a list does not break fence/list adjacency', () => {
+    const out = conv('```yaml annotate\na: 1  # (1)\n```\n\n1. n\n{ .annotate }\n');
+    expect(out).toMatch(/```\n\n1\. n\n/);
+  });
+});

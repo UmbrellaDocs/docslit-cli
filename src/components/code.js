@@ -25,6 +25,14 @@ wc-code-block:not(:defined)[style*="--cb-ml"] { overflow-y: hidden; padding-bott
 wc-code-block:not(:defined)[style*="--cb-ml"][language], wc-code-block:not(:defined)[style*="--cb-ml"][filename] { max-height: calc(var(--cb-ml) * 22.1px + 32px + 33px + 2px + 40px); }
 wc-code-block:not(:defined)[wrap] { white-space: pre-wrap; overflow-wrap: anywhere; }
 wc-code-block:not(:defined)[linenumbers] { padding-left: calc(20px + 3.5ch); }
+/* code annotations: before the upgrade (or without JS) the badge is static and the list stays visible under the code */
+wc-code-block:not(:defined) .code-annotation {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 1.7em; height: 1.7em; margin: 0 0 0 .4em; padding: 0 .35em;
+  border: 1px solid var(--accent-light, #4f98a3); border-radius: 999px; background: transparent; color: inherit; font: 600 .72em/1 var(--font-sans, system-ui, sans-serif); vertical-align: .12em;
+}
+wc-code-block:not(:defined) > ol[slot="annotations"] {
+  display: block; margin: 16px -20px -16px; padding: 12px 20px 12px 42px; border-top: 1px solid var(--border, #2a2a2a); white-space: normal; font: 13px/1.55 var(--font-sans, system-ui, sans-serif); color: var(--text2, #a0a0a0);
+}
 wc-code-group:not(:defined) {
   display: block; box-sizing: border-box; margin: 0 0 20px; overflow: hidden; background: var(--code-bg, #161616); border: 1px solid var(--border, #2a2a2a); border-radius: var(--radius-lg, 12px);
   min-height: calc(var(--cb-gn, 3) * 22.1px + 32px + 40px + 2px);
@@ -149,19 +157,27 @@ function _cbSpec(str){
 function _cbRead(el){
   if(el.__cbSrc)return el.__cbSrc;
   let htmlStr=null,code;
+  let ol=null;
   if(el.hasAttribute('highlighted')){
+    // <ol slot="annotations"> (code annotations) is not code: keep it aside, in the light DOM, unslotted = hidden
+    ol=el.querySelector(':scope > ol[slot="annotations"]');
+    if(ol)ol.remove();
     htmlStr=el.innerHTML.trim();
     const tmp=document.createElement('div');
     tmp.innerHTML=htmlStr;
+    // the numbered badges are not part of the code that gets copied
+    tmp.querySelectorAll('.code-annotation').forEach(function(b){b.remove();});
     // Shiki separates lines with real newline characters between inline .line spans
     // (do NOT make .line display:block: the newlines would then add a second break).
     // A trailing newline in the source adds an empty final .line; don't count it.
     code=tmp.textContent.replace(/\\n$/,'');
+    if(ol)code=code.split('\\n').map(function(l){return l.replace(/[ \\t]+$/,'');}).join('\\n');
   }else{
     code=_cbDecode(el.innerHTML.trim());
   }
   el.__cbSrc={code:code,html:htmlStr};
   el.innerHTML='';
+  if(ol)el.appendChild(ol);
   return el.__cbSrc;
 }
 function _cbVarify(escaped){
@@ -300,6 +316,16 @@ const _cbSharedStyles=css\`
   :host(.light-shiki) .line span[style*="22863A" i],:host([theme="light"]) .line span[style*="22863A" i]{color:#176c2e !important}
   :host(:not(.light-shiki):not([theme="light"])) .line span[style*="6A737D" i]{color:#8b949e !important}
   :host(.light-shiki) .line span.dl-var,:host([theme="light"]) .line span.dl-var,.line span.dl-var{color:var(--_hov) !important}
+  .code-annotation{appearance:none;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-width:1.7em;height:1.7em;margin:0 0 0 .4em;padding:0 .35em;border:1px solid color-mix(in srgb,var(--_hov) 55%,transparent);border-radius:999px;background:color-mix(in srgb,var(--_hov) 16%,transparent);color:var(--_fg);font:600 .72em/1 var(--font-sans,'Inter',system-ui,sans-serif);vertical-align:.12em;cursor:pointer;user-select:none;-webkit-user-select:none;text-indent:0;transition:background-color .15s,border-color .15s}
+  .code-annotation:hover,.code-annotation[aria-expanded="true"]{background:var(--_hov);border-color:var(--_hov);color:var(--_bg)}
+  .code-annotation:focus-visible{outline:2px solid var(--_hov);outline-offset:2px}
+  .ann-pop{position:absolute;z-index:30;transform:translateX(-50%);box-sizing:border-box;display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--_bar);color:var(--_fg);border:1px solid var(--_bd);border-radius:var(--radius,8px);box-shadow:0 8px 24px rgba(0,0,0,.28);font:400 13px/1.55 var(--font-sans,'Inter',system-ui,sans-serif);white-space:normal;text-align:left}
+  .ann-num{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:1.7em;height:1.7em;padding:0 .35em;border-radius:999px;background:var(--_hov);color:var(--_bg);font:600 11px/1 var(--font-sans,'Inter',system-ui,sans-serif)}
+  .ann-body{min-width:0;overflow-wrap:anywhere}
+  .ann-body>:first-child{margin-top:0}.ann-body>:last-child{margin-bottom:0}
+  .ann-body p{margin:.4em 0}
+  .ann-body code{font-family:var(--font-mono,'JetBrains Mono',ui-monospace,monospace);font-size:.92em;padding:1px 4px;border-radius:4px;background:color-mix(in srgb,var(--_fg) 10%,transparent)}
+  .ann-body a{color:var(--_hov)}
   .fade{position:absolute;left:0;right:0;bottom:0;height:56px;pointer-events:none;background:linear-gradient(to bottom,transparent,var(--_bg))}
   .more{appearance:none;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:33px;margin:0;padding:0 12px;background:var(--_bar);border:0;border-top:1px solid var(--_bd);border-radius:0 0 calc(var(--cb-r) - 1px) calc(var(--cb-r) - 1px);color:var(--_mut);font:500 12px/1 var(--font-sans,'Inter',system-ui,sans-serif);cursor:pointer}
   .more:hover{color:var(--_fg)}
@@ -310,7 +336,7 @@ const _cbSharedStyles=css\`
   @media(max-width:420px){.btn-label{display:none}}
   @media(pointer:coarse){:host{--cb-head:46px}.btn{min-height:44px;min-width:44px}.more{min-height:44px}}
   @media(prefers-reduced-motion:reduce){.btn,.float,.more svg,.has-focus .line{transition:none}}
-  @media print{.actions,.float,.more,.fade{display:none !important}.scroll.collapsed{max-height:none !important}.wrap{border-color:#ccc}}
+  @media print{.actions,.float,.more,.fade,.ann-pop{display:none !important}.scroll.collapsed{max-height:none !important}.wrap{border-color:#ccc}}
 \`;
 
 const _CB_SVG_COPY=html\`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>\`;
@@ -378,6 +404,8 @@ class _CbBase extends LitElement {
     else{this.updateComplete.then(()=>{const d=this.getBoundingClientRect().top-top;if(d)window.scrollBy(0,d);});}
   }
   _codeClick(e){
+    const a=e.target&&e.target.closest?e.target.closest('.code-annotation'):null;
+    if(a&&this._annToggle){e.stopPropagation();this._annToggle(a);return;}
     const v=e.target&&e.target.closest?e.target.closest('.dl-var'):null;
     if(v)document.dispatchEvent(new CustomEvent('docslit-var-edit',{detail:{name:v.dataset.var}}));
   }
@@ -417,13 +445,50 @@ class _CbBase extends LitElement {
 
 // ── WC-CODE-BLOCK ──────────────────────────────────────────────────────────
 class WcCodeBlock extends _CbBase {
-  static properties={language:{type:String},filename:{type:String},icon:{type:String},linenumbers:{type:String},startLine:{type:Number,attribute:'start-line'},highlight:{type:String},focus:{type:String},wrap:{type:Boolean},expandable:{type:Boolean},maxLines:{type:Number,attribute:'max-lines'},nocopy:{type:Boolean},highlighted:{type:Boolean,reflect:true}};
+  static properties={language:{type:String},filename:{type:String},icon:{type:String},linenumbers:{type:String},startLine:{type:Number,attribute:'start-line'},highlight:{type:String},focus:{type:String},wrap:{type:Boolean},expandable:{type:Boolean},maxLines:{type:Number,attribute:'max-lines'},nocopy:{type:Boolean},highlighted:{type:Boolean,reflect:true},_ann:{type:Object,state:true}};
   static styles=[_cbSharedStyles];
   connectedCallback(){
     this._src=_cbRead(this);
     this._inGroup=!!this.closest('wc-code-group');
     if(this._inGroup){this.setAttribute('data-in-group','');LitElement.prototype.connectedCallback.call(this);return;}
     super.connectedCallback();
+    this._annOutside=(e)=>{if(this._ann&&!e.composedPath().includes(this))this._ann=null;};
+    this._annOther=(e)=>{if(e.detail!==this)this._ann=null;};
+    document.addEventListener('click',this._annOutside);
+    document.addEventListener('docslit-annotation-open',this._annOther);
+  }
+  disconnectedCallback(){
+    super.disconnectedCallback();
+    document.removeEventListener('click',this._annOutside);
+    document.removeEventListener('docslit-annotation-open',this._annOther);
+  }
+  // Annotation popover: the badge (a real <button> in the code) toggles the matching <li> of the slotted <ol>.
+  _annToggle(btn){
+    const n=btn.dataset.annotation;
+    if(this._ann&&this._ann.n===n){this._ann=null;return;}
+    const ol=this.querySelector(':scope > ol[slot="annotations"]');
+    const li=ol&&ol.children[Number(n)-1];
+    if(!li)return;
+    const wrap=this.renderRoot.querySelector('.wrap');
+    const wr=wrap.getBoundingClientRect(),br=btn.getBoundingClientRect();
+    const half=Math.min(160,(wr.width-16)/2);
+    const left=Math.max(half+8,Math.min(wr.width-half-8,br.left-wr.left+br.width/2));
+    document.dispatchEvent(new CustomEvent('docslit-annotation-open',{detail:this}));
+    this._annBtn=btn;
+    this._ann={n:n,html:li.innerHTML,left:left,top:br.bottom-wr.top+6,w:half*2};
+  }
+  _annKey(e){
+    if(e.key==='Escape'&&this._ann){
+      e.stopPropagation();
+      this._ann=null;
+      if(this._annBtn&&this._annBtn.isConnected)this._annBtn.focus();
+    }
+  }
+  updated(){
+    super.updated();
+    this.renderRoot.querySelectorAll('.code-annotation').forEach((b)=>{
+      b.setAttribute('aria-expanded',this._ann&&this._ann.n===b.dataset.annotation?'true':'false');
+    });
   }
   _item(){
     const src=this._src||_cbRead(this);
@@ -436,9 +501,11 @@ class WcCodeBlock extends _CbBase {
     const langName=_cbLangName(o.language);
     const hasHead=!!(o.filename||o.language||o.icon);
     const getText=()=>item.code;
-    return html\`<div class=\${this._wrapClass(hasHead?'':'no-head')}>
+    const ann=this._ann;
+    return html\`<div class=\${this._wrapClass(hasHead?'':'no-head')} @keydown=\${(e)=>this._annKey(e)}>
       \${hasHead?html\`<div class="header"><div class="hd-title">\${o.icon?html\`<span class="ico"><wc-icon name=\${o.icon}></wc-icon></span>\`:nothing}<span class="name">\${o.filename||langName}</span></div>\${o.filename&&langName?html\`<span class="lang">\${langName}</span>\`:nothing}\${this._actions(o.nocopy,getText)}</div>\`:(o.nocopy?nothing:html\`<div class="float">\${this._actions(false,getText)}</div>\`)}
       \${this._panel(item,'b')}
+      \${ann?html\`<div class="ann-pop" role="dialog" aria-label=\${'Annotation '+ann.n} style="left:\${ann.left}px;top:\${ann.top}px;width:\${ann.w}px"><span class="ann-num" aria-hidden="true">\${ann.n}</span><div class="ann-body">\${unsafeHTML(ann.html)}</div></div>\`:nothing}
     </div>\`;
   }
 }

@@ -128,7 +128,7 @@ export class Importer {
     const mk = this.mkdocs;
     const lineIn = (needle) => { const i = raw.indexOf(needle); return i === -1 ? null : raw.slice(0, i).split('\n').length; };
     const r = convertPymdown(body, {
-      file: srcRel, lineOffset, exts: mk.exts, tabsSync: mk.tabsSync, macros: mk.macros,
+      file: srcRel, lineOffset, exts: mk.exts, tabsSync: mk.tabsSync, codeAnnotate: mk.codeAnnotate, macros: mk.macros,
       report: rep, count: (a, b) => this.reporter.count(a, b),
       readSnippet: (spec, o) => (this.lenient ? { error: 'snippets are not followed when converting a single page' } : readMkdocsSnippet(this, spec, srcRel, o)),
     });
@@ -149,7 +149,7 @@ export class Importer {
         line: lineIn(n.macros[0].text), action: 'Left as written.', fix: 'Replace each with its value, a {{VAR}} from "attributes" in docslit.json, or <wc-if>/<wc-include>.' });
     }
     if (n.iconMiss.size) rep('info', 'mkdocs-icon-unmapped', `Icon${n.iconMiss.size === 1 ? '' : 's'} without a Lucide / Font Awesome match removed: ${[...n.iconMiss].slice(0, 6).join(', ')}${n.iconMiss.size > 6 ? ', …' : ''}.`, { action: 'Removed the shortcode.', fix: 'Add an icon with <wc-icon name="…"> (Lucide or Font Awesome names).' });
-    if (n.annotations) rep('info', 'mkdocs-code-annotations', 'Code annotations ((1) markers) are shown as plain comments followed by the numbered list.', { fix: 'Turn important annotations into prose or a callout.' });
+    if (n.annotations) rep('info', 'mkdocs-content-annotations', 'Annotations on regular content ({ .annotate } lists) are shown as plain (1) markers followed by the numbered list.', { fix: 'Turn important annotations into prose or a callout.' });
     if (n.critic) rep('warning', 'mkdocs-criticmarkup', 'CriticMarkup ({++ ++}, {-- --}, {== ==}) was left as written.', { line: lineIn('{'), fix: 'Resolve the suggested edits by hand.' });
     if (n.attrDropped) this.reporter.count('{ .class } attribute list', 'dropped');
     if (n.gridCards && !mk.compatCss) { mk.compatCss = true; this.extraCss = (this.extraCss || []).concat(MATERIAL_COMPAT_CSS); }
