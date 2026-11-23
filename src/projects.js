@@ -1,34 +1,19 @@
-import { readFileSync, existsSync } from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
 import pc from 'picocolors';
-
-const CONFIG_PATH = path.join(os.homedir(), '.docslit', 'config.json');
+import { requireAuth, bearer, authHint } from './cloud-auth.js';
 
 export async function projects() {
-  if (!existsSync(CONFIG_PATH)) {
-    console.error(pc.red('  ✗ Not logged in. Run: docslit login --email you@example.com --name "Your Name"'));
-    process.exit(1);
-  }
-
-  let cliConfig;
-  try {
-    cliConfig = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-  } catch {
-    console.error(pc.red('  ✗ Config file corrupted. Run: docslit login'));
-    process.exit(1);
-  }
-
-  const { token, apiUrl } = cliConfig;
+  const { token, apiUrl } = requireAuth();
 
   let data;
   try {
     const res = await fetch(`${apiUrl}/cloud/projects`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: bearer(token),
     });
     data = await res.json().catch(() => ({}));
     if (!res.ok) {
       console.error(pc.red(`  ✗ Failed to fetch projects: ${data.error || res.statusText}`));
+      const hint = authHint(res.status);
+      if (hint) console.error(pc.dim(`  ${hint}`));
       process.exit(1);
     }
   } catch (e) {

@@ -152,8 +152,9 @@ describe('parseDoc', () => {
   it('preserves special characters like && inside wc-code-block', async () => {
     const raw = '<wc-code-block>mkdir foo && cd foo</wc-code-block>\n';
     const { html } = await parseDoc(raw);
-    expect(html).toContain('mkdir foo && cd foo');
-    expect(html).not.toContain('&amp;');
+    // code is entity-escaped exactly once (the runtime reads it back as plain text)
+    expect(html).toContain('mkdir foo &amp;&amp; cd foo');
+    expect(html).not.toContain('&amp;amp;');
   });
 
   it('preserves {{VAR}} placeholders inside wc-code-block', async () => {
@@ -166,7 +167,6 @@ describe('parseDoc', () => {
     const { html } = await parseDoc('<Tip>Use cache</Tip>\n');
     expect(html).toContain('<wc-callout');
     expect(html).toContain('type="tip"');
-    expect(html).toContain('title="Tip"');
     expect(html).toContain('Use cache');
   });
 
@@ -175,7 +175,7 @@ describe('parseDoc', () => {
     const { html } = await parseDoc(raw);
     expect(html).toContain('<wc-card');
     expect(html).toContain('title="Quickstart"');
-    expect(html).toContain('icon-name="zap"'); // rocket → zap via FA_TO_LUCIDE
+    expect(html).toContain('icon="rocket"'); // icons pass through; resolved at build time
     expect(html).toContain('href="/start"');
   });
 
@@ -208,17 +208,16 @@ describe('parseDoc', () => {
     expect(html).not.toContain('<wc-callout');
   });
 
-  it('auto-numbers <Step> inside <Steps>', async () => {
-    const raw = '<Steps>\n<Step title="A">First</Step>\n<Step title="B">Second</Step>\n</Steps>\n';
+  it('does not force step numbers (numbering is automatic; only stepNumber maps to n)', async () => {
+    const raw = '<Steps>\n<Step title="A">First</Step>\n<Step title="B" stepNumber={4}>Second</Step>\n</Steps>\n';
     const { html } = await parseDoc(raw);
-    expect(html).toContain('n="1"');
-    expect(html).toContain('n="2"');
+    expect(html).not.toContain('n="1"');
+    expect(html).toContain('n="4"');
   });
 
-  it('drops <Tooltip> wrapper but keeps inner content (flatten)', async () => {
+  it('maps <Tooltip> to wc-tooltip and keeps inner content', async () => {
     const { html } = await parseDoc('Hover <Tooltip tip="hi">here</Tooltip> for info.\n');
-    expect(html).not.toContain('Tooltip');
-    expect(html).not.toContain('wc-tooltip');
+    expect(html).toContain('wc-tooltip');
     expect(html).toContain('Hover');
     expect(html).toContain('here');
   });
@@ -276,7 +275,7 @@ Content after the fields block.
   it('preserves wc-code-group / wc-code-tab structure with fenced code inside', async () => {
     const raw = '<wc-code-group>\n<wc-code-tab label="JS">\n\n```js\nconsole.log(1)\n```\n\n</wc-code-tab>\n</wc-code-group>\n';
     const { html } = await parseDoc(raw);
-    expect(html).toContain('<wc-code-group>');
+    expect(html).toMatch(/<wc-code-group[ >]/);
     expect(html).toContain('<wc-code-tab label="JS">');
     expect(html).toContain('<wc-code-block');
     expect(html).toContain('language="js"');
@@ -351,7 +350,9 @@ echo {{PRODUCT}}
       pagePath: path.join(tmpDocs, 'code.md'),
       globalAttributes: { PRODUCT: 'GlobalProduct' },
     });
-    expect(html).toContain('echo {{PRODUCT}}');
+    // runtime variables stay as {{NAME}} spans for the browser to fill in
+    expect(html).toContain('{{PRODUCT}}');
+    expect(html).toContain('data-var="PRODUCT"');
   });
 
   it('throws for include paths outside docs/_reusables', async () => {
@@ -379,7 +380,7 @@ echo {{PRODUCT}}
       pagePath: path.join(tmpDocs, 'code-only.md'),
       globalAttributes: {},
     });
-    expect(html).toContain('<wc-code-block language="markdown">');
+    expect(html).toContain('<wc-code-block language="markdown" highlighted>');
     expect(html).toContain('src="shared/intro.md"');
   });
 
@@ -411,7 +412,7 @@ echo {{PRODUCT}}
       pagePath: path.join(tmpDocs, 'fence-example.md'),
       globalAttributes: {},
     });
-    expect(html).toContain('<wc-code-block language="markdown">');
+    expect(html).toContain('<wc-code-block language="markdown" highlighted>');
     expect(html).toContain('src="shared/intro.md"');
     expect(html).not.toContain('Reusable line with');
   });
@@ -475,7 +476,7 @@ describe('rewriteMdxTags', () => {
   it('exports the COMPONENT_MAP with expected aliases', async () => {
     expect(COMPONENT_MAP.Tip.tag).toBe('wc-callout');
     expect(COMPONENT_MAP.CardGroup.tag).toBe('wc-tiles');
-    expect(COMPONENT_MAP.Tooltip.flatten).toBe(true);
+    expect(COMPONENT_MAP.Tooltip.tag).toBe('wc-tooltip');
   });
 });
 
@@ -652,7 +653,7 @@ describe('buildComponents', () => {
   it('wc-code-block captures innerHTML on connectedCallback so child tags render as source text', async () => {
     // The component must capture innerHTML before shadow DOM renders, not use a slot.
     expect(output).toContain('connectedCallback');
-    expect(output).toContain('this.innerHTML');
+    expect(output).toMatch(/\.innerHTML/);
     // Lit text bindings use textContent, so raw < > display correctly — no manual escaping needed.
     expect(output).not.toContain("_escape(this._code)");
   });
@@ -1303,7 +1304,8 @@ describe('renderShell — accessibility', () => {
   it('includes focus-visible indicators', async () => {
     const html = await renderShell({ config, mode: 'static' });
     expect(html).toContain('*:focus-visible');
-    expect(html).toContain('outline: 2px solid var(--accent)');
+    expect(html).toContain('outline: var(--focus-w) solid var(--focus-color)');
+    expect(html).toContain('--focus-color: var(--accent)');
   });
 
   it('content links have underline for distinguishability', async () => {

@@ -1,0 +1,153 @@
+// Design-token reference for the theme system. Every token is a CSS custom property declared once on
+// :root (light-mode overrides on html.light), read by the shell CSS (template.js, nav-chrome.js) and by the
+// component styles. A theme is mostly a set of overrides of these tokens (see theme-defs.js); the defaults
+// below reproduce the classic ("default") look exactly.
+
+/** @typedef {{ name: string, group: string, description: string, default: string, light?: string }} TokenDef */
+
+/** @type {TokenDef[]} */
+export const TOKENS = [
+  // ── typography ──
+  { name: '--font-heading', group: 'typography', description: 'Font stack for h1-h4 (defaults to the body font)', default: 'var(--font-sans)' },
+  { name: '--heading-color', group: 'typography', description: 'Heading text colour', default: 'var(--text)' },
+  { name: '--heading-features', group: 'typography', description: 'font-feature-settings for headings', default: "'ss01'" },
+  { name: '--content-fs', group: 'typography', description: 'Base font size of the article column', default: '1rem' },
+  { name: '--body-lh', group: 'typography', description: 'Body line height', default: '1.6' },
+  { name: '--prose-color', group: 'typography', description: 'Paragraph and list text colour', default: 'var(--text2)' },
+  { name: '--p-mb', group: 'typography', description: 'Space below paragraphs and lists', default: '16px' },
+  { name: '--li-mb', group: 'typography', description: 'Space between list items', default: '6px' },
+  { name: '--h1-size', group: 'typography', description: 'h1 size (desktop)', default: '3rem' },
+  { name: '--h1-size-md', group: 'typography', description: 'h1 size (<=768px)', default: '2.25rem' },
+  { name: '--h1-size-sm', group: 'typography', description: 'h1 size (<=640px)', default: '1.875rem' },
+  { name: '--h1-size-xs', group: 'typography', description: 'h1 size (<=400px)', default: '1.625rem' },
+  { name: '--h1-weight', group: 'typography', description: 'h1 weight', default: '500' },
+  { name: '--h1-tracking', group: 'typography', description: 'h1 letter-spacing', default: '-.04em' },
+  { name: '--h1-lh', group: 'typography', description: 'h1 line height', default: '1.1' },
+  { name: '--h1-mb', group: 'typography', description: 'Space below h1', default: '20px' },
+  { name: '--h2-size', group: 'typography', description: 'h2 size (desktop)', default: '1.875rem' },
+  { name: '--h2-size-md', group: 'typography', description: 'h2 size (<=768px)', default: '1.5rem' },
+  { name: '--h2-size-sm', group: 'typography', description: 'h2 size (<=640px)', default: '1.375rem' },
+  { name: '--h2-weight', group: 'typography', description: 'h2 weight', default: '500' },
+  { name: '--h2-tracking', group: 'typography', description: 'h2 letter-spacing', default: '-.03em' },
+  { name: '--h2-lh', group: 'typography', description: 'h2 line height', default: '1.2' },
+  { name: '--h2-mt', group: 'typography', description: 'Space above h2', default: '56px' },
+  { name: '--h2-mb', group: 'typography', description: 'Space below h2', default: '16px' },
+  { name: '--h3-size', group: 'typography', description: 'h3 size (desktop)', default: '1.375rem' },
+  { name: '--h3-size-md', group: 'typography', description: 'h3 size (<=768px)', default: '1.125rem' },
+  { name: '--h3-size-sm', group: 'typography', description: 'h3 size (<=640px)', default: '1.0625rem' },
+  { name: '--h3-weight', group: 'typography', description: 'h3 weight', default: '500' },
+  { name: '--h3-tracking', group: 'typography', description: 'h3 letter-spacing', default: '-.02em' },
+  { name: '--h3-lh', group: 'typography', description: 'h3 line height', default: '1.3' },
+  { name: '--h3-mt', group: 'typography', description: 'Space above h3', default: '40px' },
+  { name: '--h3-mb', group: 'typography', description: 'Space below h3', default: '12px' },
+  { name: '--h4-size', group: 'typography', description: 'h4 size', default: '1.125rem' },
+  { name: '--h4-weight', group: 'typography', description: 'h4 weight', default: '500' },
+  { name: '--h4-tracking', group: 'typography', description: 'h4 letter-spacing', default: '-.01em' },
+  { name: '--h4-lh', group: 'typography', description: 'h4 line height', default: '1.4' },
+  { name: '--h4-mt', group: 'typography', description: 'Space above h4', default: '32px' },
+  { name: '--h4-mb', group: 'typography', description: 'Space below h4', default: '8px' },
+  { name: '--logo-weight', group: 'typography', description: 'Weight of the text logo', default: '700' },
+  { name: '--logo-tracking', group: 'typography', description: 'Letter-spacing of the text logo', default: 'normal' },
+  // ── code ──
+  { name: '--code-fs', group: 'code', description: 'Font size of code in plain <pre> blocks', default: '14px' },
+  { name: '--code-block-fs', group: 'code', description: 'Font size of wc-code-block / wc-code-group', default: '13px' },
+  { name: '--code-radius', group: 'code', description: 'Corner radius of code blocks', default: 'var(--radius-lg)' },
+  { name: '--code-border', group: 'code', description: 'Code block border colour (unset = border)', default: '(unset)' },
+  { name: '--code-bar-bg', group: 'code', description: 'Code block header bar background (unset = surface)', default: '(unset)' },
+  { name: '--code-head-h', group: 'code', description: 'Code block header height', default: '40px' },
+  { name: '--code-shadow', group: 'code', description: 'Code block elevation', default: 'none' },
+  { name: '--inline-code-fs', group: 'code', description: 'Inline code size (relative)', default: '.8125em' },
+  { name: '--inline-code-bg', group: 'code', description: 'Inline code background', default: 'var(--surface2)' },
+  { name: '--inline-code-border', group: 'code', description: 'Inline code border colour', default: 'var(--border)' },
+  { name: '--inline-code-color', group: 'code', description: 'Inline code text colour', default: 'var(--accent-light)' },
+  // ── links & focus ──
+  { name: '--link-color', group: 'links', description: 'Article link colour', default: 'var(--accent-light)' },
+  { name: '--link-hover-color', group: 'links', description: 'Article link hover colour', default: 'var(--link-color)' },
+  { name: '--link-decoration', group: 'links', description: 'text-decoration of article links at rest (underline | none)', default: 'underline' },
+  { name: '--link-underline-color', group: 'links', description: 'Underline colour at rest', default: 'var(--accent-dim2)' },
+  { name: '--link-underline-hover', group: 'links', description: 'Underline colour on hover', default: 'var(--accent-light)' },
+  { name: '--link-underline-offset', group: 'links', description: 'Underline offset', default: '2px' },
+  { name: '--focus-color', group: 'links', description: 'Keyboard focus ring colour', default: 'var(--accent)' },
+  { name: '--focus-w', group: 'links', description: 'Keyboard focus ring width', default: '2px' },
+  // ── shape & elevation ──
+  { name: '--radius', group: 'shape', description: 'Default corner radius (controls, small surfaces)', default: '8px' },
+  { name: '--radius-lg', group: 'shape', description: 'Large corner radius (cards, code, tables, dialogs)', default: '12px' },
+  { name: '--r-xs', group: 'shape', description: 'Radius scale: chips, inline code (unset = components keep 3-4px)', default: '(unset)' },
+  { name: '--r-sm', group: 'shape', description: 'Radius scale: small controls (unset = 6px)', default: '(unset)' },
+  { name: '--r-md', group: 'shape', description: 'Radius scale: buttons, inputs (unset = 8px)', default: '(unset)' },
+  { name: '--r-lg', group: 'shape', description: 'Radius scale: panels, callouts (unset = 10px)', default: '(unset)' },
+  { name: '--r-xl', group: 'shape', description: 'Radius scale: large cards (unset = 12px)', default: '(unset)' },
+  { name: '--r-pill', group: 'shape', description: 'Radius scale: pills (unset = 100px)', default: '(unset)' },
+  { name: '--card-bg', group: 'shape', description: 'Card background (unset = surface)', default: '(unset)' },
+  { name: '--card-border', group: 'shape', description: 'Card border colour (unset = border)', default: '(unset)' },
+  { name: '--card-radius', group: 'shape', description: 'Card and prev/next radius', default: 'var(--radius-lg)' },
+  { name: '--card-shadow', group: 'shape', description: 'Card elevation at rest', default: 'none' },
+  { name: '--card-shadow-hover', group: 'shape', description: 'Card elevation on hover (unset = soft shadow)', default: '(unset)' },
+  { name: '--card-lift', group: 'shape', description: 'Card translateY on hover (unset = -2px)', default: '(unset)' },
+  { name: '--card-pad', group: 'shape', description: 'Card inner padding (unset = 22px)', default: '(unset)' },
+  { name: '--callout-radius', group: 'shape', description: 'Callout radius (unset = radius-lg)', default: '(unset)' },
+  { name: '--callout-bg-mix', group: 'shape', description: 'Callout tint strength (unset = 9%)', default: '(unset)' },
+  { name: '--callout-border-mix', group: 'shape', description: 'Callout border strength (unset = 32%)', default: '(unset)' },
+  { name: '--callout-bar-w', group: 'shape', description: 'Callout left bar width (unset = 1px, same as border)', default: '(unset)' },
+  { name: '--callout-bar-mix', group: 'shape', description: 'Callout left bar strength (unset = 32%)', default: '(unset)' },
+  { name: '--table-radius', group: 'shape', description: 'Table wrapper radius', default: 'var(--radius-lg)' },
+  { name: '--table-border', group: 'shape', description: 'Table wrapper border colour', default: 'var(--border)' },
+  { name: '--table-line', group: 'shape', description: 'Table row/column line colour', default: 'var(--border)' },
+  { name: '--table-col-line-w', group: 'shape', description: 'Table vertical line width', default: '1px' },
+  { name: '--table-head-bg', group: 'shape', description: 'Table header background', default: 'var(--surface)' },
+  { name: '--table-head-color', group: 'shape', description: 'Table header text colour', default: 'var(--text2)' },
+  { name: '--table-pad-y', group: 'shape', description: 'Table cell vertical padding', default: '12px' },
+  { name: '--table-fs', group: 'shape', description: 'Table font size', default: '15px' },
+  { name: '--shadow-modal', group: 'shape', description: 'Elevation of the search dialog', default: '0 20px 60px rgba(0,0,0,.4)' },
+  // ── chrome ──
+  { name: '--nav-bg', group: 'chrome', description: 'Top bar background', default: 'rgba(10,10,10,.92)', light: 'rgba(255,255,255,.93)' },
+  { name: '--nav-border', group: 'chrome', description: 'Top bar bottom border colour', default: 'var(--border)' },
+  { name: '--nav-blur', group: 'chrome', description: 'Top bar backdrop blur', default: '12px' },
+  { name: '--nav-shadow', group: 'chrome', description: 'Top bar elevation', default: 'none' },
+  { name: '--sidebar-fs', group: 'chrome', description: 'Sidebar item font size', default: '14px' },
+  { name: '--sidebar-border', group: 'chrome', description: 'Sidebar right border colour', default: 'var(--border)' },
+  { name: '--sidebar-border-w', group: 'chrome', description: 'Sidebar right border width', default: '1px' },
+  { name: '--sb-item-radius', group: 'chrome', description: 'Sidebar item radius (0 = full-bleed row)', default: '0' },
+  { name: '--sb-item-mx', group: 'chrome', description: 'Sidebar item horizontal inset (pill style)', default: '0px' },
+  { name: '--sb-item-pl', group: 'chrome', description: 'Sidebar item left padding', default: '20px' },
+  { name: '--sb-group-pl', group: 'chrome', description: 'Sidebar group title left padding (align with item text)', default: '18px' },
+  { name: '--sb-item-lh', group: 'chrome', description: 'Sidebar item line height', default: '1.4' },
+  { name: '--sb-bar-w', group: 'chrome', description: 'Sidebar active bar width (0 = pill without bar)', default: '2px' },
+  { name: '--sb-active-bg', group: 'chrome', description: 'Sidebar active item background', default: 'var(--accent-dim)' },
+  { name: '--sb-active-fg', group: 'chrome', description: 'Sidebar active item text', default: 'var(--accent-light)' },
+  { name: '--sb-active-bar', group: 'chrome', description: 'Sidebar active bar colour', default: 'var(--accent)' },
+  { name: '--sb-active-weight', group: 'chrome', description: 'Sidebar active item weight', default: '500' },
+  { name: '--sb-hover-bg', group: 'chrome', description: 'Sidebar hover background', default: 'var(--surface2)' },
+  { name: '--sb-group-fs', group: 'chrome', description: 'Sidebar group title size', default: '11px' },
+  { name: '--sb-group-weight', group: 'chrome', description: 'Sidebar group title weight', default: '700' },
+  { name: '--sb-group-transform', group: 'chrome', description: 'Sidebar group title text-transform', default: 'uppercase' },
+  { name: '--sb-group-tracking', group: 'chrome', description: 'Sidebar group title letter-spacing', default: '.1em' },
+  { name: '--sb-group-color', group: 'chrome', description: 'Sidebar group title colour', default: 'var(--text3)' },
+  { name: '--sb-group-pt', group: 'chrome', description: 'Space above sidebar group titles', default: '18px' },
+  { name: '--sb-group-pb', group: 'chrome', description: 'Space below sidebar group titles', default: '5px' },
+  { name: '--toc-fs', group: 'chrome', description: 'Table of contents font size', default: '13px' },
+  { name: '--toc-title-fs', group: 'chrome', description: '"On this page" title size', default: '11px' },
+  { name: '--toc-title-transform', group: 'chrome', description: '"On this page" text-transform', default: 'uppercase' },
+  { name: '--toc-title-tracking', group: 'chrome', description: '"On this page" letter-spacing', default: '.1em' },
+  { name: '--toc-line', group: 'chrome', description: 'TOC rail colour', default: 'var(--border)' },
+  { name: '--toc-line-w', group: 'chrome', description: 'TOC rail width (0 = no rail)', default: '1px' },
+  { name: '--toc-bar-w', group: 'chrome', description: 'TOC active bar width', default: '2px' },
+  { name: '--toc-active-fg', group: 'chrome', description: 'TOC active item colour', default: 'var(--accent-light)' },
+  { name: '--toc-active-bar', group: 'chrome', description: 'TOC active bar colour', default: 'var(--accent)' },
+  { name: '--page-bg-image', group: 'chrome', description: 'Decorative page background (gradient / grid), or none', default: 'none' },
+  { name: '--on-accent', group: 'chrome', description: 'Text colour on filled accent surfaces (buttons)', default: '#fff' },
+];
+
+/** Names of tokens that have a plain-CSS default (the rest are optional overrides that fall back inside component styles). */
+export const BASE_TOKENS = TOKENS.filter((t) => t.default !== '(unset)');
+
+/** Default :root / html.light declarations for every token with a default. */
+export function buildBaseTokensCss() {
+  const root = BASE_TOKENS.map((t) => `${t.name}: ${t.default};`).join(' ');
+  const light = BASE_TOKENS.filter((t) => t.light).map((t) => `${t.name}: ${t.light};`).join(' ');
+  return `/* DESIGN TOKENS (defaults = classic look; themes override these) */\n:root { ${root} }\nhtml.light { ${light} }\n`;
+}
+
+export function listTokens() {
+  return TOKENS.map((t) => ({ ...t }));
+}

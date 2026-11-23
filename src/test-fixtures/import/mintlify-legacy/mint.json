@@ -1,0 +1,21 @@
+{
+  "name": "Kestrel",
+  "logo": { "light": "/logo/light.svg", "dark": "/logo/dark.svg" },
+  "favicon": "/logo/favicon.svg",
+  "colors": { "primary": "#D97706", "light": "#F59E0B", "dark": "#B45309", "background": { "light": "#FFFFFF", "dark": "#111111" } },
+  "modeToggle": { "default": "light" },
+  "topbarLinks": [{ "name": "Status", "url": "https://status.kestrel.example.com" }],
+  "topbarCtaButton": { "name": "Get started", "url": "https://kestrel.example.com/start" },
+  "tabs": [{ "name": "API", "url": "api" }],
+  "anchors": [{ "name": "Blog", "icon": "newspaper", "url": "https://kestrel.example.com/blog" }],
+  "navigation": [
+    { "group": "Introduction", "pages": ["introduction", "setup"] },
+    { "group": "Guides", "pages": ["guides/alerts", "guides/pipelines"] },
+    { "group": "Endpoints", "pages": ["api/overview", "api/get-alert"] }
+  ],
+  "openapi": "api/openapi.yaml",
+  "footerSocials": { "github": "https://github.com/kestrel-example", "twitter": "https://twitter.com/kestrel_example" },
+  "redirects": [{ "source": "/getting-started", "destination": "/setup" }],
+  "analytics": { "plausible": { "domain": "docs.kestrel.example.com" } },
+  "feedback": { "suggestEdit": true }
+}

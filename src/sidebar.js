@@ -31,3 +31,16 @@ export function toLabel(id) {
   const name = id.includes('/') ? id.split('/').pop() : id;
   return name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
+
+/**
+ * Label a page gets in the sidebar: frontmatter `sidebar_title` when set, else
+ * `title`. The page title / H1 / <title> are never affected. Returns '' when the
+ * page has neither (callers fall back to a label derived from the id).
+ */
+export function sidebarLabel(meta) {
+  for (const v of [meta?.sidebar_title, meta?.title]) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'number') return String(v);
+  }
+  return '';
+}

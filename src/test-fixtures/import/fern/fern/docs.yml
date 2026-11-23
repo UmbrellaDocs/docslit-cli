@@ -1,0 +1,90 @@
+instances:
+  - url: tidepool.docs.buildwithfern.com
+    custom-domain: docs.tidepool.example.com/docs
+title: Tidepool
+favicon: ./assets/favicon.svg
+logo:
+  light: ./assets/logo-light.svg
+  dark: ./assets/logo-dark.svg
+  href: https://tidepool.example.com
+  height: 28
+colors:
+  accent-primary:
+    light: "#0E7490"
+    dark: "#22D3EE"
+  background:
+    light: "#FFFFFF"
+    dark: "#0A0F14"
+layout:
+  page-width: 1376px
+  tabs-placement: header
+  searchbar-placement: header
+  hide-feedback: true
+navbar-links:
+  - type: minimal
+    text: Support
+    href: https://tidepool.example.com/support
+  - type: github
+    value: https://github.com/tidepool-example/tidepool
+  - type: dropdown
+    text: Resources
+    links:
+      - text: Blog
+        href: https://tidepool.example.com/blog
+  - type: filled
+    text: Sign up
+    href: https://app.tidepool.example.com
+    rounded: true
+footer-links:
+  github: https://github.com/tidepool-example
+  x: https://x.com/tidepool_example
+announcement:
+  message: Tidepool v3 is out!
+redirects:
+  - source: /docs/old-start
+    destination: /docs/guides/getting-started
+  - source: /docs/legacy/:slug*
+    destination: /docs/guides/:slug*
+analytics:
+  ga4:
+    measurement-id: G-FERN12345
+  segment:
+    write-key: abc
+tabs:
+  guides:
+    display-name: Guides
+    icon: fa-regular fa-book
+  api:
+    display-name: API Reference
+    icon: fa-solid fa-code
+  changelog:
+    display-name: Changelog
+    changelog: ./changelog
+navigation:
+  - tab: guides
+    layout:
+      - section: Getting started
+        path: ./docs/pages/welcome.mdx
+        contents:
+          - page: Quickstart
+            path: ./docs/pages/guides/getting-started.mdx
+            icon: rocket
+          - page: Authentication
+            path: ./docs/pages/guides/authentication.mdx
+            availability: beta
+      - section: Concepts
+        collapsed: true
+        contents:
+          - page: Streams
+            path: ./docs/pages/concepts/streams.mdx
+            slug: live-streams
+          - link: Status page
+            href: https://status.tidepool.example.com
+      - page: Components
+        path: ./docs/pages/components.mdx
+      - page: Code samples
+        path: ./docs/pages/code.mdx
+  - tab: api
+    layout:
+      - api: API Reference
+  - tab: changelog

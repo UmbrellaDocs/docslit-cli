@@ -1,28 +1,13 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import pc from 'picocolors';
 import { zipSync } from 'fflate';
-
-const CONFIG_PATH = path.join(os.homedir(), '.docslit', 'config.json');
+import { requireAuth, bearer, authHint, getFlag } from './cloud-auth.js';
 
 export async function publish(args) {
-  // Load CLI config (requires login first)
-  if (!existsSync(CONFIG_PATH)) {
-    console.error(pc.red('  ✗ Not logged in. Run: docslit login --email you@example.com --name "Your Name"'));
-    process.exit(1);
-  }
-
-  let cliConfig;
-  try {
-    cliConfig = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-  } catch {
-    console.error(pc.red('  ✗ Config file corrupted. Run: docslit login'));
-    process.exit(1);
-  }
-
-  const { token, apiUrl } = cliConfig;
+  // Credentials: DOCSLIT_TOKEN env var or the stored login (exits with a hint when neither exists)
+  const { token, apiUrl } = requireAuth();
 
   // Load docslit.json
   const docsConfigPath = path.resolve('docslit.json');
@@ -73,9 +58,8 @@ export async function publish(args) {
   const formData = new FormData();
   formData.append('project', projectSlug);
   formData.append('name', docsConfig.name || projectSlug);
-  if (docsConfig.versions) {
-    formData.append('versions', JSON.stringify(docsConfig.versions));
-  }
+  // Note: `versions` is intentionally not sent — versioned docs are already part of the build output, and
+  // the server ignores that field.
   formData.append(
     'site',
     new Blob([zipBuffer], { type: 'application/zip' }),
@@ -86,12 +70,14 @@ export async function publish(args) {
   try {
     const res = await fetch(`${apiUrl}/cloud/publish`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: bearer(token),
       body: formData,
     });
     result = await res.json().catch(() => ({}));
     if (!res.ok) {
       console.error(pc.red(`  ✗ Publish failed: ${result.error || res.statusText}`));
+      const hint = authHint(res.status);
+      if (hint) console.error(pc.dim(`  ${hint}`));
       process.exit(1);
     }
   } catch (e) {
@@ -105,6 +91,7 @@ export async function publish(args) {
   console.log(`  ${pc.bold('URL:')}     ${pc.cyan(result.url)}`);
   console.log(`  ${pc.bold('Project:')} ${result.projectSlug}`);
   console.log(`  ${pc.bold('Deploy:')}  ${result.deployId}`);
+  for (const w of result.warnings ?? []) console.log(pc.yellow(`  ! ${w}`));
 
   // Suggest adding cloud config to docslit.json if not already set
   if (!configProject && !flagProject) {
@@ -141,8 +128,4 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getFlag(args, flag) {
-  const i = args.indexOf(flag);
-  return i !== -1 ? args[i + 1] : null;
-}
 

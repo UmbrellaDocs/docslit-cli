@@ -1,0 +1,39 @@
+---
+title: Quickstart
+sidebar-title: Quick start
+description: Build your first stream.
+---
+
+<Steps>
+  <Step title="Install">
+    ```bash title="Terminal"
+    pip install tidepool
+    ```
+  </Step>
+  <Step title="Connect">
+    <CodeBlocks>
+      ```python title="main.py" {2}
+      from tidepool import Client
+      client = Client(api_key="...")
+      ```
+      ```typescript title="main.ts" showLineNumbers={false}
+      import { Client } from "tidepool";
+      const client = new Client({ apiKey: "..." });
+      ```
+    </CodeBlocks>
+  </Step>
+</Steps>
+
+<Tabs>
+  <Tab title="npm">
+    Use npm.
+  </Tab>
+  <Tab title="yarn">
+    Use yarn.
+  </Tab>
+</Tabs>
+
+<Warning>Keys are secret.</Warning>
+<Success>Connected!</Success>
+<Launch title="New">Launch notice.</Launch>
+<Error>Something broke.</Error>

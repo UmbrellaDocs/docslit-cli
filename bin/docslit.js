@@ -10,60 +10,24 @@ const pkg = JSON.parse(readFileSync(path.join(__dirname, '../package.json'), 'ut
 const args = process.argv.slice(2);
 const command = args[0];
 
-const help = `
-  docslit v${pkg.version}
+const { renderMainHelp, renderCommandHelp, commandNames } = await import('../src/help.js');
+const help = renderMainHelp(pkg.version);
 
-  Usage:
-    docslit init              Scaffold a new docs project
-    docslit new <page-id>     Create a new page and add to sidebar
-    docslit dev               Start the local dev server
-    docslit build             Build a static site to ./dist
-    docslit deploy            Write hosting recipe files (GitHub Pages,
-                              Netlify, Cloudflare)
-    docslit import <dir>      Migrate a Mintlify (or Fern/GitBook) project
-                              to DocsLit — converts MDX components, generates
-                              docslit.json, and prints a migration report.
-    docslit validate [dir]    Check a project for broken links, missing assets,
-                              frontmatter errors, and unknown components.
-                              Exits 1 if any errors are found.
-                              --external  Check external http(s) links
-                              --format github  Print GitHub Actions annotations
-    docslit openapi scaffold  Generate docs pages from an OpenAPI spec.
-                              Usage: docslit openapi scaffold <spec.yaml>
-                              [--overlay <overlay.yaml>] [--new-only]
-    docslit theme init [file] Scaffold a brand theme JSON file (default:
-                              brand-theme.json) and wire it in docslit.json
-    docslit theme list          List built-in presets and theme variables
-
-  DocsLit Cloud:
-    docslit login             Authenticate with DocsLit Cloud
-    docslit publish           Build and publish your docs to DocsLit Cloud
-    docslit projects          List all published projects with URLs and status
-    docslit rollback <slug>   Restore a project to a previous deploy
-    docslit whoami            Show the currently authenticated user
-    docslit delete <slug>     Delete a published project and all its files
-
-  Options:
-    --help, -h            Show this help message
-    --version, -v         Print version
-    --port <number>       Port for dev server (default: 3000)
-    --out <dir>           Output directory for build (default: dist)
-                          Also used by import (default: <source>-docslit)
-    --offline             Inline all page data into index.html so the site
-                          works by double-clicking the file (no server needed)
-    --no-minify           (build only) Skip CSS/JS minification — useful when
-                          inspecting the built output. Default is to minify.
-    --pdf                 (build only) Generate chapter, page, and manual PDFs
-                          (requires Playwright: npm install -D playwright)
-    --no-pdf              (build only) Skip PDF generation even if pdf.enabled
-                          is true in docslit.json
-    --pdf-dir <dir>       (build only) PDF output directory inside --out
-                          (default: pdf, or pdf.outputDir in docslit.json)
-    --dry-run             (import only) Scan and report without writing files
-    --strict              (validate only) Treat warnings as errors
-    --external            (validate only) Check external http(s) links
-    --format <fmt>        (validate only) Output format: pretty (default), github
-`;
+// `docslit <command> --help` / `docslit help [command]` (mcp keeps its own stderr help).
+if (command === 'help') {
+  const target = args[1];
+  const text = target ? renderCommandHelp(target) : help;
+  if (!text) await unknownCommand(target);
+  console.log(text);
+  process.exit(0);
+}
+if (command && command !== 'mcp' && args.slice(1).some((a) => a === '--help' || a === '-h')) {
+  const text = renderCommandHelp(command);
+  if (text) {
+    console.log(text);
+    process.exit(0);
+  }
+}
 
 if (!command || command === '--help' || command === '-h') {
   console.log(help);
@@ -87,7 +51,7 @@ if (command === 'init') {
 } else if (command === 'dev') {
   const port = getFlag(args, '--port') || 3000;
   const { dev } = await import('../src/dev.js');
-  await dev({ port: Number(port) });
+  await dev({ port: Number(port), themePicker: args.includes('--theme-picker') });
 } else if (command === 'build') {
   const out = getFlag(args, '--out') || 'dist';
   const offline = args.includes('--offline');
@@ -101,7 +65,7 @@ if (command === 'init') {
   const restArgs = args.slice(1);
   if (!restArgs[0] || restArgs[0].startsWith('--')) {
     console.error('  Error: Please provide a source directory.\n');
-    console.error('  Usage: docslit import <source-dir> [--out <output-dir>] [--dry-run]\n');
+    console.error('  Usage: docslit import <source-dir> [--from mintlify|fern|gitbook] [--out <dir>] [--dry-run] [--theme <name>|--no-theme] [--json] [--force]\n');
     process.exit(1);
   }
   const { importDocs } = await import('../src/import.js');
@@ -112,6 +76,9 @@ if (command === 'init') {
 } else if (command === 'login') {
   const { login } = await import('../src/login.js');
   await login(args.slice(1));
+} else if (command === 'logout') {
+  const { logout } = await import('../src/login.js');
+  await logout();
 } else if (command === 'whoami') {
   const { whoami } = await import('../src/whoami.js');
   await whoami();
@@ -127,6 +94,21 @@ if (command === 'init') {
 } else if (command === 'delete') {
   const { deleteProject } = await import('../src/delete.js');
   await deleteProject(args.slice(1));
+} else if (command === 'components') {
+  const { components } = await import('../src/components-cmd.js');
+  await components(args.slice(1));
+} else if (command === 'lint') {
+  const { lint } = await import('../src/lint.js');
+  await lint(args.slice(1));
+} else if (command === 'agents') {
+  const { agents } = await import('../src/agents-cmd.js');
+  await agents(args.slice(1));
+} else if (command === 'mcp') {
+  const { mcp } = await import('../src/mcp/index.js');
+  await mcp(args.slice(1));
+} else if (command === 'schema') {
+  const { schema } = await import('../src/schema-cmd.js');
+  await schema(args.slice(1));
 } else if (command === 'theme') {
   const { theme } = await import('../src/theme-cmd.js');
   await theme(args.slice(1));
@@ -141,8 +123,15 @@ if (command === 'init') {
     process.exit(1);
   }
 } else {
-  console.error(`  Unknown command: ${command}\n`);
-  console.log(help);
+  await unknownCommand(command);
+}
+
+async function unknownCommand(name) {
+  console.error(`  Unknown command: ${name}\n`);
+  const { nearest } = await import('../src/markup-check.js');
+  const suggestion = nearest(String(name), commandNames());
+  if (suggestion) console.error(`  Did you mean ${'`'}docslit ${suggestion}${'`'}?\n`);
+  console.error(`  Run ${'`'}docslit --help${'`'} to see all commands.`);
   process.exit(1);
 }
 

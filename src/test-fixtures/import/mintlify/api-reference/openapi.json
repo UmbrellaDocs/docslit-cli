@@ -1,0 +1,21 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "Orbit API", "version": "1.0.0", "description": "Events API." },
+  "servers": [{ "url": "https://api.orbit.example.com" }],
+  "tags": [{ "name": "Events" }],
+  "paths": {
+    "/events": {
+      "get": {
+        "operationId": "listEvents", "summary": "List events", "tags": ["Events"],
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object", "properties": { "events": { "type": "array", "items": { "$ref": "#/components/schemas/Event" } } } } } } } }
+      },
+      "post": {
+        "operationId": "createEvent", "summary": "Create an event", "tags": ["Events"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Event" } } } },
+        "responses": { "201": { "description": "Created" } }
+      }
+    }
+  },
+  "components": { "schemas": { "Event": { "type": "object", "required": ["title"], "properties": { "id": { "type": "string" }, "title": { "type": "string" } } } } }
+}

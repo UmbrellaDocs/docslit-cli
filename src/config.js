@@ -2,6 +2,16 @@ import fs from 'fs-extra';
 import path from 'path';
 import git from 'isomorphic-git';
 import nodeFs from 'node:fs';
+import { expandAllSidebars, expandSidebarValue, expandTabsValue, hasTabAutogenerate, createFileListSource, hasAutogenerate } from './auto-sidebar.js';
+import { applyNavigation, collectIds } from './navigation.js';
+
+const _warned = new Set();
+function warnOnce(msg) {
+  if (_warned.has(msg)) return;
+  _warned.add(msg);
+  console.warn(`  Warning: ${msg}`);
+}
+import { setMathConfig } from './math.js';
 
 export async function loadConfig(cwd) {
   const configPath = path.join(cwd, 'docslit.json');
@@ -11,17 +21,24 @@ export async function loadConfig(cwd) {
     process.exit(1);
   }
   const raw = await fs.readFile(configPath, 'utf8');
+  let parsed;
   try {
-    const parsed = JSON.parse(raw);
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    console.error(`  Error: docslit.json is not valid JSON.`);
+    process.exit(1);
+  }
+  try {
     if (!parsed.attributes || typeof parsed.attributes !== 'object' || Array.isArray(parsed.attributes)) {
       parsed.attributes = {};
     }
     if (!parsed.editUrl) {
       parsed.editUrl = await detectEditUrl(cwd);
     }
-    return parsed;
+    setMathConfig(parsed.math);
+    return await expandAllSidebars(parsed, cwd, { warn: warnOnce });
   } catch (e) {
-    console.error(`  Error: docslit.json is not valid JSON.`);
+    console.error(`  Error: could not load docslit.json: ${e.message}`);
     process.exit(1);
   }
 }
@@ -45,16 +62,7 @@ export async function detectEditUrl(dir) {
 
 export function getAllPageIds(config) {
   const ids = [];
-  function collect(pages) {
-    for (const item of (pages || [])) {
-      if (typeof item === 'string') ids.push(item);
-      else if (item.id) ids.push(item.id);
-      else if (item.pages) collect(item.pages);
-    }
-  }
-  for (const group of (config.sidebar || [])) {
-    collect(group.pages);
-  }
+  for (const group of (config.sidebar || [])) ids.push(...collectIds(group.pages));
   return ids;
 }
 
@@ -74,22 +82,51 @@ export function getVersionConfig(config) {
 export async function gitReadFile(branch, filePath, dir) {
   try {
     const oid = await git.resolveRef({ fs: nodeFs, dir, ref: branch });
-    const { blob } = await git.readBlob({ fs: nodeFs, dir, oid, filepath: filePath });
+    const { blob } = await git.readBlob({ fs: nodeFs, dir, oid, filepath: path.posix.normalize(filePath.replace(/\\/g, '/')) });
     return new TextDecoder().decode(blob);
   } catch {
     return null;
   }
 }
 
-export async function getVersionSidebar(branch, dir) {
+/**
+ * Navigation of a version branch: { sidebar, tabs }. `sidebar` is always the flat list of
+ * groups (derived from the tabs when the branch uses them); `tabs` is null for plain sidebars.
+ */
+export async function getVersionNavigation(branch, dir) {
+  const empty = { sidebar: [], tabs: null };
   const raw = await gitReadFile(branch, 'docslit.json', dir);
-  if (!raw) return [];
+  if (!raw) return empty;
   try {
     const config = JSON.parse(raw);
-    return config.sidebar || [];
+    const needsExpand = hasAutogenerate(config.sidebar) || hasTabAutogenerate(config.tabs);
+    let source = null;
+    if (needsExpand) {
+      // Expand against the branch's git tree (docs/ at that ref).
+      const oid = await git.resolveRef({ fs: nodeFs, dir, ref: branch });
+      const files = (await git.listFiles({ fs: nodeFs, dir, ref: oid }))
+        .filter((f) => f.startsWith('docs/')).map((f) => f.slice('docs/'.length));
+      source = createFileListSource(files, (rel) => gitReadFile(branch, `docs/${rel}`, dir));
+    }
+    let sidebar = config.sidebar || [];
+    if (hasAutogenerate(sidebar)) {
+      const expanded = await expandSidebarValue(sidebar, source, { siteName: config.name, warn: warnOnce });
+      sidebar = Array.isArray(expanded) ? expanded : [];
+    }
+    if (Array.isArray(config.tabs) && config.tabs.length) {
+      let tabs = config.tabs;
+      if (hasTabAutogenerate(tabs)) tabs = await expandTabsValue(tabs, source, { siteName: config.name, warn: warnOnce });
+      const applied = applyNavigation({ ...config, sidebar, tabs }, { warn: warnOnce });
+      return { sidebar: applied.sidebar || [], tabs: applied.tabs || null };
+    }
+    return { sidebar: Array.isArray(sidebar) ? sidebar : [], tabs: null };
   } catch {
-    return [];
+    return empty;
   }
+}
+
+export async function getVersionSidebar(branch, dir) {
+  return (await getVersionNavigation(branch, dir)).sidebar;
 }
 
 export async function getChangedDocs(defaultBranch, versionBranch, dir) {

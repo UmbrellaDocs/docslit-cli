@@ -1,16 +1,28 @@
 import { createRequire } from 'node:module';
 import { buildComponents } from './components/index.js';
+import { codePreUpgradeCss } from './components/code.js';
+import { componentPageCss } from './components/page-css.js';
 import { findGroupForPage, toLabel } from './sidebar.js';
-import { getAnnouncement, hashAnnouncementMessage } from './config.js';
+import { getAnnouncement, hashAnnouncementMessage, getAllPageIds } from './config.js';
+import {
+  NAV_TOKENS_CSS, NAV_RULES_CSS, NAV_RUNTIME_JS, buildNavState, buildSidebarHtml, renderTabsBar, renderSidebarTabs,
+  renderAnchors, withApiTab, docsPageAttrs, bodyClassesFor, pageClientInfo, pageHeaderHtml, esc as navEsc,
+} from './nav-chrome.js';
+import { hasTabs, tabIdForPage, tabLabel, resolvePageOptions, buildLayoutCss, contextualFor, normalizeContextual, pageNavMeta, isNoindexMeta } from './navigation.js';
+import { contextualItems, contextualItemsHtml, contextualMenuHtml, CONTEXTUAL_RUNTIME } from './contextual.js';
+import { renderIcon } from './nav-icons.js';
 import { renderMarkdown } from './unified.js';
-import { resolveSiteThemeSync, buildThemeCss, buildHtmlTag } from './themes.js';
+import { htmlUsesMath } from './math.js';
+import { buildThemePickerHtml } from './theme-picker.js';
+import { resolveSiteThemeSync, buildThemeCss, buildHtmlTag, buildBaseTokens, themeSignatures, themeGoogleFontsHref, themeFontFaces, themeColors } from './themes.js';
 import { buildAgentDirectiveHtml } from './agent-docs.js';
 import {
   normalizeBasePath,
   withBasePath,
   buildAnalyticsSnippet,
   buildCustomHead,
-  buildNavbarLinksHtml,
+  buildNavbarHtml,
+  resolveLogo,
   buildFooterHtml,
   faviconLinks,
 } from './site-config.js';
@@ -49,32 +61,47 @@ function _minifyCSS(code) {
   } catch { return code; }
 }
 
-export async function renderShell({ config, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null, locale = null, titleMap = null }) {
+export async function renderShell({ config: baseConfig, siteTheme = null, mode = 'dev', port = 3000, out = 'dist', pagesData = null, offline = false, draftPageIds = [], versionConfig = null, currentVersion = null, searchIndex = null, minify = false, specData = null, apiMeta = null, vendorData = null, pdfManifest = null, locale = null, titleMap = null, navMeta = null }) {
+  const config = withApiTab(baseConfig, !!specData);
   const siteTitle = config.name || 'DocsLit';
   const basePath = normalizeBasePath(config.basePath);
-  const logoSrc = config.logo
-    ? withBasePath(basePath, config.logo.startsWith('/') ? config.logo : '/' + config.logo)
-    : withBasePath(basePath, '/favicon-32x32.png');
-  const isHybrid = specData && (config.sidebar || []).length > 0;
+  // Offline sites are opened via file://, so absolute ("/favicon-32x32.png") URLs
+  // resolve to the filesystem root. Root-level assets are reached relative to the
+  // shell: versioned offline shells live in <version>/, one level below them.
+  const offlineAssetPrefix = offline && versionConfig && currentVersion
+    ? '../'.repeat(String(currentVersion).split('/').filter(Boolean).length) : '';
+  const logo = resolveLogo(config, { basePath, offline, assetPrefix: offlineAssetPrefix });
+  const tabsOn = hasTabs(config);
+  const isHybrid = specData && (config.sidebar || []).length > 0 && !tabsOn;
   const i18n = getI18nConfig(config);
   const currentLocale = locale || i18n.defaultLocale;
-  const chrome = buildSiteChrome(config, { basePath, offline, locale: currentLocale, pageId: '' });
+  const chrome = buildSiteChrome(config, { basePath, offline, locale: currentLocale, pageId: '', assetPrefix: offline ? (offlineAssetPrefix || './') : '' });
+  const hrefPrefix = `${basePath}${currentLocale !== i18n.defaultLocale ? `/${currentLocale}` : ''}${currentVersion ? `/${currentVersion}` : ''}`;
+  const nav = buildNavState({ config, activePageId: null, locale: currentLocale, basePath, hrefPrefix, offline, navMeta, knownIds: new Set(getAllPageIds(config)) });
 
   let apiSidebarHtml = null;
   let hybridLinks = null;
   let sidebarHtml;
 
-  if (isHybrid) {
+  if (tabsOn) {
+    if (specData) nav.apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta, offline, nav.hrefFor);
+    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, null, offline, titleMap, nav);
+  } else if (isHybrid) {
     const firstApiPage = getFirstApiPageId(specData);
     const firstDocPage = getFirstDocPageId(config);
-    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, 'api/', offline, titleMap)
-      + (firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon, offline) : '');
-    apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta, offline)
-      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon, offline) : '');
+    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, 'api/', offline, titleMap, nav)
+      + (firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon, offline, nav.hrefFor) : '');
+    apiSidebarHtml = buildApiSidebarHtml(specData, null, apiMeta, offline, nav.hrefFor)
+      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon, offline, nav.hrefFor) : '');
     hybridLinks = firstApiPage && firstDocPage ? { apiPage: firstApiPage, docsPage: firstDocPage, initialMode: 'docs' } : null;
   } else {
-    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, null, offline, titleMap);
+    sidebarHtml = buildSidebarHtml(config, draftPageIds, null, null, offline, titleMap, nav);
   }
+  const shellOptions = resolvePageOptions(config, {});
+  const shellPageAttrs = docsPageAttrs({ layout: 'guide', hideToc: false, hideNav: shellOptions.hideNav, tocDepth: shellOptions.tocDepth }, nav);
+  const navChromeProps = { navbarCta: chrome.navbarCta, navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath, logo, nav };
+  const layoutProps = { nav, pageAttrs: shellPageAttrs, mobileExtras: chrome.navbarMobile };
+  const bodyClass = bodyClassesFor(nav).join(' ');
 
   const versionScript = versionConfig
     ? `<script>window.__DOCSLIT_VERSIONS__ = ${JSON.stringify({ current: currentVersion, default: versionConfig.default, list: versionConfig.list })};</script>`
@@ -89,6 +116,8 @@ export async function renderShell({ config, siteTheme = null, mode = 'dev', port
   const siteUrlScript = config.url
     ? `<script>window.__DOCSLIT_SITE_URL__=${JSON.stringify(config.url.replace(/\/$/, ''))};</script>`
     : '';
+  const feedbackScript = buildFeedbackScript(config);
+  const contextualScript = buildContextualScript(config);
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion, offline) : '';
   const importMap = buildImportMap(mode, vendorData);
   const announcementChrome = await buildAnnouncementChrome({ config, versionConfig, currentVersion, offline });
@@ -109,7 +138,7 @@ export async function renderShell({ config, siteTheme = null, mode = 'dev', port
 ${htmlTag}
 <head>
   <meta charset="UTF-8" />
-  ${buildThemeInit()}
+  ${buildThemeInit(resolvedTheme)}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="${escHtml(config.description || siteTitle)}">
   ${chrome.favicon}
@@ -117,22 +146,27 @@ ${htmlTag}
   ${announcementChrome.head}
   ${chrome.head}
   ${offlineStyles}
+  ${chrome.layoutStyle}
   ${chrome.cssLink}
 </head>
-<body>
+<body${bodyClass ? ` class="${bodyClass}"` : ''}>
 ${announcementChrome.html}
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, offline, logoSrc, { navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath })}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, offline, navChromeProps)}
+${renderTabsBar(nav)}
 ${buildSearchOverlayHtml(offline)}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml, offline)}
+${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml, offline, '', layoutProps)}
 ${chrome.footer}
+${buildThemePickerHtml(resolvedTheme)}
 
 ${versionScript}
 ${editUrlScript}
 ${basePathScript}
 ${playgroundScript}
 ${siteUrlScript}
+${feedbackScript}
+${contextualScript}
 ${announcementChrome.hashScript}
 <script type="importmap">${importMap}</script>
 <script type="module">
@@ -160,7 +194,7 @@ ${offlineApp}
 ${htmlTag}
 <head>
   <meta charset="UTF-8" />
-  ${buildThemeInit()}
+  ${buildThemeInit(resolvedTheme)}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="${escHtml(config.description || siteTitle)}">
   ${chrome.favicon}
@@ -168,24 +202,29 @@ ${htmlTag}
   ${announcementChrome.head}
   ${chrome.head}
   ${chrome.analytics}
-  ${buildFontLinks()}
+  ${buildFontLinks(resolvedTheme)}
   ${stylesBlock}
+  ${chrome.layoutStyle}
   ${chrome.cssLink}
 </head>
-<body>
+<body${bodyClass ? ` class="${bodyClass}"` : ''}>
 ${announcementChrome.html}
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc, { navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath })}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, navChromeProps)}
+${renderTabsBar(nav)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml)}
+${buildMainLayoutHtml(sidebarHtml, siteTitle, '<div class="loading-state">Loading…</div>', 'Loading…', false, apiSidebarHtml, false, '', layoutProps)}
 ${chrome.footer}
+${buildThemePickerHtml(resolvedTheme)}
 
 ${versionScript}
 ${editUrlScript}
 ${basePathScript}
 ${playgroundScript}
 ${siteUrlScript}
+${feedbackScript}
+${contextualScript}
 ${announcementChrome.hashScript}
 ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script type="importmap">${importMap}</script>
@@ -199,16 +238,21 @@ ${appBlock}
 </html>`;
 }
 
-export async function renderPage({ config, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null, titleMap = null }) {
+export async function renderPage({ config: baseConfig, siteTheme = null, id, meta, html, draftPageIds = [], versionConfig = null, currentVersion = null, specData = null, apiMeta = null, pdfManifest = null, locale = null, ogImagePath = null, titleMap = null, navMeta = null, untranslated = false }) {
+  const config = withApiTab(baseConfig, !!specData);
   const basePath = normalizeBasePath(config.basePath);
   const i18n = getI18nConfig(config);
   const currentLocale = locale || i18n.defaultLocale;
-  const isHybridEarly = specData && (config.sidebar || []).length > 0;
-  const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null, false, titleMap);
+  const tabsOn = hasTabs(config);
+  const isHybridEarly = specData && (config.sidebar || []).length > 0 && !tabsOn;
+  const localePrefixEarly = currentLocale !== i18n.defaultLocale ? `/${currentLocale}` : '';
+  const hrefPrefix = `${basePath}${localePrefixEarly}${currentVersion ? `/${currentVersion}` : ''}`;
+  const pageOptions = resolvePageOptions(config, meta);
+  const nav = buildNavState({ config, activePageId: id, activeMeta: meta, locale: currentLocale, basePath, hrefPrefix, offline: false, navMeta, knownIds: new Set(getAllPageIds(config)) });
+  if (tabsOn && specData) nav.apiSidebarHtml = buildApiSidebarHtml(specData, id.startsWith('api/') || meta.layout === 'api' ? id : null, apiMeta, false, nav.hrefFor);
+  const sidebarHtml = buildSidebarHtml(config, draftPageIds, id, isHybridEarly ? 'api/' : null, false, titleMap, nav);
   const siteTitle = config.name || 'DocsLit';
-  const logoSrc = config.logo
-    ? withBasePath(basePath, config.logo.startsWith('/') ? config.logo : '/' + config.logo)
-    : withBasePath(basePath, '/favicon-32x32.png');
+  const logo = resolveLogo(config, { basePath });
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
   const importMap = buildImportMap('static');
   const versionScript = versionConfig
@@ -224,14 +268,18 @@ export async function renderPage({ config, siteTheme = null, id, meta, html, dra
   const siteUrlScript = config.url
     ? `<script>window.__DOCSLIT_SITE_URL__=${JSON.stringify(config.url.replace(/\/$/, ''))};</script>`
     : '';
+  const feedbackScript = buildFeedbackScript(config);
+  const contextualScript = buildContextualScript(config);
 
   const pageTitle = meta.title || toLabel(id);
-  const desc = meta.description || meta.desc || config.description || '';
+  const desc = meta.description || meta.desc || pageOptions.subtitle || config.description || '';
   const baseUrl = (config.url || '').replace(/\/$/, '');
   const localePrefix = currentLocale !== i18n.defaultLocale ? `/${currentLocale}` : '';
   const versionPrefix = currentVersion ? `/${currentVersion}` : '';
   const pathPrefix = `${basePath}${localePrefix}${versionPrefix}`;
-  const canonicalUrl = baseUrl ? `${baseUrl}${pathPrefix}/${id}` : '';
+  // An untranslated page served in a locale folder is a copy of the default-locale page.
+  const canonicalPrefix = untranslated ? `${basePath}${versionPrefix}` : pathPrefix;
+  const canonicalUrl = baseUrl ? `${baseUrl}${canonicalPrefix}/${id}` : '';
 
   const depth = id.split('/').length - 1;
   const assetPrefix = '../'.repeat(depth);
@@ -266,10 +314,12 @@ export async function renderPage({ config, siteTheme = null, id, meta, html, dra
   if (baseUrl) jsonLd.isPartOf.url = baseUrl;
 
   const groupName = findGroupForPage(config.sidebar || [], id);
-  const breadcrumbText = groupName ? `${escHtml(groupName)} › ${escHtml(pageTitle)}` : escHtml(pageTitle);
+  const activeTab = tabsOn ? (config.tabs || []).find((t) => t.id === nav.activeTabId) : null;
+  const crumbParts = [activeTab ? tabLabel(activeTab, currentLocale) : '', groupName].filter(Boolean).filter((p, i, a) => i === 0 || p.toLowerCase() !== a[i - 1].toLowerCase());
+  const breadcrumbText = crumbParts.length ? `${crumbParts.map(escHtml).join(' › ')} › ${escHtml(pageTitle)}` : escHtml(pageTitle);
   const isApiPage = id.startsWith('api/') || meta.layout === 'api';
   const apiClass = isApiPage ? ' api-layout' : '';
-  const isHybrid = specData && (config.sidebar || []).length > 0;
+  const isHybrid = specData && (config.sidebar || []).length > 0 && !tabsOn;
 
   let docsSidebarHtml = sidebarHtml;
   let apiSidebarHtml = null;
@@ -278,12 +328,12 @@ export async function renderPage({ config, siteTheme = null, id, meta, html, dra
   if (isHybrid) {
     const firstApiPage = getFirstApiPageId(specData);
     const firstDocPage = getFirstDocPageId(config);
-    apiSidebarHtml = buildApiSidebarHtml(specData, isApiPage ? id : null, apiMeta)
-      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon) : '');
-    docsSidebarHtml += firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon) : '';
+    apiSidebarHtml = buildApiSidebarHtml(specData, isApiPage ? id : null, apiMeta, false, nav.hrefFor)
+      + (firstDocPage ? buildSidebarModeLink(firstDocPage, 'Documentation', _docsIcon, false, nav.hrefFor) : '');
+    docsSidebarHtml += firstApiPage ? buildSidebarModeLink(firstApiPage, 'API Reference', _apiIcon, false, nav.hrefFor) : '';
     hybridLinks = firstApiPage && firstDocPage ? { apiPage: firstApiPage, docsPage: firstDocPage, initialMode: isApiPage ? 'api' : 'docs' } : null;
-  } else if (isApiPage && specData) {
-    docsSidebarHtml = buildApiSidebarHtml(specData, id, apiMeta);
+  } else if (isApiPage && specData && !tabsOn) {
+    docsSidebarHtml = buildApiSidebarHtml(specData, id, apiMeta, false, nav.hrefFor);
     apiSidebarHtml = null;
   }
 
@@ -292,39 +342,52 @@ export async function renderPage({ config, siteTheme = null, id, meta, html, dra
   const htmlTag = buildHtmlTag(resolvedTheme, currentLocale);
   const agentDirective = buildAgentDirectiveHtml(config, currentVersion);
   const siteUrl = (config.url || '').replace(/\/$/, '');
-  const pageContent = html.replace(/<\/h1>/, '</h1>' + injectPageMeta(meta, id, pdfManifest, assetPrefix, siteUrl, basePath));
+  const header = pageHeaderHtml(config, id, meta);
+  const metaBarHtml = header.after + injectPageMeta(config, meta, id, pdfManifest, assetPrefix, siteUrl, hrefPrefix);
+  const pageContent = (header.before ? html.replace(/<h1/, header.before + '<h1') : html).replace(/<\/h1>/, '</h1>' + metaBarHtml);
+  const pageInfo = pageClientInfo(config, id, meta);
+  const pageAttrs = docsPageAttrs({ ...pageInfo, tab: nav.activeTabId || pageInfo.tab }, nav);
+  const robotsTag = (isNoindexMeta(meta) || nav.hidden.has(id)) ? '\n  <meta name="robots" content="noindex">' : '';
+  const documentTitle = pageOptions.headline || `${pageTitle} — ${siteTitle}`;
+  const bodyClasses = [apiClass.trim(), ...bodyClassesFor(nav)].filter(Boolean).join(' ');
 
   return `<!DOCTYPE html>
 ${htmlTag}
 <head>
   <meta charset="UTF-8" />
-  ${buildThemeInit()}
+  ${buildThemeInit(resolvedTheme)}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   ${chrome.favicon}
-  <title>${escHtml(pageTitle)} — ${escHtml(siteTitle)}</title>${seoTags}
+  <title>${escHtml(documentTitle)}</title>${robotsTag}${seoTags}
   ${announcementChrome.head}
   ${chrome.head}
   ${chrome.analytics}
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
-  ${buildFontLinks()}
+  ${buildFontLinks(resolvedTheme)}
   <link rel="stylesheet" href="${assetPrefix}docslit.css">
+  ${htmlUsesMath(html) ? `<link rel="stylesheet" href="${assetPrefix}katex/katex.min.css">` : ''}
+  ${chrome.layoutStyle}
   ${chrome.cssLink}
 </head>
-<body class="${apiClass.trim()}">
+<body class="${bodyClasses}">
 ${agentDirective}
 ${announcementChrome.html}
-${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, logoSrc, { navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath })}
+${buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks, false, { navbarCta: chrome.navbarCta, navbarLinks: chrome.navbarLinks, localeSwitcher: chrome.localeSwitcher, basePath, logo, nav })}
+${renderTabsBar(nav)}
 ${buildSearchOverlayHtml()}
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-${buildMainLayoutHtml(docsSidebarHtml, siteTitle, pageContent, breadcrumbText, isApiPage, apiSidebarHtml)}
+${buildMainLayoutHtml(docsSidebarHtml, siteTitle, pageContent, breadcrumbText, isApiPage, apiSidebarHtml, false, pageOptions.hideFeedback ? ' data-feedback-off' : '', { nav, pageAttrs, mobileExtras: chrome.navbarMobile })}
 ${chrome.footer}
+${buildThemePickerHtml(resolvedTheme)}
 
 ${versionScript}
 ${editUrlScript}
 ${basePathScript}
 ${playgroundScript}
 ${siteUrlScript}
+${feedbackScript}
+${contextualScript}
 ${announcementChrome.hashScript}
 ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
@@ -353,8 +416,8 @@ export function buildAppFile(mode = 'static', { minify = false } = {}) {
   return minify ? _minifyJS(raw) : raw;
 }
 
-export function buildOfflineThemeInitFile({ minify = false } = {}) {
-  const raw = buildThemeInitCode() + buildA11yInitCode();
+export function buildOfflineThemeInitFile({ minify = false, siteTheme = null } = {}) {
+  const raw = buildThemeInitCode(siteTheme) + buildA11yInitCode();
   return minify ? _minifyJS(raw) : raw;
 }
 
@@ -376,18 +439,34 @@ export function buildImportMap(mode, vendorData = null) {
   return `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","lit/directives/unsafe-html.js":"https://esm.sh/lit@3/directives/unsafe-html.js","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js"}}`;
 }
 
-function buildThemeInitCode() {
+function buildThemeInitCode(resolved = null) {
+  const themed = resolved && resolved.themeName && resolved.themeName !== 'default';
+  const mode = resolved?.appearance || (themed ? 'system' : 'legacy');
+  const strict = Boolean(resolved?.strict);
+  const colors = themeColors(resolved || { dark: {}, light: {} });
+  const picker = Boolean(resolved?.picker);
+  // Runs before first paint: sets the light/dark class, the theme-color meta and (picker only) the theme/palette from the URL or storage.
   return `(function(){
-      var s=localStorage.getItem('docslit-theme')||'system';
-      var h=document.documentElement;
+      var D=${JSON.stringify(mode)},S=${strict},C=${JSON.stringify(colors)},h=document.documentElement,ls=null;
+      try{ls=window.localStorage}catch(e){}
+      function get(k){try{return ls&&ls.getItem(k)}catch(e){return null}}
+      ${picker ? `try{var q=new URLSearchParams(location.search),SIG=${JSON.stringify(themeSignatures())},t=q.get('theme')||get('docslit-pick-theme'),p=q.get('palette')||get('docslit-pick-palette');
+      if(t&&/^[a-z-]+$/.test(t)){if(t==='default'||t==='classic')h.removeAttribute('data-theme-name');else h.setAttribute('data-theme-name',t);if(!p)p=SIG[t]||'teal';}
+      if(p&&/^[a-z-]+$/.test(p)){if(p==='teal'&&(!t||t==='default'||t==='classic'))h.removeAttribute('data-theme');else h.setAttribute('data-theme',p);}
+      }catch(e){}` : ''}
+      var s=S?(D==='legacy'?'system':D):(get('docslit-theme')||(D==='legacy'?'system':D));
       function a(m){
         h.classList.remove('light','dark');
         if(m==='light')h.classList.add('light');
         else if(m==='dark')h.classList.add('dark');
         else if(window.matchMedia('(prefers-color-scheme:dark)').matches)h.classList.add('dark');
+        else if(D!=='legacy')h.classList.add('light');
+        var t=document.querySelector('meta[name="theme-color"]');
+        if(!t){t=document.createElement('meta');t.name='theme-color';document.head.appendChild(t);}
+        t.setAttribute('content',h.classList.contains('light')?C.light:C.dark);
       }
-      a(s);window.__themeMode=s;
-      window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',function(){if((localStorage.getItem('docslit-theme')||'system')==='system')a('system');});
+      a(s);window.__themeMode=s;window.__themeStrict=S;window.__applyThemeMode=a;
+      window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',function(){if(!S&&(get('docslit-theme')||(D==='legacy'?'system':D))==='system')a('system');});
     })();`;
 }
 
@@ -402,15 +481,16 @@ function buildA11yInitCode() {
     })();`;
 }
 
-function buildThemeInit() {
-  return `<script>${buildThemeInitCode()}${buildA11yInitCode()}</script>`;
+function buildThemeInit(resolved = null) {
+  return `<script>${buildThemeInitCode(resolved)}${buildA11yInitCode()}</script>`;
 }
 
-function buildFontLinks(offline = false) {
+function buildFontLinks(resolved = null, offline = false) {
   if (offline) return '';
+  const href = themeGoogleFontsHref(resolved) || 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap';
   return `<link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">`;
+  <link href="${href}" rel="stylesheet">`;
 }
 
 async function buildAnnouncementChrome({ config, versionConfig, currentVersion, offline = false }) {
@@ -423,7 +503,7 @@ async function buildAnnouncementChrome({ config, versionConfig, currentVersion, 
   const messageHtml = (await renderMarkdown(
     announcement.message,
     [],
-    currentVersion ? { versionSlug: currentVersion } : {},
+    currentVersion ? { versionSlug: currentVersion, basePath: normalizeBasePath(config.basePath) } : {},
   )).trim();
   const type = escHtml(announcement.type || 'neutral');
   const dismissible = announcement.dismissible !== false;
@@ -468,29 +548,42 @@ function buildSiteChrome(config, { basePath = '', offline = false, locale = 'en'
       : withBasePath(basePath, '/' + String(config.css).replace(/^\//, ''));
     cssLink = `<link rel="stylesheet" href="${escHtml(cssHref)}">`;
   }
+  const navbar = buildNavbarHtml(config.navbar, basePath);
+  const layoutCss = buildLayoutCss(config);
   return {
     favicon: faviconLinks(config, assetPrefix || (basePath ? basePath.replace(/\/?$/, '/') : '')),
     head: buildCustomHead(config.head),
     analytics: offline ? '' : buildAnalyticsSnippet(config.analytics),
     cssLink,
-    navbarLinks: buildNavbarLinksHtml(config.navbar, basePath, offline),
+    layoutStyle: layoutCss ? `<style id="docslit-layout">${layoutCss}</style>` : '',
+    navbarLinks: navbar.links,
+    navbarCta: navbar.cta,
+    navbarMobile: navbar.mobile,
     footer: buildFooterHtml(config.footer, basePath),
     localeSwitcher: buildLocaleSwitcherHtml({ i18n, currentLocale: locale, basePath, pageId, offline }),
     hreflang: pageId ? buildHreflangTags({ i18n, config, pageId, basePath }) : '',
   };
 }
 
-function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false, logoSrc = '/favicon-32x32.png', extra = {}) {
-  const { navbarLinks = '', localeSwitcher = '', basePath = '' } = extra;
-  const homeHref = basePath || '/';
+function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offline = false, extra = {}) {
+  const { navbarLinks = '', navbarCta = '', localeSwitcher = '', basePath = '', logo = {} } = extra;
+  const { nav = null } = extra;
+  // The offline shell is opened from file://, where "/" is the filesystem root.
+  const homeHref = logo.href || (offline ? 'index.html' : (basePath || '/'));
+  const pageHref = (id) => (nav ? nav.hrefFor(id) : (offline ? '#' + id : (basePath || '') + '/' + id));
+  const logoImgs = logo.variants
+    ? `<img class="nav-logo-icon nav-logo-light" src="${escHtml(logo.light)}" alt="${escHtml(siteTitle)}"><img class="nav-logo-icon nav-logo-dark" src="${escHtml(logo.dark)}" alt="" aria-hidden="true">`
+    : `<img class="nav-logo-icon" src="${escHtml(logo.light || '/favicon-32x32.png')}" alt="${escHtml(siteTitle)}">`;
+  const logoAttrs = `${logo.variants ? ' data-logo-variants' : ''}${logo.wordmark ? ' data-logo-wordmark' : ''}${logo.height ? ` style="--logo-h:${Number(logo.height)}px"` : ''}`;
+  const logoText = logo.wordmark ? logo.text : siteTitle;
   let modeLinksHtml = '';
   if (hybridLinks) {
     const showApi = hybridLinks.initialMode !== 'api' ? '' : ' style="display:none"';
     const showDocs = hybridLinks.initialMode === 'api' ? '' : ' style="display:none"';
     const modeClick = offline ? '' : ` onclick="loadPage('${escHtml(hybridLinks.apiPage)}');return false;"`;
     const modeClick2 = offline ? '' : ` onclick="loadPage('${escHtml(hybridLinks.docsPage)}');return false;"`;
-    modeLinksHtml = `<a id="nav-api-link" class="nav-mode-link" href="${escHtml(hybridLinks.apiPage)}"${modeClick}${showApi}>API Reference</a>` +
-      `<a id="nav-docs-link" class="nav-mode-link" href="${escHtml(hybridLinks.docsPage)}"${modeClick2}${showDocs}>Documentation</a>`;
+    modeLinksHtml = `<a id="nav-api-link" class="nav-mode-link" data-page="${escHtml(hybridLinks.apiPage)}" href="${escHtml(pageHref(hybridLinks.apiPage))}"${modeClick}${showApi}>API Reference</a>` +
+      `<a id="nav-docs-link" class="nav-mode-link" data-page="${escHtml(hybridLinks.docsPage)}" href="${escHtml(pageHref(hybridLinks.docsPage))}"${modeClick2}${showDocs}>Documentation</a>`;
   }
   const searchClick = offline ? '' : ' onclick="openSearch()"';
   const themeClick = offline ? '' : ' onclick="toggleTheme()"';
@@ -500,9 +593,9 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
     <button class="nav-menu-btn" id="nav-menu-btn" aria-label="Open navigation" aria-expanded="false">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <a class="nav-logo" href="${escHtml(homeHref)}">
-      <img class="nav-logo-icon" src="${escHtml(logoSrc)}" alt="${siteTitle}">
-      <span class="nav-logo-text">${siteTitle}</span>
+    <a class="nav-logo" href="${escHtml(homeHref)}" data-site-name="${escHtml(siteTitle)}"${logoAttrs}>
+      ${logoImgs}
+      ${logoText ? `<span class="nav-logo-text">${escHtml(logoText)}</span>` : ''}
     </a>
   </div>
   <div class="nav-links">
@@ -519,6 +612,7 @@ function buildNavHtml(siteTitle, versionSelectorHtml, hybridLinks = null, offlin
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><path d="M4 8l4.5 1.5M19.5 8L15 9.5"/><path d="M8.5 9.5L12 12l3.5-2.5"/><path d="M12 12v4"/><path d="M9 20l3-4 3 4"/></svg>
     </button>
     <button class="theme-btn" id="theme-btn"${themeClick} aria-label="Toggle theme"></button>
+    ${navbarCta}
   </div>
 </nav>
 <div class="a11y-panel" id="a11y-panel" role="dialog" aria-label="Accessibility settings">
@@ -578,7 +672,10 @@ function buildSearchOverlayHtml(offline = false) {
 </div>`;
 }
 
-function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText, isApiPage = false, apiSidebarHtml = null, offline = false) {
+function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText, isApiPage = false, apiSidebarHtml = null, offline = false, contentAttrs = '', layout = {}) {
+  const { nav = null, pageAttrs = '', mobileExtras = '' } = layout;
+  const sidebarTabsHtml = nav ? renderSidebarTabs(nav) : '';
+  const anchorsHtml = nav ? renderAnchors(nav) : '';
   const examplesPanel = '\n        <div class="docs-examples" id="docs-examples"></div>';
   let sidebarContent;
   if (apiSidebarHtml) {
@@ -590,9 +687,10 @@ function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText
   }
   const filterHandlers = offline ? '' : ' oninput="_filterSidebar(this.value)" onkeydown="_filterKey(event)"';
   const clearClick = offline ? '' : ' onclick="_clearSidebarFilter()"';
-  return `<div class="docs-page">
+  return `<div class="docs-page"${pageAttrs ? ` ${pageAttrs}` : ''}>
   <div class="docs-layout">
     <aside class="docs-sidebar" id="docs-sidebar">
+      ${sidebarTabsHtml}${mobileExtras}
       <div class="sidebar-filter-wrap">
         <svg class="sidebar-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
         <input class="sidebar-filter" id="sidebar-filter" type="text" placeholder="Filter pages…" autocomplete="off" spellcheck="false"${filterHandlers}>
@@ -600,6 +698,7 @@ function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
+      ${anchorsHtml}
       <nav class="sidebar-scroll" id="sidebar-scroll" aria-label="Documentation pages">
       ${sidebarContent}
       </nav>
@@ -609,7 +708,7 @@ function buildMainLayoutHtml(sidebarHtml, siteTitle, contentHtml, breadcrumbText
         <div class="docs-breadcrumb">${siteTitle} › <span id="docs-breadcrumb-current">${breadcrumbText}</span></div>
       </div>
       <div class="docs-main">
-        <main class="docs-content" id="docs-content" role="main">
+        <main class="docs-content" id="docs-content" role="main"${contentAttrs}>
           ${contentHtml}
         </main>
         <div class="docs-toc" id="docs-toc"></div>${examplesPanel}
@@ -639,9 +738,9 @@ function buildEventDelegation() {
   if (sidebarOverlay) sidebarOverlay.addEventListener('click', function() { closeSidebar(); });
 
   var apiLink = document.getElementById('nav-api-link');
-  if (apiLink) apiLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.getAttribute('href')); });
+  if (apiLink) apiLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.dataset.page); });
   var docsLink = document.getElementById('nav-docs-link');
-  if (docsLink) docsLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.getAttribute('href')); });
+  if (docsLink) docsLink.addEventListener('click', function(e) { e.preventDefault(); loadPage(this.dataset.page); });
 
   var searchTrigger = document.getElementById('search-trigger');
   if (searchTrigger) searchTrigger.addEventListener('click', function() { openSearch(); });
@@ -675,25 +774,14 @@ function buildEventDelegation() {
     var navBtn = e.target.closest('.page-nav-btn');
     if (navBtn) {
       e.preventDefault();
-      loadPage(navBtn.getAttribute('href'));
+      loadPage(navBtn.dataset.page);
       if (window.innerWidth <= 1024) closeSidebar();
       return;
     }
-    var copyToggle = e.target.closest('.copy-page-toggle');
-    if (copyToggle) { toggleCopyMenu(e); return; }
-    var copyItem = e.target.closest('.copy-page-item');
-    if (copyItem) {
-      var titleEl = copyItem.querySelector('.copy-page-item-title');
-      var titleText = titleEl ? titleEl.textContent : '';
-      if (titleText.indexOf('Copy page') >= 0) { copyMd(); closeCopyMenu(); }
-      else if (titleText.indexOf('MCP') >= 0) { copyMcpCommand(); closeCopyMenu(); }
-      return;
-    }
     var metaBtn = e.target.closest('.meta-btn');
-    if (metaBtn) {
+    if (metaBtn && !metaBtn.closest('.copy-page-menu')) {
       var title = metaBtn.getAttribute('title') || '';
-      if (title.indexOf('Copy') >= 0) copyMd();
-      else if (title.indexOf('Save') >= 0) printPage();
+      if (title.indexOf('Save') >= 0) printPage();
       return;
     }
     var notFoundBtn = e.target.closest('.not-found-btn');
@@ -719,21 +807,232 @@ function buildEventDelegation() {
 })();`;
 }
 
+/** `contextual` option list for the browser: built-in ids plus custom items with their icon pre-rendered. */
+function buildContextualScript(config) {
+  const { options } = normalizeContextual(config.contextual);
+  const list = options.map((o) => (o.id === 'custom' ? { ...o, iconHtml: o.icon ? renderIcon(o.icon, { size: 16, className: 'nav-icon' }) : '' } : o.id));
+  return `<script>window.__DOCSLIT_CONTEXTUAL__=${JSON.stringify(list).replace(/</g, '\\u003c')};</script>`;
+}
+
+/** `feedback: true | { question, url }` → page-level script, or '' when disabled. */
+function buildFeedbackScript(config) {
+  const fb = config.feedback;
+  if (!fb) return '';
+  const cfg = {};
+  if (typeof fb === 'object') {
+    if (typeof fb.question === 'string' && fb.question.trim()) cfg.question = fb.question.trim();
+    if (typeof fb.url === 'string' && /^https?:\/\//i.test(fb.url.trim())) cfg.url = fb.url.trim();
+  }
+  return `<script>window.__DOCSLIT_FEEDBACK__=${JSON.stringify(cfg).replace(/</g, '\\u003c')};</script>`;
+}
+
+function buildReaderRuntime(mode, offline = false) {
+  const katexHref = mode === 'dev' ? `'/katex/katex.min.css'` : offline ? `'katex/katex.min.css'` : `_docsBase() + 'katex/katex.min.css'`;
+  return `
+// ── READER RUNTIME: math CSS, heading links, page feedback ───────────────
+function _katexCssHref() {
+  return ${katexHref};
+}
+function _ensureKatexCss(root) {
+  if (!root || !root.querySelector('.katex')) return;
+  if (document.querySelector('link[data-docslit-katex],link[href$="katex/katex.min.css"]')) return;
+  var l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = _katexCssHref();
+  l.setAttribute('data-docslit-katex', '');
+  document.head.appendChild(l);
+}
+
+function _addHeadingLinks(root) {
+  if (!root || location.protocol === 'file:') return;
+  root.querySelectorAll('h2[id], h3[id], h4[id]').forEach(function(h) {
+    if (h.querySelector('.heading-anchor')) return;
+    var a = document.createElement('a');
+    a.className = 'heading-anchor';
+    a.href = '#' + h.id;
+    a.setAttribute('aria-label', 'Copy link to this section');
+    a.setAttribute('data-heading-link', h.id);
+    a.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+    h.appendChild(a);
+  });
+}
+
+function _decorateContent(root) {
+  _ensureKatexCss(root);
+  _addHeadingLinks(root);
+}
+
+var _FB_STORE = 'docslit-feedback';
+function _fbKey(id) {
+  var vc = window.__DOCSLIT_VERSIONS__;
+  return (window.__DOCSLIT_LOCALE__ || '') + '|' + ((vc && vc.current) || '') + '|' + id;
+}
+function _fbRead() {
+  try { return JSON.parse(localStorage.getItem(_FB_STORE) || '{}') || {}; } catch (e) { return {}; }
+}
+function _fbWrite(map) {
+  try { localStorage.setItem(_FB_STORE, JSON.stringify(map)); } catch (e) {}
+}
+var _FB_UP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
+var _FB_DOWN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>';
+
+function _buildFeedback(id) {
+  var cfg = window.__DOCSLIT_FEEDBACK__;
+  if (!cfg || window.__DOCSLIT_FB_OFF__) return '';
+  var voted = _fbRead()[_fbKey(id)];
+  var q = _escHtml(cfg.question || 'Was this page helpful?');
+  var h = '<div class="docs-feedback" data-fb-page="' + _escHtml(id) + '" role="group" aria-label="Page feedback">';
+  h += '<div class="fb-row"' + (voted ? ' hidden' : '') + '><span class="fb-question">' + q + '</span>';
+  h += '<button type="button" class="fb-btn" data-fb="up" aria-label="Yes, this page was helpful">' + _FB_UP + '<span>Yes</span></button>';
+  h += '<button type="button" class="fb-btn" data-fb="down" aria-label="No, this page was not helpful">' + _FB_DOWN + '<span>No</span></button></div>';
+  h += '<div class="fb-form" hidden><label class="fb-label" for="fb-comment">What could be better? <span class="fb-optional">(optional)</span></label>';
+  h += '<textarea id="fb-comment" class="fb-comment" rows="3" maxlength="2000"></textarea>';
+  h += '<div class="fb-actions"><button type="button" class="fb-send" data-fb="send">Send</button><button type="button" class="fb-skip" data-fb="skip">Skip</button></div></div>';
+  h += '<div class="fb-thanks" role="status" aria-live="polite"' + (voted ? '' : ' hidden') + '>' + (voted ? 'Thanks for your feedback.' : '') + '</div>';
+  h += '</div>';
+  return h;
+}
+
+function _fbAnalytics(detail) {
+  var helpful = detail.helpful ? 'yes' : 'no';
+  try {
+    if (typeof window.plausible === 'function') window.plausible('Page Feedback', { props: { page: detail.page, helpful: helpful } });
+    if (typeof window.gtag === 'function') window.gtag('event', 'page_feedback', { page_path: detail.page, helpful: helpful });
+    if (window.posthog && typeof window.posthog.capture === 'function') window.posthog.capture('page_feedback', { page: detail.page, helpful: detail.helpful, version: detail.version });
+    if (window.fathom && typeof window.fathom.trackEvent === 'function') window.fathom.trackEvent('page feedback ' + helpful + ': ' + detail.page);
+  } catch (e) {}
+}
+
+function _fbSend(root, helpful, comment, isFollowUp) {
+  var cfg = window.__DOCSLIT_FEEDBACK__ || {};
+  var vc = window.__DOCSLIT_VERSIONS__;
+  var h1 = document.querySelector('#docs-content h1');
+  var detail = {
+    page: root.getAttribute('data-fb-page'),
+    title: (h1 ? h1.textContent : document.title).trim(),
+    helpful: helpful,
+    url: location.href
+  };
+  if (comment) detail.comment = comment;
+  if (vc && vc.current) detail.version = vc.current;
+  if (!isFollowUp) _fbAnalytics(detail);
+  if (cfg.url) {
+    try {
+      var body = JSON.stringify(detail);
+      if (typeof fetch === 'function') {
+        fetch(cfg.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, credentials: 'omit', keepalive: true, mode: 'cors' }).catch(function() {});
+      } else if (navigator.sendBeacon) {
+        navigator.sendBeacon(cfg.url, new Blob([body], { type: 'application/json' }));
+      }
+    } catch (e) {}
+  }
+  try { window.dispatchEvent(new CustomEvent('docslit:feedback', { detail: detail })); } catch (e) {}
+}
+
+function _fbThanks(root) {
+  var row = root.querySelector('.fb-row'), form = root.querySelector('.fb-form'), thanks = root.querySelector('.fb-thanks');
+  if (row) row.hidden = true;
+  if (form) form.hidden = true;
+  if (thanks) { thanks.textContent = 'Thanks for your feedback.'; thanks.hidden = false; }
+}
+
+document.addEventListener('click', function(e) {
+  var link = e.target.closest('[data-heading-link]');
+  if (link) {
+    var id = link.getAttribute('data-heading-link');
+    var url = location.origin + location.pathname + location.search + '#' + id;
+    e.preventDefault();
+    try { navigator.clipboard.writeText(url); } catch (err) {}
+    link.classList.add('copied');
+    link.setAttribute('aria-label', 'Link copied');
+    setTimeout(function() { link.classList.remove('copied'); link.setAttribute('aria-label', 'Copy link to this section'); }, 1600);
+    return;
+  }
+  var btn = e.target.closest('.docs-feedback [data-fb]');
+  if (!btn) return;
+  var root = btn.closest('.docs-feedback');
+  var act = btn.getAttribute('data-fb');
+  var page = root.getAttribute('data-fb-page');
+  if (act === 'up' || act === 'down') {
+    var map = _fbRead();
+    map[_fbKey(page)] = act;
+    _fbWrite(map);
+    _fbSend(root, act === 'up', '', false);
+    if (act === 'down') {
+      var row = root.querySelector('.fb-row'), form = root.querySelector('.fb-form');
+      if (row) row.hidden = true;
+      if (form) { form.hidden = false; var ta = form.querySelector('textarea'); if (ta) ta.focus(); }
+    } else {
+      _fbThanks(root);
+    }
+  } else if (act === 'send') {
+    var t = root.querySelector('.fb-comment');
+    var text = t ? t.value.trim() : '';
+    if (text) _fbSend(root, false, text, true);
+    _fbThanks(root);
+  } else if (act === 'skip') {
+    _fbThanks(root);
+  }
+});
+`;
+}
+
 function buildAppScript(mode, loaderScript, wsScript, offline = false) {
   return `var _OFFLINE = ${offline ? 'true' : 'false'};
 ${buildTheme()}
 ${buildA11y()}
 ${buildAnnouncementRuntime()}
+${buildReaderRuntime(mode, offline)}
+${CONTEXTUAL_RUNTIME}
+${NAV_RUNTIME_JS}
 ${loaderScript}
 ${buildSearchScript(mode, offline)}
 ${wsScript}
+
+// ── COLLAPSIBLE SIDEBAR GROUPS ────────────────────────────────────────────
+// Groups with a boolean "collapsed" render as <details class="sidebar-details">.
+// User toggles are remembered in localStorage; programmatic changes (revealing
+// the active page, filtering) are tagged with data-sb-auto so they aren't saved.
+var _SB_STORE = 'docslit-sidebar-groups';
+function _sbLoad() { try { return JSON.parse(localStorage.getItem(_SB_STORE) || '{}') || {}; } catch (e) { return {}; } }
+function _sbSave(m) { try { localStorage.setItem(_SB_STORE, JSON.stringify(m)); } catch (e) {} }
+function _sbSet(d, open) {
+  if (d.open === open) return;
+  d.setAttribute('data-sb-auto', '1');
+  d.open = open;
+}
+function _sbReveal(el) {
+  var d = el && el.closest ? el.closest('details.sidebar-details') : null;
+  while (d) { _sbSet(d, true); d = d.parentElement && d.parentElement.closest('details.sidebar-details'); }
+}
+function _sbRestore() {
+  var saved = _sbLoad();
+  document.querySelectorAll('details.sidebar-details').forEach(function(d) {
+    var k = d.getAttribute('data-sb-key');
+    if (Object.prototype.hasOwnProperty.call(saved, k)) _sbSet(d, !!saved[k]);
+  });
+  _sbReveal(document.querySelector('.sidebar-item.active'));
+}
+document.addEventListener('toggle', function(e) {
+  var d = e.target;
+  if (!d || !d.classList || !d.classList.contains('sidebar-details')) return;
+  if (d.hasAttribute('data-sb-auto')) { d.removeAttribute('data-sb-auto'); return; }
+  var m = _sbLoad();
+  m[d.getAttribute('data-sb-key')] = d.open;
+  _sbSave(m);
+}, true);
+_sbRestore();
 
 // ── SIDEBAR ACTIVATION ────────────────────────────────────────────────────
 function activateSidebar(id) {
   document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
   const el = document.querySelector(\`.sidebar-item[data-page="\${id}"]\`);
   if (el) {
+    // A page that lives in another tab switches the sidebar pane first.
+    var tabId = _tabIdOfPageEl(el);
+    if (tabId) _navSetTab(tabId);
     el.classList.add('active');
+    _sbReveal(el);
     el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 }
@@ -767,8 +1066,8 @@ function _setActiveToc(id) {
 function _tocScroll(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-h')) || 60;
-  const top = el.getBoundingClientRect().top + window.scrollY - navH - 44 - 16;
+  const crumb = document.querySelector('.docs-nav-top');
+  const top = el.getBoundingClientRect().top + window.scrollY - _chromeH() - (crumb ? crumb.offsetHeight : 0) - 16;
   try { history.pushState(null, '', location.pathname + '#' + id); } catch(e) {}
   _setActiveToc(id);
   _tocClickGuardUntil = Date.now() + 700;
@@ -782,7 +1081,11 @@ function buildToc(container) {
   if (_tocObserver) { _tocObserver.disconnect(); _tocObserver = null; }
   while (toc.firstChild) toc.removeChild(toc.firstChild);
 
-  const headings = Array.from(container.querySelectorAll('h2, h3'));
+  var _page = _docsPageEl();
+  var _depth = parseInt((_page && _page.getAttribute('data-toc-depth')) || '3', 10) || 3;
+  var _levels = [];
+  for (var _l = 2; _l <= _depth; _l++) _levels.push('h' + _l);
+  const headings = Array.from(container.querySelectorAll(_levels.join(', ')));
 
   if (headings.length >= 2) {
     const scrollWrap = document.createElement('div');
@@ -800,7 +1103,7 @@ function buildToc(container) {
       h.id = id;
       const li = document.createElement('li');
       const a = document.createElement('a');
-      a.className = 'toc-item' + (h.tagName === 'H3' ? ' toc-item-sub' : '');
+      a.className = 'toc-item' + (h.tagName === 'H3' ? ' toc-item-sub' : h.tagName > 'H3' ? ' toc-item-sub toc-item-sub2' : '');
       a.dataset.tocTarget = id;
       a.href = '#' + id;
       a.textContent = h.textContent;
@@ -814,8 +1117,7 @@ function buildToc(container) {
     // Track the topmost heading whose top has crossed the active line (just
     // below the sticky nav). Picks the lowest heading still "above the line",
     // which is the section the user is currently reading.
-    const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-h')) || 60;
-    const activeLineY = navH + 60;
+    const activeLineY = _chromeH() + 60;
     const compute = () => {
       if (Date.now() < _tocClickGuardUntil) return;
       let current = headings[0];
@@ -841,28 +1143,34 @@ function buildToc(container) {
     const actions = document.createElement('div');
     actions.className = 'toc-actions' + (headings.length < 2 ? ' toc-actions-solo' : '');
 
-    const copyWrap = document.createElement('div');
-    copyWrap.className = 'copy-page-menu toc-copy-menu';
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'toc-action-btn';
-    copyBtn.title = 'Copy page as Markdown';
-    copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy page';
-    copyBtn.addEventListener('click', copyMd);
-    copyWrap.appendChild(copyBtn);
-    const tocToggle = document.createElement('button');
-    tocToggle.className = 'toc-action-btn copy-page-toggle toc-chevron';
-    tocToggle.setAttribute('aria-haspopup', 'true');
-    tocToggle.setAttribute('aria-expanded', 'false');
-    tocToggle.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
-    tocToggle.addEventListener('click', function(e) { toggleCopyMenu(e); });
-    copyWrap.appendChild(tocToggle);
-    const tocDd = document.createElement('div');
-    tocDd.className = 'copy-page-dropdown';
-    tocDd.setAttribute('role', 'menu');
-    tocDd.hidden = true;
-    tocDd.innerHTML = _copyPageDropdownItems();
-    copyWrap.appendChild(tocDd);
-    actions.appendChild(copyWrap);
+    const _ctxItems = _contextualItems();
+    if (_ctxItems.length) {
+      const first = _ctxItems[0];
+      const copyWrap = document.createElement('div');
+      copyWrap.className = 'copy-page-menu toc-copy-menu';
+      const copyBtn = document.createElement(first.href ? 'a' : 'button');
+      copyBtn.className = 'toc-action-btn';
+      if (first.href) { copyBtn.href = first.href; if (first.external) { copyBtn.target = '_blank'; copyBtn.rel = 'noopener'; } }
+      else copyBtn.setAttribute('data-action', first.action || '');
+      if (first.id === 'copy') copyBtn.title = 'Copy page as Markdown';
+      copyBtn.innerHTML = String(first.iconHtml || '').replace(/width="16" height="16"/, 'width="13" height="13"') + ' ' + _escHtml(first.id === 'copy' ? 'Copy page' : first.title);
+      copyWrap.appendChild(copyBtn);
+      const tocToggle = document.createElement('button');
+      tocToggle.className = 'toc-action-btn copy-page-toggle toc-chevron';
+      tocToggle.setAttribute('aria-haspopup', 'true');
+      tocToggle.setAttribute('aria-expanded', 'false');
+      tocToggle.setAttribute('aria-label', 'More page actions');
+      tocToggle.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+      tocToggle.addEventListener('click', function(e) { toggleCopyMenu(e); });
+      copyWrap.appendChild(tocToggle);
+      const tocDd = document.createElement('div');
+      tocDd.className = 'copy-page-dropdown';
+      tocDd.setAttribute('role', 'menu');
+      tocDd.hidden = true;
+      tocDd.innerHTML = _copyPageDropdownItems();
+      copyWrap.appendChild(tocDd);
+      actions.appendChild(copyWrap);
+    }
 
     const curId = window.__DOCSLIT_CURRENT_PAGE__ || window.__DOCSLIT_PAGE_ID__ || '';
     const pdfManifest = window.__DOCSLIT_PDF__;
@@ -934,12 +1242,18 @@ function _wrapTables(container) {
 function _buildPrevNext(id) {
   var container = document.getElementById('sidebar-api');
   if (!container || container.style.display === 'none') container = document.getElementById('sidebar-docs');
+  if (!container) container = document.querySelector('.sidebar-pane:not([hidden])');
   if (!container) container = document.getElementById('sidebar-scroll');
-  const all = Array.from(container.querySelectorAll('.sidebar-item:not(.sidebar-mode-item)'));
+  const all = Array.from(container.querySelectorAll('.sidebar-item[data-page]:not(.sidebar-mode-item)'));
   const idx = all.findIndex(function(el){ return el.dataset.page === id; });
-  const prev = idx > 0 ? all[idx-1] : null;
-  const next = idx < all.length-1 ? all[idx+1] : null;
-  let h = '';
+  var _pg = _docsPageEl();
+  var _noNav = _pg && _pg.getAttribute('data-hide-nav') === 'true';
+  // Pages outside the visible sidebar (hidden pages) have no neighbours; neither do pages that opt out.
+  // Neighbours expose a clean label (icons/badges excluded) through textContent.
+  const _nb = function(el){ return el ? { dataset: el.dataset, textContent: _itemLabel(el) } : null; };
+  const prev = !_noNav && idx > 0 ? _nb(all[idx-1]) : null;
+  const next = !_noNav && idx >= 0 && idx < all.length-1 ? _nb(all[idx+1]) : null;
+  let h = _buildFeedback(id);
   var editBase = window.__DOCSLIT_EDIT_URL__;
   if (editBase) {
     var editHref = editBase.replace(/\\/+$/, '') + '/' + id + '.md';
@@ -949,13 +1263,15 @@ function _buildPrevNext(id) {
   h += '<nav class="page-nav">';
   if (prev) {
     const pid = _escHtml(prev.dataset.page);
+    const phref = _escHtml(_OFFLINE ? '#' + prev.dataset.page : _docsBase() + prev.dataset.page);
     const ptxt = _escHtml(prev.textContent.trim());
-    h += '<a class="page-nav-btn" href="' + pid + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + pid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">← Previous</span><span class="page-nav-title">' + ptxt + '</span></a>';
+    h += '<a class="page-nav-btn" data-page="' + pid + '" href="' + phref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + pid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">← Previous</span><span class="page-nav-title">' + ptxt + '</span></a>';
   } else { h += '<span></span>'; }
   if (next) {
     const nid = _escHtml(next.dataset.page);
+    const nhref = _escHtml(_OFFLINE ? '#' + next.dataset.page : _docsBase() + next.dataset.page);
     const ntxt = _escHtml(next.textContent.trim());
-    h += '<a class="page-nav-btn next" href="' + nid + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + nid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">Next →</span><span class="page-nav-title">' + ntxt + '</span></a>';
+    h += '<a class="page-nav-btn next" data-page="' + nid + '" href="' + nhref + '"' + (_OFFLINE ? '' : ' onclick="loadPage(\\'' + nid + '\\',this);if(window.innerWidth<=1024)closeSidebar();return false;"') + '><span class="page-nav-label">Next →</span><span class="page-nav-title">' + ntxt + '</span></a>';
   } else { h += '<span></span>'; }
   h += '</nav>';
   return h;
@@ -1006,13 +1322,20 @@ function closeSidebar() {
   });
   if (overlay) overlay.addEventListener('click', closeSidebar);
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeSidebar(); });
+  // Leaving the mobile layout (resize/rotate) must reset the drawer, otherwise
+  // the overlay and body scroll-lock stay on and it reappears open when shrunk again.
+  window.addEventListener('resize', function() {
+    if (window.innerWidth > 1024 && document.getElementById('docs-sidebar').classList.contains('open')) closeSidebar();
+  });
 })();
 
 function switchVersion(v) {
   var vc = window.__DOCSLIT_VERSIONS__;
   if (!vc) return;
-  var pageId = _pageFromUrl() || 'introduction';
-  window.location.href = '/' + v + '/' + pageId;
+  var pageId = window.__DOCSLIT_CURRENT_PAGE__ || _pageFromUrl() || 'introduction';
+  // Offline version shells are sibling folders opened from file://.
+  if (_OFFLINE) { window.location.href = '../' + v + '/index.html#' + pageId; return; }
+  window.location.href = _docsRoot() + v + '/' + pageId;
 }
 
 // ── SIDEBAR FILTER ───────────────────────────────────────────────────────
@@ -1038,15 +1361,18 @@ function _filterSidebar(query) {
   var clearBtn = document.getElementById('sidebar-filter-clear');
   clearBtn.classList.toggle('visible', query.length > 0);
 
-  var scroll = document.getElementById('sidebar-scroll');
+  // With tabs only the visible pane is filtered.
+  var scrollRoot = document.getElementById('sidebar-scroll');
+  var scroll = scrollRoot.querySelector('.sidebar-pane:not([hidden])') || scrollRoot;
   var q = query.trim().toLowerCase();
 
   scroll.querySelectorAll('.sidebar-item').forEach(function(item) {
     if (!item.dataset.label) {
-      var labelEl = item.querySelector('.api-nav-label');
+      var labelEl = item.querySelector('.sidebar-item-label, .api-nav-label');
       item.dataset.label = labelEl ? labelEl.textContent : item.textContent;
     }
   });
+  scroll.querySelectorAll('.sidebar-link').forEach(function(l) { l.style.display = q ? 'none' : ''; });
 
   var noResults = scroll.querySelector('.sidebar-no-results');
   if (noResults) noResults.remove();
@@ -1055,13 +1381,14 @@ function _filterSidebar(query) {
 
   if (!q) {
     scroll.querySelectorAll('.sidebar-item').forEach(function(item) {
-      var target = item.querySelector('.api-nav-label') || item;
+      var target = item.querySelector('.sidebar-item-label, .api-nav-label') || item;
       target.innerHTML = _escFilter(item.dataset.label);
       item.style.display = '';
       item.classList.remove('filter-focus');
     });
     scroll.querySelectorAll('.sidebar-section').forEach(function(s) { s.style.display = ''; });
     scroll.querySelectorAll('.sidebar-group-title').forEach(function(g) { g.style.display = ''; });
+    _sbRestore();
     return;
   }
 
@@ -1075,8 +1402,9 @@ function _filterSidebar(query) {
       var text = item.dataset.label;
       var lower = text.toLowerCase();
       var idx = lower.indexOf(q);
+      if (item.classList.contains('sidebar-group-root')) { if (idx >= 0) { groupVisible = true; anyVisible = true; } return; }
       if (idx >= 0) {
-        var target = item.querySelector('.api-nav-label') || item;
+        var target = item.querySelector('.sidebar-item-label, .api-nav-label') || item;
         target.innerHTML = _escFilter(text.slice(0, idx))
           + '<mark class="filter-hl">' + _escFilter(text.slice(idx, idx + q.length)) + '</mark>'
           + _escFilter(text.slice(idx + q.length));
@@ -1089,6 +1417,9 @@ function _filterSidebar(query) {
     });
 
     section.style.display = groupVisible ? '' : 'none';
+    if (groupVisible) section.querySelectorAll('details.sidebar-details').forEach(function(d) {
+      if (Array.prototype.some.call(d.querySelectorAll('.sidebar-item'), function(i) { return i.style.display !== 'none'; })) _sbSet(d, true);
+    });
     var gt = section.querySelector('.sidebar-group-title');
     if (gt) gt.style.display = groupVisible ? '' : 'none';
   });
@@ -1183,7 +1514,7 @@ function _docsRoot() {
   if (!vc) return base;
   var marker = '/' + vc.current + '/';
   var ix = base.lastIndexOf(marker);
-  if (ix < 0) return '/';
+  if (ix < 0) return (window.__DOCSLIT_BASE_PATH__ || '') + '/';
   return base.slice(0, ix + 1);
 }
 function _pageFromUrl() {
@@ -1199,6 +1530,17 @@ function _pageFromUrl() {
 function _escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function _itemLabel(el) {
+  var l = el.querySelector('.sidebar-item-label, .api-nav-label');
+  return (l || el).textContent.trim();
+}
+function _siteName() {
+  var n = document.querySelector('.nav-logo');
+  var v = n && n.getAttribute('data-site-name');
+  if (v) return v;
+  var t = document.querySelector('.nav-logo-text');
+  return t ? t.textContent.trim() : '';
+}
 function _toLabel(id) {
   var name = id.indexOf('/') !== -1 ? id.split('/').pop() : id;
   return name.replace(/-/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
@@ -1209,13 +1551,17 @@ function _groupFor(id) {
   var section = el.closest('.sidebar-section');
   if (!section) return '';
   var title = section.querySelector('.sidebar-group-title');
-  return title ? title.textContent.trim() : '';
+  if (!title) return '';
+  var lab = title.querySelector('.sidebar-group-label, .sidebar-group-root');
+  return (lab || title).textContent.trim();
 }
 function _setBreadcrumb(id, title) {
   var crumb = document.getElementById('docs-breadcrumb-current');
   if (!crumb) return;
   var group = _groupFor(id);
-  crumb.textContent = group ? group + ' \\u203A ' + title : title;
+  var tab = _tabLabelFor(id);
+  var trail = (tab && group && tab.toLowerCase() === group.toLowerCase() ? [tab] : [tab, group]).filter(Boolean).join(' \\u203A ');
+  crumb.textContent = trail ? trail + ' \\u203A ' + title : title;
 }
 function _pdfAssetHref(file) {
   var base = _docsBase();
@@ -1249,35 +1595,22 @@ function _pdfDownloadButton(id) {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Download PDF <span class="pdf-menu-chevron" aria-hidden="true">▾</span></button>' +
     '<div class="pdf-menu-dropdown" role="menu" hidden>' + items + '</div></div>';
 }
-function _copyPageDropdownItems() {
+function _contextualItems(title) {
+  var pg = _docsPageEl();
+  if (pg && pg.getAttribute('data-hide-actions') === 'true') return [];
   var siteUrl = window.__DOCSLIT_SITE_URL__ || '';
   var id = window.__DOCSLIT_CURRENT_PAGE__ || window.__DOCSLIT_PAGE_ID__ || '';
   var pageUrl = siteUrl && id ? siteUrl + _docsBase() + id : '';
-  var items = '<button type="button" class="copy-page-item" role="menuitem" onclick="copyMd();closeCopyMenu()">' +
-    '<span class="copy-page-item-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></span>' +
-    '<span class="copy-page-item-text"><span class="copy-page-item-title">Copy page</span><span class="copy-page-item-desc">Copy page as Markdown for LLMs</span></span></button>';
-  if (pageUrl) {
-    var q = encodeURIComponent('Read from ' + pageUrl + ' so I can ask questions about it.');
-    items += '<a class="copy-page-item" role="menuitem" href="https://chatgpt.com/?q=' + q + '" target="_blank" rel="noopener">' +
-      '<span class="copy-page-item-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg></span>' +
-      '<span class="copy-page-item-text"><span class="copy-page-item-title">Open in ChatGPT <span class="copy-page-arrow">\\u2197</span></span><span class="copy-page-item-desc">Ask questions about this page</span></span></a>';
-    items += '<a class="copy-page-item" role="menuitem" href="https://claude.ai/new?q=' + q + '" target="_blank" rel="noopener">' +
-      '<span class="copy-page-item-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4.709 15.955l4.397-10.985c.2-.497.378-.878.575-1.14.208-.277.503-.497.916-.497.414 0 .709.22.917.497.197.262.375.643.575 1.14L16.1 15.432l.055.137c.15.374.278.697.343.987.07.313.077.622-.046.925a1.494 1.494 0 01-.644.72c-.272.161-.576.203-.893.196-.294-.006-.64-.058-1.028-.118l-.147-.023-3.408-.537a3.22 3.22 0 00-.503-.042c-.17 0-.34.014-.504.042l-3.408.537-.146.023c-.389.06-.735.112-1.028.118-.318.007-.622-.035-.894-.197a1.494 1.494 0 01-.644-.72c-.123-.302-.117-.611-.046-.924.065-.29.193-.613.343-.987l.055-.137zM17.584 18.01c-.04.03-.068.073-.08.122a.228.228 0 00.017.148l.96 2.122c.083.183.15.303.217.386.077.096.175.212.35.212.177 0 .274-.116.351-.212.068-.083.134-.203.217-.386l.96-2.122a.228.228 0 00.017-.148.228.228 0 00-.08-.122l-1.688-1.374a.219.219 0 00-.138-.049.219.219 0 00-.139.049l-1.688 1.374z"/></svg></span>' +
-      '<span class="copy-page-item-text"><span class="copy-page-item-title">Open in Claude <span class="copy-page-arrow">\\u2197</span></span><span class="copy-page-item-desc">Ask questions about this page</span></span></a>';
-    items += '<button type="button" class="copy-page-item" role="menuitem" onclick="copyMcpCommand();closeCopyMenu()">' +
-      '<span class="copy-page-item-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>' +
-      '<span class="copy-page-item-text"><span class="copy-page-item-title">Copy MCP install command</span><span class="copy-page-item-desc">Copy npx command to install MCP server</span></span></button>';
-  }
-  return items;
+  var opts = window.__DOCSLIT_CONTEXTUAL__ || ['copy', 'chatgpt', 'claude', 'mcp'];
+  var h1 = document.querySelector('#docs-content h1');
+  return dlContextualItems(opts, { siteUrl: siteUrl, pageUrl: pageUrl, markdownUrl: pageUrl ? pageUrl + '.md' : '', title: title || (h1 ? h1.textContent.trim() : id), path: '/' + id });
 }
-function _mdButtons(id) {
-  var copyIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-  return '<span class="meta-sep">|</span>' +
-    '<div class="copy-page-menu">' +
-    '<button class="meta-btn copy-page-main"' + (_OFFLINE ? '' : ' onclick="copyMd()"') + ' title="Copy page as Markdown">' + copyIcon + ' Copy page</button>' +
-    '<button type="button" class="meta-btn copy-page-toggle"' + (_OFFLINE ? '' : ' onclick="toggleCopyMenu(event)"') + ' aria-haspopup="true" aria-expanded="false"><span class="copy-page-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>' +
-    '<div class="copy-page-dropdown" role="menu" hidden>' + _copyPageDropdownItems() + '</div>' +
-    '</div>' +
+function _copyPageDropdownItems() {
+  return dlContextualItemsHtml(_contextualItems());
+}
+function _mdButtons(id, title) {
+  var items = _contextualItems(title);
+  return (items.length ? '<span class="meta-sep">|</span>' + dlContextualMenuHtml(items) : '') +
     (window.__DOCSLIT_PDF__ ? _pdfDownloadButton(id) : _printPdfButton());
 }
 function _buildMetaBar(meta, id) {
@@ -1286,7 +1619,7 @@ function _buildMetaBar(meta, id) {
   if (meta.component) parts.push('<span>\\u2022</span><span>' + _escHtml(meta.component) + '</span>');
   if (meta.readtime) parts.push('<span>\\u2022</span><span>' + _escHtml(meta.readtime) + '</span>');
   if (meta.updated) parts.push('<span>\\u2022</span><span>Updated ' + _escHtml(meta.updated) + '</span>');
-  parts.push(_mdButtons(id));
+  parts.push(_mdButtons(id, meta.title));
   return '<div class="page-meta">' + parts.join('') + '</div>';
 }
 
@@ -1334,7 +1667,8 @@ function closePdfMenu() {
 function toggleCopyMenu(e) {
   e.stopPropagation();
   closePdfMenu();
-  var menu = e.currentTarget.closest('.copy-page-menu');
+  var src = e.currentTarget && e.currentTarget.closest ? e.currentTarget : e.target;
+  var menu = src.closest('.copy-page-menu');
   if (!menu) return;
   var dd = menu.querySelector('.copy-page-dropdown');
   var btn = menu.querySelector('.copy-page-toggle');
@@ -1367,7 +1701,7 @@ async function copyMcpCommand() {
     }
   } catch(e) { console.error('Copy failed', e); }
 }
-document.addEventListener('click', function() { closePdfMenu(); closeCopyMenu(); });
+document.addEventListener('click', function(e) { if (e && e.__dlKeepMenus) return; closePdfMenu(); closeCopyMenu(); });
 window.copyMd = copyMd;
 window.viewMd = viewMd;
 window.toggleCopyMenu = toggleCopyMenu;
@@ -1405,95 +1739,27 @@ function pdfButtons(id, pdfManifest, assetPrefix = '') {
   return `<span class="meta-sep">|</span><div class="pdf-menu"><button type="button" class="meta-btn pdf-menu-btn" onclick="togglePdfMenu(event)" aria-haspopup="true" aria-expanded="false" title="Download PDF">${PDF_DOC_ICON} Download PDF <span class="pdf-menu-chevron" aria-hidden="true">▾</span></button><div class="pdf-menu-dropdown" role="menu" hidden>${items}</div></div>`;
 }
 
-function copyPageDropdownItems(pageUrl, siteUrl) {
-  const copyIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-  const chatgptIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>';
-  const claudeIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4.709 15.955l4.397-10.985c.2-.497.378-.878.575-1.14.208-.277.503-.497.916-.497.414 0 .709.22.917.497.197.262.375.643.575 1.14L16.1 15.432l.055.137c.15.374.278.697.343.987.07.313.077.622-.046.925a1.494 1.494 0 01-.644.72c-.272.161-.576.203-.893.196-.294-.006-.64-.058-1.028-.118l-.147-.023-3.408-.537a3.22 3.22 0 00-.503-.042c-.17 0-.34.014-.504.042l-3.408.537-.146.023c-.389.06-.735.112-1.028.118-.318.007-.622-.035-.894-.197a1.494 1.494 0 01-.644-.72c-.123-.302-.117-.611-.046-.924.065-.29.193-.613.343-.987l.055-.137zM17.584 18.01c-.04.03-.068.073-.08.122a.228.228 0 00.017.148l.96 2.122c.083.183.15.303.217.386.077.096.175.212.35.212.177 0 .274-.116.351-.212.068-.083.134-.203.217-.386l.96-2.122a.228.228 0 00.017-.148.228.228 0 00-.08-.122l-1.688-1.374a.219.219 0 00-.138-.049.219.219 0 00-.139.049l-1.688 1.374z"/></svg>';
-  const mcpIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
-  let items = `<button type="button" class="copy-page-item" role="menuitem" onclick="copyMd();closeCopyMenu()"><span class="copy-page-item-icon">${copyIcon}</span><span class="copy-page-item-text"><span class="copy-page-item-title">Copy page</span><span class="copy-page-item-desc">Copy page as Markdown for LLMs</span></span></button>`;
-  if (pageUrl) {
-    const q = encodeURIComponent('Read from ' + pageUrl + ' so I can ask questions about it.');
-    items += `<a class="copy-page-item" role="menuitem" href="https://chatgpt.com/?q=${q}" target="_blank" rel="noopener"><span class="copy-page-item-icon">${chatgptIcon}</span><span class="copy-page-item-text"><span class="copy-page-item-title">Open in ChatGPT <span class="copy-page-arrow">↗</span></span><span class="copy-page-item-desc">Ask questions about this page</span></span></a>`;
-    items += `<a class="copy-page-item" role="menuitem" href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener"><span class="copy-page-item-icon">${claudeIcon}</span><span class="copy-page-item-text"><span class="copy-page-item-title">Open in Claude <span class="copy-page-arrow">↗</span></span><span class="copy-page-item-desc">Ask questions about this page</span></span></a>`;
-    items += `<button type="button" class="copy-page-item" role="menuitem" onclick="copyMcpCommand();closeCopyMenu()"><span class="copy-page-item-icon">${mcpIcon}</span><span class="copy-page-item-text"><span class="copy-page-item-title">Copy MCP install command</span><span class="copy-page-item-desc">Copy npx command to install MCP server</span></span></button>`;
-  }
-  return items;
+function mdButtons(config, meta, id, pdfManifest = null, assetPrefix = '', siteUrl = '', hrefPrefix = '') {
+  const pageUrl = siteUrl && id ? `${siteUrl}${hrefPrefix}/${id}` : '';
+  const items = contextualItems(contextualFor(config, meta), {
+    siteUrl, pageUrl, markdownUrl: pageUrl ? `${pageUrl}.md` : '', title: meta.title || toLabel(id), path: `/${id}`,
+    iconHtml: (n) => renderIcon(n, { size: 16, className: 'nav-icon' }),
+  });
+  const menu = items.length ? `<span class="meta-sep">|</span>${contextualMenuHtml(items)}` : '';
+  return menu + pdfButtons(id, pdfManifest, assetPrefix);
 }
 
-function mdButtons(id, pdfManifest = null, assetPrefix = '', siteUrl = '', basePath = '') {
-  const copyIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-  const pageUrl = siteUrl && id ? siteUrl + (basePath || '/') + id : '';
-  const dropdownItems = copyPageDropdownItems(pageUrl, siteUrl);
-  return `<span class="meta-sep">|</span><div class="copy-page-menu"><button class="meta-btn copy-page-main" onclick="copyMd()" title="Copy page as Markdown">${copyIcon} Copy page</button><button type="button" class="meta-btn copy-page-toggle" onclick="toggleCopyMenu(event)" aria-haspopup="true" aria-expanded="false"><span class="copy-page-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></button><div class="copy-page-dropdown" role="menu" hidden>${dropdownItems}</div></div>${pdfButtons(id, pdfManifest, assetPrefix)}`;
-}
-
-function injectPageMeta(meta, id, pdfManifest = null, assetPrefix = '', siteUrl = '', basePath = '') {
+function injectPageMeta(config, meta, id, pdfManifest = null, assetPrefix = '', siteUrl = '', hrefPrefix = '') {
   const parts = [];
   if (meta.tag) parts.push(`<span>${escHtml(meta.tag)}</span>`);
   if (meta.component) parts.push(`<span>•</span><span>${escHtml(meta.component)}</span>`);
   if (meta.readtime) parts.push(`<span>•</span><span>${escHtml(meta.readtime)}</span>`);
   if (meta.updated) parts.push(`<span>•</span><span>Updated ${escHtml(meta.updated)}</span>`);
-  parts.push(mdButtons(id, pdfManifest, assetPrefix, siteUrl, basePath));
+  parts.push(mdButtons(config, meta, id, pdfManifest, assetPrefix, siteUrl, hrefPrefix));
   return `<div class="page-meta">${parts.join('')}</div>`;
 }
 
-function buildSidebarHtml(config, draftIds = [], activePageId = null, excludePrefix = null, offline = false, titleMap = null) {
-  const draftSet = new Set(draftIds);
-  function _excluded(id) {
-    return draftSet.has(id) || (excludePrefix && id.startsWith(excludePrefix));
-  }
-  function _sidebarClick(id) {
-    if (offline) return '';
-    return ` onclick="loadPage('${escHtml(id)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"`;
-  }
-  function renderPages(pages) {
-    let out = '';
-    for (const item of pages) {
-      if (typeof item === 'object' && item.group) {
-        const subPages = (item.pages || []).filter(p => {
-          if (typeof p === 'string') return !_excluded(p);
-          if (p.id) return !_excluded(p.id);
-          return true;
-        });
-        if (!subPages.length) continue;
-        out += `<div class="sidebar-subgroup">`;
-        out += `<div class="sidebar-subgroup-title">${escHtml(item.group)}</div>`;
-        out += renderPages(subPages);
-        out += `</div>`;
-      } else if (typeof item === 'string' && !_excluded(item)) {
-        const label = (titleMap && titleMap[item]) || toLabel(item);
-        const activeClass = item === activePageId ? ' active' : '';
-        out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item)}" href="${escHtml(item)}"${_sidebarClick(item)}>${escHtml(label)}</a>`;
-      } else if (typeof item === 'object' && item.id && !_excluded(item.id)) {
-        const label = item.title || (titleMap && titleMap[item.id]) || toLabel(item.id);
-        const activeClass = item.id === activePageId ? ' active' : '';
-        if (item.method) {
-          const methodClass = item.method.toLowerCase();
-          out += `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(item.id)}" href="${escHtml(item.id)}"${_sidebarClick(item.id)}><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${item.method}</span></a>`;
-        } else {
-          out += `<a class="sidebar-item${activeClass}" data-page="${escHtml(item.id)}" href="${escHtml(item.id)}"${_sidebarClick(item.id)}>${escHtml(label)}</a>`;
-        }
-      }
-    }
-    return out;
-  }
-  let html = '';
-  for (const group of (config.sidebar || [])) {
-    const visiblePages = (group.pages || []).filter(p => {
-      if (typeof p === 'string') return !_excluded(p);
-      if (p.id) return !_excluded(p.id);
-      return true;
-    });
-    if (!visiblePages.length) continue;
-    html += `<div class="sidebar-section">`;
-    html += `<div class="sidebar-group-title">${escHtml(group.group || '')}</div>`;
-    html += renderPages(visiblePages);
-    html += `</div>`;
-  }
-  return html;
-}
-
-function buildApiSidebarHtml(specData, activePageId, apiMeta, offline = false) {
+function buildApiSidebarHtml(specData, activePageId, apiMeta, offline = false, hrefFor = (id) => id) {
   const byTag = new Map();
   for (const ep of specData) {
     const tag = ep.tags[0] || 'Default';
@@ -1509,7 +1775,7 @@ function buildApiSidebarHtml(specData, activePageId, apiMeta, offline = false) {
     const methodClass = ep.method.toLowerCase();
     const label = ep.summary || ep.path;
     const click = offline ? '' : ` onclick="loadPage('${escHtml(pageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"`;
-    return `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(pageId)}" href="${escHtml(pageId)}"${click}><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${ep.method}</span></a>`;
+    return `<a class="sidebar-item api-nav-item${activeClass}" data-page="${escHtml(pageId)}" href="${escHtml(hrefFor(pageId))}"${click}><span class="api-nav-label">${escHtml(label)}</span><span class="method-badge ${methodClass}">${ep.method}</span></a>`;
   }
 
   function renderTagSection(tagName) {
@@ -1594,9 +1860,9 @@ function getFirstApiPageId(specData) {
 const _apiIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>';
 const _docsIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>';
 
-function buildSidebarModeLink(targetPageId, label, icon, offline = false) {
+function buildSidebarModeLink(targetPageId, label, icon, offline = false, hrefFor = (id) => id) {
   const click = offline ? '' : ` onclick="loadPage('${escHtml(targetPageId)}',this);if(window.innerWidth<=1024)closeSidebar();return false;"`;
-  return `<div class="sidebar-mode-link"><a class="sidebar-item sidebar-mode-item" data-page="${escHtml(targetPageId)}" href="${escHtml(targetPageId)}"${click}>${icon} ${escHtml(label)}</a></div>`;
+  return `<div class="sidebar-mode-link"><a class="sidebar-item sidebar-mode-item" data-page="${escHtml(targetPageId)}" href="${escHtml(hrefFor(targetPageId))}"${click}>${icon} ${escHtml(label)}</a></div>`;
 }
 
 function buildWsScript(port) {
@@ -1627,19 +1893,21 @@ async function loadPage(id, el) {
     const apiPath = vc ? '/api/page/' + vc.current + '/' + id : '/api/page/' + id;
     const res = await fetch(apiPath);
     if (!res.ok) throw new Error(res.statusText);
-    const { meta, html } = await res.json();
+    const { meta, html, nav } = await res.json();
+    window.__DOCSLIT_FB_OFF__ = nav ? !!nav.hideFeedback : meta.feedback === false;
+    _applyPageInfo(nav);
     var isApi = id.startsWith('api/') || meta.layout === 'api';
     if (isApi) document.body.classList.add('api-layout'); else document.body.classList.remove('api-layout');
     _switchSidebarMode(isApi ? 'api' : 'docs');
-    const logoText = document.querySelector('.nav-logo-text');
     if (meta.title) {
-      document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
+      document.title = meta.title + ' — ' + _siteName();
       _setBreadcrumb(id, meta.title);
       var sidebarEl = document.querySelector('.sidebar-item[data-page="' + id + '"]');
       if (sidebarEl) {
-        var labelSpan = sidebarEl.querySelector('.api-nav-label');
-        if (labelSpan) labelSpan.textContent = meta.title;
-        else sidebarEl.textContent = meta.title;
+        var labelSpan = sidebarEl.querySelector('.sidebar-item-label, .api-nav-label');
+        var sidebarLabel = (typeof meta.sidebar_title === 'string' && meta.sidebar_title.trim()) || meta.title;
+        if (labelSpan) labelSpan.textContent = sidebarLabel;
+        else sidebarEl.textContent = sidebarLabel;
       }
     }
     var metaDesc = document.querySelector('meta[name="description"]');
@@ -1650,10 +1918,11 @@ async function loadPage(id, el) {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
     const h1 = tmp.querySelector('h1');
-    if (h1) { content.appendChild(document.importNode(h1, true)); content.insertAdjacentHTML('beforeend', metaBar); tmp.querySelector('h1').remove(); }
+    if (h1) { if (nav && nav.before) content.insertAdjacentHTML('beforeend', nav.before); content.appendChild(document.importNode(h1, true)); content.insertAdjacentHTML('beforeend', (nav && nav.after ? nav.after : '') + metaBar); tmp.querySelector('h1').remove(); }
     else { content.insertAdjacentHTML('beforeend', metaBar); }
     content.insertAdjacentHTML('beforeend', tmp.innerHTML);
     _wrapTables(content);
+    _decorateContent(content);
     buildToc(content);
     content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
     _placeApiExamples(content, isApi);
@@ -1715,11 +1984,12 @@ async function loadPage(id, el) {
   const isApi = doc.body.classList.contains('api-layout');
   if (isApi) document.body.classList.add('api-layout'); else document.body.classList.remove('api-layout');
   _switchSidebarMode(isApi ? 'api' : 'docs');
+  _applyPageInfo(_pageInfoFromDoc(doc));
   const remoteContent = doc.getElementById('docs-content');
+  window.__DOCSLIT_FB_OFF__ = !!(remoteContent && remoteContent.hasAttribute('data-feedback-off'));
   const pageTitle = doc.querySelector('title')?.textContent?.split(' — ')[0] || '';
-  const logoText = document.querySelector('.nav-logo-text');
   if (pageTitle) {
-    document.title = pageTitle + ' — ' + (logoText ? logoText.textContent.trim() : '');
+    document.title = pageTitle + ' — ' + _siteName();
     _setBreadcrumb(id, pageTitle);
   }
   var remoteDesc = doc.querySelector('meta[name="description"]');
@@ -1727,6 +1997,7 @@ async function loadPage(id, el) {
   if (metaDesc) metaDesc.setAttribute('content', remoteDesc ? remoteDesc.getAttribute('content') || '' : '');
   content.innerHTML = remoteContent ? remoteContent.innerHTML : '';
   _wrapTables(content);
+  _decorateContent(content);
   buildToc(content);
   content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
   _placeApiExamples(content, isApi);
@@ -1740,7 +2011,9 @@ window.addEventListener('DOMContentLoaded', () => {
     window.__DOCSLIT_CURRENT_PAGE__ = preRenderedId;
     activateSidebar(preRenderedId);
     var content = document.getElementById('docs-content');
+    window.__DOCSLIT_FB_OFF__ = content.hasAttribute('data-feedback-off');
     _wrapTables(content);
+    _decorateContent(content);
     buildToc(content);
     content.insertAdjacentHTML('beforeend', _buildPrevNext(preRenderedId));
     var isApi = preRenderedId.startsWith('api/') || document.body.classList.contains('api-layout');
@@ -1800,13 +2073,14 @@ async function loadPage(id, el) {
   content.textContent = 'Loading…';
   const data = await _loadPageData(id);
   if (!data) { _show404(id); return; }
-  const { meta, html } = data;
+  const { meta, html, nav } = data;
+  window.__DOCSLIT_FB_OFF__ = nav ? !!nav.hideFeedback : meta.feedback === false;
+  _applyPageInfo(nav);
   var isApi = id.startsWith('api/') || meta.layout === 'api';
   if (isApi) document.body.classList.add('api-layout'); else document.body.classList.remove('api-layout');
   _switchSidebarMode(isApi ? 'api' : 'docs');
-  const logoText = document.querySelector('.nav-logo-text');
   if (meta.title) {
-    document.title = meta.title + ' — ' + (logoText ? logoText.textContent.trim() : '');
+    document.title = meta.title + ' — ' + _siteName();
     _setBreadcrumb(id, meta.title);
   }
   var metaDescEl = document.querySelector('meta[name="description"]');
@@ -1817,10 +2091,11 @@ async function loadPage(id, el) {
   const h1 = tmp.querySelector('h1');
   content.innerHTML = '';
   if (meta.draft) content.insertAdjacentHTML('beforeend', '<div class="draft-banner" role="status"><span><strong>Draft page</strong> — not visible in production builds.</span></div>');
-  if (h1) { content.appendChild(document.importNode(h1,true)); content.insertAdjacentHTML('beforeend', metaBar); tmp.querySelector('h1').remove(); }
+  if (h1) { if (nav && nav.before) content.insertAdjacentHTML('beforeend', nav.before); content.appendChild(document.importNode(h1,true)); content.insertAdjacentHTML('beforeend', (nav && nav.after ? nav.after : '') + metaBar); tmp.querySelector('h1').remove(); }
   else { content.insertAdjacentHTML('beforeend', metaBar); }
   content.insertAdjacentHTML('beforeend', tmp.innerHTML);
   _wrapTables(content);
+  _decorateContent(content);
   buildToc(content);
   content.insertAdjacentHTML('beforeend', _buildPrevNext(id));
   _placeApiExamples(content, isApi);
@@ -1916,14 +2191,23 @@ function buildSearchScript(mode, offline = false) {
     }`;
 
   const buildFlexBlock = `
-    var flexUrl = ${offline
-      ? `'flexsearch.js'`
-      : mode === 'dev'
-        ? `'/vendor/flexsearch.js'`
-        : `_docsBase() + 'flexsearch.js'`};
-    var { default: FlexSearch } = await import(flexUrl);
+    ${offline
+      ? `if (!window.FlexSearch) {
+      // file:// pages cannot import() modules; load the classic-script build.
+      await new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = 'flexsearch.iife.js';
+        s.onload = resolve;
+        s.onerror = function() { reject(new Error('flexsearch.iife.js not found')); };
+        document.head.appendChild(s);
+      });
+    }
+    var FlexSearch = window.FlexSearch;`
+      : `var flexUrl = ${mode === 'dev' ? `'/vendor/flexsearch.js'` : `_docsBase() + 'flexsearch.js'`};
+    var _fsMod = await import(flexUrl);
+    var FlexSearch = _fsMod.default || _fsMod;`}
     _searchFlex = new FlexSearch.Document({
-      document: { id: 'id', index: ['title', 'desc', 'body'], store: ['id', 'title', 'group', 'desc', 'section', 'pageTitle'] },
+      document: { id: 'id', index: ['title', 'desc', 'body'], store: ['id', 'title', 'group', 'desc', 'section', 'pageTitle', 'tab'] },
       tokenize: 'forward',
       resolution: 9,
     });
@@ -2070,7 +2354,7 @@ function _renderItem(item, idx) {
     '<div class="search-item-text"><div class="search-item-title">' + label + '</div>' +
     desc +
     '</div>' +
-    '<span class="search-item-badge">' + _esc(item.group) + '</span>' +
+    '<span class="search-item-badge">' + _esc(item.tab || item.group) + '</span>' +
     '</div>';
 }
 
@@ -2082,7 +2366,7 @@ function _renderItemHl(item, idx, query) {
     '<div class="search-item-text"><div class="search-item-title">' + _highlight(title, query) + '</div>' +
     desc +
     '</div>' +
-    '<span class="search-item-badge">' + _esc(item.group) + '</span>' +
+    '<span class="search-item-badge">' + _esc(item.tab || item.group) + '</span>' +
     '</div>';
 }
 
@@ -2135,7 +2419,7 @@ function handleSearchInput(value) {
 
   var groups = {};
   results.forEach(function(r) {
-    var g = r.group || 'Pages';
+    var g = (r.tab ? r.tab + ' \\u203A ' : '') + (r.group || 'Pages');
     if (!groups[g]) groups[g] = [];
     groups[g].push(r);
   });
@@ -2255,15 +2539,19 @@ function _updateThemeBtn() {
 }
 
 function toggleTheme() {
+  if (window.__themeStrict) return;
   const cur = window.__themeMode || 'system';
   const next = _THEME_CYCLE[(_THEME_CYCLE.indexOf(cur) + 1) % _THEME_CYCLE.length];
   window.__themeMode = next;
-  localStorage.setItem('docslit-theme', next);
+  try { localStorage.setItem('docslit-theme', next); } catch (e) {}
   const h = document.documentElement;
-  h.classList.remove('light', 'dark');
-  if (next === 'light') h.classList.add('light');
-  else if (next === 'dark') h.classList.add('dark');
-  else if (window.matchMedia('(prefers-color-scheme:dark)').matches) h.classList.add('dark');
+  if (window.__applyThemeMode) window.__applyThemeMode(next);
+  else {
+    h.classList.remove('light', 'dark');
+    if (next === 'light') h.classList.add('light');
+    else if (next === 'dark') h.classList.add('dark');
+    else if (window.matchMedia('(prefers-color-scheme:dark)').matches) h.classList.add('dark');
+  }
   _updateThemeBtn();
 }`;
 }
@@ -2369,35 +2657,39 @@ window.a11yReset = a11yReset;
 
 function buildStyles(resolvedTheme = null) {
   const resolved = resolvedTheme ?? resolveSiteThemeSync(null);
-  const themeCss = buildThemeCss(resolved);
+  const themeCss = buildThemeCss(resolved, { all: Boolean(resolved.picker) });
+  const themeFaces = themeFontFaces(resolved);
   return `<style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 @font-face { font-family: 'Inter-fallback'; src: local('Arial'); size-adjust: 107%; ascent-override: 90%; descent-override: 22%; line-gap-override: 0%; }
 @font-face { font-family: 'JetBrains-fallback'; src: local('Courier New'); size-adjust: 118%; ascent-override: 77%; descent-override: 20%; line-gap-override: 0%; }
+${themeFaces}
 
 :root {
   --bg: #0a0a0a; --surface: #111; --surface2: #1a1a1a; --surface3: #222;
   --border: #2a2a2a; --border2: #3a3a3a;
-  --text: #f0f0f0; --text2: #a0a0a0; --text3: #666;
+  --text: #f0f0f0; --text2: #a0a0a0; --text3: #8f8f8f;
   --accent: #01696f; --accent-light: #4f98a3;
   --accent-dim: rgba(1,105,111,.15); --accent-dim2: rgba(1,105,111,.25);
   --sidebar-bg: #0f0f0f; --code-bg: #161616; --code-text: #e2e8f0;
   --font-sans: 'Inter', 'Inter-fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'JetBrains-fallback', 'Fira Code', 'Cascadia Code', monospace;
   --radius: 8px; --radius-lg: 12px;
-  --nav-h: 60px; --announcement-h: 0px; --chrome-h: calc(var(--nav-h) + var(--announcement-h)); --sidebar-w: 264px;
+  --nav-h: 60px; --announcement-h: 0px; --sidebar-w: 264px;
 }
 html.announcement-dismissed { --announcement-h: 0px; }
 html.announcement-dismissed #announcement-banner { display: none; }
 html.light {
   --bg: #ffffff; --surface: #f8f8f8; --surface2: #f0f0f0; --surface3: #e8e8e8;
   --border: #e2e2e2; --border2: #d0d0d0;
-  --text: #0f0f0f; --text2: #555; --text3: #737373;
+  --text: #0f0f0f; --text2: #555; --text3: #656565;
   --accent-light: #015e63;
   --accent-dim: rgba(1,105,111,.08); --accent-dim2: rgba(1,105,111,.15);
   --sidebar-bg: #f5f5f5; --code-bg: #f6f8fa; --code-text: #24292f;
 }
+${buildBaseTokens()}
+${NAV_TOKENS_CSS}
 ${themeCss}
 html {
   /* Reserve the scrollbar gutter at all times so SPA page swaps don't flash:
@@ -2442,6 +2734,8 @@ html, body {
   hanging-punctuation: first last;
   transition: background .2s, color .2s;
 }
+body { background-image: var(--page-bg-image); background-repeat: no-repeat; background-size: 100% 560px; }
+html[data-strict] .theme-btn { display: none; }
 
 /* ANNOUNCEMENT */
 .announcement-banner {
@@ -2475,18 +2769,18 @@ html.light .announcement-error { background: #fef2f2; color: #dc2626; border-col
 .nav {
   position: fixed; top: var(--announcement-h); left: 0; right: 0; z-index: 300;
   height: var(--nav-h);
-  background: rgba(10,10,10,.92);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
+  background: var(--nav-bg);
+  backdrop-filter: blur(var(--nav-blur)); -webkit-backdrop-filter: blur(var(--nav-blur));
+  border-bottom: 1px solid var(--nav-border);
+  box-shadow: var(--nav-shadow);
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 20px 0 12px;
   transition: background .2s;
 }
-html.light .nav { background: rgba(255,255,255,.93); }
 .nav-left { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .nav-logo {
   display: flex; align-items: center; gap: 9px;
-  font-weight: 700; font-size: 16px;
+  font-weight: var(--logo-weight); font-size: 16px; letter-spacing: var(--logo-tracking);
   color: var(--text); text-decoration: none; min-width: 0;
 }
 .nav-logo-icon {
@@ -2495,8 +2789,8 @@ html.light .nav { background: rgba(255,255,255,.93); }
 }
 .nav-logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-links { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.nav-ext-link { font-size: 13px; font-weight: 500; color: var(--dl-text-muted, #94a3b8); text-decoration: none; padding: 6px 10px; border-radius: 6px; }
-.nav-ext-link:hover { color: var(--dl-text, #f8fafc); background: rgba(255,255,255,.06); }
+.nav-ext-link { font-size: 13px; font-weight: 500; color: var(--dl-text-muted, var(--text2)); text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+.nav-ext-link:hover { color: var(--dl-text, var(--text)); background: var(--surface2); }
 .locale-switcher { font-size: 12px; font-weight: 600; background: transparent; border: 1px solid var(--dl-border, rgba(255,255,255,.12)); color: inherit; border-radius: 6px; padding: 5px 8px; }
 .site-footer { background: var(--surface); border-top: 1px solid var(--border); }
 .site-footer-inner { max-width: 1560px; margin: 0 auto; padding: 40px 24px 28px; display: flex; flex-direction: column; gap: 32px; }
@@ -2554,7 +2848,7 @@ html.light .nav { background: rgba(255,255,255,.93); }
 /* LAYOUT */
 .docs-page { padding-top: var(--chrome-h); min-height: 100vh; }
 .docs-layout {
-  display: flex; max-width: 1560px; margin: 0 auto;
+  display: flex; max-width: var(--page-w); margin: 0 auto;
   min-height: calc(100vh - var(--chrome-h));
 }
 
@@ -2562,7 +2856,7 @@ html.light .nav { background: rgba(255,255,255,.93); }
 .docs-sidebar {
   width: var(--sidebar-w); flex-shrink: 0;
   background: var(--sidebar-bg);
-  border-right: 1px solid var(--border);
+  border-right: var(--sidebar-border-w) solid var(--sidebar-border);
   padding: 0;
   position: sticky; top: var(--chrome-h);
   height: calc(100vh - var(--chrome-h));
@@ -2616,23 +2910,35 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 
 .sidebar-section { margin-bottom: 2px; }
 .sidebar-group-title {
-  padding: 18px 18px 5px;
-  font-size: 11px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .1em; color: var(--text3);
+  padding: var(--sb-group-pt) 18px var(--sb-group-pb) var(--sb-group-pl);
+  font-size: var(--sb-group-fs); font-weight: var(--sb-group-weight);
+  text-transform: var(--sb-group-transform); letter-spacing: var(--sb-group-tracking); color: var(--sb-group-color);
 }
 .sidebar-section:first-child .sidebar-group-title { padding-top: 10px; }
+summary.sidebar-group-title, summary.sidebar-subgroup-title {
+  list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+}
+summary.sidebar-group-title::-webkit-details-marker, summary.sidebar-subgroup-title::-webkit-details-marker { display: none; }
+summary.sidebar-group-title::after, summary.sidebar-subgroup-title::after {
+  content: ''; width: 6px; height: 6px; margin-left: 8px; flex-shrink: 0;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg); transition: transform .15s;
+}
+details[open] > summary.sidebar-group-title::after, details[open] > summary.sidebar-subgroup-title::after { transform: rotate(45deg); }
+summary.sidebar-group-title:hover, summary.sidebar-subgroup-title:hover { color: var(--text); }
 .sidebar-subgroup { margin-bottom: 2px; }
 .sidebar-subgroup-title { padding: 10px 18px 4px; font-size: 13px; font-weight: 600; color: var(--text2); }
 .sidebar-item {
-  display: block; padding: 7px 18px 7px 20px;
-  font-size: 14px; color: var(--text2);
+  display: block; padding: var(--sidebar-item-pad-y) 18px var(--sidebar-item-pad-y) var(--sb-item-pl);
+  margin: 0 var(--sb-item-mx);
+  font-size: var(--sidebar-fs); color: var(--text2);
   cursor: pointer; transition: all .12s;
-  text-decoration: none; border-left: 2px solid transparent; line-height: 1.4;
+  text-decoration: none; border-left: var(--sb-bar-w) solid transparent; border-radius: var(--sb-item-radius); line-height: var(--sb-item-lh);
 }
-.sidebar-item:hover { color: var(--text); background: var(--surface2); }
+.sidebar-item:hover { color: var(--text); background: var(--sb-hover-bg); }
 .sidebar-item.active {
-  color: var(--accent-light); border-left-color: var(--accent);
-  background: var(--accent-dim); font-weight: 500;
+  color: var(--sb-active-fg); border-left-color: var(--sb-active-bar);
+  background: var(--sb-active-bg); font-weight: var(--sb-active-weight);
 }
 .sidebar-mode-link { padding: 12px 18px; border-top: 1px solid var(--border); margin-top: 8px; }
 .sidebar-mode-item { display: flex !important; align-items: center; gap: 8px; font-weight: 500 !important; color: var(--accent-light) !important; border-left: none !important; }
@@ -2654,14 +2960,14 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 }
 .docs-breadcrumb { font-size: 13px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .docs-breadcrumb span { color: var(--text2); }
-.docs-main { flex: 1; display: flex; justify-content: center; }
+.docs-main { flex: 1; display: flex; justify-content: var(--content-align); }
 
 /* CONTENT */
-.docs-content { flex: 0 1 780px; min-width: 0; max-width: 780px; padding: 48px 56px 80px; }
+.docs-content { flex: 0 1 var(--content-w); min-width: 0; max-width: var(--content-w); padding: 48px var(--content-pad-x) 80px; }
 
 /* TOC */
 .docs-toc {
-  width: 216px; flex-shrink: 0;
+  width: var(--toc-w); flex-shrink: 0;
   padding: 48px 0 48px 16px;
   position: sticky; top: calc(var(--chrome-h) + 44px);
   align-self: flex-start;
@@ -2677,28 +2983,29 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 .toc-action-btn { display: flex; align-items: center; gap: 7px; background: none; border: none; padding: 5px 0; font-family: var(--font-sans); font-size: 12px; color: var(--text3); cursor: pointer; text-align: left; width: 100%; transition: color .15s; text-decoration: none; }
 .toc-action-btn:hover { color: var(--text2); }
 .toc-action-btn svg { flex-shrink: 0; }
-.toc-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--text3); margin-bottom: 10px; }
+.toc-title { font-size: var(--toc-title-fs); font-weight: 700; text-transform: var(--toc-title-transform); letter-spacing: var(--toc-title-tracking); color: var(--text3); margin-bottom: 10px; }
 .toc-list {
   list-style: none; margin: 0; padding: 0;
-  border-left: 1px solid var(--border);
+  border-left: var(--toc-line-w) solid var(--toc-line);
 }
 .toc-list li { margin: 0; padding: 0; }
 .toc-item {
   position: relative;
   display: block;
-  font-size: 13px; line-height: 1.4;
+  font-size: var(--toc-fs); line-height: 1.4;
   color: var(--text3);
   text-decoration: none;
   padding: 4px 0 4px 14px;
   margin-left: -1px; /* align the active accent with the static line */
-  border-left: 2px solid transparent;
+  border-left: var(--toc-bar-w) solid transparent;
   transition: color .12s, border-color .12s, font-weight .12s;
 }
 .toc-item-sub { padding-left: 26px; }
+.toc-item-sub2 { padding-left: 38px; }
 .toc-item:hover { color: var(--text2); }
 .toc-item.active {
-  color: var(--accent-light);
-  border-left-color: var(--accent);
+  color: var(--toc-active-fg);
+  border-left-color: var(--toc-active-bar);
   font-weight: 600;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2706,24 +3013,50 @@ html.light .sidebar-item.filter-focus { background: var(--surface3, #e8e8e8); }
 }
 
 /* TYPOGRAPHY */
-.docs-content h1, .docs-content h2, .docs-content h3, .docs-content h4 { font-feature-settings: 'ss01'; }
-.docs-content h1 { font-size: 3rem; font-weight: 500; letter-spacing: -.04em; margin-bottom: 20px; line-height: 1.1; color: var(--text); text-wrap: balance; }
-.docs-content h2 { font-size: 1.875rem; font-weight: 500; letter-spacing: -.03em; line-height: 1.2; margin: 56px 0 16px; color: var(--text); }
-.docs-content h3 { font-size: 1.375rem; font-weight: 500; letter-spacing: -.02em; line-height: 1.3; margin: 40px 0 12px; color: var(--text); }
-.docs-content h4 { font-size: 1.125rem; font-weight: 500; letter-spacing: -.01em; line-height: 1.4; margin: 32px 0 8px; color: var(--text); }
-.docs-content p { color: var(--text2); line-height: 1.6; margin-bottom: 16px; text-wrap: pretty; }
-.docs-content ul, .docs-content ol { color: var(--text2); line-height: 1.6; margin: 0 0 16px 24px; }
-.docs-content li { margin-bottom: 6px; }
+.docs-content { font-size: var(--content-fs); }
+.docs-content h1, .docs-content h2, .docs-content h3, .docs-content h4 { font-family: var(--font-heading); font-feature-settings: var(--heading-features); }
+.docs-content h1 { font-size: var(--h1-size); font-weight: var(--h1-weight); letter-spacing: var(--h1-tracking); margin-bottom: var(--h1-mb); line-height: var(--h1-lh); color: var(--heading-color); text-wrap: balance; }
+.docs-content h2 { font-size: var(--h2-size); font-weight: var(--h2-weight); letter-spacing: var(--h2-tracking); line-height: var(--h2-lh); margin: var(--h2-mt) 0 var(--h2-mb); color: var(--heading-color); }
+.docs-content h3 { font-size: var(--h3-size); font-weight: var(--h3-weight); letter-spacing: var(--h3-tracking); line-height: var(--h3-lh); margin: var(--h3-mt) 0 var(--h3-mb); color: var(--heading-color); }
+.docs-content h4 { font-size: var(--h4-size); font-weight: var(--h4-weight); letter-spacing: var(--h4-tracking); line-height: var(--h4-lh); margin: var(--h4-mt) 0 var(--h4-mb); color: var(--heading-color); }
+.docs-content p { color: var(--prose-color); line-height: var(--body-lh); margin-bottom: var(--p-mb); text-wrap: pretty; }
+.docs-content ul, .docs-content ol { color: var(--prose-color); line-height: var(--body-lh); margin: 0 0 var(--p-mb) 24px; }
+.docs-content li { margin-bottom: var(--li-mb); }
 .docs-content li > ul, .docs-content li > ol { margin-top: 6px; margin-bottom: 6px; }
 .docs-content li::marker { color: var(--text3); }
 .docs-content strong { color: var(--text); font-weight: 600; }
-.docs-content code { font-family: var(--font-mono); font-size: .8125em; background: var(--surface2); border: 1px solid var(--border); padding: 3px 7px; border-radius: 4px; color: var(--accent-light); word-break: break-word; font-feature-settings: 'ss01'; }
-.docs-content pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; overflow-x: auto; margin: 24px 0; -webkit-overflow-scrolling: touch; tab-size: 2; }
-.docs-content pre code { background: none; border: none; padding: 0; color: var(--code-text); font-size: 14px; line-height: 1.7; word-break: normal; font-variant-ligatures: none; }
-.docs-content a { color: var(--accent-light); text-decoration: none; transition: color .15s; }
+.docs-content code { font-family: var(--font-mono); font-size: var(--inline-code-fs); background: var(--inline-code-bg); border: 1px solid var(--inline-code-border); padding: 3px 7px; border-radius: var(--r-xs, 4px); color: var(--inline-code-color); word-break: break-word; font-feature-settings: 'ss01'; }
+.docs-content kbd { font-family: var(--font-mono); font-size: .8125em; line-height: 1; padding: 3px 6px; color: var(--text); background: var(--surface2); border: 1px solid var(--border2); border-bottom-width: 2px; border-radius: 5px; white-space: nowrap; }
+.docs-content details { margin: 0 0 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+.docs-content details > summary { cursor: pointer; padding: 12px 16px; font-weight: 500; color: var(--text); background: var(--surface2); list-style: none; display: flex; align-items: center; gap: 8px; user-select: none; }
+.docs-content details > summary::-webkit-details-marker { display: none; }
+.docs-content details > summary::before { content: ''; width: 6px; height: 6px; border-right: 2px solid var(--text3); border-bottom: 2px solid var(--text3); transform: rotate(-45deg); transition: transform .15s; flex-shrink: 0; }
+.docs-content details[open] > summary::before { transform: rotate(45deg); }
+.docs-content details > summary:hover { background: var(--surface3); }
+.docs-content details > summary:focus-visible { outline: var(--focus-w) solid var(--focus-color); outline-offset: -2px; }
+.docs-content details > :not(summary) { margin-left: 16px; margin-right: 16px; }
+.docs-content details > summary + * { margin-top: 14px; }
+.docs-content details > :last-child { margin-bottom: 14px; }
+@media (prefers-reduced-motion: reduce) { .docs-content details > summary::before { transition: none; } }
+.docs-content h2, .docs-content h3, .docs-content h4 { position: relative; }
+.docs-content .heading-anchor { display: inline-flex; align-items: center; vertical-align: middle; margin-left: 8px; padding: 2px; color: var(--text3); opacity: 0; border-radius: 4px; transition: opacity .15s, color .15s; }
+.docs-content .heading-anchor:hover { color: var(--accent-light); text-decoration: none; }
+.docs-content :is(h2, h3, h4):hover .heading-anchor, .docs-content .heading-anchor:focus-visible, .docs-content .heading-anchor.copied { opacity: 1; }
+.docs-content .heading-anchor.copied { color: #34d399; }
+.docs-content .heading-anchor:focus-visible { outline: var(--focus-w) solid var(--focus-color); }
+@media (hover: none) { .docs-content .heading-anchor { opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .docs-content .heading-anchor { transition: none; } }
+.docs-content .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; margin: 20px 0; }
+.docs-content .katex { color: var(--text); }
+.docs-content .katex-error { font-family: var(--font-mono); color: #f87171; }
+.docs-content .docslit-math-block { margin: 20px 0; }
+.docs-content .docslit-math-block .katex-display { margin: 0; }
+.docs-content pre { background: var(--code-bg); border: 1px solid var(--code-border, var(--border)); border-radius: var(--code-radius); padding: 20px 24px; overflow-x: auto; margin: 24px 0; -webkit-overflow-scrolling: touch; tab-size: 2; }
+.docs-content pre code { background: none; border: none; padding: 0; color: var(--code-text); font-size: var(--code-fs); line-height: 1.7; word-break: normal; font-variant-ligatures: none; }
+.docs-content a { color: var(--link-color); text-decoration: none; transition: color .15s; }
 .docs-content a:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
-.docs-content .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: var(--radius-lg); margin: 20px 0; }
-.docs-content table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 480px; }
+.docs-content .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--table-border); border-radius: var(--table-radius); margin: 20px 0; }
+.docs-content table { width: 100%; border-collapse: collapse; font-size: var(--table-fs); min-width: 480px; }
 .docs-content .table-wrap table { margin: 0; min-width: unset; }
 wc-asciidoc-table .adoc-table-wrap { display: block; }
 wc-asciidoc-table table.adoc-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: unset; margin: 0; }
@@ -2761,18 +3094,18 @@ wc-asciidoc-table table.adoc-table ul,
 wc-asciidoc-table table.adoc-table ol { margin: 0 0 .55em; padding-left: 1.25em; }
 .docs-content th {
   text-align: left;
-  padding: 12px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  border-right: 1px solid var(--border);
+  padding: var(--table-pad-y) 16px;
+  background: var(--table-head-bg);
+  border-bottom: 1px solid var(--table-line);
+  border-right: var(--table-col-line-w) solid var(--table-line);
   font-weight: 600;
-  color: var(--text2);
+  color: var(--table-head-color);
   white-space: nowrap;
 }
 .docs-content td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  border-right: 1px solid var(--border);
+  padding: var(--table-pad-y) 16px;
+  border-bottom: 1px solid var(--table-line);
+  border-right: var(--table-col-line-w) solid var(--table-line);
   color: var(--text2);
   vertical-align: top;
   line-height: 1.6;
@@ -2784,7 +3117,7 @@ wc-asciidoc-table table.adoc-table ol { margin: 0 0 .55em; padding-left: 1.25em;
 .docs-content table > :last-child > tr:last-child > th { border-bottom: none; }
 .docs-content tr:hover td { background: rgba(255,255,255,.015); }
 html.light .docs-content tr:hover td { background: rgba(0,0,0,.015); }
-.docs-content blockquote { border-left: 3px solid var(--accent); padding: 14px 24px; background: var(--surface); border-radius: 0 8px 8px 0; margin: 24px 0; color: var(--text2); }
+.docs-content blockquote { border-left: 3px solid var(--accent); padding: 14px 24px; background: var(--surface); border-radius: 0 var(--r-md, 8px) var(--r-md, 8px) 0; margin: 24px 0; color: var(--text2); }
 .docs-content blockquote p:last-child { margin-bottom: 0; }
 .docs-content hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
 .docs-content img { max-width: 100%; height: auto; border-radius: var(--radius); display: block; }
@@ -2809,7 +3142,9 @@ wc-columns:not(:defined)[cols="4"] { grid-template-columns: repeat(4, 1fr); }
 @media(max-width:768px) { wc-columns:not(:defined) { grid-template-columns: 1fr !important; } }
 wc-tiles:not(:defined) { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; min-height: 120px; }
 @media(max-width:768px) { wc-tiles:not(:defined) { grid-template-columns: 1fr; } }
-wc-tabs:not(:defined), wc-code-group:not(:defined) { min-height: 120px; }
+wc-tabs:not(:defined) { min-height: 120px; }
+${codePreUpgradeCss}
+${componentPageCss}
 wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 
 /* PAGE META */
@@ -2838,7 +3173,7 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
   text-decoration: none; box-sizing: border-box;
 }
 .pdf-menu-item:hover { background: var(--surface2); color: var(--text); }
-.pdf-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.pdf-menu-item:focus-visible { outline: var(--focus-w) solid var(--focus-color); outline-offset: -2px; }
 @media print { .pdf-menu { display: none !important; } }
 
 /* COPY PAGE SPLIT BUTTON */
@@ -2861,7 +3196,7 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
   text-decoration: none; box-sizing: border-box;
 }
 .copy-page-item:hover { background: var(--surface2); color: var(--text); }
-.copy-page-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.copy-page-item:focus-visible { outline: var(--focus-w) solid var(--focus-color); outline-offset: -2px; }
 .copy-page-item-icon { flex-shrink: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; margin-top: 1px; opacity: 0.7; }
 .copy-page-item-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .copy-page-item-title { font-weight: 600; font-size: 13px; color: var(--text); white-space: nowrap; }
@@ -2873,6 +3208,31 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .toc-copy-menu .copy-page-dropdown { top: calc(100% + 6px); bottom: auto; right: auto; left: 0; }
 @media print { .copy-page-menu { display: none !important; } }
 
+/* PAGE FEEDBACK */
+.docs-feedback { margin: 48px 0 0; padding: 18px 0 0; border-top: 1px solid var(--border); }
+.docs-feedback [hidden] { display: none !important; }
+.docs-feedback .fb-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.docs-feedback .fb-question { font-size: 14px; font-weight: 500; color: var(--text2); margin-right: 4px; }
+.docs-feedback .fb-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 500; color: var(--text2); background: transparent; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
+.docs-feedback .fb-btn:hover { color: var(--text); border-color: var(--border2); background: var(--surface); }
+.docs-feedback .fb-btn:focus-visible, .docs-feedback .fb-send:focus-visible, .docs-feedback .fb-skip:focus-visible, .docs-feedback .fb-comment:focus-visible { outline: var(--focus-w) solid var(--focus-color); outline-offset: 2px; }
+.docs-feedback .fb-btn svg { flex-shrink: 0; }
+.docs-feedback .fb-form { display: flex; flex-direction: column; gap: 8px; max-width: 520px; }
+.docs-feedback .fb-label { font-size: 14px; font-weight: 500; color: var(--text2); }
+.docs-feedback .fb-optional { color: var(--text3); font-weight: 400; }
+.docs-feedback .fb-comment { width: 100%; resize: vertical; min-height: 72px; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.5; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.docs-feedback .fb-comment:focus { border-color: var(--accent); }
+.docs-feedback .fb-actions { display: flex; gap: 8px; }
+.docs-feedback .fb-send, .docs-feedback .fb-skip { padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 500; border-radius: var(--radius); cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+.docs-feedback .fb-send { color: #fff; background: var(--accent); border: 1px solid var(--accent); }
+.docs-feedback .fb-send:hover { filter: brightness(1.1); }
+.docs-feedback .fb-skip { color: var(--text2); background: transparent; border: 1px solid var(--border); }
+.docs-feedback .fb-skip:hover { color: var(--text); border-color: var(--border2); }
+.docs-feedback .fb-thanks { font-size: 14px; font-weight: 500; color: var(--text2); }
+.docs-feedback + .page-edit { margin-top: 20px; }
+.docs-feedback + .page-nav { margin-top: 32px; }
+@media (prefers-reduced-motion: reduce) { .docs-feedback .fb-btn, .docs-feedback .fb-send, .docs-feedback .fb-skip { transition: none; } }
+
 /* EDIT THIS PAGE */
 .page-edit { margin: 48px 0 0; }
 .page-edit a { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text3); text-decoration: none; transition: color .15s; }
@@ -2882,7 +3242,7 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 /* PREV / NEXT */
 .page-nav { display: flex; justify-content: space-between; gap: 12px; margin: 56px 0 0; padding-top: 24px; border-top: 1px solid var(--border); }
 .page-edit + .page-nav { margin-top: 24px; }
-.page-nav-btn { display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); text-decoration: none; transition: all .15s; min-width: 0; flex: 1; max-width: 48%; background: transparent; }
+.page-nav-btn { display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--card-radius); box-shadow: var(--card-shadow); text-decoration: none; transition: all .15s; min-width: 0; flex: 1; max-width: 48%; background: transparent; }
 .page-nav-btn:hover { border-color: var(--border2); background: var(--surface); }
 .page-nav-btn.next { text-align: right; }
 .page-nav-label { font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
@@ -2909,7 +3269,7 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .search-trigger-kbd kbd {
   font-family: var(--font-sans); font-size: 11px; font-weight: 500;
   background: var(--surface3); border: 1px solid var(--border);
-  border-radius: 4px; padding: 1px 5px; color: var(--text3); line-height: 1.4;
+  border-radius: 4px; padding: 1px 5px; color: var(--text2); line-height: 1.4;
 }
 
 /* SEARCH OVERLAY */
@@ -2923,7 +3283,7 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .search-modal {
   width: 100%; max-width: 600px;
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-modal);
   overflow: hidden; display: flex; flex-direction: column;
   animation: searchIn .15s ease-out;
 }
@@ -2941,7 +3301,7 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .search-kbd kbd {
   font-family: var(--font-sans); font-size: 11px; font-weight: 500;
   background: var(--surface3); border: 1px solid var(--border);
-  border-radius: 4px; padding: 2px 6px; color: var(--text3);
+  border-radius: 4px; padding: 2px 6px; color: var(--text2);
 }
 .search-results {
   max-height: 440px; overflow-y: auto;
@@ -3013,9 +3373,9 @@ wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
 .search-hint kbd {
   font-family: var(--font-sans); font-size: 11px; font-weight: 500;
   background: var(--surface3); border: 1px solid var(--border);
-  border-radius: 3px; padding: 1px 5px; line-height: 1.4;
+  border-radius: 3px; padding: 1px 5px; line-height: 1.4; color: var(--text2);
 }
-mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-radius: 2px; padding: 0 1px; }
+mark.hl { background: var(--accent-dim2); color: var(--text); border-radius: 2px; padding: 0 1px; }
 
 /* API LAYOUT — three-column Stripe-style for API reference pages */
 .api-layout .docs-main { justify-content: flex-start; }
@@ -3041,6 +3401,7 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
 .sidebar-tag-section { margin: 0 0 4px; }
 .sidebar-tag-title { font-size: 13px; font-weight: 600; color: var(--text); padding: 6px 16px 4px; }
 
+${NAV_RULES_CSS}
 /* RESPONSIVE */
 @media(max-width:1280px) {
   .docs-toc { display: none; }
@@ -3051,7 +3412,7 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
   .docs-content { flex: 1 1 auto; max-width: 100%; }
 }
 @media(max-width:1100px) {
-  .docs-content { padding: 40px 44px 72px; }
+  .docs-content { padding: 40px var(--content-pad-x) 72px; }
 }
 @media(max-width:1024px) {
   .nav-menu-btn { display: flex; }
@@ -3063,27 +3424,31 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
   }
   .docs-sidebar.open { transform: translateX(0); box-shadow: 8px 0 40px rgba(0,0,0,.5); }
   .docs-nav-top { padding: 0 28px; }
-  .docs-content { padding: 36px 36px 64px; max-width: 100%; }
+  .docs-content { padding: 36px var(--content-pad-x) 64px; max-width: 100%; }
 }
 @media(max-width:768px) {
-  .docs-content { padding: 28px 28px 56px; }
-  .docs-content h1 { font-size: 2.25rem; }
-  .docs-content h2 { font-size: 1.5rem; margin: 40px 0 12px; }
-  .docs-content h3 { font-size: 1.125rem; }
+  .docs-content { padding: 28px var(--content-pad-x) 56px; }
+  .docs-content h1 { font-size: var(--h1-size-md); }
+  .docs-content h2 { font-size: var(--h2-size-md); margin: 40px 0 12px; }
+  .docs-content h3 { font-size: var(--h3-size-md); }
   .docs-nav-top { padding: 0 20px; }
 }
 @media(max-width:640px) {
   :root { --nav-h: 56px; }
   .nav { padding: 0 14px 0 8px; }
   .nav-logo-text { display: none; }
+  .page-meta .meta-sep { display: none; } /* a wrapped row would strand the divider at a line end */
+  /* wide wordmark logos + locale/version switchers: let the logo shrink instead of sliding under the controls */
+  .nav-left { flex: 1 1 0; }
+  .nav-logo-icon { flex-shrink: 1; min-width: 0; max-width: 100%; object-fit: contain; object-position: left center; }
   .search-trigger-text, .search-trigger-kbd { display: none; }
   .search-trigger { padding: 0 8px; }
   .search-modal { margin: 0 12px; }
   .search-overlay { padding-top: 60px; }
-  .docs-content { padding: 24px 20px 48px; }
-  .docs-content h1 { font-size: 1.875rem; }
-  .docs-content h2 { font-size: 1.375rem; margin: 36px 0 10px; }
-  .docs-content h3 { font-size: 1.0625rem; }
+  .docs-content { padding: 24px var(--content-pad-x) 48px; }
+  .docs-content h1 { font-size: var(--h1-size-sm); }
+  .docs-content h2 { font-size: var(--h2-size-sm); margin: 36px 0 10px; }
+  .docs-content h3 { font-size: var(--h3-size-sm); }
   .docs-content pre { padding: 14px 16px; }
   .docs-nav-top { height: 40px; padding: 0 16px; }
   .docs-breadcrumb { font-size: 12px; }
@@ -3092,8 +3457,8 @@ mark.hl { background: var(--accent-dim2); color: var(--accent-light); border-rad
   .page-meta { gap: 8px; font-size: 12px; padding-bottom: 20px; margin-bottom: 20px; }
 }
 @media(max-width:400px) {
-  .docs-content { padding: 20px 16px 40px; }
-  .docs-content h1 { font-size: 1.625rem; }
+  .docs-content { padding: 20px var(--content-pad-x) 40px; }
+  .docs-content h1 { font-size: var(--h1-size-xs); }
 }
 
 /* ACCESSIBILITY WIDGET */
@@ -3183,7 +3548,7 @@ html.a11y-underline .docs-content a { text-decoration: underline !important; tex
 /* SKIP LINK */
 .skip-link {
   position: fixed; top: -100px; left: 16px; z-index: 9999;
-  padding: 8px 16px; background: var(--accent); color: #fff;
+  padding: 8px 16px; background: var(--accent); color: var(--on-accent, #fff);
   font-family: var(--font-sans); font-size: 14px; font-weight: 600;
   border-radius: 0 0 var(--radius) var(--radius);
   text-decoration: none; transition: top .15s;
@@ -3192,19 +3557,19 @@ html.a11y-underline .docs-content a { text-decoration: underline !important; tex
 
 /* FOCUS INDICATORS */
 *:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 2px;
+  outline: var(--focus-w) solid var(--focus-color); outline-offset: 2px;
   border-radius: 4px;
 }
 .sidebar-item:focus-visible { outline-offset: -2px; }
 .search-input:focus-visible { outline: none; }
 .a11y-btn:focus-visible, .theme-btn:focus-visible, .nav-menu-btn:focus-visible,
 .search-trigger:focus-visible, .version-select:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 2px;
+  outline: var(--focus-w) solid var(--focus-color); outline-offset: 2px;
 }
 
 /* LINKS — underline for distinguishability */
-.docs-content a { text-decoration: underline; text-decoration-color: var(--accent-dim2); text-underline-offset: 2px; }
-.docs-content a:hover { text-decoration-color: var(--accent-light); }
+.docs-content a { text-decoration: var(--link-decoration); text-decoration-color: var(--link-underline-color); text-underline-offset: var(--link-underline-offset); }
+.docs-content a:hover { color: var(--link-hover-color); text-decoration-color: var(--link-underline-hover); }
 
 /* REDUCED MOTION */
 @media(prefers-reduced-motion: reduce) {
@@ -3236,7 +3601,7 @@ html.a11y-underline .docs-content a { text-decoration: underline !important; tex
   body { background: #fff !important; color: #000 !important; font-size: 12pt; }
   .docs-sidebar, .docs-toc, .docs-examples, .docs-nav-top, .docs-topbar,
   .nav, .announcement-banner, .page-meta, .page-nav, .page-edit, .search-overlay, .skip-link, .sidebar-toggle,
-  .nav-menu-btn, .feedback-widget, .pdf-menu, .copy-page-menu { display: none !important; }
+  .nav-menu-btn, .feedback-widget, .docs-feedback, .heading-anchor, .pdf-menu, .copy-page-menu { display: none !important; }
   .docs-layout { display: block !important; }
   .docs-main { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
   .docs-content { padding: 0 !important; max-width: 100% !important; }

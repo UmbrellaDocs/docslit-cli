@@ -1,0 +1,1252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/docslit/schema/docslit.schema.json",
+  "title": "DocsLit configuration (docslit.json)",
+  "description": "Configuration file for a DocsLit documentation project. Unknown top-level keys are allowed so newer CLI versions do not break older editors.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL of this JSON Schema, used by editors for validation and autocomplete."
+    },
+    "name": {
+      "type": "string",
+      "description": "Site name shown in the navigation bar, page titles, llms.txt and feeds."
+    },
+    "description": {
+      "type": "string",
+      "description": "Site description used for SEO meta tags, llms.txt and feeds."
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Public base URL of the deployed site (for example https://docs.example.com). Used for the sitemap, canonical URLs, Open Graph images and llms.txt links."
+    },
+    "basePath": {
+      "type": "string",
+      "description": "URL sub-path the site is served from, for example \"/repo\" for GitHub Pages project sites. A leading slash is added and trailing slashes removed automatically."
+    },
+    "editUrl": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Base URL for \"edit this page\" links. Auto-detected from the git remote when omitted."
+    },
+    "sidebar": {
+      "description": "Sidebar navigation. An array of groups, or the string \"auto\" to generate the whole sidebar from the docs/ folder.",
+      "oneOf": [
+        {
+          "const": "auto",
+          "description": "Generate the entire sidebar from the docs/ directory tree."
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sidebarGroup"
+          }
+        }
+      ]
+    },
+    "sidebars": {
+      "type": "object",
+      "description": "Per-locale sidebars for i18n sites, keyed by locale code (for example \"fr\"). Locales without an entry use \"sidebar\".",
+      "additionalProperties": {
+        "$ref": "#/properties/sidebar"
+      }
+    },
+    "navbar": {
+      "type": "object",
+      "description": "Top navigation bar customization.",
+      "properties": {
+        "links": {
+          "type": "array",
+          "description": "Extra links rendered in the navbar.",
+          "items": {
+            "type": "object",
+            "description": "Navbar entry. type: link (default), filled, outlined (buttons), github (repo link with client-side star count), discord, dropdown (with links).",
+            "properties": {
+              "type": {
+                "enum": [
+                  "link",
+                  "minimal",
+                  "filled",
+                  "outlined",
+                  "button",
+                  "github",
+                  "discord",
+                  "dropdown"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "href": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "icon": {
+                "type": "string",
+                "description": "Icon: a built-in/Lucide/Font Awesome name (\"book-open\", \"fa-regular fa-rocket\"), an image path or URL, or an emoji."
+              },
+              "rightIcon": {
+                "type": "string",
+                "description": "Icon: a built-in/Lucide/Font Awesome name (\"book-open\", \"fa-regular fa-rocket\"), an image path or URL, or an emoji."
+              },
+              "rounded": {
+                "type": "boolean"
+              },
+              "target": {
+                "type": "string"
+              },
+              "stars": {
+                "type": "boolean"
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "primary": {
+          "type": "object",
+          "description": "Primary call-to-action button, right-most in the navbar.",
+          "properties": {
+            "type": {
+              "enum": [
+                "button",
+                "outlined",
+                "github"
+              ]
+            },
+            "label": {
+              "type": "string"
+            },
+            "href": {
+              "type": "string"
+            },
+            "icon": {
+              "type": "string",
+              "description": "Icon: a built-in/Lucide/Font Awesome name (\"book-open\", \"fa-regular fa-rocket\"), an image path or URL, or an emoji."
+            }
+          },
+          "required": [
+            "href"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "footer": {
+      "type": "object",
+      "description": "Site footer.",
+      "properties": {
+        "copyright": {
+          "type": "string",
+          "description": "Copyright line."
+        },
+        "links": {
+          "type": "array",
+          "description": "Row of links in the footer bottom bar.",
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        },
+        "columns": {
+          "type": "array",
+          "description": "Link columns above the bottom bar.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Column heading."
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/link"
+                },
+                "description": "Links in the column."
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "socials": {
+          "type": "object",
+          "description": "Social links by platform name -> URL (github, x, discord, slack, linkedin, youtube, facebook, instagram, reddit, bluesky, mastodon, telegram, medium, hacker-news, website, rss …), rendered as icons.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "head": {
+      "description": "Raw trusted HTML injected into <head> (a string, or an array of strings joined by newlines).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "css": {
+      "type": "string",
+      "description": "Path (relative to the project root) of a custom stylesheet copied to the build output and linked after the theme CSS."
+    },
+    "favicon": {
+      "type": "string",
+      "description": "Path to a favicon file in the project, or an http(s) URL. Defaults to the bundled DocsLit favicon."
+    },
+    "logo": {
+      "description": "Logo: a path string, or { light, dark, href, text, height } for light/dark wordmarks (the site name is then not repeated beside it).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "light": {
+              "type": "string"
+            },
+            "dark": {
+              "type": "string"
+            },
+            "href": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "height": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ogImage": {
+      "type": "boolean",
+      "description": "Set to false to disable generated Open Graph images for every page. Pages can opt out individually with ogImage: false in frontmatter."
+    },
+    "analytics": {
+      "type": "object",
+      "description": "Analytics snippet preset injected into every page.",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "plausible",
+            "fathom",
+            "ga4",
+            "google",
+            "posthog"
+          ],
+          "description": "Analytics provider. \"google\" is an alias of \"ga4\"."
+        },
+        "domain": {
+          "type": "string",
+          "description": "Site domain (plausible; also accepted as the site id by fathom)."
+        },
+        "siteId": {
+          "type": "string",
+          "description": "Provider site id (fathom site id; plausible domain fallback; ga4 measurement id fallback; posthog key fallback)."
+        },
+        "src": {
+          "type": "string",
+          "description": "Override the provider script URL (plausible, fathom)."
+        },
+        "measurementId": {
+          "type": "string",
+          "description": "Google Analytics 4 measurement ID, for example G-XXXXXXXXXX."
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "PostHog project API key."
+        },
+        "host": {
+          "type": "string",
+          "description": "PostHog API host. Defaults to https://us.i.posthog.com."
+        }
+      },
+      "additionalProperties": true
+    },
+    "theme": {
+      "description": "Pick a prebuilt look and palette: a theme name, a palette name, a path to a theme JSON file, or an inline theme object. THEME = layout, typography and shape; PALETTE = colours. Any theme works with any palette and custom colours. Run `docslit theme list`.",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Theme (default, peppermint, frond, tonal, folio, ledger), palette (teal, ocean, forest, slate, violet, rose, amber, graphite, mint, ink, paper, steel, iris) or path to a theme JSON file. A theme name uses that theme's signature palette; a palette name keeps the classic look.",
+          "examples": [
+            "peppermint",
+            "ocean",
+            "./brand-theme.json"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Theme id (default, peppermint, frond, tonal, folio, ledger). Any other value is a brand display name used to derive \"id\"."
+            },
+            "palette": {
+              "type": "string",
+              "description": "Colour palette (teal, ocean, forest, slate, violet, rose, amber, graphite, mint, ink, paper, steel, iris). Default: the theme's signature palette."
+            },
+            "colors": {
+              "$ref": "#/$defs/stringMap",
+              "description": "Color tokens applied in both modes (accent, bg, text, border, ...). See `docslit theme list`."
+            },
+            "dark": {
+              "$ref": "#/$defs/stringMap",
+              "description": "Color tokens applied only in dark mode."
+            },
+            "light": {
+              "$ref": "#/$defs/stringMap",
+              "description": "Color tokens applied only in light mode."
+            },
+            "fonts": {
+              "$ref": "#/$defs/stringMap",
+              "description": "Font stacks and shape overrides (sans, heading, mono, radius, radiusLg). Themes ship system-font fallbacks; custom fonts must be loaded by your own css."
+            },
+            "radius": {
+              "type": "string",
+              "description": "Corner radius scale: none, sm, md, lg, xl, full, or a length such as \"6px\". Overrides the theme's radii.",
+              "examples": [
+                "md",
+                "6px"
+              ]
+            },
+            "appearance": {
+              "type": "string",
+              "enum": [
+                "system",
+                "light",
+                "dark"
+              ],
+              "description": "Default colour mode for first-time visitors. Readers can still toggle unless \"strict\" is true."
+            },
+            "strict": {
+              "type": "boolean",
+              "description": "Hide the light/dark toggle and always use \"appearance\"."
+            },
+            "theme": {
+              "type": "string",
+              "description": "Explicit theme id (alternative to \"name\" when \"name\" is a brand label)."
+            },
+            "extends": {
+              "type": "string",
+              "description": "Legacy: palette to start from (alias of \"palette\"). A theme id here selects that theme."
+            },
+            "preset": {
+              "type": "string",
+              "description": "Alias of \"extends\"."
+            },
+            "file": {
+              "type": "string",
+              "description": "Path to a theme JSON file to merge in (see `docslit theme init`)."
+            },
+            "id": {
+              "type": "string",
+              "description": "Identifier for the custom theme."
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "announcement": {
+      "$ref": "#/$defs/announcement",
+      "description": "Site-wide dismissible banner shown above the navbar."
+    },
+    "versions": {
+      "type": "object",
+      "description": "Branch-based multi-version documentation.",
+      "properties": {
+        "default": {
+          "type": "string",
+          "description": "Version served at the site root."
+        },
+        "list": {
+          "type": "array",
+          "description": "Available versions.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string",
+                "description": "Version identifier, for example \"0.2\"."
+              },
+              "branch": {
+                "type": "string",
+                "description": "Git branch containing the docs for this version."
+              },
+              "tag": {
+                "type": "string",
+                "description": "Label shown in the version dropdown (Latest, Beta, LTS...)."
+              },
+              "announcement": {
+                "$ref": "#/$defs/announcement",
+                "description": "Version-specific announcement; overrides the site-level one on that version."
+              }
+            },
+            "required": [
+              "version"
+            ],
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "i18n": {
+      "type": "object",
+      "description": "Lightweight i18n: the default locale lives in docs/, other locales in docs.<locale>/.",
+      "properties": {
+        "defaultLocale": {
+          "type": "string",
+          "description": "Default locale code. Default: \"en\"."
+        },
+        "locales": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "All locale codes, including the default."
+        },
+        "labels": {
+          "$ref": "#/$defs/stringMap",
+          "description": "Display names for the locale switcher, keyed by locale code."
+        }
+      },
+      "additionalProperties": true
+    },
+    "openapi": {
+      "description": "OpenAPI spec used for API reference pages, wc-endpoint ref resolution and the playground.",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Path to the OpenAPI spec file (YAML or JSON)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "spec": {
+              "type": "string",
+              "description": "Path to the OpenAPI spec file."
+            },
+            "overlay": {
+              "type": "string",
+              "description": "Path to an OpenAPI Overlay file applied on top of the spec."
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "playground": {
+      "type": "object",
+      "description": "API playground (wc-playground) settings.",
+      "properties": {
+        "proxyUrl": {
+          "type": "string",
+          "description": "CORS proxy URL; requests go to <proxyUrl>?url=<target>."
+        }
+      },
+      "additionalProperties": true
+    },
+    "pdf": {
+      "type": "object",
+      "description": "PDF export (requires Playwright). Enable per build with --pdf.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate PDFs on every build without needing --pdf."
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "sidebar-groups",
+            "folders",
+            "manual"
+          ],
+          "default": "sidebar-groups",
+          "description": "How chapters are grouped."
+        },
+        "outputDir": {
+          "type": "string",
+          "default": "pdf",
+          "description": "Subdirectory of the build output for PDFs."
+        },
+        "include": {
+          "type": "object",
+          "properties": {
+            "pages": {
+              "type": "boolean",
+              "default": true,
+              "description": "Generate one PDF per page."
+            },
+            "chapters": {
+              "type": "boolean",
+              "default": true,
+              "description": "Generate one PDF per chapter."
+            },
+            "fullManual": {
+              "type": "boolean",
+              "default": true,
+              "description": "Generate a combined full-manual PDF."
+            },
+            "apiReference": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include api/* pages in chapter and manual PDFs."
+            }
+          },
+          "additionalProperties": true
+        },
+        "ignore": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Page ids excluded from chapter and manual PDFs."
+        },
+        "manual": {
+          "type": "array",
+          "description": "Custom chapters when strategy is \"manual\".",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Chapter id (used in the file name)."
+              },
+              "title": {
+                "type": "string",
+                "description": "Chapter title."
+              },
+              "pages": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Page ids in the chapter."
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "redirects": {
+      "type": "object",
+      "description": "Site-level redirects: old path -> new path or absolute URL. Emitted as meta-refresh stubs plus _redirects and vercel.json entries.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "attributes": {
+      "type": "object",
+      "description": "Global variables available as {{NAME}} placeholders in every page. Page frontmatter attributes and <wc-var name value /> override them.",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "lint": {
+      "description": "Docs quality linter settings for `docslit lint`.",
+      "type": "object",
+      "properties": {
+        "rules": {
+          "type": "object",
+          "description": "Per-rule level or options. Set a rule to \"off\" to disable it, or { \"level\": \"warning\", \"max\": 4000 } to tune it.",
+          "properties": {
+            "missing-description": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "description-length": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "title-h1-mismatch": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "multiple-h1": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "heading-skip": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "duplicate-heading": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "code-no-language": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "image-missing-alt": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "link-text-vague": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "page-too-long": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "page-too-short": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "empty-section": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "todo-marker": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "raw-html-block": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "callout-overuse": {
+              "$ref": "#/$defs/lintRule"
+            },
+            "long-paragraph": {
+              "$ref": "#/$defs/lintRule"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "math": {
+      "description": "Build-time LaTeX math (KaTeX). Enabled by default; set false to disable.",
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Turn math rendering on or off."
+            },
+            "singleDollar": {
+              "type": "boolean",
+              "default": false,
+              "description": "Also treat $...$ as inline math (off by default; $$...$$ always works)."
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "feedback": {
+      "description": "Page feedback widget (\"Was this page helpful?\"). true enables it; an object customizes it. Pages can opt out with feedback: false in frontmatter.",
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "question": {
+              "type": "string",
+              "description": "Question text shown to readers."
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "http(s) endpoint that receives a JSON POST for each response."
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "cloud": {
+      "type": "object",
+      "description": "DocsLit Cloud settings used by `docslit publish`.",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Cloud project slug to publish to."
+        }
+      },
+      "additionalProperties": true
+    },
+    "tabs": {
+      "type": "array",
+      "description": "Top-level navigation tabs. Each tab has its own sidebar; the active tab follows the current page. When set, the top-level sidebar is derived from the tabs.",
+      "items": {
+        "$ref": "#/$defs/tab"
+      }
+    },
+    "anchors": {
+      "type": "array",
+      "description": "Global anchors: pinned links at the top of every sidebar.",
+      "items": {
+        "$ref": "#/$defs/anchor"
+      }
+    },
+    "layout": {
+      "type": "object",
+      "description": "Site layout. Lengths are numbers (px) or CSS lengths like \"44rem\".",
+      "properties": {
+        "contentWidth": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Text column width (default 668px)."
+        },
+        "pageWidth": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Max width of sidebar+content+TOC, or \"full\" (default 1560px)."
+        },
+        "sidebarWidth": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "tocWidth": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "headerHeight": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "tabsPlacement": {
+          "enum": [
+            "header",
+            "sidebar"
+          ],
+          "description": "Tabs in the header row (default) or at the top of the sidebar."
+        },
+        "tabsStyle": {
+          "enum": [
+            "underline",
+            "pill"
+          ]
+        },
+        "tabsAlign": {
+          "enum": [
+            "left",
+            "center"
+          ]
+        },
+        "tocDepth": {
+          "enum": [
+            2,
+            3,
+            4
+          ],
+          "description": "Heading levels in the TOC (3 = h2 + h3)."
+        },
+        "contentAlignment": {
+          "enum": [
+            "center",
+            "left"
+          ]
+        },
+        "hideNav": {
+          "type": "boolean",
+          "description": "Hide previous/next links everywhere."
+        },
+        "hideFeedback": {
+          "type": "boolean"
+        },
+        "showDescription": {
+          "type": "boolean",
+          "description": "Show frontmatter description as a subtitle under the title."
+        }
+      },
+      "additionalProperties": false
+    },
+    "contextual": {
+      "description": "Page action menu (\"Copy page\" dropdown). Array of built-ins (copy, view-markdown, chatgpt, claude, perplexity, mcp) and custom {title, href, description?, icon?} (href placeholders {url} {markdown_url} {title} {path}); the first is the primary button. false disables. Also accepted as {options:[...]}.",
+      "oneOf": [
+        {
+          "const": false
+        },
+        {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "enum": [
+                  "copy",
+                  "view-markdown",
+                  "chatgpt",
+                  "claude",
+                  "perplexity",
+                  "mcp"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "href": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string",
+                    "description": "Icon: a built-in/Lucide/Font Awesome name (\"book-open\", \"fa-regular fa-rocket\"), an image path or URL, or an emoji."
+                  }
+                },
+                "required": [
+                  "title",
+                  "href"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "options": {
+              "type": "array"
+            }
+          }
+        }
+      ]
+    },
+    "themePicker": {
+      "type": "boolean",
+      "description": "Show a floating theme/palette/mode picker in the built site (for galleries and demos). Off by default; `docslit dev --theme-picker` enables it in development only."
+    },
+    "icons": {
+      "type": "object",
+      "description": "Icon settings. `library` chooses which icon set a bare icon name resolves in: auto (default; the built-in names keep the Lucide look, everything else tries Lucide then Font Awesome), lucide or fontawesome. Icons are inlined as SVG at build time.",
+      "additionalProperties": false,
+      "properties": {
+        "library": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "lucide",
+            "fontawesome"
+          ],
+          "description": "Icon set used to resolve bare icon names."
+        }
+      }
+    }
+  },
+  "patternProperties": {
+    "^sidebar\\.[A-Za-z0-9_-]+$": {
+      "description": "Per-locale sidebar written as a flat key, for example \"sidebar.fr\".",
+      "$ref": "#/properties/sidebar"
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "lintRule": {
+      "description": "A level (\"off\", \"info\", \"warning\", \"error\") or an object with a level and numeric thresholds (min / max).",
+      "oneOf": [
+        {
+          "enum": [
+            "off",
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "level": {
+              "enum": [
+                "off",
+                "info",
+                "warning",
+                "error"
+              ]
+            },
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "link": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Link text."
+        },
+        "title": {
+          "type": "string",
+          "description": "Alias of label."
+        },
+        "href": {
+          "type": "string",
+          "description": "Link target: site path (/guide/intro) or absolute URL."
+        },
+        "external": {
+          "type": "boolean",
+          "description": "Open in a new tab. Detected automatically for http(s) URLs."
+        }
+      },
+      "additionalProperties": true
+    },
+    "announcement": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "Banner text (Markdown/HTML allowed). Required."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "success",
+            "error",
+            "neutral"
+          ],
+          "default": "neutral",
+          "description": "Visual style."
+        },
+        "dismissible": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow readers to dismiss the banner."
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "additionalProperties": true
+    },
+    "sidebarGroup": {
+      "type": "object",
+      "description": "A sidebar group (top-level) or nested subgroup. Provide explicit \"pages\", an \"autogenerate\" source, or both (explicit pages come first).",
+      "properties": {
+        "group": {
+          "type": "string",
+          "description": "Group heading."
+        },
+        "pages": {
+          "type": "array",
+          "description": "Page ids (path under docs/ without extension), page objects, or nested subgroups.",
+          "items": {
+            "$ref": "#/$defs/sidebarItem"
+          }
+        },
+        "autogenerate": {
+          "description": "Fill this group from a docs/ directory. Page order comes from frontmatter sidebar_position; subfolders become subgroups (label/position/collapsed via _category.json).",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Directory under docs/, for example \"guides\"."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string",
+                  "description": "Directory under docs/."
+                },
+                "collapsed": {
+                  "type": "boolean",
+                  "description": "Render generated subgroups collapsed."
+                }
+              },
+              "required": [
+                "directory"
+              ],
+              "additionalProperties": true
+            }
+          ]
+        },
+        "collapsed": {
+          "description": "true = collapsible, starts closed; false or \"open-by-default\" = collapsible, starts open. Unset = always open.",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "open-by-default"
+            }
+          ]
+        },
+        "icon": {
+          "type": "string",
+          "description": "Icon: a built-in/Lucide/Font Awesome name (\"book-open\", \"fa-regular fa-rocket\"), an image path or URL, or an emoji."
+        },
+        "tag": {
+          "type": "string",
+          "description": "Badge text shown next to the entry (for example \"New\")."
+        },
+        "availability": {
+          "type": "string",
+          "description": "Availability badge: beta, alpha, preview, pre-release, in-development, new, deprecated (struck through), legacy. stable / generally-available show nothing."
+        },
+        "hidden": {
+          "type": "boolean",
+          "description": "Build the pages but keep the whole group out of the sidebar, search, llms.txt and sitemap."
+        },
+        "expanded": {
+          "type": "boolean",
+          "description": "Mintlify-style inverse of collapsed: true = collapsible and open."
+        },
+        "root": {
+          "type": "string",
+          "description": "Page id the group title links to (the page is listed first and not repeated in the group)."
+        }
+      },
+      "required": [
+        "group"
+      ],
+      "additionalProperties": true
+    },
+    "sidebarItem": {
+      "description": "A page id string, a page object, or a nested group.",
+      "anyOf": [
+        {
+          "type": "string",
+          "description": "Page id: path under docs/ without extension, for example \"guides/setup\"."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Page id."
+            },
+            "title": {
+              "type": "string",
+              "description": "Sidebar label override."
+            },
+            "method": {
+              "type": "string",
+              "description": "HTTP method badge (used by API pages)."
+            },
+            "label": {
+              "type": "string",
+              "description": "Alias of title."
+            },
+            "icon": {
+              "type": "string",
+              "description": "Icon: a built-in/Lucide/Font Awesome name (\"book-open\", \"fa-regular fa-rocket\"), an image path or URL, or an emoji."
+            },
+            "tag": {
+              "type": "string",
+              "description": "Badge text shown next to the entry (for example \"New\")."
+            },
+            "badge": {
+              "type": "string",
+              "description": "Badge text shown next to the entry (for example \"New\")."
+            },
+            "availability": {
+              "type": "string",
+              "description": "Availability badge: beta, alpha, preview, pre-release, in-development, new, deprecated (struck through), legacy. stable / generally-available show nothing."
+            },
+            "deprecated": {
+              "type": "boolean"
+            },
+            "hidden": {
+              "type": "boolean",
+              "description": "Built and linkable, but not in the sidebar, search, llms.txt or sitemap (adds noindex)."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "description": "External/internal link entry in the sidebar.",
+          "properties": {
+            "href": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "icon": {
+              "type": "string",
+              "description": "Icon: a built-in/Lucide/Font Awesome name (\"book-open\", \"fa-regular fa-rocket\"), an image path or URL, or an emoji."
+            },
+            "tag": {
+              "type": "string",
+              "description": "Badge text shown next to the entry (for example \"New\")."
+            },
+            "external": {
+              "type": "boolean"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "href"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "$ref": "#/$defs/sidebarGroup"
+        }
+      ]
+    },
+    "anchor": {
+      "type": "object",
+      "description": "Pinned link at the top of the sidebar.",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "href": {
+          "type": "string",
+          "description": "URL, or a page path such as /changelog."
+        },
+        "icon": {
+          "type": "string",
+          "description": "Icon: a built-in/Lucide/Font Awesome name (\"book-open\", \"fa-regular fa-rocket\"), an image path or URL, or an emoji."
+        },
+        "tag": {
+          "type": "string",
+          "description": "Badge text shown next to the entry (for example \"New\")."
+        }
+      },
+      "required": [
+        "label",
+        "href"
+      ],
+      "additionalProperties": true
+    },
+    "tab": {
+      "type": "object",
+      "description": "A top-level navigation tab. Give it a sidebar (or a path to autogenerate from) or an href for an external link.",
+      "properties": {
+        "tab": {
+          "type": "string",
+          "description": "Tab label."
+        },
+        "id": {
+          "type": "string",
+          "description": "Stable id (default: slug of the label)."
+        },
+        "icon": {
+          "type": "string",
+          "description": "Icon: a built-in/Lucide/Font Awesome name (\"book-open\", \"fa-regular fa-rocket\"), an image path or URL, or an emoji."
+        },
+        "tag": {
+          "type": "string",
+          "description": "Badge text shown next to the entry (for example \"New\")."
+        },
+        "sidebar": {
+          "description": "This tab's sidebar: groups (same shape as the top-level sidebar) or \"auto\" (autogenerate from path, or all of docs/).",
+          "oneOf": [
+            {
+              "const": "auto"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/sidebarGroup"
+              }
+            }
+          ]
+        },
+        "path": {
+          "type": "string",
+          "description": "docs/ folder owned by this tab: autogenerate source for sidebar \"auto\" and a fallback for choosing the tab of unlisted pages."
+        },
+        "landing": {
+          "type": "string",
+          "description": "Page id the tab opens (default: its first visible page)."
+        },
+        "href": {
+          "type": "string",
+          "description": "External (or absolute) URL: the tab is a link and owns no pages."
+        },
+        "target": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean",
+          "description": "Do not show in the tab bar (its pages still work)."
+        },
+        "openapi": {
+          "type": "boolean",
+          "description": "This tab holds the generated OpenAPI sidebar."
+        },
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/anchor"
+          },
+          "description": "Anchors shown only while this tab is active."
+        },
+        "i18n": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Translated labels by locale."
+        }
+      },
+      "required": [
+        "tab"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

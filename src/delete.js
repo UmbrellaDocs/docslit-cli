@@ -1,26 +1,9 @@
-import { readFileSync, existsSync } from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
 import pc from 'picocolors';
 import readline from 'node:readline';
-
-const CONFIG_PATH = path.join(os.homedir(), '.docslit', 'config.json');
+import { requireAuth, bearer, authHint, getFlag } from './cloud-auth.js';
 
 export async function deleteProject(args) {
-  if (!existsSync(CONFIG_PATH)) {
-    console.error(pc.red('  ✗ Not logged in. Run: docslit login --email you@example.com --name "Your Name"'));
-    process.exit(1);
-  }
-
-  let cliConfig;
-  try {
-    cliConfig = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-  } catch {
-    console.error(pc.red('  ✗ Config file corrupted. Run: docslit login'));
-    process.exit(1);
-  }
-
-  const { token, apiUrl } = cliConfig;
+  const { token, apiUrl } = requireAuth();
 
   // Slug can come from positional arg or --project flag
   const slug = args.find(a => !a.startsWith('--')) || getFlag(args, '--project');
@@ -49,7 +32,7 @@ export async function deleteProject(args) {
   try {
     const res = await fetch(`${apiUrl}/cloud/projects/${encodeURIComponent(slug)}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: bearer(token),
     });
     result = await res.json().catch(() => ({}));
     if (res.status === 404) {
@@ -58,6 +41,8 @@ export async function deleteProject(args) {
     }
     if (!res.ok) {
       console.error(pc.red(`  ✗ Delete failed: ${result.error || res.statusText}`));
+      const hint = authHint(res.status);
+      if (hint) console.error(pc.dim(`  ${hint}`));
       process.exit(1);
     }
   } catch (e) {
@@ -80,7 +65,3 @@ function confirm(prompt) {
   });
 }
 
-function getFlag(args, flag) {
-  const i = args.indexOf(flag);
-  return i !== -1 ? args[i + 1] : null;
-}
