@@ -87,6 +87,9 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 - **`basePath` is applied everywhere.** `sitemap.xml` URLs, the `Sitemap:` lines in `robots.txt`, the versioned root redirect, the version switcher and version-rewritten content links now include `basePath`, so they match each page's canonical URL.
 - **Locale sites link only to pages that exist.** Pages without a translation are built into the locale folder from the default-locale source, with a canonical link to the default-locale page, instead of being linked to and missing.
 - **Offline builds** use `#page-id` links for the sidebar, previous/next buttons and mode links, and `index.html` for the logo, so they work from `file://` and when opened in a new tab.
+- **Markdown content negotiation works on Vercel.** New `docslit deploy --vercel` writes `vercel.json` (unless you have one) and a project-root `middleware.js` that returns a page's Markdown when the `Accept` header prefers `text/markdown`. The rewrite DocsLit put in `dist/vercel.json` never ran: Vercel reads `vercel.json` only from the project root, and it applies rewrites only after the static `.html` file has already matched. `dist/vercel.json` now sets `cleanUrls` and the `.md` content type instead.
+- **`Accept` headers are parsed with q-values.** `text/markdown, text/html;q=0.9` and `text/markdown, text/html` now get Markdown; before, any mention of `text/html` returned HTML. Browsers still get HTML.
+- **`llms.txt`** no longer contains a literal `https://…/{slug}.md` line, which link checkers and AI-readiness scanners reported as a broken link.
 - **`scripts/crawl-dist.js`** crawls a built site the way a search engine does and reports every link whose target is missing: `node scripts/crawl-dist.js dist [--base /docs] [--file]`.
 
 ---

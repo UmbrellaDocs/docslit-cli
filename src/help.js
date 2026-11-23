@@ -106,12 +106,13 @@ export const COMMANDS = [
   },
   {
     name: 'deploy', group: 'Build and preview',
-    usage: ['docslit deploy (--github-pages | --netlify | --cloudflare) [--out <dir>]'],
+    usage: ['docslit deploy (--github-pages | --netlify | --cloudflare | --vercel) [--out <dir>]'],
     summary: 'Write hosting recipe files (does not host anything). Targets can be combined.',
     options: [
       ['--github-pages', 'Write .github/workflows/docslit.yml (alias: --gh-pages)'],
       ['--netlify', 'Write netlify.toml'],
       ['--cloudflare', 'Write wrangler.toml (and functions/_middleware.js after a build)'],
+      ['--vercel', 'Write vercel.json (if missing) and middleware.js for Accept: text/markdown negotiation'],
       ['--out <dir>', 'Build output directory the recipes point at (default: dist)'],
     ],
     examples: ['docslit deploy --cloudflare --out public'],
