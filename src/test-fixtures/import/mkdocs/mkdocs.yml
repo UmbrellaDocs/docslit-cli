@@ -43,6 +43,12 @@ plugins:
       handlers:
         python:
           paths: [src]
+          options:
+            docstring_style: numpy
+            show_root_heading: true
+            show_if_no_docstring: true
+            show_root_full_path: false
+            heading_level: 2
   - redirects:
       redirect_maps:
         old-start.md: guide/setup.md

@@ -9,6 +9,7 @@
 //   2. link pass: the result is parsed with remark (no MDX) and every link / image / raw HTML
 //      src|href is rewritten in place (see rewriteLinks).
 import { unified } from 'unified';
+import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
 import path from 'path';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
@@ -324,6 +325,42 @@ const TAB_RE = /^([ \t]*)===([!+]{0,2})[ \t]+(?:"(.*)"|'(.*)')[ \t]*$/;
 const BLOCK_OPEN = /^([ \t]*)(\/{3,})[ \t]*([\w-]+)[ \t]*(?:\|[ \t]*(.*?))?[ \t]*$/;
 const BLOCK_CLOSE = /^([ \t]*)(\/{3,})[ \t]*$/;
 const MKDOCSTRINGS = /^([ \t]*):::[ \t]+([\w.:-]+)[ \t]*$/;
+// Options of the DocsLit Python API directive (mkdocstrings-python names). Everything else is dropped on import.
+export const PYTHON_DIRECTIVE_OPTIONS = ['members', 'filters', 'show_root_heading', 'show_root_toc_entry', 'heading_level', 'show_source', 'show_signature',
+  'show_signature_annotations', 'separate_signature', 'members_order', 'inherited_members', 'docstring_section_style', 'show_if_no_docstring', 'show_bases', 'group_by_category'];
+const PY_OPT_SET = new Set(PYTHON_DIRECTIVE_OPTIONS);
+
+/**
+ * Normalise a parsed mkdocstrings options mapping to the supported names.
+ * Accepts `{options: {...}}`, the flat form (global handler options) and old mkdocstrings 0.x `selection:` / `rendering:` blocks;
+ * `handler:` is dropped silently. Returns { options, dropped: [unsupported keys] }.
+ */
+export function normalizePythonOptions(obj) {
+  const options = {};
+  const dropped = new Set();
+  const take = (src) => {
+    if (!src || typeof src !== 'object' || Array.isArray(src)) return;
+    for (const [k, v] of Object.entries(src)) {
+      if (PY_OPT_SET.has(k)) { if (v !== null && v !== undefined) options[k] = v; } else dropped.add(k);
+    }
+  };
+  if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === 'handler') continue;
+      if (k === 'options' || k === 'selection' || k === 'rendering') take(v);
+      else if (PY_OPT_SET.has(k)) take({ [k]: v });
+      else dropped.add(k);
+    }
+  }
+  return { options, dropped: [...dropped].sort() };
+}
+
+function normalizeDirectiveOptions(optLines) {
+  const text = optLines.join('\n');
+  if (!text.trim()) return { options: {}, dropped: [], invalid: false };
+  try { return { ...normalizePythonOptions(yamlLoad(text)), invalid: false }; } catch { return { options: {}, dropped: [], invalid: true }; }
+}
+
 // Docusaurus-style admonitions (`:::note Title` … `:::`), used by sites that also publish with Docusaurus
 const COLON_TYPES = 'note|tip|info|warning|caution|danger|important|success|secondary';
 const COLON_OPEN = new RegExp(`^([ \\t]*)(:{3,})(?:[ \\t]*)(${COLON_TYPES})(?:\\[([^\\]]*)\\])?(?:[ \\t]+(.*?))?[ \\t]*$`, 'i');
@@ -434,14 +471,16 @@ function blocks(lines, st, firstLine) {
       }
     }
 
-    // ── mkdocstrings (::: package.module) ──
+    // ── mkdocstrings (::: package.module): kept, options normalised to mkdocstrings-python names ──
     if ((m = MKDOCSTRINGS.exec(l))) {
-      const { next } = takeIndented(lines, i + 1, indentWidth(m[1]) + 4); // options block
-      st.notes.mkdocstrings.push({ id: m[2], line: lineNo });
-      out.push(...wrap(m[1], `<wc-callout type="warning" title="API reference: ${escAttr(m[2])}">`, [
-        `This section was generated from Python docstrings by mkdocstrings (\`::: ${m[2]}\`). DocsLit does not run Python, so it was not rendered.`,
-      ], '</wc-callout>'));
-      o.count('::: mkdocstrings directive', 'placeholder callout');
+      const { body: optLines, next } = takeIndented(lines, i + 1, indentWidth(m[1]) + 1); // options block (any deeper indent)
+      const r = normalizeDirectiveOptions(optLines);
+      st.notes.mkdocstrings.push({ id: m[2], line: lineNo, dropped: r.dropped, invalid: r.invalid });
+      out.push(`${m[1]}::: ${m[2]}`);
+      if (Object.keys(r.options).length) {
+        for (const x of yamlDump({ options: r.options }, { lineWidth: -1, quotingType: '"' }).trimEnd().split('\n')) out.push(`${m[1]}    ${x}`);
+      }
+      o.count('::: mkdocstrings directive', '::: directive (kept)');
       i = next - 1;
       continue;
     }

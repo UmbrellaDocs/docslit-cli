@@ -70,11 +70,30 @@ describe('pymdown: block syntax', () => {
     expect(conv('## Notes ## {: #release-v1.2.0 }\n')).toBe('## Notes <a id="release-v1.2.0"></a>\n');
   });
 
-  it('mkdocstrings directives become placeholders and are reported', () => {
-    const r = convertPymdown('::: pkg.mod.Client\n    options:\n      show_source: false\n\nAfter.\n', { exts: new Set(), readSnippet: () => null });
-    expect(r.body).toContain('title="API reference: pkg.mod.Client"');
-    expect(r.body).not.toContain('show_source');
-    expect(r.notes.mkdocstrings).toEqual([{ id: 'pkg.mod.Client', line: 1 }]);
+  it('mkdocstrings directives are kept with options normalised to mkdocstrings-python names', () => {
+    const r = convertPymdown('::: pkg.mod.Client\n    options:\n      show_source: false\n      show_root_full_path: false\n      docstring_style: numpy\n\nAfter.\n', { exts: new Set(), readSnippet: () => null });
+    expect(r.body).toBe('::: pkg.mod.Client\n    options:\n      show_source: false\n\nAfter.\n');
+    expect(r.notes.mkdocstrings).toEqual([{ id: 'pkg.mod.Client', line: 1, dropped: ['docstring_style', 'show_root_full_path'], invalid: false }]);
+  });
+
+  it('old mkdocstrings 0.x selection / rendering blocks move into options; handler is dropped; bare and indented directives survive', () => {
+    const src = '::: a.B\n    handler: python\n    selection:\n      members: [x]\n      filters: ["!^_"]\n    rendering:\n      heading_level: 3\n      show_category_heading: true\n\n- item\n\n    ::: a.C\n\ntext\n\n::: a.D\n';
+    const r = convertPymdown(src, { exts: new Set(), readSnippet: () => null });
+    const opts = yamlLoad(r.body.split('\n').slice(1, 8).join('\n').replace(/^ {4}/gm, ''));
+    expect(opts).toEqual({ options: { members: ['x'], filters: ['!^_'], heading_level: 3 } });
+    expect(r.body).not.toMatch(/handler|selection|rendering/);
+    expect(r.body).toContain('\n::: a.D\n');
+    expect(r.notes.mkdocstrings.map((x) => x.id)).toEqual(['a.B', 'a.C', 'a.D']);
+    expect(r.notes.mkdocstrings[0].dropped).toEqual(['show_category_heading']);
+  });
+
+  it('autorefs links ([text][full.path], [full.path][]) are left unchanged by the link rewriter', () => {
+    const body = 'See [the client][acme.client.Client], [acme.client.Client][] and [`get`][acme.client.Client.get].\n';
+    const r = convertPymdown(body, { exts: new Set(), readSnippet: () => null });
+    expect(r.body).toBe(body);
+    const seen = [];
+    expect(rewriteLinks(r.body, { link: (u) => { seen.push(u); return u; }, asset: (u) => u })).toBe(body);
+    expect(seen).toEqual([]);
   });
 });
 
@@ -232,7 +251,7 @@ describe('end-to-end: MkDocs / Material project', () => {
   it('leaves no Material syntax behind', async () => {
     for (const f of ['index.md', 'guide/setup.md', 'guide/syntax.md', 'api.md']) {
       const text = (await fs.readFile(path.join(out, 'docs', f), 'utf8')).replace(/```[\s\S]*?```/g, '');
-      expect(text, f).not.toMatch(/^\s*(!!!|\?\?\?|===|\/\/\/|--8<--|:::)\s/m);
+      expect(text, f).not.toMatch(/^\s*(!!!|\?\?\?|===|\/\/\/|--8<--|:::(?!\s+[\w.]+\s*$))\s/m);
       expect(text, f).not.toMatch(/\{\s*[.#][\w-]+\s*\}|:material-|\+\+\w/);
     }
     const setup = await fs.readFile(path.join(out, 'docs', 'guide', 'setup.md'), 'utf8');
@@ -242,9 +261,27 @@ describe('end-to-end: MkDocs / Material project', () => {
 
   it('reports what could not be carried over, loudly', async () => {
     const codes = r.items.map((i) => i.code);
-    expect(codes).toEqual(expect.arrayContaining(['mkdocstrings', 'mkdocs-plugin-mkdocstrings', 'mkdocs-plugin-not-carried', 'mkdocs-theme-overrides', 'mkdocs-css-material', 'mkdocs-not-in-nav', 'mkdocs-blog-posts']));
+    expect(codes).toEqual(expect.arrayContaining(['mkdocs-python-directives', 'mkdocs-python-api', 'mkdocs-python-option-dropped', 'mkdocs-plugin-not-carried', 'mkdocs-theme-overrides', 'mkdocs-css-material', 'mkdocs-not-in-nav', 'mkdocs-blog-posts']));
     const md = await fs.readFile(path.join(out, 'MIGRATION.md'), 'utf8');
     expect(md).toContain('Plugin "some-custom-plugin" has no DocsLit equivalent and was not run.');
+    expect(codes).not.toContain('mkdocstrings');
+    const api = r.items.find((i) => i.code === 'mkdocs-python-api');
+    expect(api.severity).toBe('warning');
+    expect(api.message).toContain('docslit api python <pkg> --search <paths>');
+    expect(api.message).toContain('Packages: acme.');
+    expect(api.fix).toContain('docslit api python acme --search src');
+    expect(r.items.filter((i) => i.code === 'mkdocs-python-option-dropped').map((i) => i.message.match(/"(\w+)"/)[1]).sort()).toEqual(['show_root_full_path']);
+    expect(r.items.find((i) => i.code === 'mkdocs-python-directives').severity).toBe('info');
+  });
+
+  it('keeps ::: directives and writes the python config; autorefs links survive', async () => {
+    const api = await fs.readFile(path.join(out, 'docs', 'api.md'), 'utf8');
+    expect(api).toContain('::: acme.client.Client\n    options:\n      show_source: false\n');
+    expect(api).toContain('::: acme.models.Item\n    options:\n      members:\n        - name\n      show_source: true\n');
+    expect(api).not.toMatch(/handler|selection:|rendering:|show_root_full_path/);
+    expect(api).toContain('[the client][acme.client.Client], [acme.client.Client][] and [`Client.get`][acme.client.Client.get]');
+    const cfg = JSON.parse(await fs.readFile(path.join(out, 'docslit.json'), 'utf8'));
+    expect(cfg.python).toEqual({ packages: ['acme'], docstringStyle: 'numpy', options: { show_root_heading: true, show_if_no_docstring: true, heading_level: 2 } });
   });
 
   it('builds every page, including blog posts and pages outside the nav', async () => {
@@ -644,7 +681,7 @@ describe('pymdown: Docusaurus-style ::: admonitions', () => {
     const nested = conv('::::info Outer\na\n\n:::danger Inner\nb\n:::\n\nc\n::::\n');
     expect(nested).toContain('<wc-callout type="info" title="Outer">');
     expect(nested).toContain('<wc-callout type="danger" title="Inner">');
-    expect(conv('::: pkg.mod.Client\n')).toContain('API reference: pkg.mod.Client');
+    expect(conv('::: pkg.mod.Client\n')).toBe('::: pkg.mod.Client\n');
     expect(conv('```\n:::note\n```\n')).toBe('```\n:::note\n```\n');
     expect(conv(':::\n')).toBe(':::\n');
   });
