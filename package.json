@@ -18,7 +18,9 @@
     "schema",
     "skills",
     "LICENSE",
-    "NOTICES"
+    "NOTICES",
+    "!src/**/*.test.js",
+    "!src/**/*.test.ts"
   ],
   "scripts": {
     "test": "vitest run",
