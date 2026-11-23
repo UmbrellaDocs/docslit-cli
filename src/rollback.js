@@ -1,26 +1,9 @@
-import { readFileSync, existsSync } from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
 import pc from 'picocolors';
 import readline from 'node:readline';
-
-const CONFIG_PATH = path.join(os.homedir(), '.docslit', 'config.json');
+import { requireAuth, bearer, authHint, getFlag } from './cloud-auth.js';
 
 export async function rollback(args) {
-  if (!existsSync(CONFIG_PATH)) {
-    console.error(pc.red('  ✗ Not logged in. Run: docslit login --email you@example.com --name "Your Name"'));
-    process.exit(1);
-  }
-
-  let cliConfig;
-  try {
-    cliConfig = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-  } catch {
-    console.error(pc.red('  ✗ Config file corrupted. Run: docslit login'));
-    process.exit(1);
-  }
-
-  const { token, apiUrl } = cliConfig;
+  const { token, apiUrl } = requireAuth();
 
   // First positional arg = slug, second = deploy id
   const positional = args.filter(a => !a.startsWith('--'));
@@ -61,7 +44,7 @@ export async function rollback(args) {
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...bearer(token),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ deployId: targetDeployId }),
@@ -70,6 +53,8 @@ export async function rollback(args) {
     result = await res.json().catch(() => ({}));
     if (!res.ok) {
       console.error(pc.red(`  ✗ Rollback failed: ${result.error || res.statusText}`));
+      const hint = authHint(res.status);
+      if (hint) console.error(pc.dim(`  ${hint}`));
       process.exit(1);
     }
   } catch (e) {
@@ -90,7 +75,7 @@ async function pickDeploy(apiUrl, token, slug) {
   try {
     const res = await fetch(
       `${apiUrl}/cloud/projects/${encodeURIComponent(slug)}/deploys`,
-      { headers: { Authorization: `Bearer ${token}` } },
+      { headers: bearer(token) },
     );
     data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -197,7 +182,3 @@ function formatRelative(date) {
   return date.toLocaleDateString();
 }
 
-function getFlag(args, flag) {
-  const i = args.indexOf(flag);
-  return i !== -1 ? args[i + 1] : null;
-}
