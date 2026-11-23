@@ -9,7 +9,8 @@ import { runApiPython, griffeModule, publicModules, applyApiConfig, GRIFFE_CANDI
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'docslit.js');
 const FIXTURE = path.join(HERE, 'test-fixtures', 'api-python-cmd', 'tinylib.json');
-const VENV_BIN = '/tmp/claude-0/-home-user/5bdcbc90-6720-54b2-959e-b6d552ee138a/scratchpad/apidocs/v/bin';
+// Real Griffe run: set DOCSLIT_TEST_GRIFFE_BIN to a directory containing a `griffe` executable to enable it.
+const VENV_BIN = process.env.DOCSLIT_TEST_GRIFFE_BIN || '';
 const dirs = [];
 afterEach(async () => { while (dirs.length) await fs.remove(dirs.pop()); });
 
@@ -222,7 +223,7 @@ describe('CLI', () => {
     expect(JSON.parse(r.stdout).ok).toBe(false);
   });
 
-  it.runIf(fs.existsSync(path.join(VENV_BIN, 'griffe')))('real end-to-end: runs the real griffe on a scratch package', async () => {
+  it.runIf(Boolean(VENV_BIN) && fs.existsSync(path.join(VENV_BIN, 'griffe')))('real end-to-end: runs the real griffe on a scratch package', async () => {
     const d = await proj();
     await fs.ensureDir(path.join(d, 'src', 'e2epkg'));
     await fs.writeFile(path.join(d, 'src/e2epkg/__init__.py'), '"""E2E."""\n\ndef hi(name: str) -> str:\n    """Say hi.\n\n    Args:\n        name: Who.\n    """\n    return name\n');
