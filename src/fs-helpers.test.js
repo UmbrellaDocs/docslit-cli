@@ -203,7 +203,7 @@ describe('build filesystem behavior', () => {
 
     await runBuild('--offline', '--no-search-index', '--no-llms-txt');
     expect(await pathExists(path.join(dir, 'dist', 'search-index.js'))).toBe(true);
-    expect(await pathExists(path.join(dir, 'dist', 'flexsearch.js'))).toBe(true);
+    expect(await pathExists(path.join(dir, 'dist', 'flexsearch.iife.js'))).toBe(true);
     expect(await readFile(path.join(dir, 'dist', 'index.html'), 'utf8')).toContain('id="search-trigger"');
   }, 120000);
 
@@ -381,7 +381,7 @@ describe('build filesystem behavior', () => {
     await writeFile(path.join(dir, 'docs', 'intro.md'), '# Intro\n\nChanged body');
     await runBuild();
     expect(await readFile(path.join(dist, 'intro.html'), 'utf8')).toContain('Changed body');
-    expect(await readFile(path.join(dist, 'index.html'), 'utf8')).toContain('Changed body');
+    expect(await readFile(path.join(dist, 'index.html'), 'utf8')).toContain('content="0;url=/intro"');
     expect(await readFile(path.join(dist, 'search-index.json'), 'utf8')).toContain('Changed body');
     expect(await readFile(path.join(dist, 'llms-full.txt'), 'utf8')).toContain('Changed body');
     expect((await stat(path.join(dist, 'second.html'))).mtimeMs).toBe(oldTime.getTime());

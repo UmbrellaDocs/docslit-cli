@@ -26,7 +26,6 @@ import { shutdownOgImagePool } from './og-image.js';
 import { buildSearchEntries } from './search-index.js';
 import { getI18nConfig, localeDocsDir, getSidebarForLocale, discoverLocales, localeUrlPrefix } from './i18n.js';
 import { loadHooks } from './hooks.js';
-import { getPageLastmods } from './git-dates.js';
 import { PREFERS_MARKDOWN_SRC } from './negotiation.js';
 import { pagesUseMath, writeKatexAssets } from './math.js';
 import { resolveBuildOptions } from './build-options.js';
@@ -99,13 +98,15 @@ function firstVisibleId(config, pagesData) {
  * the URL is "/", and its relative content links were written for the page's own
  * folder, so they 404 from the root. `urlPrefix` is basePath + locale + version.
  */
-async function writeRootIndexStub({ dir, firstId, urlPrefix = '', config }) {
+async function writeRootIndexStub({ dir, firstId, urlPrefix = '', config, outputTracker = null }) {
   const to = `${urlPrefix}/${firstId}`;
   const baseUrl = (config.url || '').replace(/\/$/, '');
-  await fs.writeFile(path.join(dir, 'index.html'), redirectStubHtml(to, {
+  const dest = path.join(dir, 'index.html');
+  await writeFileIfChanged(dest, redirectStubHtml(to, {
     canonical: baseUrl ? `${baseUrl}${to}` : to,
     fileHref: `${firstId}.html`,
-  }));
+  }), true);
+  if (outputTracker) outputTracker.add(dest);
 }
 
 function getRuntimeAttributes(config, version = null, branch = null) {
@@ -263,6 +264,7 @@ export async function build({
   if (config.favicon) {
     const faviconFile = path.resolve(cwd, config.favicon);
     if (await pathExists(faviconFile)) {
+      await ensureDir(path.dirname(path.join(outDir, _assetDest(config.favicon))));
       await copyFileIfChanged(faviconFile, path.join(outDir, _assetDest(config.favicon)), buildOptions.incremental);
       outputTracker.protect(path.join(outDir, _assetDest(config.favicon)));
       console.log(`  ${pc.green('✓')} Copied custom favicon ${config.favicon}`);
@@ -273,6 +275,7 @@ export async function build({
   if (config.css) {
     const cssFile = path.resolve(cwd, config.css);
     if (await pathExists(cssFile)) {
+      await ensureDir(path.dirname(path.join(outDir, _assetDest(config.css))));
       await copyFileIfChanged(cssFile, path.join(outDir, _assetDest(config.css)), buildOptions.incremental);
       outputTracker.protect(path.join(outDir, _assetDest(config.css)));
       console.log(`  ${pc.green('✓')} Copied custom CSS ${config.css}`);
@@ -282,6 +285,7 @@ export async function build({
   for (const logo of logoFiles(config)) {
     const logoFile = path.resolve(cwd, logo);
     if (await pathExists(logoFile)) {
+      await ensureDir(path.dirname(path.join(outDir, _assetDest(logo))));
       await copyFileIfChanged(logoFile, path.join(outDir, _assetDest(logo)), buildOptions.incremental);
       outputTracker.protect(path.join(outDir, _assetDest(logo)));
       console.log(`  ${pc.green('✓')} Copied logo ${logo}`);
@@ -478,7 +482,7 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
     if (reused) console.log(`  ${pc.dim('○')} Reused ${reused} cached page${reused !== 1 ? 's' : ''}`);
 
     if (publishedIds.length) {
-      await writeRootIndexStub({ dir: outDir, firstId: firstVisibleId(config, pagesData), urlPrefix: basePath, config });
+      await writeRootIndexStub({ dir: outDir, firstId: firstVisibleId(config, pagesData), urlPrefix: basePath, config, outputTracker });
     }
 
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} + shared assets${draftNote}${skippedNote}`);
@@ -706,7 +710,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     for (const id of publishedIds) if (id !== 'index') outputTracker.add(path.join(defaultDir, `${id}.html`));
 
     if (publishedIds.length) {
-      await writeRootIndexStub({ dir: defaultDir, firstId: firstVisibleId(config, defaultPagesData), urlPrefix: `${basePath}/${defaultVersion}`, config });
+      await writeRootIndexStub({ dir: defaultDir, firstId: firstVisibleId(config, defaultPagesData), urlPrefix: `${basePath}/${defaultVersion}`, config, outputTracker });
     }
     if (buildOptions.llmsTxt || buildOptions.searchIndex) {
       profiler.start('llms');
@@ -847,7 +851,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       for (const id of vPublishedIds) if (id !== 'index') outputTracker.add(path.join(versionDir, `${id}.html`));
 
       if (vPublishedIds.length) {
-        await writeRootIndexStub({ dir: versionDir, firstId: firstVisibleId(versionConf, versionPagesData), urlPrefix: `${basePath}/${entry.version}`, config: versionConf });
+        await writeRootIndexStub({ dir: versionDir, firstId: firstVisibleId(versionConf, versionPagesData), urlPrefix: `${basePath}/${entry.version}`, config: versionConf, outputTracker });
       }
       if (pdfOptions.enabled) {
         await generatePdfs({ outDir: versionDir, config: versionConf, pagesData: versionPagesData, pdfOptions });
@@ -1178,8 +1182,6 @@ async function generateRobotsTxt({ config, outDir, versionConfig = null, buildOp
     } else {
       lines.push(`Sitemap: ${baseUrl}/sitemap.xml`);
     }
-
-    if (!buildOptions || buildOptions.llmsTxt) lines.push(`Sitemap: ${baseUrl}/llms.txt`);
   }
 
   lines.push('');
@@ -1809,7 +1811,7 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
   );
   for (const id of Object.keys(localePagesData)) if (id !== 'index') outputTracker.add(path.join(localeOutDir, `${id}.html`));
 
-  for (const { id, preprocessedMarkdown } of localeParsed) {
+  for (const { id, preprocessedMarkdown, untranslated } of localeParsed) {
     const destMd = path.join(localeOutDir, `${id}.md`);
     await writePageMarkdown(destMd, preprocessedMarkdown, config, id, null, buildOptions.llmsTxt, incremental);
     outputTracker.add(destMd);
@@ -1818,7 +1820,7 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
 
   const publishedIds = Object.keys(localePagesData);
   if (publishedIds.length) {
-    await writeRootIndexStub({ dir: localeOutDir, firstId: firstVisibleId(localeConfig, localePagesData), urlPrefix: localeUrlPrefix(locale, i18n.defaultLocale, basePath), config });
+    await writeRootIndexStub({ dir: localeOutDir, firstId: firstVisibleId(localeConfig, localePagesData), urlPrefix: localeUrlPrefix(locale, i18n.defaultLocale, basePath), config, outputTracker });
   }
 
   if (pagesUseMath(localePagesData)) await writeKatexAssets(localeOutDir);

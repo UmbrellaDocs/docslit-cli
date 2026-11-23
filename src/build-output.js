@@ -21,7 +21,11 @@ export function createOutputTracker(outDir) {
     protect(file) { protectedFiles.add(relative(file)); },
     protectDirectory(dir) { protectedDirs.add(relative(dir)); },
     async finish(incremental) {
-      const previous = incremental ? await readOutputManifest(root) : null;
+      // Ownership records only matter for incremental builds: a clean build empties
+      // the output directory, and writing the manifest would otherwise leave a file
+      // in node_modules/.cache that the build itself never needs.
+      if (!incremental) return;
+      const previous = await readOutputManifest(root);
       const realRoot = await fs.realpath(root);
       if (previous) {
         for (const [rel, hash] of Object.entries(previous)) {

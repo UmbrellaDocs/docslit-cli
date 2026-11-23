@@ -442,8 +442,8 @@ describe('generated pages', () => {
     expect(on).toContain('data-theme-name="tonal"][data-theme="iris"]');
     expect(on).toContain('family=Source+Serif+4');
   });
-  it('static pages link the shared stylesheet that contains the theme', () => {
-    const css = buildStylesFile({ siteTheme: resolveSiteThemeSync({ theme: 'ledger' }) });
+  it('static pages link the shared stylesheet that contains the theme', async () => {
+    const css = await buildStylesFile({ siteTheme: resolveSiteThemeSync({ theme: 'ledger' }) });
     expect(css).toContain('html[data-theme-name="ledger"]');
     expect(css).toContain('IBM Plex Sans');
   });
