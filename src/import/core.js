@@ -11,7 +11,7 @@ import { Reporter } from './report.js';
 import { gitbookPreprocess } from './gitbook.js';
 import { attrString, isExpr, isJsx } from './jsx.js';
 import { convertPymdown, rewriteLinks, MATERIAL_COMPAT_CSS } from './pymdown.js';
-import { mkdocsFrontmatter, readMkdocsSnippet, readMkdocsInclude } from './mkdocs.js';
+import { mkdocsFrontmatter, readMkdocsSnippet, readMkdocsInclude, recordPythonDirectives } from './mkdocs.js';
 
 const posix = (p) => p.split(path.sep).join('/');
 const stripExt = (p) => p.replace(/\.(mdx?|markdown)$/i, '');
@@ -141,8 +141,10 @@ export class Importer {
     });
     if (n.mkdocstrings.length) {
       const ids = n.mkdocstrings.map((x) => x.id);
-      rep('error', 'mkdocstrings', `${ids.length} mkdocstrings API block${ids.length === 1 ? '' : 's'} (${ids.slice(0, 4).join(', ')}${ids.length > 4 ? ', …' : ''}) became placeholder callouts.`, {
-        line: lineIn(':::'), action: 'Replaced each `::: id` with a warning callout.', fix: 'Write the API reference in Markdown, or generate Markdown from your docstrings (for example with griffe2md) and import it. Native Python API support is on the DocsLit roadmap.' });
+      rep('info', 'mkdocs-python-directives', `${ids.length} mkdocstrings \`::: id\` directive${ids.length === 1 ? '' : 's'} kept (${ids.slice(0, 4).join(', ')}${ids.length > 4 ? ', …' : ''}).`, {
+        line: lineIn(':::'), action: 'Kept each directive with its options normalised to mkdocstrings-python names.' });
+      if (n.mkdocstrings.some((x) => x.invalid)) rep('warning', 'mkdocs-python-options-invalid', 'The options block of a ::: directive is not valid YAML and was dropped.', { line: lineIn(':::') });
+      recordPythonDirectives(this, n.mkdocstrings, rep);
     }
     if (n.macros.length && mk.macros.enabled) {
       const ex = [...new Set(n.macros.map((x) => x.text))];
