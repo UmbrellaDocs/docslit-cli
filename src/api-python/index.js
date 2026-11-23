@@ -513,6 +513,9 @@ const SECTION_TITLES = {
 function escapeCell(text) {
   return String(text ?? '')
     .trim()
+    // a literal `a | b` code span: the renderer shows the backslash of `\|` inside code, so emit <code> with an entity instead
+    .replace(/(`+)(?!`)([^`][\s\S]*?[^`]|[^`])\1(?!`)/g, (m, _t, code) => (code.includes('|')
+      ? `<code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\|/g, '&#124;')}</code>` : m))
     .replace(/(?<!\\)\|/g, '\\|')
     .replace(/\s*\n\s*/g, '<br>');
 }

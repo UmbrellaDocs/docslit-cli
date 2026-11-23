@@ -166,6 +166,12 @@ describe('docstring sections', () => {
     expect(md2).toContain('first line |');
     expect(md2).toContain('second line |');
   });
+  it('keeps a pipe inside a code span (union types) literal in table cells', () => {
+    const idx = mini({ f: fn('f', [param('a', 'positional or keyword', { cls: 'ExprBinOp', left: N('str'), operator: '|', right: N('None') })], null, { docstring: { value: 'x', parsed: [{ kind: 'text', value: 'x' }, { kind: 'parameters', value: [{ name: 'a', annotation: { cls: 'ExprBinOp', left: N('str'), operator: '|', right: N('None') }, description: 'The a.' }] }] } }) });
+    const md = renderObject(idx, 'm.f').markdown;
+    expect(md).toContain('<code>str &#124; None</code>');
+    expect(md).not.toContain('\\|');
+  });
   it('examples become pycon blocks around prose', () => {
     expect(md).toContain('**Examples:**\n\nBasic usage:\n\n```pycon\n>>> Shape("a").area()\n0.0\n```\n\nAnother one.');
   });
