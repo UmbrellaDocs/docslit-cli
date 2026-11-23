@@ -5,12 +5,12 @@
   "homepage": "https://docslit.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/UmbrellaDocs/docslit-cli.git"
+    "url": "git+https://github.com/UmbrellaDocs/docslit-cli.git"
   },
   "author": "Gaurav Nelson",
   "type": "module",
   "bin": {
-    "docslit": "./bin/docslit.js"
+    "docslit": "bin/docslit.js"
   },
   "files": [
     "bin",
@@ -20,7 +20,8 @@
     "LICENSE",
     "NOTICES",
     "!src/**/*.test.js",
-    "!src/**/*.test.ts"
+    "!src/**/*.test.ts",
+    "!src/test-fixtures"
   ],
   "scripts": {
     "test": "vitest run",
