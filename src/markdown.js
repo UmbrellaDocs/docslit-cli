@@ -4,6 +4,7 @@ import { renderMarkdown } from './unified.js';
 import { ensureLangs } from './highlighter.js';
 import { findMathErrors } from './math.js';
 import { cleanNotationForMarkdown } from './code-meta.js';
+import { hasPythonApi, expandPythonApi } from './api-python/site.js';
 
 function getVersionSlug(meta, opts) {
   if (meta?.versionSlug) return String(meta.versionSlug);
@@ -14,7 +15,11 @@ function getVersionSlug(meta, opts) {
 }
 
 export async function parseDoc(rawContent, opts = {}) {
-  const { data: meta, content: body } = matter(rawContent);
+  const { data: meta, content: rawBody } = matter(rawContent);
+  // Python API reference: `::: id` directives and [text][pkg.Obj] links (no-op unless python.packages is set)
+  const body = hasPythonApi() ? expandPythonApi(rawBody, {
+    warn: typeof opts.onWarning === 'function' ? (w) => opts.onWarning({ ...w, file: opts.pagePath || null, line: w.line + (rawContent.split('\n').length - rawBody.split('\n').length) }) : null,
+  }) : rawBody;
   const preprocess = await preprocessDoc({
     rawBody: body,
     docsRoot: opts.docsRoot || '',

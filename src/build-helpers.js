@@ -10,6 +10,7 @@ import { parseDoc } from './markdown.js';
 import { buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
 import { generateOgImages, ogColorsFromTheme } from './og-image.js';
 import { isOgImageEnabled } from './build-options.js';
+import { pythonApiFingerprint } from './api-python/site.js';
 import { contentHash, pageCacheKey, readPageCache, writePageCache, readRenderedPageCache, writeRenderedPageCache } from './build-cache.js';
 
 export function createBuildProfiler(enabled) {
@@ -172,7 +173,7 @@ export async function parsePageWithCache({ id, mdPath, raw, parseOpts, increment
       pagePath: parseOpts.pagePath,
       globalAttributes: parseOpts.globalAttributes,
       versionSlug: parseOpts.versionSlug,
-      parserFingerprint: await getParserFingerprint(),
+      parserFingerprint: (await getParserFingerprint()) + pythonApiFingerprint(),
     });
     const cached = await readPageCache(key);
     if (cached?.cacheVersion === 1 && cached.meta && typeof cached.meta === 'object'
