@@ -62,7 +62,7 @@ export async function detectEditUrl(dir) {
 
 export function getAllPageIds(config) {
   const ids = [];
-  for (const group of (config.sidebar || [])) ids.push(...collectIds(group.pages));
+  for (const group of (config.sidebar || [])) ids.push(...collectIds([group]));
   return ids;
 }
 

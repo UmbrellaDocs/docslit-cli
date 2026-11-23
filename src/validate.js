@@ -431,7 +431,7 @@ async function checkConfig(dir) {
   if (Array.isArray(config.tabs)) {
     const owner = new Map();
     for (const tab of config.tabs) {
-      for (const id of new Set((tab.sidebar || []).flatMap((g) => collectIds(g.pages || [])))) {
+      for (const id of new Set((tab.sidebar || []).flatMap((g) => collectIds([g])))) {
         if (owner.has(id) && owner.get(id) !== tab.id) crossTab.add(id);
         else owner.set(id, tab.id);
       }

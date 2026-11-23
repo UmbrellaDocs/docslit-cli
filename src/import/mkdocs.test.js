@@ -230,7 +230,7 @@ describe('end-to-end: MkDocs / Material project', () => {
     process.chdir(out);
     console.log = () => {};
     try { await build({ out: 'dist' }); } finally { console.log = log; process.chdir(cwd); }
-    for (const p of ['index.html', 'guide/setup.html', 'blog/posts/hello.html', 'orphan.html', 'old-start.html']) expect(await fs.pathExists(path.join(out, 'dist', p)), p).toBe(true);
+    for (const p of ['index.html', 'guide/index.html', 'blog/index.html', 'guide/setup.html', 'blog/posts/hello.html', 'orphan.html', 'old-start.html']) expect(await fs.pathExists(path.join(out, 'dist', p)), p).toBe(true);
   }, 120000);
 });
 

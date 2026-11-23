@@ -134,13 +134,18 @@ export function normalizeSidebarGroups(items) {
   return groups;
 }
 
-/** Page ids of a pages array in sidebar order (page objects, root pages, nested groups). */
+/** Page ids of a pages array in sidebar order (page objects, group root pages, nested groups). */
 export function collectIds(pages, out = []) {
   for (const item of pages || []) {
     if (typeof item === 'string') out.push(item);
     else if (isObject(item)) {
       if (item.id) out.push(item.id);
-      else if (Array.isArray(item.pages)) collectIds(item.pages, out);
+      else if (Array.isArray(item.pages) || typeof item.root === 'string') {
+        // a group's `root` page is part of the site even when its pages do not repeat it
+        const listed = Array.isArray(item.pages) ? item.pages : [];
+        if (typeof item.root === 'string' && item.root && !listed.some((p) => p === item.root || (isObject(p) && p.id === item.root))) out.push(item.root);
+        collectIds(listed, out);
+      }
     }
   }
   return out;
@@ -261,7 +266,7 @@ export function buildPageTabMap(tabs) {
   for (const tab of tabs) {
     if (tab.href) continue;
     for (const g of tab.sidebar || []) {
-      for (const id of collectIds(g.pages || [])) if (!map.has(id)) map.set(id, tab.id);
+      for (const id of collectIds([g])) if (!map.has(id)) map.set(id, tab.id);
     }
   }
   _tabMapCache.set(tabs, map);
@@ -312,10 +317,10 @@ export function tabLandingId(tab, hiddenIds = new Set()) {
   if (!tab || tab.href) return null;
   if (tab.landing) return tab.landing;
   for (const g of tab.sidebar || []) {
-    for (const id of collectIds(g.pages || [])) if (!hiddenIds.has(id)) return id;
+    for (const id of collectIds([g])) if (!hiddenIds.has(id)) return id;
   }
   for (const g of tab.sidebar || []) {
-    const ids = collectIds(g.pages || []);
+    const ids = collectIds([g]);
     if (ids.length) return ids[0];
   }
   return null;

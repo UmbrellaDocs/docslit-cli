@@ -72,7 +72,7 @@ export async function checkNavigation({ raw, config, dir }) {
       seenLabels.set(key, true);
       if (tab.href) continue;
       const ids = new Set();
-      for (const g of tab.sidebar || []) for (const id of collectIds(g.pages || [])) ids.add(id);
+      for (const g of tab.sidebar || []) for (const id of collectIds([g])) ids.add(id);
       if (!ids.size) {
         out.push(d('warning', 'tab-empty', `Tab "${tab.label}" has no pages`, 'Add pages to its "sidebar" or point "path" at a docs/ folder that has pages'));
       }
