@@ -61,6 +61,11 @@ describe('site integration with a real Griffe dump', () => {
     expect(out).toBe(`| \`x\` | \`Callable[[\`[\`${firstClass}\`](/reference#${id}) \`\\|\` [\`${firstClass}\`](/reference#${id})\`], int]\` |`);
   });
 
+  it('merges the code label of an unresolved ref into its neighbouring code spans', () => {
+    const out = resolveAutorefs('| `Foo[`[`T`][zzz.Missing]`]` |');
+    expect(out).toBe('| `Foo[T]` |');
+  });
+
   it('shows a placeholder (and warns) when a package has no generated data', () => {
     const w = [];
     const out = expandPythonApi('::: notgenerated.thing\n', { warn: (x) => w.push(x.code) });

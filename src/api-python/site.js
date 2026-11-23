@@ -180,7 +180,20 @@ export function resolveAutorefs(body, { warn = null } = {}) {
     const spans = [];
     const masked = l.replace(/(`+)(?!`)([\s\S]*?[^`])\1(?!`)/g, (m) => { spans.push(m); return `\uE000${spans.length - 1}\uE001`; });
     const unmask = (t) => t.replace(/\uE000(\d+)\uE001/g, (_, i) => spans[+i]);
-    lines[n] = unmask(masked.replace(/\[((?:[^\[\]])+)\]\[([^\]]*)\]/g, (m, label, ref) => {
+    const mergeCode = (t) => {
+      // adjacent plain code spans (an unresolved link falls back to its code label) become one span
+      let prev;
+      do {
+        prev = t;
+        t = t.replace(/\uE000(\d+)\uE001\uE000(\d+)\uE001/g, (m, a, b) => {
+          if (!/^`[^`]*`$/.test(spans[+a]) || !/^`[^`]*`$/.test(spans[+b])) return m;
+          spans.push(`\`${spans[+a].slice(1, -1)}${spans[+b].slice(1, -1)}\``);
+          return `\uE000${spans.length - 1}\uE001`;
+        });
+      } while (t !== prev);
+      return t;
+    };
+    lines[n] = unmask(mergeCode(masked.replace(/\[((?:[^\[\]])+)\]\[([^\]]*)\]/g, (m, label, ref) => {
       const id = unmask(ref || label).replace(/`/g, '').trim();
       if (!/^[A-Za-z_][\w]*(\.[A-Za-z_][\w]*)+$/.test(id)) return m;
       if (defined.has(unmask(ref || label).toLowerCase())) return m;
@@ -188,7 +201,7 @@ export function resolveAutorefs(body, { warn = null } = {}) {
       if (sym) return `[${label}](${sym.href})`;
       if (warn && state.indexes.has(id.split('.')[0])) warn(id, n + 1);
       return label;
-    }));
+    })));
   }
   return lines.join('\n');
 }

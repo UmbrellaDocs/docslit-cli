@@ -155,6 +155,17 @@ describe('docstring sections', () => {
   it('google "Type: description" returns without annotation use the type text', () => {
     expect(md).toContain('| `float` | The area. |');
   });
+  it('merges the per-line items Griffe makes of one unnamed multi-line return, but not for tuple returns', () => {
+    const items = ['first line', 'second line'].map((description) => ({ annotation: N('int'), description, name: '' }));
+    const doc = { value: 'x', parsed: [{ kind: 'text', value: 'x' }, { kind: 'returns', value: items }] };
+    const one = mini({ f: fn('f', [], N('int'), { docstring: doc }) });
+    expect(renderObject(one, 'm.f').markdown).toContain('| `int` | first line<br>second line |');
+    const tup = { cls: 'ExprSubscript', left: N('tuple'), slice: { cls: 'ExprTuple', elements: [N('int'), N('int')] } };
+    const two = mini({ f: fn('f', [], tup, { docstring: doc }) });
+    const md2 = renderObject(two, 'm.f').markdown;
+    expect(md2).toContain('first line |');
+    expect(md2).toContain('second line |');
+  });
   it('examples become pycon blocks around prose', () => {
     expect(md).toContain('**Examples:**\n\nBasic usage:\n\n```pycon\n>>> Shape("a").area()\n0.0\n```\n\nAnother one.');
   });
