@@ -1,0 +1,33 @@
+---
+title: API fields
+---
+
+<ParamField path="id" type="string" required>
+  Event identifier.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="20">
+  Page size.
+</ParamField>
+
+<ParamField body="title" type="string" required deprecated>
+  The title.
+</ParamField>
+
+<RequestExample>
+
+```bash curl
+curl https://api.orbit.example.com/events
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{ "events": [] }
+```
+
+</ResponseExample>
+
+<GitHub.Repo repo="orbit-example/orbit" />

@@ -1,0 +1,31 @@
+---
+title: Callouts and badges
+mode: wide
+---
+
+<Info>Info callout</Info>
+
+<Callout icon="sparkles" color="#4F46E5">A custom callout.</Callout>
+
+<Badge color="orange" shape="pill" size="sm">Beta</Badge> <Badge color="gray">Plain</Badge> <Icon icon="rocket" size={20} />
+
+<Prompt description="Ask your assistant" icon="wand-magic-sparkles" actions={["copy", "cursor"]}>
+  Explain how Orbit recurring events work.
+</Prompt>
+
+<Tree>
+  <Tree.Folder name="src" defaultOpen>
+    <Tree.File name="index.ts" />
+    <Tree.Folder name="lib">
+      <Tree.File name="util.ts" highlight />
+    </Tree.Folder>
+  </Tree.Folder>
+  <Tree.File name="package.json" />
+</Tree>
+
+<Color variant="compact">
+  <Color.Row title="Brand">
+    <Color.Item name="Primary" value="#4F46E5" />
+    <Color.Item name="Surface" value={{ light: "#ffffff", dark: "#0b0b0f" }} />
+  </Color.Row>
+</Color>

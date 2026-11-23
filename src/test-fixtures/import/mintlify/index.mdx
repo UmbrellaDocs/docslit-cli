@@ -1,0 +1,37 @@
+---
+title: Welcome to Orbit
+description: Schedule anything, anywhere.
+icon: rocket
+---
+
+import Greeting from '/snippets/greeting.mdx';
+
+export const productName = 'Orbit';
+
+{/* TODO: replace hero image */}
+
+<Greeting name="friend" product="Orbit" />
+
+Welcome to {productName}. Pick a path below.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart" horizontal>
+    Create your first event in five minutes.
+  </Card>
+  <Card title="Scheduling" icon="calendar" href="/guides/scheduling.mdx" arrow={false}>
+    How recurring events work.
+  </Card>
+  <Card title="API reference" icon="code" href="/api-reference/introduction" color="#4F46E5">
+    Every endpoint, with examples.
+  </Card>
+  <Card title="Components" icon="fa-solid fa-puzzle-piece" href="/components/callouts">
+    A tour of the building blocks.
+  </Card>
+</CardGroup>
+
+<Frame caption="The Orbit dashboard">
+  <img className="block dark:hidden" src="/images/dashboard-light.svg" alt="Dashboard" />
+  <img className="hidden dark:block" src="/images/dashboard-dark.svg" alt="Dashboard" />
+</Frame>
+
+<img src="/images/diagram.svg" alt="Diagram" noZoom width="320" />

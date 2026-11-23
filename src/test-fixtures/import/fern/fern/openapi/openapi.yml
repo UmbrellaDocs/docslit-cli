@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info:
+  title: Tidepool API
+  version: 1.0.0
+tags:
+  - name: Streams
+paths:
+  /streams:
+    get:
+      operationId: listStreams
+      summary: List streams
+      tags: [Streams]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Stream"
+    post:
+      operationId: createStream
+      summary: Create a stream
+      tags: [Streams]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Stream"
+      responses:
+        "201":
+          description: Created
+components:
+  schemas:
+    Stream:
+      type: object
+      required: [name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string

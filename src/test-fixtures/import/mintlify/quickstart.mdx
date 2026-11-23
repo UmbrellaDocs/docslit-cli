@@ -1,0 +1,37 @@
+---
+title: Quickstart
+sidebarTitle: Quick start
+description: Create your first event.
+tag: New
+---
+
+<Note>You need an API key from the [dashboard](https://app.orbit.example.com).</Note>
+
+<Steps>
+  <Step title="Install the SDK">
+    ```bash
+    npm install orbit-sdk
+    ```
+  </Step>
+  <Step title="Create an event" icon="calendar">
+    <CodeGroup>
+
+    ```js JavaScript
+    import { Orbit } from 'orbit-sdk';
+    const orbit = new Orbit({ key: process.env.ORBIT_KEY });
+    await orbit.events.create({ title: 'Standup' });
+    ```
+
+    ```python Python
+    from orbit import Orbit
+    Orbit(key=os.environ["ORBIT_KEY"]).events.create(title="Standup")
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Check the result">
+    Open the [installation guide](installation) if something is off.
+  </Step>
+</Steps>
+
+<Tip>Use `cmd+k` to search these docs.</Tip>

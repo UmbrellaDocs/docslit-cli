@@ -1,0 +1,33 @@
+---
+title: Components
+---
+
+<If versions={["v3"]}>Shown in v3.</If>
+
+<Update label="2024-05-01" description="Release" tags={["New"]}>
+  Added streams.
+</Update>
+
+<Indent>
+  Indented text.
+</Indent>
+
+<RunnableEndpoint endpoint="GET /streams" />
+
+<EndpointRequestSnippet endpoint="POST /streams" />
+
+<Schema type="Stream" />
+
+<Anchor id="data">Data section</Anchor>
+
+<Prompt title="Ask" actions={["cursor", "claude"]}>
+  Explain streams.
+</Prompt>
+
+<ScrollWalkthrough layout="wide">
+  <Step title="Define" description="Define a stream" file={1}>
+    Define it.
+  </Step>
+</ScrollWalkthrough>
+
+<LegacyWidget size="lg" />

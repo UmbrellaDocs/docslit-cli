@@ -1,0 +1,32 @@
+---
+title: Installation
+description: Install and configure Orbit.
+---
+
+<Tabs>
+  <Tab title="npm" icon="npm">
+    ```bash npm
+    npm install orbit-sdk
+    ```
+  </Tab>
+  <Tab title="pnpm">
+    ```bash pnpm
+    pnpm add orbit-sdk
+    ```
+  </Tab>
+</Tabs>
+
+<AccordionGroup>
+  <Accordion title="Does it work offline?" defaultOpen>
+    Yes. Events are queued locally.
+  </Accordion>
+  <Accordion title="Which Node versions are supported?" icon="node">
+    Node 20 and newer.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>Never commit your API key.</Warning>
+
+<Status />
+
+<Snippet file="status.mdx" />

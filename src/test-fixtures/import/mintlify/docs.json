@@ -1,0 +1,53 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Orbit",
+  "description": "Docs for the Orbit scheduling platform",
+  "colors": { "primary": "#4F46E5", "light": "#818CF8", "dark": "#3730A3" },
+  "logo": { "light": "/logo/light.svg", "dark": "/logo/dark.svg", "href": "https://orbit.example.com" },
+  "favicon": "/logo/favicon.svg",
+  "fonts": { "family": "Inter" },
+  "appearance": { "default": "system" },
+  "icons": { "library": "fontawesome" },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guides",
+        "icon": "book-open",
+        "groups": [
+          { "group": "Get started", "pages": ["index", "quickstart", "installation"] },
+          { "group": "Concepts", "expanded": true, "pages": ["guides/scheduling", { "group": "Advanced", "pages": ["guides/webhooks"] }] }
+        ]
+      },
+      {
+        "tab": "Components",
+        "icon": "puzzle-piece",
+        "groups": [{ "group": "Showcase", "pages": ["components/callouts", "components/layout", "components/api-fields"] }]
+      },
+      {
+        "tab": "API reference",
+        "icon": "terminal",
+        "groups": [
+          { "group": "Overview", "pages": ["api-reference/introduction"] },
+          { "group": "Events", "openapi": "api-reference/openapi.json", "pages": ["GET /events", "POST /events"] }
+        ]
+      },
+      { "tab": "Blog", "href": "https://orbit.example.com/blog" }
+    ],
+    "global": { "anchors": [{ "anchor": "Community", "icon": "discord", "href": "https://orbit.example.com/community" }] }
+  },
+  "navbar": {
+    "links": [{ "label": "Support", "href": "mailto:support@orbit.example.com" }, { "type": "github", "href": "https://github.com/orbit-example/orbit" }],
+    "primary": { "type": "button", "label": "Dashboard", "href": "https://app.orbit.example.com" }
+  },
+  "footer": {
+    "socials": { "x": "https://x.com/orbit_example", "github": "https://github.com/orbit-example" },
+    "links": [{ "header": "Company", "items": [{ "label": "About", "href": "https://orbit.example.com/about" }] }]
+  },
+  "banner": { "content": "Orbit 2.0 is here. See the [changelog](/guides/scheduling).", "dismissible": true },
+  "redirects": [{ "source": "/start", "destination": "/quickstart" }, { "source": "/old/:slug*", "destination": "/guides/:slug*" }],
+  "seo": { "metatags": { "og:site_name": "Orbit Docs" } },
+  "contextual": { "options": ["copy", "chatgpt", "claude", "cursor"] },
+  "integrations": { "ga4": { "measurementId": "G-TEST12345" }, "intercom": { "appId": "abc123" } },
+  "api": { "playground": { "display": "interactive" } }
+}

@@ -1,0 +1,20 @@
+---
+title: Webhooks
+description: Get notified when events change.
+---
+
+<Danger>Always verify the signature.</Danger>
+
+<Expandable title="Payload fields" defaultOpen>
+  The payload is JSON with `id` and `type`.
+</Expandable>
+
+<ParamField header="X-Orbit-Signature" type="string" required>
+  HMAC of the body.
+</ParamField>
+
+<ResponseField name="received" type="boolean" required>
+  Always `true`.
+</ResponseField>
+
+<Tooltip tip="Time to live">TTL</Tooltip> is 24 hours. <Badge color="green">Stable</Badge>

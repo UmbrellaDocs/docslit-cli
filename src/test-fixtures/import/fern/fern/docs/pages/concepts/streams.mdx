@@ -1,0 +1,37 @@
+---
+title: Streams
+slug: live-streams
+---
+
+## Overview
+
+A stream is an ordered sequence of events.
+
+<Files>
+  <Folder name="events" defaultOpen>
+    <File name="2024.json" comment="# newest" />
+  </Folder>
+  <File name="README.md" />
+</Files>
+
+<Button intent="primary" href="https://tidepool.example.com" small>Visit site</Button>
+
+<Copy clipboard="tidepool init">Copy command</Copy>
+
+<Download src="../assets/diagram.svg" filename="diagram.svg">Download diagram</Download>
+
+<StickyTable>
+
+| Name | Type |
+|---|---|
+| id | string |
+
+</StickyTable>
+
+<ParamField path="stream_id" type="string" required>
+  The stream.
+</ParamField>
+
+<Frame caption="Flow">
+  <img src="../assets/diagram.svg" alt="Flow" />
+</Frame>
