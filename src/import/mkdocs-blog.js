@@ -41,32 +41,60 @@ function splitFrontmatter(raw) {
   return { fm: isObj(fm) ? fm : {}, body: raw.slice(m[0].length) };
 }
 
-/** Plain-text excerpt: paragraphs only, links and images flattened so the text never breaks DocsLit link checks. */
+/** Cap an excerpt to at most two sentences and ~300 characters (cut at a word boundary, with an ellipsis). */
+function capExcerpt(text, max = 300) {
+  const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9"'(\[])/);
+  let out = sentences.slice(0, 2).join(' ');
+  if (out.length > max) out = out.slice(0, max).replace(/\s+\S*$/, '').replace(/[\s,;:(\-–—]+$/, '') + '…';
+  return out;
+}
+
+/**
+ * Plain-prose excerpt for the generated listings. The source is raw Material Markdown, so MkDocs-only syntax must
+ * never leak: snippet includes (`--8<--`, also the block form), fences, admonition / tab / block markers and
+ * their indented bodies, HTML blocks, images, headings, attribute lists, icon/emoji shortcodes, footnotes, links
+ * (flattened so the text never breaks DocsLit link checks). Only the first paragraph(s) survive, collapsed to
+ * about two sentences / 300 characters.
+ */
 export function plainExcerpt(md) {
   const paras = [];
   let cur = [];
-  let fence = false;
+  let fence = null;
+  let snippet = false;
+  let html = false;
   const flush = () => { if (cur.length) paras.push(cur.join(' ')); cur = []; };
   for (const l of String(md).replace(/\r/g, '').split('\n')) {
-    if (/^\s*(```|~~~)/.test(l)) { fence = !fence; flush(); continue; }
-    if (fence) continue;
-    if (!l.trim()) { flush(); continue; }
-    if (/^(#{1,6}\s|!!!|\?\?\?|===|\/\/\/|<|\||\s{2,}\S|\t|[-*+]\s|\d+[.)]\s|>|\[\^|-{3,}$)/.test(l)) { flush(); continue; }
+    const fm = /^\s*(`{3,}|~{3,})/.exec(l);
+    if (fence) { if (fm && fm[1][0] === fence[0] && fm[1].length >= fence.length) fence = null; continue; }
+    if (fm) { fence = fm[1]; flush(); continue; }
+    if (/^\s*;?-{1,}8<-{1,}\s*$/.test(l)) { snippet = !snippet; flush(); continue; }
+    if (snippet) continue;
+    if (/^\s*;?-{1,}8<-{1,}/.test(l)) { flush(); continue; }
+    if (!l.trim()) { flush(); html = false; continue; }
+    if (html) continue;
+    if (/^\s*</.test(l)) { flush(); html = true; continue; }
+    if (/^(#{1,6}\s|!!!|\?\?\?|===|\/\/\/|\||\s{2,}\S|\t|[-*+]\s|\d+[.)]\s|>|\[\^|[-*_]{3,}\s*$|!\[|\{[^}]*\}\s*$|:\s|\[[^\]]+\]:\s|<!--)/.test(l)) { flush(); continue; }
     cur.push(l.trim());
   }
   flush();
-  return paras.map((p) => p
-    .replace(/\{\{[\s\S]*?\}\}|\{%[\s\S]*?%\}/g, '')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1')
-    .replace(/\[\^[^\]]+\]/g, '')
-    .replace(/\{[^}]*\}/g, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/(^|\s):[\w+-]+:(?=\s|$|[.,;!?])/g, '$1')
-    .replace(/[{}]/g, '')
-    .replace(/</g, '&lt;')
-    .replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n\n');
+  for (let p of paras) {
+    p = p
+      .replace(/\{\{[\s\S]*?\}\}|\{%[\s\S]*?%\}/g, '')
+      .replace(/!\[[^\]]*\]\([^)]*\)(\{[^}]*\})?/g, '')
+      .replace(/!\[[^\]]*\]\[[^\]]*\]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1')
+      .replace(/\[\^[^\]]+\]/g, '')
+      .replace(/:[a-z0-9]+-[\w-]+:(\{[^}]*\})?/gi, '')
+      .replace(/\{[^}]*\}/g, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/(^|\s):[\w+-]+:(?=\s|$|[.,;!?])/g, '$1')
+      .replace(/--8<--[^\n]*/g, '')
+      .replace(/[{}]/g, '')
+      .replace(/\s+/g, ' ').trim();
+    if (p) return capExcerpt(p).replace(/</g, '&lt;');
+  }
+  return '';
 }
 
 const fill = (tpl, vars) => String(tpl).replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
@@ -130,7 +158,7 @@ export function readBlog({ docsDir, configDir, opts, pageFiles, slugOf }) {
       src: f, slug: slugOf(f), title, created, updated, draft: fm.draft === true || fm.draft === 'true',
       ids, authors: ids.map((id) => (isObj(authors[id]) && authors[id].name ? String(authors[id].name) : id)),
       categories: cats, urlPath,
-      excerpt: moreAt !== -1 ? plainExcerpt(body.slice(0, moreAt)) : plainExcerpt(fm.description ? String(fm.description) : ''),
+      excerpt: plainExcerpt(fm.description ? String(fm.description) : (moreAt !== -1 ? body.slice(0, moreAt) : body)),
       pinned: fm.pin === true, links: !!fm.links,
     });
   }
