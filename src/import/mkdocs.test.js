@@ -233,3 +233,62 @@ describe('end-to-end: MkDocs / Material project', () => {
     for (const p of ['index.html', 'guide/setup.html', 'blog/posts/hello.html', 'orphan.html', 'old-start.html']) expect(await fs.pathExists(path.join(out, 'dist', p)), p).toBe(true);
   }, 120000);
 });
+
+describe('MkDocs config discovery and --config', () => {
+  const mk = async (files) => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mk-cfg-'));
+    for (const [f, c] of Object.entries(files)) await fs.outputFile(path.join(dir, f), c);
+    return dir;
+  };
+  const run = async (dir, extra = {}) => {
+    const out = path.join(dir, '..', path.basename(dir) + '-out');
+    const r = await runImport({ sourceDir: dir, outDir: out, fetchText: null, validateOutput: false, ...extra });
+    const cfg = await fs.readJson(path.join(out, 'docslit.json'));
+    await fs.remove(out);
+    return { r, cfg };
+  };
+
+  it('--config with a file in a subfolder resolves docs_dir relative to that file', async () => {
+    const dir = await mk({ 'site/mkdocs.yml': 'site_name: Sub\nnav:\n  - Home: index.md\n', 'site/docs/index.md': '# Home\n', 'docs/other.md': '# Wrong\n' });
+    try {
+      const { r, cfg } = await run(dir, { config: path.join(dir, 'site', 'mkdocs.yml') });
+      expect(cfg.name).toBe('Sub');
+      expect(JSON.stringify(r)).not.toContain('Wrong');
+    } finally { await fs.remove(dir); }
+  });
+
+  it('auto-detects docs/mkdocs.yml', async () => {
+    const dir = await mk({ 'docs/mkdocs.yml': 'site_name: Nested\n', 'docs/docs/index.md': '# Hi\n' });
+    try {
+      expect(await detectFormat(dir)).toEqual({ format: 'mkdocs', why: 'docs/mkdocs.yml', config: 'docs/mkdocs.yml' });
+      const { cfg } = await run(dir);
+      expect(cfg.name).toBe('Nested');
+    } finally { await fs.remove(dir); }
+  });
+
+  it('auto-detects mkdocs-online.yml (INHERIT to a nav fragment) over offline and nav-only files', async () => {
+    const dir = await mk({
+      'mkdocs-nav.yml': 'nav:\n  - Home: index.md\n',
+      'mkdocs-common.yml': 'site_name: Common\n',
+      'mkdocs-online.yml': 'INHERIT: mkdocs-nav.yml\nsite_name: Online Site\n',
+      'mkdocs-offline.yml': 'INHERIT: mkdocs-nav.yml\nsite_name: Offline Site\n',
+      'docs/index.md': '# Home\n',
+    });
+    try {
+      const d = await detectFormat(dir);
+      expect(d.format).toBe('mkdocs');
+      expect(d.config).toBe('mkdocs-online.yml');
+      const { cfg } = await run(dir);
+      expect(cfg.name).toBe('Online Site');
+    } finally { await fs.remove(dir); }
+  });
+
+  it('loadMkdocsConfig with an explicit file reports the config dir', async () => {
+    const dir = await mk({ 'a/b/mkdocs.yml': 'site_name: X\n' });
+    try {
+      const l = await loadMkdocsConfig(dir, { file: 'a/b/mkdocs.yml' });
+      expect(l.cfg.site_name).toBe('X');
+      expect(l.dir).toBe(path.join(dir, 'a', 'b'));
+    } finally { await fs.remove(dir); }
+  });
+});

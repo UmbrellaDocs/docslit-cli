@@ -110,8 +110,17 @@ function deepMerge(base, over) {
  * Load mkdocs.yml / zensical.toml from `dir`. INHERIT is followed.
  * @returns {{ cfg, file, dir, error? }}
  */
-export async function loadMkdocsConfig(dir) {
-  const file = await findMkdocsConfigFile(dir);
+export async function loadMkdocsConfig(dir, { file: explicit = null } = {}) {
+  let file;
+  if (explicit) {
+    // explicit config file (relative to `dir` or absolute): the config dir is the file's directory, as in MkDocs
+    const abs0 = path.resolve(dir, explicit);
+    if (!(await fs.pathExists(abs0))) return { cfg: null, file: explicit, dir, error: 'file not found' };
+    dir = path.dirname(abs0);
+    file = path.basename(abs0);
+  } else {
+    file = await findMkdocsConfigFile(dir);
+  }
   if (!file) return { cfg: null, file: null, dir, error: 'no mkdocs.yml, mkdocs.yaml or zensical.toml' };
   const abs = path.join(dir, file);
   try {

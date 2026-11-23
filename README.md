@@ -172,7 +172,7 @@ Full guides and a table of every component conversion are in the [DocsLit docume
 | `<Visibility for="agents">` / Fern `<llms-only>` | `<wc-if for="agents">` |
 | `import X from '/snippets/x.mdx'` | `docs/_reusables/x.md` + `<wc-include src="x.md" />` |
 
-**MkDocs, Material for MkDocs and Zensical** (`mkdocs.yml` or `zensical.toml`) are converted too:
+**MkDocs, Material for MkDocs and Zensical** (`mkdocs.yml`, `mkdocs-*.yml`, `docs/mkdocs.yml` or `zensical.toml`; use `--config <file>` to pick another config) are converted too:
 
 | MkDocs / Material | DocsLit |
 |---|---|

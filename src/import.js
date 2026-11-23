@@ -26,6 +26,25 @@ const VENDORS = ['mintlify', 'fern', 'gitbook', 'mkdocs'];
 const KEY_ORDER = ['$schema', 'name', 'description', 'url', 'basePath', 'logo', 'favicon', 'theme', 'layout', 'navbar', 'tabs', 'sidebar', 'anchors', 'footer', 'announcement', 'contextual', 'analytics', 'feedback', 'redirects', 'head', 'css', 'openapi', 'icons', 'attributes'];
 
 // ─── detection ────────────────────────────────────────────────────────────────
+// mkdocs-online.yml, mkdocs-offline.yml, ... at the top level, or docs/mkdocs.yml. Nav-only fragments
+// (no site_name and no INHERIT) are skipped. Ties: names with "online" first, then shortest, then alphabetical.
+async function findAltMkdocsConfig(dir) {
+  let names = [];
+  try { names = await fs.readdir(dir); } catch { return null; }
+  const cands = [];
+  for (const n of names) {
+    if (!/^mkdocs.*\.ya?ml$/i.test(n) || n === 'mkdocs.yml' || n === 'mkdocs.yaml') continue;
+    try {
+      const txt = await fs.readFile(path.join(dir, n), 'utf8');
+      if (/^\s*(site_name|INHERIT)\s*:/m.test(txt)) cands.push(n);
+    } catch { /* unreadable: skip */ }
+  }
+  cands.sort((a, b) => (Number(/online/i.test(b)) - Number(/online/i.test(a))) || a.length - b.length || a.localeCompare(b));
+  if (cands.length) return cands[0];
+  for (const n of ['docs/mkdocs.yml', 'docs/mkdocs.yaml']) if (await fs.pathExists(path.join(dir, n))) return n;
+  return null;
+}
+
 export async function detectFormat(dir) {
   const has = (rel) => fs.pathExists(path.join(dir, rel));
   if (await has('docs.json') || await has('mint.json')) return { format: 'mintlify', why: (await has('docs.json')) ? 'docs.json' : 'mint.json (legacy)' };
@@ -35,6 +54,8 @@ export async function detectFormat(dir) {
   for (const ext of ['js', 'ts', 'mjs', 'mts', 'cjs']) if (await has(`docusaurus.config.${ext}`)) return { format: 'docusaurus', why: `docusaurus.config.${ext}` };
   if (await has('mkdocs.yml') || await has('mkdocs.yaml')) return { format: 'mkdocs', why: (await has('mkdocs.yml')) ? 'mkdocs.yml' : 'mkdocs.yaml' };
   if (await has('zensical.toml')) return { format: 'mkdocs', why: 'zensical.toml (Zensical)' };
+  const alt = await findAltMkdocsConfig(dir);
+  if (alt) return { format: 'mkdocs', why: alt, config: alt };
   if (await has('conf.py')) return { format: 'sphinx', why: 'conf.py' };
   return { format: 'generic', why: 'no known config file' };
 }
@@ -57,7 +78,7 @@ const isSnippetPath = (f) => /(^|\/)(snippets|_snippets)\//.test(f);
 
 // ─── programmatic API ─────────────────────────────────────────────────────────
 export async function runImport(options) {
-  const { sourceDir: srcIn, outDir: outIn, from = null, dryRun = false, themeOpt, force = false, versions = 'tabs', fetchText: fetchOpt, log = () => {}, validateOutput = true } = options;
+  const { sourceDir: srcIn, outDir: outIn, from: fromOpt = null, config: configOpt = null, dryRun = false, themeOpt, force = false, versions = 'tabs', fetchText: fetchOpt, log = () => {}, validateOutput = true } = options;
   const sourceDir = path.resolve(srcIn);
   const outDir = path.resolve(outIn);
   if (!(await fs.pathExists(sourceDir))) throw new ImportError(`Source directory not found: ${sourceDir}`);
@@ -67,7 +88,10 @@ export async function runImport(options) {
     if (existing.length && !force) throw new ImportError(`Output directory is not empty: ${outDir} (use --force to overwrite, or --out another folder)`);
   }
 
-  const detected = from ? { format: from, why: `--from ${from}` } : await detectFormat(sourceDir);
+  const from = configOpt ? 'mkdocs' : fromOpt;
+  if (configOpt && fromOpt && fromOpt !== 'mkdocs') throw new ImportError('--config is only valid for MkDocs (--from mkdocs).');
+  const detected = configOpt ? { format: 'mkdocs', why: `--config ${configOpt}`, config: configOpt }
+    : from ? { format: from, why: `--from ${from}` } : await detectFormat(sourceDir);
   const vendor = VENDORS.includes(detected.format) ? detected.format : 'generic';
   log(`Detected: ${FORMAT_LABEL[detected.format] || detected.format} (${detected.why})`);
 
@@ -79,9 +103,9 @@ export async function runImport(options) {
   if (vendor === 'gitbook') { gitbook = await findGitbookRoot(sourceDir); root = gitbook.root; }
   let mk = null;
   if (vendor === 'mkdocs') {
-    mk = await loadMkdocsConfig(sourceDir);
+    mk = await loadMkdocsConfig(sourceDir, detected.config ? { file: detected.config } : {});
     if (!mk.cfg) throw new ImportError(`Could not read ${mk.file || 'mkdocs.yml'}: ${mk.error}`);
-    root = path.resolve(sourceDir, String(mk.cfg.docs_dir || 'docs'));
+    root = path.resolve(mk.dir, String(mk.cfg.docs_dir || 'docs'));
     if (!(await fs.pathExists(root))) throw new ImportError(`docs_dir "${mk.cfg.docs_dir || 'docs'}" from ${mk.file} was not found.`);
   }
   const imp = new Importer({ sourceDir: root, outDir, vendor, opts: { versions }, fetchText });
@@ -340,7 +364,7 @@ export async function convertMdxSource(source, { from = 'mintlify', file = 'page
 // ─── CLI ──────────────────────────────────────────────────────────────────────
 function parseImportArgs(args) {
   const o = { positional: [], flags: new Set(), opts: {} };
-  const withValue = new Set(['--out', '--from', '--theme', '--versions']);
+  const withValue = new Set(['--out', '--from', '--config', '--theme', '--versions']);
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a.startsWith('--')) {
@@ -358,13 +382,14 @@ export async function importDocs(args) {
   const outDir = path.resolve(process.cwd(), p.opts['--out'] ?? sourceDir.replace(/\/$/, '') + '-docslit');
   const from = p.opts['--from'] || null;
   if (from && !VENDORS.includes(from)) { console.error(pc.red(`  Error: --from must be mintlify, fern, gitbook or mkdocs (got "${from}").`)); process.exit(1); }
+  const config = p.opts['--config'] ? path.resolve(process.cwd(), p.opts['--config']) : null;
   const versions = p.opts['--versions'] || 'tabs';
   if (!['tabs', 'latest'].includes(versions)) { console.error(pc.red('  Error: --versions must be tabs or latest.')); process.exit(1); }
   const say = (s) => { if (!json) console.log(s); };
   say(`\n  ${pc.bold('DocsLit')} — importing from ${pc.cyan(path.relative(process.cwd(), sourceDir) || '.')}`);
   let report;
   try {
-    report = await runImport({ sourceDir, outDir, from, dryRun: p.flags.has('--dry-run'), themeOpt: p.opts['--theme'] || null, noTheme: p.flags.has('--no-theme'), force: p.flags.has('--force'), versions, log: (m) => say(`  ${m}`) });
+    report = await runImport({ sourceDir, outDir, from, config, dryRun: p.flags.has('--dry-run'), themeOpt: p.opts['--theme'] || null, noTheme: p.flags.has('--no-theme'), force: p.flags.has('--force'), versions, log: (m) => say(`  ${m}`) });
   } catch (e) {
     if (e instanceof ImportError) {
       if (json) console.log(JSON.stringify({ tool: 'docslit import', ok: false, error: e.message }, null, 2));

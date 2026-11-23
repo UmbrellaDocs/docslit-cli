@@ -65,7 +65,7 @@ if (command === 'init') {
   const restArgs = args.slice(1);
   if (!restArgs[0] || restArgs[0].startsWith('--')) {
     console.error('  Error: Please provide a source directory.\n');
-    console.error('  Usage: docslit import <source-dir> [--from mintlify|fern|gitbook|mkdocs] [--out <dir>] [--dry-run] [--theme <name>|--no-theme] [--json] [--force]\n');
+    console.error('  Usage: docslit import <source-dir> [--from mintlify|fern|gitbook|mkdocs] [--config <mkdocs-file>] [--out <dir>] [--dry-run] [--theme <name>|--no-theme] [--json] [--force]\n');
     process.exit(1);
   }
   const { importDocs } = await import('../src/import.js');

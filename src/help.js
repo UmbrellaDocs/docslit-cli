@@ -52,6 +52,7 @@ export const COMMANDS = [
     options: [
       ['--out <dir>', 'Output directory (default: <source-dir>-docslit). Never the source dir; refused when not empty unless --force'],
       ['--from <mintlify|fern|gitbook|mkdocs>', 'Skip auto-detection and treat the source as this format'],
+      ['--config <file>', 'MkDocs config to use (relative to the current directory or absolute, e.g. docs/mkdocs.yml or mkdocs-online.yml); implies --from mkdocs. Without it, mkdocs-*.yml and docs/mkdocs.yml are detected'],
       ['--dry-run', 'Convert and report everything without writing files'],
       ['--theme <name>', 'Built-in theme to apply (default: peppermint for Mintlify, frond for Fern), plus the source brand colours'],
       ['--no-theme', 'Do not select a built-in theme (brand colours are still applied)'],
