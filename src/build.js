@@ -2,8 +2,11 @@ import path from 'path';
 import fs from 'fs-extra';
 import pc from 'picocolors';
 import { fileURLToPath } from 'url';
-import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionSidebar, getChangedDocs, gitReadFile } from './config.js';
+import { loadConfig, getAllPageIds, getVersionConfig, getOpenAPIConfig, getVersionNavigation, getChangedDocs, gitReadFile } from './config.js';
 import { parseDoc } from './markdown.js';
+import { sidebarLabel } from './sidebar.js';
+import { hasTabs, tabIdForPage, tabLandingId, walkPages, pageNavMeta, isNoindexMeta, isSearchableMeta, collectHiddenIds } from './navigation.js';
+import { pageClientInfo, withApiTab } from './nav-chrome.js';
 import { renderShell, renderPage, buildStylesFile, buildComponentsFile, buildAppFile, buildOfflineThemeInitFile, buildOfflineAppFile, isEsbuildAvailable } from './template.js';
 import { resolveSiteTheme } from './themes.js';
 import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
@@ -17,7 +20,7 @@ import {
   getVersionPathPrefix,
   prependAgentDirectiveToMarkdown,
 } from './agent-docs.js';
-import { normalizeBasePath, withBasePath } from './site-config.js';
+import { normalizeBasePath, withBasePath, logoFiles } from './site-config.js';
 import { collectRedirects, writeRedirectArtifacts } from './redirects.js';
 import { writeFeeds } from './feeds.js';
 import { generateOgImage, ogColorsFromTheme } from './og-image.js';
@@ -25,6 +28,7 @@ import { buildSearchEntries } from './search-index.js';
 import { getI18nConfig, localeDocsDir, getSidebarForLocale, discoverLocales, localeUrlPrefix } from './i18n.js';
 import { loadHooks } from './hooks.js';
 import { getPageLastmods } from './git-dates.js';
+import { pagesUseMath, writeKatexAssets } from './math.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,9 +41,40 @@ function preparePdfManifest(config, pagesData, pdfOptions) {
 function buildTitleMap(pagesData) {
   const map = {};
   for (const [id, { meta }] of Object.entries(pagesData)) {
-    if (meta.title) map[id] = meta.title;
+    const label = sidebarLabel(meta);
+    if (label) map[id] = label;
   }
   return map;
+}
+
+/** Sidebar-relevant frontmatter (icon, badge, availability, hidden) per page id. */
+function buildNavMeta(pagesData) {
+  const map = {};
+  for (const [id, { meta }] of Object.entries(pagesData)) {
+    const m = pageNavMeta(meta);
+    if (Object.keys(m).length) map[id] = m;
+  }
+  return map;
+}
+
+/** Ids that are built and linkable but kept out of the sidebar, search, llms.txt and the sitemap. */
+function indexExcludedIds(config, pagesData) {
+  const out = collectHiddenIds(config.sidebar);
+  for (const [id, { meta }] of Object.entries(pagesData)) if (isNoindexMeta(meta)) out.add(id);
+  return out;
+}
+
+/** First page that should be the site's entry point: a visible page, falling back to any page. */
+function firstVisibleId(config, pagesData) {
+  const ids = Object.keys(pagesData);
+  const hidden = indexExcludedIds(config, pagesData);
+  if (hasTabs(config)) {
+    for (const tab of config.tabs) {
+      const landing = tabLandingId(tab, hidden);
+      if (landing && pagesData[landing]) return landing;
+    }
+  }
+  return ids.find((id) => !hidden.has(id)) || ids[0];
 }
 
 function getRuntimeAttributes(config, version = null, branch = null) {
@@ -66,14 +101,33 @@ function _pageFileName(id) {
 }
 
 function _writePageJs(outDir, id, data) {
+  // data: { meta, html, nav } — `nav` carries the page's tab/layout switches for the offline runtime.
   const file = path.join(outDir, 'pages', _pageFileName(id));
   const js = `(window.__DOCSLIT_PAGES__=window.__DOCSLIT_PAGES__||{})[${JSON.stringify(id)}]=${JSON.stringify(data)};`;
   return fs.ensureDir(path.dirname(file)).then(() => fs.writeFile(file, js));
 }
 
+/** Build-time page warning (e.g. invalid TeX). Printed, never fatal. */
+function warnPage({ file, line, message }) {
+  const where = file ? `${path.isAbsolute(file) ? path.relative(process.cwd(), file) : file}${line ? `:${line}` : ''}` : '';
+  console.log(`  ${pc.yellow('⚠')} ${where ? `${where}  ` : ''}${message}`);
+}
+
+// Copy configured logo/favicon/css to the same relative path the HTML references
+// (dev serves them from the project root, so "assets/logo.png" -> /assets/logo.png).
+function _assetDest(p) {
+  const rel = path.posix.normalize(String(p).replace(/\\/g, '/').replace(/^\/+/, ''));
+  return rel.startsWith('..') ? path.basename(rel) : rel;
+}
+
 function _writeSearchIndexJs(outDir, searchIndex) {
   const js = `window.__DOCSLIT_SEARCH_INDEX__=${JSON.stringify(searchIndex)};`;
-  return fs.writeFile(path.join(outDir, 'search-index.js'), js);
+  // Offline pages load FlexSearch as a classic script (modules can't load on file://).
+  const iife = path.join(__dirname, 'vendor', 'flexsearch.iife.js');
+  return Promise.all([
+    fs.writeFile(path.join(outDir, 'search-index.js'), js),
+    fs.pathExists(iife).then(ok => ok && fs.copyFile(iife, path.join(outDir, 'flexsearch.iife.js'))),
+  ]);
 }
 
 const VENDOR_FILES = {
@@ -146,7 +200,7 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   if (config.favicon) {
     const faviconFile = path.resolve(cwd, config.favicon);
     if (await fs.pathExists(faviconFile)) {
-      await fs.copyFile(faviconFile, path.join(outDir, path.basename(config.favicon)));
+      await fs.copy(faviconFile, path.join(outDir, _assetDest(config.favicon)));
       console.log(`  ${pc.green('✓')} Copied custom favicon ${config.favicon}`);
     }
   }
@@ -155,24 +209,27 @@ export async function build({ out = 'dist', offline = false, minify = true, pdf 
   if (config.css) {
     const cssFile = path.resolve(cwd, config.css);
     if (await fs.pathExists(cssFile)) {
-      await fs.copyFile(cssFile, path.join(outDir, path.basename(config.css)));
+      await fs.copy(cssFile, path.join(outDir, _assetDest(config.css)));
       console.log(`  ${pc.green('✓')} Copied custom CSS ${config.css}`);
     }
   }
 
-  if (config.logo) {
-    const logoFile = path.resolve(cwd, config.logo);
+  for (const logo of logoFiles(config)) {
+    const logoFile = path.resolve(cwd, logo);
     if (await fs.pathExists(logoFile)) {
-      await fs.copyFile(logoFile, path.join(outDir, path.basename(config.logo)));
-      console.log(`  ${pc.green('✓')} Copied logo ${config.logo}`);
+      await fs.copy(logoFile, path.join(outDir, _assetDest(logo)));
+      console.log(`  ${pc.green('✓')} Copied logo ${logo}`);
     } else {
-      console.log(`  ${pc.yellow('⚠')} Logo file not found: ${config.logo}`);
+      console.log(`  ${pc.yellow('⚠')} Logo file not found: ${logo}`);
     }
   }
 
-  // Copy FlexSearch vendor bundle
+  // Copy FlexSearch vendor bundle (ESM, loaded via import() by online builds).
+  // Offline builds load flexsearch.iife.js instead (see _writeSearchIndexJs), and
+  // versioned builds load the copy inside <version>/ (the search base is the version
+  // dir), so a root copy would be dead weight in both.
   const flexSearchSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
-  if (await fs.pathExists(flexSearchSrc)) {
+  if (!offline && !versionConfig && await fs.pathExists(flexSearchSrc)) {
     await fs.copyFile(flexSearchSrc, path.join(outDir, 'flexsearch.js'));
   }
 
@@ -235,6 +292,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     if (!await fs.pathExists(mdPath)) return { id, notFound: true };
     const raw = await fs.readFile(mdPath, 'utf8');
     const parsed = await parseDoc(raw, {
+      onWarning: warnPage,
       docsRoot: path.join(cwd, 'docs'),
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config),
@@ -286,20 +344,23 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
   const skippedNote = failed ? pc.yellow(` (${failed} skipped)`) : '';
   const draftNote = drafts ? pc.dim(` (${drafts} draft${drafts !== 1 ? 's' : ''} hidden)`) : '';
   const titleMap = buildTitleMap(pagesData);
+  const navMeta = buildNavMeta(pagesData);
+  const navConfig = withApiTab(config, !!specData);
   const pdfManifest = !offline ? preparePdfManifest(config, pagesData, pdfOptions) : null;
 
   // Generate OG images
   const ogColors = ogColorsFromTheme(siteTheme);
   const siteName = config.name || 'Documentation';
 
+  if (pagesUseMath(pagesData)) await writeKatexAssets(outDir);
   if (offline) {
     const vendorData = await _loadVendorData();
     const searchIndex = buildSearchIndex(config, pagesData);
-    const indexHtml = await renderShell({ config, siteTheme, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData, titleMap });
+    const indexHtml = await renderShell({ config, siteTheme, mode: 'static', out, offline: true, draftPageIds, minify, specData, apiMeta, vendorData, titleMap, navMeta });
     await Promise.all([
       fs.writeFile(path.join(outDir, 'index.html'), indexHtml),
       _writeSearchIndexJs(outDir, searchIndex),
-      ...Object.entries(pagesData).map(([id, { meta, html }]) => _writePageJs(outDir, id, { meta, html })),
+      ...Object.entries(pagesData).map(([id, { meta, html }]) => _writePageJs(outDir, id, { meta, html, nav: pageClientInfo(navConfig, id, meta) })),
     ]);
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} (offline)${draftNote}${skippedNote}`);
   } else {
@@ -328,14 +389,14 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
       const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
       const safeId = id.replace(/\//g, '--');
       const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
-      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null, pdfManifest, ogImagePath, titleMap });
+      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, specData: (isApiPage || isHybrid) ? specData : null, apiMeta: (isApiPage || isHybrid) ? apiMeta : null, pdfManifest, ogImagePath, titleMap, navMeta });
       const destHtml = path.join(outDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
     }
 
     if (publishedIds.length) {
-      await fs.copyFile(path.join(outDir, `${publishedIds[0]}.html`), path.join(outDir, 'index.html'));
+      await fs.copyFile(path.join(outDir, `${firstVisibleId(config, pagesData)}.html`), path.join(outDir, 'index.html'));
     }
 
     console.log(`  ${pc.green('✓')} Built ${built} page${built !== 1 ? 's' : ''} + shared assets${draftNote}${skippedNote}`);
@@ -348,7 +409,7 @@ async function buildSingle({ config, cwd, outDir, out, offline, minify, pdfOptio
     await generateRobotsTxt({ config, outDir });
     await generateSitemap({ config, pagesData, outDir, lastmods });
     await generateMarkdownMiddleware({ pageIds: Object.keys(pagesData), outDir, cwd, basePath });
-    await generateAgentJson({ config, pageIds: Object.keys(pagesData), outDir });
+    await generateAgentJson({ config, pageIds: Object.keys(pagesData), pagesData, outDir });
     await generateMcpServer({ config, pagesData, outDir });
 
     // Redirects
@@ -434,6 +495,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     if (!await fs.pathExists(mdPath)) return null;
     const raw = await fs.readFile(mdPath, 'utf8');
     const parsed = await parseDoc(raw, {
+      onWarning: warnPage,
       docsRoot: path.join(cwd, 'docs'),
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config, defaultVersion, defaultBranch),
@@ -466,21 +528,26 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   const sharedApp = offline ? null : buildAppFile('static', { minify });
   const vendorData = offline ? await _loadVendorData() : null;
   const defaultTitleMap = buildTitleMap(defaultPagesData);
+  const defaultNavMeta = buildNavMeta(defaultPagesData);
+  const defaultNavConfig = withApiTab(config, !!specData);
   const defaultPdfManifest = !offline ? preparePdfManifest(config, defaultPagesData, pdfOptions) : null;
 
+  if (pagesUseMath(defaultPagesData)) await writeKatexAssets(defaultDir);
+  // pages are served from /<version>/..., so their relative image / poster / download paths resolve inside the version dir
+  await copyDocsMedia(path.join(cwd, 'docs'), defaultDir, { locales: false, quiet: true });
   if (offline) {
     await fs.ensureDir(defaultDir);
     const defaultShell = await renderShell({
       config, siteTheme, mode: 'static', out, draftPageIds,
       versionConfig, currentVersion: defaultVersion,
       offline: true, minify,
-      specData, apiMeta, vendorData, titleMap: defaultTitleMap,
+      specData, apiMeta, vendorData, titleMap: defaultTitleMap, navMeta: defaultNavMeta,
     });
     const searchIndex = buildSearchIndex(config, defaultPagesData);
     await Promise.all([
       fs.writeFile(path.join(defaultDir, 'index.html'), defaultShell),
       _writeSearchIndexJs(defaultDir, searchIndex),
-      ...Object.entries(defaultPagesData).map(([id, { meta, html }]) => _writePageJs(defaultDir, id, { meta, html })),
+      ...Object.entries(defaultPagesData).map(([id, { meta, html }]) => _writePageJs(defaultDir, id, { meta, html, nav: pageClientInfo(defaultNavConfig, id, meta) })),
     ]);
   } else {
     await fs.writeFile(path.join(defaultDir, 'docslit.css'), sharedCss);
@@ -509,14 +576,14 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
       const safeId = id.replace(/\//g, '--');
       const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
-      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null, pdfManifest: defaultPdfManifest, ogImagePath, titleMap: defaultTitleMap });
+      const pageHtml = await renderPage({ config, siteTheme, id, meta, html, draftPageIds, versionConfig, currentVersion: defaultVersion, specData: (isApiPage || defaultIsHybrid) ? specData : null, apiMeta: (isApiPage || defaultIsHybrid) ? apiMeta : null, pdfManifest: defaultPdfManifest, ogImagePath, titleMap: defaultTitleMap, navMeta: defaultNavMeta });
       const destHtml = path.join(defaultDir, `${id}.html`);
       await fs.ensureDir(path.dirname(destHtml));
       await fs.writeFile(destHtml, pageHtml);
     }
 
     if (publishedIds.length) {
-      await fs.copyFile(path.join(defaultDir, `${publishedIds[0]}.html`), path.join(defaultDir, 'index.html'));
+      await fs.copyFile(path.join(defaultDir, `${firstVisibleId(config, defaultPagesData)}.html`), path.join(defaultDir, 'index.html'));
     }
     await generateLlmsTxt({ config, pagesData: defaultPagesData, outDir: defaultDir, version: defaultVersion });
     if (pdfOptions.enabled) {
@@ -525,6 +592,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
   }
 
   console.log(`  ${pc.green('✓')} ${defaultVersion}: ${built} pages (full build)`);
+  // Page lists per version for the generated mcp-server.js (files live in <version>/).
+  const versionPages = { [defaultVersion]: pageListOf(defaultPagesData, config) };
 
   // Build non-default versions — only changed pages
   for (const entry of versionConfig.list) {
@@ -532,8 +601,10 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     const versionDir = path.join(outDir, entry.version);
     const versionBranch = entry.branch;
 
-    const versionSidebar = await getVersionSidebar(versionBranch, cwd);
-    const versionConf = { ...config, sidebar: versionSidebar.length ? versionSidebar : config.sidebar };
+    const versionNav = await getVersionNavigation(versionBranch, cwd);
+    const versionConf = versionNav.sidebar.length
+      ? { ...config, sidebar: versionNav.sidebar, tabs: versionNav.tabs || undefined }
+      : config;
     const versionPageIds = getAllPageIds(versionConf);
     const changedSlugs = new Set(await getChangedDocs(defaultBranch, versionBranch, cwd));
     const manifest = {};
@@ -558,6 +629,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
           return fromGit != null;
         };
         let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+      onWarning: warnPage,
           docsRoot: path.join(cwd, 'docs'),
           pagePath: `docs/${id}.md@${versionBranch}`,
           globalAttributes: getRuntimeAttributes(config, entry.version, versionBranch),
@@ -584,20 +656,24 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     }
 
     await fs.ensureDir(versionDir);
+    await copyDocsMedia(path.join(cwd, 'docs'), versionDir, { locales: false, quiet: true });
+    if (pagesUseMath(versionPagesData)) await writeKatexAssets(versionDir);
     const versionTitleMap = buildTitleMap(versionPagesData);
+    const versionNavMeta = buildNavMeta(versionPagesData);
+    const versionNavConfig = withApiTab(versionConf, !!specData);
 
     if (offline) {
       const versionShell = await renderShell({
         config: versionConf, siteTheme, mode: 'static', out, draftPageIds: [],
         versionConfig, currentVersion: entry.version,
         offline: true, minify,
-        specData, apiMeta, vendorData, titleMap: versionTitleMap,
+        specData, apiMeta, vendorData, titleMap: versionTitleMap, navMeta: versionNavMeta,
       });
       const vSearchIndex = buildSearchIndex(versionConf, versionPagesData);
       await Promise.all([
         fs.writeFile(path.join(versionDir, 'index.html'), versionShell),
         _writeSearchIndexJs(versionDir, vSearchIndex),
-        ...Object.entries(versionPagesData).map(([id, { meta, html }]) => _writePageJs(versionDir, id, { meta, html })),
+        ...Object.entries(versionPagesData).map(([id, { meta, html }]) => _writePageJs(versionDir, id, { meta, html, nav: pageClientInfo(versionNavConfig, id, meta) })),
       ]);
     } else {
       await fs.writeFile(path.join(versionDir, 'docslit.css'), sharedCss);
@@ -611,14 +687,14 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       const versionPdfManifest = preparePdfManifest(versionConf, versionPagesData, pdfOptions);
       for (const [id, { meta, html }] of Object.entries(versionPagesData)) {
         const isApiPage = id.startsWith('api/') || meta.layout === 'api';
-        const pageHtml = await renderPage({ config: versionConf, siteTheme, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null, pdfManifest: versionPdfManifest, titleMap: versionTitleMap });
+        const pageHtml = await renderPage({ config: versionConf, siteTheme, id, meta, html, draftPageIds: [], versionConfig, currentVersion: entry.version, specData: (isApiPage || vIsHybrid) ? specData : null, apiMeta: (isApiPage || vIsHybrid) ? apiMeta : null, pdfManifest: versionPdfManifest, titleMap: versionTitleMap, navMeta: versionNavMeta });
         const destHtml = path.join(versionDir, `${id}.html`);
         await fs.ensureDir(path.dirname(destHtml));
         await fs.writeFile(destHtml, pageHtml);
       }
 
       if (vPublishedIds.length) {
-        await fs.copyFile(path.join(versionDir, `${vPublishedIds[0]}.html`), path.join(versionDir, 'index.html'));
+        await fs.copyFile(path.join(versionDir, `${firstVisibleId(versionConf, versionPagesData)}.html`), path.join(versionDir, 'index.html'));
       }
       if (pdfOptions.enabled) {
         await generatePdfs({ outDir: versionDir, config: versionConf, pagesData: versionPagesData, pdfOptions });
@@ -630,11 +706,12 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
       await generateLlmsTxt({ config: versionConf, pagesData: versionPagesData, outDir: versionDir, version: entry.version });
     }
 
+    versionPages[entry.version] = pageListOf(versionPagesData, versionConf);
     console.log(`  ${pc.green('✓')} ${entry.version}: ${vBuilt} changed page${vBuilt !== 1 ? 's' : ''} built, ${Object.keys(manifest).length - vBuilt} shared from ${defaultVersion}`);
   }
 
   // Root index.html redirects to default version
-  const defaultFirstId = Object.keys(defaultPagesData)[0] || 'introduction';
+  const defaultFirstId = firstVisibleId(config, defaultPagesData) || 'introduction';
   const redirectUrl = offline
     ? `${defaultVersion}/index.html#${defaultFirstId}`
     : `/${defaultVersion}/${defaultFirstId}`;
@@ -652,8 +729,8 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
     await generateSitemap({ config, pagesData: allPagesData, outDir, versionConfig, defaultVersion, lastmods });
     const allPageIds = Object.keys(allPagesData);
     await generateMarkdownMiddleware({ pageIds: allPageIds, outDir, cwd, versionConfig, basePath });
-    await generateAgentJson({ config, pageIds: allPageIds, outDir, versionConfig });
-    await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig });
+    await generateAgentJson({ config, pageIds: allPageIds, pagesData: allPagesData, outDir, versionConfig });
+    await generateMcpServer({ config, pagesData: allPagesData, outDir, versionConfig, versionPages });
 
     // Redirects
     const redirects = collectRedirects(config, allPagesData, basePath);
@@ -693,39 +770,23 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, offline
 
 function buildSearchIndex(config, pagesData) {
   const index = [];
-  function collectPages(pages, groupName) {
-    for (const item of (pages || [])) {
-      if (typeof item === 'string') {
-        if (!pagesData[item]) continue;
-        const { meta, html } = pagesData[item];
-        const entries = buildSearchEntries({
-          id: item,
-          title: meta.title || toLabel(item),
-          group: groupName,
-          desc: meta.description || meta.desc || '',
-          html: html || '',
-          markdown: pagesData[item].preprocessedMarkdown || meta.description || '',
-        });
-        index.push(...entries);
-      } else if (item.id) {
-        if (!pagesData[item.id]) continue;
-        const { meta, html } = pagesData[item.id];
-        const entries = buildSearchEntries({
-          id: item.id,
-          title: meta.title || item.title || toLabel(item.id),
-          group: groupName,
-          desc: meta.description || meta.desc || '',
-          html: html || '',
-          markdown: pagesData[item.id].preprocessedMarkdown || meta.description || '',
-        });
-        index.push(...entries);
-      } else if (item.pages) {
-        collectPages(item.pages, groupName);
-      }
-    }
-  }
-  for (const group of (config.sidebar || [])) {
-    collectPages(group.pages, group.group || 'Pages');
+  const excluded = indexExcludedIds(config, pagesData);
+  const seen = new Set();
+  for (const entry of walkPages(config)) {
+    const { id, item } = entry;
+    if (seen.has(id) || !pagesData[id] || excluded.has(id) || !isSearchableMeta(pagesData[id].meta)) continue;
+    seen.add(id);
+    const { meta, html } = pagesData[id];
+    const entries = buildSearchEntries({
+      id,
+      title: meta.title || (item && item.title) || toLabel(id),
+      group: entry.group || 'Pages',
+      desc: meta.description || meta.desc || '',
+      html: html || '',
+      markdown: pagesData[id].preprocessedMarkdown || meta.description || '',
+    });
+    if (entry.tabLabel) for (const en of entries) en.tab = entry.tabLabel;
+    index.push(...entries);
   }
   return index;
 }
@@ -746,22 +807,26 @@ async function generateLlmsTxt({ config, pagesData, outDir, version = null }) {
   lines.push(`\n> Raw Markdown for each page is available at ${mdPattern}`);
   lines.push('');
 
-  function collectLlmsPages(pages) {
-    const result = [];
-    for (const item of (pages || [])) {
-      if (typeof item === 'string' && pagesData[item]) result.push(item);
-      else if (typeof item === 'object' && item.id && pagesData[item.id]) result.push(item.id);
-      else if (typeof item === 'object' && item.pages) result.push(...collectLlmsPages(item.pages));
+  const excluded = indexExcludedIds(config, pagesData);
+  // One section per (tab, group): "## Tab — Group" (just "## Group" without tabs).
+  const sections = [];
+  const sectionByKey = new Map();
+  for (const entry of walkPages(config)) {
+    if (!pagesData[entry.id] || excluded.has(entry.id)) continue;
+    const key = `${entry.tab || ''}\u0000${entry.groupIndex}`;
+    let section = sectionByKey.get(key);
+    if (!section) {
+      const title = entry.tabLabel && entry.group ? `${entry.tabLabel} — ${entry.group}` : (entry.tabLabel || entry.group || 'Pages');
+      section = { title, tabLabel: entry.tabLabel || '', group: entry.group || '', ids: [] };
+      sectionByKey.set(key, section);
+      sections.push(section);
     }
-    return result;
+    if (!section.ids.includes(entry.id)) section.ids.push(entry.id);
   }
-  for (const group of (config.sidebar || [])) {
-    const groupPages = collectLlmsPages(group.pages);
-    if (!groupPages.length) continue;
-
-    lines.push(`## ${group.group || 'Pages'}`);
+  for (const section of sections) {
+    lines.push(`## ${section.title}`);
     lines.push('');
-    for (const id of groupPages) {
+    for (const id of section.ids) {
       const { meta } = pagesData[id];
       const title = meta.title || toLabel(id);
       const desc = meta.description || meta.desc || '';
@@ -781,11 +846,9 @@ async function generateLlmsTxt({ config, pagesData, outDir, version = null }) {
   ];
   const searchIndex = [];
 
-  for (const group of (config.sidebar || [])) {
-    const groupName = group.group || 'Pages';
-    const groupPages = collectLlmsPages(group.pages);
-    if (!groupPages.length) continue;
-    for (const id of groupPages) {
+  for (const section of sections) {
+    const groupName = section.group || 'Pages';
+    for (const id of section.ids) {
       const mdPath = path.join(outDir, `${id}.md`);
       const mdPathFallback = path.join(outDir, 'docs', `${id}.md`);
       const resolvedMdPath = await fs.pathExists(mdPath) ? mdPath : mdPathFallback;
@@ -798,13 +861,15 @@ async function generateLlmsTxt({ config, pagesData, outDir, version = null }) {
         fullParts.push('');
 
         const { meta } = pagesData[id];
-        searchIndex.push({
+        const doc = {
           id,
           title: meta.title || toLabel(id),
           group: groupName,
           desc: meta.description || meta.desc || '',
           body: stripFrontmatter(src),
-        });
+        };
+        if (section.tabLabel) doc.tab = section.tabLabel;
+        searchIndex.push(doc);
       }
     }
   }
@@ -889,6 +954,9 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
   }
 
   const today = new Date().toISOString().split('T')[0];
+  // Hidden / noindex pages are built and linkable but stay out of the sitemap.
+  const noIndex = indexExcludedIds(config, pagesData);
+  const sitemapIds = Object.keys(pagesData).filter((id) => !noIndex.has(id));
 
   if (versionConfig) {
     for (const entry of versionConfig.list) {
@@ -899,7 +967,7 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
 
       urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(entry.version)}/</loc>\n    <lastmod>${today}</lastmod>\n    <priority>${priority}</priority>\n  </url>`);
 
-      for (const id of Object.keys(pagesData)) {
+      for (const id of sitemapIds) {
         const lastmod = lastmods[id] || today;
         urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(entry.version)}/${escXml(id)}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <priority>${isDefault ? '0.8' : '0.5'}</priority>\n  </url>`);
       }
@@ -913,7 +981,7 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
 
     urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/</loc>\n    <lastmod>${today}</lastmod>\n    <priority>1.0</priority>\n  </url>`);
 
-    for (const id of Object.keys(pagesData)) {
+    for (const id of sitemapIds) {
       const lastmod = lastmods[id] || today;
       urls.push(`  <url>\n    <loc>${escXml(baseUrl)}/${escXml(id)}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <priority>0.8</priority>\n  </url>`);
     }
@@ -922,11 +990,24 @@ async function generateSitemap({ config, pagesData, outDir, versionConfig = null
     await fs.writeFile(path.join(outDir, 'sitemap.xml'), xml);
   }
 
-  console.log(`  ${pc.green('✓')} Generated sitemap.xml (${Object.keys(pagesData).length} URLs)`);
+  console.log(`  ${pc.green('✓')} Generated sitemap.xml (${sitemapIds.length} URLs)`);
 }
 
 function escXml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+// Cloudflare Pages only reads Functions from <project root>/functions, not from
+// the output dir. We never create that file implicitly (builds must not write
+// into the user's source tree); `docslit deploy --cloudflare` installs it. If a
+// project already has a DocsLit-generated copy (from older versions or deploy),
+// keep it fresh so Accept: text/markdown negotiation does not go stale.
+async function refreshProjectMiddleware(cwd, middleware) {
+  const file = path.join(cwd, 'functions', '_middleware.js');
+  try {
+    const existing = await fs.readFile(file, 'utf8');
+    if (existing.includes('generated by DocsLit')) await fs.writeFile(file, middleware);
+  } catch { /* not present: leave the source tree alone */ }
 }
 
 async function generateMarkdownMiddleware({ pageIds, outDir, cwd, versionConfig = null, basePath = '' }) {
@@ -1006,15 +1087,14 @@ export function onRequest(context) {
     fs.writeFile(path.join(outDir, '_middleware.js'), middleware),
     fs.ensureDir(path.join(outDir, 'functions')).then(() =>
       fs.writeFile(path.join(outDir, 'functions', '_middleware.js'), middleware)),
-    fs.ensureDir(path.join(cwd, 'functions')).then(() =>
-      fs.writeFile(path.join(cwd, 'functions', '_middleware.js'), middleware)),
+    refreshProjectMiddleware(cwd, middleware),
     fs.writeFile(path.join(outDir, '_headers'), headersFile),
     fs.writeFile(path.join(outDir, 'vercel.json'), JSON.stringify(vercelConfig, null, 2) + '\n'),
   ]);
-  console.log(`  ${pc.green('✓')} Generated functions/_middleware.js + _headers + vercel.json (content negotiation for ${mdPaths.size} pages)`);
+  console.log(`  ${pc.green('✓')} Generated _middleware.js, functions/_middleware.js + _headers + vercel.json (content negotiation for ${mdPaths.size} pages)`);
 }
 
-async function generateAgentJson({ config, pageIds, outDir, versionConfig = null }) {
+async function generateAgentJson({ config, pageIds, pagesData = null, outDir, versionConfig = null }) {
   const baseUrl = (config.url || '').replace(/\/$/, '');
   const defaultVersion = versionConfig?.default || null;
   const versionPrefix = getVersionPathPrefix(defaultVersion);
@@ -1036,11 +1116,28 @@ async function generateAgentJson({ config, pageIds, outDir, versionConfig = null
       accept: 'text/markdown',
       description: 'Request any page URL with Accept: text/markdown to receive raw Markdown',
     },
-    pages: pageIds.map(id => ({
-      slug: id,
-      markdown: getMarkdownUrl(config, id, defaultVersion),
-    })),
+    pages: pageIds.map((id) => {
+      const entry = { slug: id, markdown: getMarkdownUrl(config, id, defaultVersion) };
+      if (hasTabs(config)) {
+        const tabId = tabIdForPage(config, id, pagesData?.[id]?.meta);
+        if (tabId) entry.tab = tabId;
+      }
+      if (pagesData?.[id] && isNoindexMeta(pagesData[id].meta)) entry.hidden = true;
+      return entry;
+    }),
   };
+  if (hasTabs(config)) {
+    const hidden = pagesData ? indexExcludedIds(config, pagesData) : new Set();
+    agent.tabs = config.tabs.map((t) => {
+      const out = { id: t.id, label: t.label };
+      if (t.href) out.url = t.href;
+      else {
+        const landing = tabLandingId(t, hidden);
+        if (landing) out.landing = landing;
+      }
+      return out;
+    });
+  }
 
   if (versionConfig) {
     agent.versions = versionConfig.list.map(v => v.version);
@@ -1054,15 +1151,39 @@ async function generateAgentJson({ config, pageIds, outDir, versionConfig = null
   console.log(`  ${pc.green('✓')} Generated .well-known/agent.json`);
 }
 
-async function generateMcpServer({ config, pagesData, outDir, versionConfig = null }) {
+/**
+ * Generates a dependency-free stdio MCP server next to the built site.
+ *
+ * The server sits at the output root. For unversioned sites the Markdown pages
+ * (<id>.md) and search-index.json live right next to it; for versioned builds
+ * they live in <version>/ (and non-default versions only carry pages that changed,
+ * the rest are shared with the default version via <version>/_manifest.json), so
+ * the server is version-aware: every tool takes an optional `version` argument and
+ * defaults to the build's default version.
+ */
+function pageListOf(data, config = null) {
+  const tabs = config && hasTabs(config) ? new Map(config.tabs.map((t) => [t.id, t.label])) : null;
+  return Object.keys(data).map((id) => {
+    const entry = {
+      id,
+      title: data[id].meta.title || toLabel(id),
+      desc: data[id].meta.description || data[id].meta.desc || '',
+    };
+    if (tabs) {
+      const tabId = tabIdForPage(config, id, data[id].meta);
+      if (tabId && tabs.has(tabId)) entry.tab = tabs.get(tabId);
+    }
+    return entry;
+  });
+}
+
+async function generateMcpServer({ config, pagesData, outDir, versionConfig = null, versionPages = null }) {
   const siteTitle = config.name || 'Documentation';
   const siteDesc = config.description || '';
-  const pageIds = Object.keys(pagesData);
-  const pages = pageIds.map(id => ({
-    id,
-    title: pagesData[id].meta.title || toLabel(id),
-    desc: pagesData[id].meta.description || pagesData[id].meta.desc || '',
-  }));
+  const versioned = !!(versionConfig && versionPages && Object.keys(versionPages).length);
+  const pages = versioned ? null : pageListOf(pagesData, config);
+  const defaultVersion = versioned ? (versionConfig.default || Object.keys(versionPages)[0]) : null;
+  const pageCount = versioned ? (versionPages[defaultVersion] || []).length : pages.length;
 
   const server = `#!/usr/bin/env node
 // MCP server for ${siteTitle} — generated by DocsLit
@@ -1078,35 +1199,80 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const SITE = ${JSON.stringify(siteTitle)};
 const DESCRIPTION = ${JSON.stringify(siteDesc)};
+// Unversioned sites: PAGES + files next to this script.
+// Versioned sites: VERSION_PAGES[version] + files under <version>/.
 const PAGES = ${JSON.stringify(pages)};
+const VERSION_PAGES = ${JSON.stringify(versioned ? versionPages : null)};
+const DEFAULT_VERSION = ${JSON.stringify(defaultVersion)};
 
-let searchIndex = null;
+const searchIndexes = new Map();
 
-async function loadSearchIndex() {
-  if (searchIndex) return searchIndex;
-  try {
-    const raw = await readFile(join(__dirname, 'search-index.json'), 'utf8');
-    searchIndex = JSON.parse(raw);
-  } catch {
-    searchIndex = [];
+class ToolFailure extends Error {}
+
+/** Resolve the requested version (default: the build's default). null for unversioned sites. */
+function resolveVersion(args) {
+  if (!VERSION_PAGES) return null;
+  const v = args.version === undefined || args.version === null || args.version === '' ? DEFAULT_VERSION : String(args.version);
+  if (!Object.prototype.hasOwnProperty.call(VERSION_PAGES, v)) {
+    throw new ToolFailure(\`Unknown version "\${v}". Available versions: \${Object.keys(VERSION_PAGES).join(', ')} (default: \${DEFAULT_VERSION}).\`);
   }
-  return searchIndex;
+  return v;
 }
 
-async function getPage(id) {
-  const mdPath = join(__dirname, id + '.md');
+function pagesFor(version) {
+  return version === null ? PAGES : VERSION_PAGES[version];
+}
+
+function dirFor(version) {
+  return version === null ? __dirname : join(__dirname, version);
+}
+
+async function readJsonFile(file) {
   try {
-    return await readFile(mdPath, 'utf8');
+    return JSON.parse(await readFile(file, 'utf8'));
   } catch {
     return null;
   }
 }
 
+async function loadSearchIndex(version) {
+  const key = version === null ? '' : version;
+  if (searchIndexes.has(key)) return searchIndexes.get(key);
+  const index = (await readJsonFile(join(dirFor(version), 'search-index.json'))) || [];
+  searchIndexes.set(key, index);
+  return index;
+}
+
+async function getPage(id, version) {
+  const slug = String(id || '').trim().replace(/^\\/+/, '').replace(/\\.md$/, '');
+  // Only serve pages that exist in this version's page list (also blocks path traversal).
+  if (!pagesFor(version).some((p) => p.id === slug)) return null;
+  const dirs = [dirFor(version)];
+  if (version !== null) {
+    // Non-default versions only contain changed pages; others are shared (see _manifest.json).
+    const manifest = await readJsonFile(join(dirFor(version), '_manifest.json'));
+    if (manifest && manifest[slug] && manifest[slug] !== version && Object.prototype.hasOwnProperty.call(VERSION_PAGES, manifest[slug])) {
+      dirs.push(dirFor(manifest[slug]));
+    }
+    if (version !== DEFAULT_VERSION) dirs.push(dirFor(DEFAULT_VERSION));
+  }
+  for (const dir of dirs) {
+    try {
+      return await readFile(join(dir, slug + '.md'), 'utf8');
+    } catch { /* try the next location */ }
+  }
+  return null;
+}
+
+const versionProperty = VERSION_PAGES
+  ? { version: { type: 'string', description: \`Documentation version (default: \${DEFAULT_VERSION}). Available: \${Object.keys(VERSION_PAGES).join(', ')}\` } }
+  : {};
+
 const tools = [
   {
     name: 'list_pages',
     description: 'List all documentation pages with titles and descriptions',
-    inputSchema: { type: 'object', properties: {} },
+    inputSchema: { type: 'object', properties: { ...versionProperty } },
   },
   {
     name: 'get_page',
@@ -1115,6 +1281,7 @@ const tools = [
       type: 'object',
       properties: {
         slug: { type: 'string', description: 'Page slug (e.g. "quickstart" or "guides/setup")' },
+        ...versionProperty,
       },
       required: ['slug'],
     },
@@ -1126,6 +1293,7 @@ const tools = [
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Search query' },
+        ...versionProperty,
       },
       required: ['query'],
     },
@@ -1134,23 +1302,26 @@ const tools = [
 
 async function handleToolCall(name, args) {
   if (name === 'list_pages') {
-    const list = PAGES.map(p => p.desc ? \`- **\${p.title}** (\${p.id}): \${p.desc}\` : \`- **\${p.title}** (\${p.id})\`).join('\\n');
-    return \`# \${SITE}\\n\\n\${list}\`;
+    const version = resolveVersion(args);
+    const list = pagesFor(version).map(p => p.desc ? \`- **\${p.title}** (\${p.id}): \${p.desc}\` : \`- **\${p.title}** (\${p.id})\`).join('\\n');
+    return \`# \${SITE}\${version !== null ? \` (version \${version})\` : ''}\\n\\n\${list}\`;
   }
 
   if (name === 'get_page') {
+    const version = resolveVersion(args);
     const slug = args.slug;
-    const content = await getPage(slug);
-    if (!content) return \`Page "\${slug}" not found. Use list_pages to see available pages.\`;
+    const content = await getPage(slug, version);
+    if (!content) throw new ToolFailure(\`Page "\${slug}" not found\${version !== null ? \` in version \${version}\` : ''}. Use list_pages to see available pages.\`);
     return content;
   }
 
   if (name === 'search_docs') {
+    const version = resolveVersion(args);
     const query = (args.query || '').toLowerCase();
-    const index = await loadSearchIndex();
+    const index = await loadSearchIndex(version);
     const results = index
-      .filter(p => p.title.toLowerCase().includes(query) ||
-                   p.desc.toLowerCase().includes(query) ||
+      .filter(p => (p.title || '').toLowerCase().includes(query) ||
+                   (p.desc || '').toLowerCase().includes(query) ||
                    (p.body || '').toLowerCase().includes(query))
       .slice(0, 10);
 
@@ -1169,12 +1340,11 @@ async function handleToolCall(name, args) {
     }).join('\\n');
   }
 
-  return \`Unknown tool: \${name}\`;
+  throw new ToolFailure(\`Unknown tool: \${name}\`);
 }
 
 function send(msg) {
-  const json = JSON.stringify(msg);
-  process.stdout.write(\`Content-Length: \${Buffer.byteLength(json)}\\r\\n\\r\\n\${json}\`);
+  process.stdout.write(JSON.stringify(msg) + '\\n');
 }
 
 function respond(id, result) {
@@ -1192,16 +1362,22 @@ function handleMessage(msg) {
   const { id, method, params } = msg;
 
   if (method === 'initialize') {
-    return respond(id, { protocolVersion: '2024-11-05', capabilities: CAPABILITIES, serverInfo: SERVER_INFO });
+    const SUPPORTED = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
+    const asked = params && params.protocolVersion;
+    return respond(id, { protocolVersion: SUPPORTED.includes(asked) ? asked : SUPPORTED[0], capabilities: CAPABILITIES, serverInfo: SERVER_INFO });
   }
   if (method === 'notifications/initialized') return;
+  if (method === 'ping') return respond(id, {});
   if (method === 'tools/list') {
     return respond(id, { tools });
   }
   if (method === 'tools/call') {
-    const { name, arguments: args } = params;
+    const { name, arguments: args } = params || {};
     handleToolCall(name, args || {}).then(text => {
       respond(id, { content: [{ type: 'text', text }] });
+    }).catch(e => {
+      if (e instanceof ToolFailure) respond(id, { content: [{ type: 'text', text: e.message }], isError: true });
+      else respondError(id, -32603, String(e && e.message || e));
     });
     return;
   }
@@ -1214,20 +1390,16 @@ let buffer = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => {
   buffer += chunk;
-  while (true) {
-    const headerEnd = buffer.indexOf('\\r\\n\\r\\n');
-    if (headerEnd < 0) break;
-    const header = buffer.slice(0, headerEnd);
-    const match = header.match(/Content-Length:\\s*(\\d+)/i);
-    if (!match) { buffer = buffer.slice(headerEnd + 4); continue; }
-    const len = parseInt(match[1], 10);
-    const bodyStart = headerEnd + 4;
-    if (buffer.length < bodyStart + len) break;
-    const body = buffer.slice(bodyStart, bodyStart + len);
-    buffer = buffer.slice(bodyStart + len);
+  let nl;
+  while ((nl = buffer.indexOf('\\n')) !== -1) {
+    const line = buffer.slice(0, nl).trim();
+    buffer = buffer.slice(nl + 1);
+    if (!line) continue;
     try {
-      handleMessage(JSON.parse(body));
-    } catch {}
+      handleMessage(JSON.parse(line));
+    } catch {
+      send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } });
+    }
   }
 });
 
@@ -1235,7 +1407,8 @@ process.stderr.write(\`\${SITE} MCP server running on stdio\\n\`);
 `;
 
   await fs.writeFile(path.join(outDir, 'mcp-server.js'), server);
-  console.log(`  ${pc.green('✓')} Generated mcp-server.js (${pageIds.length} pages, 3 tools: list_pages, get_page, search_docs)`);
+  const verNote = versioned ? `, ${Object.keys(versionPages).length} versions (default ${defaultVersion})` : '';
+  console.log(`  ${pc.green('✓')} Generated mcp-server.js (${pageCount} pages${verNote}, 3 tools: list_pages, get_page, search_docs)`);
 }
 
 function toLabel(id) {
@@ -1259,7 +1432,7 @@ async function getDirBytes(dir) {
 
 const MEDIA_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico']);
 
-async function copyDocsMedia(docsDir, outDir) {
+async function copyDocsMedia(docsDir, outDir, { locales = true, quiet = false } = {}) {
   if (!await fs.pathExists(docsDir)) return;
   let copied = 0;
   async function walk(dir) {
@@ -1281,6 +1454,7 @@ async function copyDocsMedia(docsDir, outDir) {
   await walk(docsDir);
 
   // Also copy from locale docs dirs (docs.fr/ etc.)
+  if (!locales) { if (copied && !quiet) console.log(`  ${pc.green('✓')} Copied ${copied} media file${copied !== 1 ? 's' : ''} from docs/`); return; }
   const parent = path.dirname(docsDir);
   const entries = await fs.readdir(parent, { withFileTypes: true });
   for (const e of entries) {
@@ -1315,7 +1489,8 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
   const docsDir = localeDocsDir(cwd, locale, i18n.defaultLocale);
   if (!await fs.pathExists(docsDir)) return;
 
-  const sidebar = getSidebarForLocale(config, locale, i18n.defaultLocale);
+  // With tabs, locale builds keep the tab structure (per-locale sidebar overrides apply to plain sidebars only).
+  const sidebar = hasTabs(config) ? config.sidebar : getSidebarForLocale(config, locale, i18n.defaultLocale);
   const localeConfig = { ...config, sidebar };
   const pageIds = getAllPageIds(localeConfig);
   const localeOutDir = path.join(outDir, locale);
@@ -1330,6 +1505,7 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
     if (!await fs.pathExists(mdPath)) continue;
     const raw = await fs.readFile(mdPath, 'utf8');
     let { meta, html, preprocessedMarkdown } = await parseDoc(raw, {
+      onWarning: warnPage,
       docsRoot: docsDir,
       pagePath: mdPath,
       globalAttributes: getRuntimeAttributes(config),
@@ -1347,13 +1523,14 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
   }
 
   const localeTitleMap = buildTitleMap(localePagesData);
+  const localeNavMeta = buildNavMeta(localePagesData);
 
   for (const { id, meta, html, isApiPage, preprocessedMarkdown } of localeParsed) {
     const ogEnabled = config.ogImage !== false && meta.ogImage !== false;
     const safeId = id.replace(/\//g, '--');
     const ogImagePath = ogEnabled ? `og/${safeId}.png` : null;
 
-    const pageHtml = await renderPage({ config: localeConfig, siteTheme, id, meta, html, draftPageIds, specData, apiMeta, pdfManifest, locale, ogImagePath, titleMap: localeTitleMap });
+    const pageHtml = await renderPage({ config: localeConfig, siteTheme, id, meta, html, draftPageIds, specData, apiMeta, pdfManifest, locale, ogImagePath, titleMap: localeTitleMap, navMeta: localeNavMeta });
     const destHtml = path.join(localeOutDir, `${id}.html`);
     await fs.ensureDir(path.dirname(destHtml));
     await fs.writeFile(destHtml, pageHtml);
@@ -1365,9 +1542,10 @@ async function buildLocalePages({ config, cwd, outDir, locale, i18n, siteTheme, 
 
   const publishedIds = Object.keys(localePagesData);
   if (publishedIds.length) {
-    await fs.copyFile(path.join(localeOutDir, `${publishedIds[0]}.html`), path.join(localeOutDir, 'index.html'));
+    await fs.copyFile(path.join(localeOutDir, `${firstVisibleId(localeConfig, localePagesData)}.html`), path.join(localeOutDir, 'index.html'));
   }
 
+  if (pagesUseMath(localePagesData)) await writeKatexAssets(localeOutDir);
   // Copy shared CSS/JS/app into locale dir
   await fs.writeFile(path.join(localeOutDir, 'docslit.css'), buildStylesFile({ minify, siteTheme }));
   await fs.writeFile(path.join(localeOutDir, 'docslit.js'), buildComponentsFile('static', { minify }));

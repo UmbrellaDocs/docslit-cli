@@ -1,6 +1,8 @@
 /**
  * Site customization helpers: basePath, analytics, head/css/navbar/footer.
  */
+import { renderIcon } from './nav-icons.js';
+import { normalizeNavbar, normalizeSocials, normalizeLogo } from './navigation.js';
 
 export function normalizeBasePath(raw) {
   if (!raw || raw === '/') return '';
@@ -56,49 +58,130 @@ export function buildCustomHead(head) {
   return String(head);
 }
 
+const NAV_EXT_ARROW = '<svg class="nav-ext-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg>';
+const NAV_CHEVRON = '<svg class="nav-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
+const NAV_STAR = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.95 5.98 6.6.96-4.78 4.66 1.13 6.57L12 17.56l-5.9 3.1 1.13-6.57L2.45 9.44l6.6-.96z"/></svg>';
+
+function linkAttrs(l, basePath) {
+  const href = l.external ? l.href : withBasePath(basePath, l.href || '#');
+  const target = l.target || (l.external ? '_blank' : '');
+  const rel = target === '_blank' ? ' rel="noopener noreferrer"' : '';
+  return `href="${escAttr(href)}"${target ? ` target="${escAttr(target)}"` : ''}${rel}`;
+}
+
+function iconFor(name, basePath, size = 16) {
+  return name ? renderIcon(name, { size, className: 'nav-icon', resolveSrc: (s) => (s.startsWith('/') ? withBasePath(basePath, s) : s) }) : '';
+}
+
+/** One normalised navbar entry -> HTML. `kind`: "bar" (header) or "drawer" (mobile). */
+function renderNavbarEntry(l, basePath) {
+  const icon = iconFor(l.icon, basePath);
+  const right = iconFor(l.rightIcon, basePath);
+  if (l.type === 'dropdown') {
+    const items = l.links.map((d) => `<a class="nav-dropdown-item" role="menuitem" ${linkAttrs(d, basePath)}>${iconFor(d.icon, basePath)}<span>${escHtml(d.label)}</span>${d.external ? NAV_EXT_ARROW : ''}</a>`).join('');
+    return `<div class="nav-dropdown"><button type="button" class="nav-ext-link nav-dropdown-btn" aria-haspopup="menu" aria-expanded="false">${icon}<span>${escHtml(l.label)}</span>${NAV_CHEVRON}</button><div class="nav-dropdown-menu" role="menu" aria-label="${escAttr(l.label)}">${items}</div></div>`;
+  }
+  if (l.type === 'github') {
+    return `<a class="nav-ext-link nav-github" ${linkAttrs({ ...l, external: true }, basePath)} data-repo="${escAttr(l.repo)}">${renderIcon('github', { size: 18, className: 'nav-icon' })}<span class="nav-github-label">${escHtml(l.label)}</span>${l.stars ? `<span class="nav-github-stars" aria-label="GitHub stars">${NAV_STAR}<span class="nav-github-count"></span></span>` : ''}</a>`;
+  }
+  if (l.type === 'filled' || l.type === 'outlined') {
+    return `<a class="nav-btn nav-btn-${l.type}${l.rounded ? ' nav-btn-rounded' : ''}" ${linkAttrs(l, basePath)}>${icon}<span>${escHtml(l.label)}</span>${right}</a>`;
+  }
+  const discord = l.type === 'discord' ? renderIcon('discord', { size: 16, className: 'nav-icon' }) : '';
+  return `<a class="nav-ext-link" ${linkAttrs(l, basePath)}>${discord || icon}${l.type === 'discord' || icon || right ? `<span>${escHtml(l.label)}</span>` : escHtml(l.label)}${right}</a>`;
+}
+
+/**
+ * Navbar HTML. Returns { links, cta, mobile }:
+ *   links   text links / dropdowns / GitHub (left of the search box)
+ *   cta     filled & outlined buttons and `navbar.primary` (right-most)
+ *   mobile  the same entries flattened for the mobile drawer
+ */
+export function buildNavbarHtml(navbar, basePath = '') {
+  const { links, primary } = normalizeNavbar(navbar);
+  const plain = links.filter((l) => l.type !== 'filled' && l.type !== 'outlined');
+  const buttons = links.filter((l) => l.type === 'filled' || l.type === 'outlined');
+  if (primary) buttons.push(primary.type === 'github' ? primary : { ...primary, type: primary.type === 'outlined' ? 'outlined' : 'filled' });
+  const linksHtml = plain.map((l) => renderNavbarEntry(l, basePath)).join('');
+  const ctaHtml = buttons.map((l) => (l.type === 'github' ? renderNavbarEntry(l, basePath).replace('nav-ext-link nav-github', 'nav-btn nav-btn-outlined nav-github') : renderNavbarEntry(l, basePath))).join('');
+  const flat = [];
+  for (const l of plain) {
+    if (l.type === 'dropdown') flat.push(...l.links.map((d) => ({ ...d, type: 'link' })));
+    else flat.push(l);
+  }
+  const mobileLinks = flat.map((l) => renderNavbarEntry(l.type === 'github' ? { ...l, stars: false } : l, basePath)).join('');
+  const mobileButtons = buttons.map((l) => renderNavbarEntry(l.type === 'github' ? { ...l, type: 'outlined', label: l.label } : l, basePath)).join('');
+  const mobile = mobileLinks || mobileButtons ? `<div class="sidebar-mobile-extras" aria-label="Site links">${mobileLinks}${mobileButtons}</div>` : '';
+  return {
+    links: linksHtml ? `<div class="nav-primary-links">${linksHtml}</div>` : '',
+    cta: ctaHtml ? `<div class="nav-cta">${ctaHtml}</div>` : '',
+    mobile,
+  };
+}
+
+/** Back-compat: just the link markup (no CTA buttons). */
 export function buildNavbarLinksHtml(navbar, basePath = '', offline = false) {
-  const links = navbar?.links;
-  if (!Array.isArray(links) || !links.length) return '';
-  return links.map((link) => {
-    const label = escHtml(link.label || link.title || link.href || '');
-    const href = withBasePath(basePath, link.href || '#');
-    const external = link.external || /^https?:/i.test(link.href || '');
-    const target = external ? ' target="_blank" rel="noopener noreferrer"' : '';
-    const click = !offline && !external && href.startsWith(normalizeBasePath(basePath) || '/')
-      ? ''
-      : '';
-    return `<a class="nav-ext-link" href="${escAttr(href)}"${target}${click}>${label}</a>`;
-  }).join('');
+  return buildNavbarHtml(navbar, basePath).links;
+}
+
+/** Local logo files a config references (string logo, or logo.light / logo.dark); URLs are skipped. */
+export function logoFiles(config) {
+  const raw = normalizeLogo(config?.logo);
+  if (!raw) return [];
+  return [...new Set([raw.light, raw.dark].filter((p) => p && !/^(https?:)?\/\//i.test(p) && !p.startsWith('data:')))];
+}
+
+/** Logo markup parts: <img> for light/dark, link target, optional text. */
+export function resolveLogo(config, { basePath = '', offline = false, assetPrefix = '' } = {}) {
+  const raw = normalizeLogo(config.logo);
+  const fallback = 'favicon-32x32.png';
+  const toSrc = (p) => {
+    if (!p) return '';
+    if (/^(https?:)?\/\//i.test(p) || p.startsWith('data:')) return p;
+    const clean = String(p).replace(/^\/+/, '');
+    return offline ? assetPrefix + clean : withBasePath(basePath, '/' + clean);
+  };
+  const light = raw?.light ? toSrc(raw.light) : toSrc(fallback);
+  const dark = raw?.dark ? toSrc(raw.dark) : light;
+  return { light, dark, variants: !!(raw && !raw.single && light !== dark), wordmark: !!config.logo && typeof config.logo === 'object', href: raw?.href || '', text: raw?.text || '', height: raw?.height || 0 };
 }
 
 export function buildFooterHtml(footer, basePath = '') {
   if (!footer || typeof footer !== 'object') return '';
   const copyright = footer.copyright ? `<div class="site-footer-copy">${escHtml(footer.copyright)}</div>` : '';
+  const linkHtml = (l) => {
+    const external = l.external || /^https?:/i.test(l.href || '');
+    const href = external ? (l.href || '#') : withBasePath(basePath, l.href || '#');
+    const target = external ? ' target="_blank" rel="noopener noreferrer"' : '';
+    return `<a href="${escAttr(href)}"${target}>${escHtml(l.label || l.title || '')}</a>`;
+  };
+  // Mintlify shape: footer.links = [{ header, items: [{ label, href }] }] -> columns.
+  const columns = [];
+  const flatLinks = [];
+  for (const l of Array.isArray(footer.links) ? footer.links : []) {
+    if (l && Array.isArray(l.items)) columns.push({ title: l.header || l.title, links: l.items });
+    else if (l) flatLinks.push(l);
+  }
+  for (const c of Array.isArray(footer.columns) ? footer.columns : []) columns.push(c);
   let linksHtml = '';
-  if (Array.isArray(footer.links) && footer.links.length) {
-    linksHtml = `<div class="site-footer-links">${footer.links.map((l) => {
-      const href = withBasePath(basePath, l.href || '#');
-      const external = l.external || /^https?:/i.test(l.href || '');
-      const target = external ? ' target="_blank" rel="noopener noreferrer"' : '';
-      return `<a href="${escAttr(href)}"${target}>${escHtml(l.label || l.title || '')}</a>`;
-    }).join('')}</div>`;
+  if (flatLinks.length) {
+    linksHtml = `<div class="site-footer-links">${flatLinks.map(linkHtml).join('')}</div>`;
   }
   let columnsHtml = '';
-  if (Array.isArray(footer.columns) && footer.columns.length) {
-    columnsHtml = `<div class="site-footer-columns">${footer.columns.map((col) => {
+  if (columns.length) {
+    columnsHtml = `<div class="site-footer-columns">${columns.map((col) => {
       const title = col.title ? `<div class="site-footer-col-title">${escHtml(col.title)}</div>` : '';
-      const items = (col.links || []).map((l) => {
-        const href = withBasePath(basePath, l.href || '#');
-        const external = l.external || /^https?:/i.test(l.href || '');
-        const target = external ? ' target="_blank" rel="noopener noreferrer"' : '';
-        return `<a href="${escAttr(href)}"${target}>${escHtml(l.label || l.title || '')}</a>`;
-      }).join('');
+      const items = (col.links || []).map(linkHtml).join('');
       return `<div class="site-footer-col">${title}${items}</div>`;
     }).join('')}</div>`;
   }
-  if (!copyright && !linksHtml && !columnsHtml) return '';
-  const bottomRow = (linksHtml || copyright)
-    ? `<div class="site-footer-bottom">${linksHtml}${copyright}</div>`
+  const socials = normalizeSocials(footer.socials);
+  const socialsHtml = socials.length
+    ? `<div class="site-footer-socials">${socials.map((s) => `<a class="site-footer-social" href="${escAttr(s.href)}" target="_blank" rel="noopener noreferrer" aria-label="${escAttr(s.label)}" title="${escAttr(s.label)}">${renderIcon(s.icon, { size: 18, className: 'nav-icon' })}</a>`).join('')}</div>`
+    : '';
+  if (!copyright && !linksHtml && !columnsHtml && !socialsHtml) return '';
+  const bottomRow = (linksHtml || copyright || socialsHtml)
+    ? `<div class="site-footer-bottom">${linksHtml}${copyright}${socialsHtml}</div>`
     : '';
   return `<footer class="site-footer"><div class="site-footer-inner">${columnsHtml}${bottomRow}</div></footer>`;
 }

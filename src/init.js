@@ -2,9 +2,23 @@ import fs from 'fs-extra';
 import path from 'path';
 import pc from 'picocolors';
 import { detectEditUrl } from './config.js';
+import { isThemeName, isValidPalette, suggestName, allThemeIds, allPaletteIds } from './themes.js';
 
 export async function init(args) {
-  const dirName = args[0] || 'my-docs';
+  const themeIdx = args.indexOf('--theme');
+  const themeArg = themeIdx >= 0 ? args[themeIdx + 1] : undefined;
+  if (themeIdx >= 0) {
+    const known = themeArg && (isThemeName(themeArg) || isValidPalette(themeArg));
+    if (!known) {
+      const near = themeArg ? suggestName(themeArg, [...allThemeIds().filter((t) => t !== 'classic'), ...allPaletteIds()]) : null;
+      console.error(pc.red(`  Error: ${themeArg ? `Unknown theme "${themeArg}".${near ? ` Did you mean "${near}"?` : ''}` : '--theme needs a value.'}`));
+      console.error(pc.dim(`  Themes: ${allThemeIds().filter((t) => t !== 'classic').join(', ')}; palettes: ${allPaletteIds().join(', ')}`));
+      process.exit(1);
+    }
+  }
+  const rest = args.filter((a, i) => !(i === themeIdx || (themeIdx >= 0 && i === themeIdx + 1)));
+  const dirName = rest.find((a) => !a.startsWith('--')) || 'my-docs';
+  const writeAgents = !args.includes('--no-agents');
   const target = path.resolve(process.cwd(), dirName);
 
   if (await fs.pathExists(target)) {
@@ -19,6 +33,7 @@ export async function init(args) {
   // docslit.json
   const editUrl = await detectEditUrl(process.cwd());
   const config = {
+    $schema: 'https://unpkg.com/docslit/schema/docslit.schema.json',
     name: dirName,
     sidebar: [
       {
@@ -28,11 +43,13 @@ export async function init(args) {
     ]
   };
   if (editUrl) config.editUrl = editUrl;
+  if (themeArg) config.theme = themeArg;
   await fs.writeFile(path.join(target, 'docslit.json'), JSON.stringify(config, null, 2));
 
   // docs/introduction.md
   await fs.writeFile(path.join(target, 'docs', 'introduction.md'), `---
 title: Introduction
+description: What ${dirName} is, how DocsLit turns Markdown into a docs site, and where to go next.
 tag: Guide
 readtime: 2 min read
 updated: ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -79,6 +96,7 @@ Run \`docslit build\` to generate a static site. Deploy anywhere.
   // docs/installation.md
   await fs.writeFile(path.join(target, 'docs', 'installation.md'), `---
 title: Installation
+description: Install the DocsLit CLI with npm, pnpm or npx and understand the docslit.json project config.
 tag: Guide
 readtime: 3 min read
 ---
@@ -152,6 +170,7 @@ Every page can use built-in Lit web components directly in Markdown — no impor
   // docs/quickstart.md
   await fs.writeFile(path.join(target, 'docs', 'quickstart.md'), `---
 title: Quick Start
+description: Go from a scaffolded project to a built static site with the dev server, page writing, the sidebar and the build command.
 tag: Guide
 readtime: 2 min read
 ---
@@ -166,7 +185,7 @@ Your project is scaffolded and ready. Here's how to go from zero to a live docs 
 docslit dev
 \`\`\`
 
-Open [http://localhost:3000](http://localhost:3000). The server watches your \`docs/\` folder and hot-reloads on every save — including changes to \`docslit.json\`.
+Open [the local preview](http://localhost:3000). The server watches your \`docs/\` folder and hot-reloads on every save — including changes to \`docslit.json\`.
 
 ## 2. Write a page
 
@@ -237,7 +256,18 @@ This inlines all page data into \`dist/index.html\` so it works by double-clicki
   console.log(`  ${pc.green('✓')} Created ${pc.cyan('docs/installation.md')}`);
   console.log(`  ${pc.green('✓')} Created ${pc.cyan('docs/quickstart.md')}`);
 
+  if (writeAgents) {
+    const { runAgentsInit } = await import('./agents-cmd.js');
+    const r = await runAgentsInit(target, { tools: [] });
+    if (r.ok && (r.written.length || r.updated.length)) {
+      console.log(`  ${pc.green('✓')} Created ${pc.cyan('AGENTS.md')} ${pc.dim('(instructions for AI coding tools)')}`);
+    }
+  }
+
   console.log(`  ${pc.bold('Done!')} Now run:\n`);
   console.log(`    ${pc.cyan(`cd ${dirName}`)}`);
   console.log(`    ${pc.cyan('npx docslit dev')}\n`);
+  if (writeAgents) {
+    console.log(`  Using an AI coding tool? Run ${pc.cyan('npx docslit agents init --tool all')} for Claude Code, Cursor, Copilot and Windsurf setup.\n`);
+  }
 }
