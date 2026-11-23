@@ -36,6 +36,7 @@ export class Importer {
     this.reusables = new Map();    // srcRel -> outName (relative to _reusables, with .md)
     this.attributes = {};          // global {{VARS}}
     this.redirects = {};
+    this.pageAppend = new Map();   // slug -> Markdown appended to the converted page (generated listings)
     this.stats = { pages: 0, pagesFailed: 0, snippets: 0 };
     this.moduleCache = new Map();
     this.openapiSpecs = [];

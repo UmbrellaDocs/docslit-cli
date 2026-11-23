@@ -1,0 +1,9 @@
+authors:
+  jane:
+    name: Jane Doe
+    description: Maintainer
+    avatar: https://example.com/jane.png
+  joe:
+    name: Joe Roe
+    description: Contributor
+    avatar: https://example.com/joe.png

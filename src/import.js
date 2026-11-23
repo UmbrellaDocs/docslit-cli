@@ -178,6 +178,7 @@ export async function runImport(options) {
       }
       if (urlFm) { fm.redirect = urlFm; imp.report('info', 'page-external-url', `Page declares an external url (${urlFm}); it was converted to a redirect.`, { file: srcRel }); }
       if (info.unlisted) unlisted.push(info.slug);
+      if (imp.pageAppend.has(info.slug)) body = body.replace(/\n*$/, '\n\n') + imp.pageAppend.get(info.slug);
       const text = stringifyFrontmatter('\n' + (body.endsWith('\n') ? body : body + '\n'), orderFm(fm));
       imp.outFiles.set(`docs/${info.slug}.md`, text);
       imp.stats.pages++;
