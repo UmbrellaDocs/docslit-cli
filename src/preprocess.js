@@ -1,10 +1,14 @@
 import path from 'path';
 import fs from 'fs-extra';
 import matter from './frontmatter.js';
+import { getMathConfig } from './math.js';
+import { expandCodeImports, CODE_IMPORT_DETECT_RE } from './code-import.js';
+import { evaluateConditionals, localeOf } from './conditional.js';
 
 export const VAR_NAME_RE = /^[A-Z_][A-Z0-9_]*$/;
 const PASS_TOKEN_RE = /DOCSLIT_PASSBLOCK_(\d+)_END/g;
-const NEEDS_PREPROCESS_RE = /<wc-include\b|<wc-var\b[^>]*\bvalue\s*=|\{\{[^}]+\}\}|pass:\[/;
+const NEEDS_PREPROCESS_RE = /<wc-include\b|<wc-if\b|<wc-var\b[^>]*\bvalue\s*=|\{\{[^}]+\}\}|pass:\[/;
+const needsPreprocess = (body) => NEEDS_PREPROCESS_RE.test(body) || CODE_IMPORT_DETECT_RE.test(body);
 
 function parseAttrs(attrText = '') {
   const attrs = {};
@@ -31,9 +35,21 @@ function buildErrorMessage(errors) {
   return errors.map((d) => formatDiag(d)).join('\n');
 }
 
+// Math spans/fences must never get {{VAR}} expansion: LaTeX such as x^{{2}} or
+// \frac{{A}}{B} legitimately contains double braces. ```math fences are already
+// covered by the fence alternative; $…$ only counts when math.singleDollar is on.
+function mathSegmentSource() {
+  const cfg = getMathConfig();
+  if (!cfg.enabled) return '';
+  const parts = ['\\$\\$[\\s\\S]*?\\$\\$'];
+  if (cfg.singleDollar) parts.push('(?<![\\\\$])\\$(?![\\s$])[^$\\n]*?[^\\s\\\\$]\\$(?![$\\d])');
+  return '|' + parts.join('|');
+}
+
 function protectSegments(content) {
   const chunks = [];
-  let safe = content.replace(/```[\s\S]*?```|<wc-code-block[\s\S]*?<\/wc-code-block>|`[^`\n]+`/g, (m) => {
+  const re = new RegExp('```[\\s\\S]*?```|<wc-code-block[\\s\\S]*?<\\/wc-code-block>|`[^`\\n]+`' + mathSegmentSource(), 'g');
+  let safe = content.replace(re, (m) => {
     const idx = chunks.push(m) - 1;
     return `\x00PROTECTED_${idx}\x00`;
   });
@@ -102,8 +118,9 @@ export async function preprocessDoc({
   readFile = readFromFs,
   pathExists = existsInFs,
   strictFsSafety = true,
+  projectRoot = null,
 }) {
-  if (!NEEDS_PREPROCESS_RE.test(rawBody || '')) {
+  if (!needsPreprocess(rawBody || '')) {
     return {
       content: rawBody || '',
       passBlocks: [],
@@ -282,7 +299,13 @@ export async function preprocessDoc({
         });
       }
 
-      const includeText = parsed.content.replace(/\s+$/, '');
+      let includeText = parsed.content.replace(/\s+$/, '');
+      // Snippet props: every attribute besides src fills a {{name}} placeholder inside the snippet.
+      const props = Object.entries(attrs).filter(([k]) => k !== 'src');
+      if (props.length) {
+        const map = new Map(props);
+        includeText = includeText.replace(/\{\{\s*([A-Za-z_][\w-]*)\s*\}\}/g, (full, k) => (map.has(k) ? map.get(k) : full));
+      }
       const sourcePath = `docs/${normalized}`;
       const padded = `\n<!-- BEGIN: Content from file ${sourcePath} -->\n${includeText}\n<!-- END: Content from file ${sourcePath} -->\n`;
       includeOps.push({ start, end, replacement: padded });
@@ -295,6 +318,8 @@ export async function preprocessDoc({
   protectedContent.safe = protectedContent.safe.replace(/\{\{([^}]+)\}\}/g, (full, keyRaw) => {
     const key = keyRaw.trim();
     if (!VAR_NAME_RE.test(key)) {
+      // Reusable snippets use lower-case {{prop}} placeholders that the including page fills in.
+      if (pagePath && /[\\/]_reusables[\\/]/.test(String(pagePath)) && /^[A-Za-z_][\w-]*$/.test(key)) return full;
       diagnostics.warnings.push({
         file: pagePath,
         line: null,
@@ -314,8 +339,32 @@ export async function preprocessDoc({
   });
   content = protectedContent.restore(protectedContent.safe);
 
+  // Code imports run last so imported source is never touched by variable/pass processing.
+  const imports = await expandCodeImports(content, {
+    projectRoot: projectRoot || (docsRoot ? path.dirname(path.resolve(docsRoot)) : process.cwd()),
+    pagePath,
+    readFile,
+    pathExists,
+    strictFsSafety: strictFsSafety && readFile === readFromFs,
+  });
+  content = imports.content;
+  diagnostics.errors.push(...imports.errors);
+  for (const dep of imports.dependencies) dependencies.add(dep);
+
+  // Build-time conditional content (<wc-if>): the HTML build and the agent Markdown can differ (for="agents|humans").
+  let agentContent;
+  if (/<wc-if\b/i.test(content)) {
+    const ctx = { version: attrs.DOCSLIT_VERSION, locale: localeOf(pagePath, attrs), attributes: attrs };
+    const html = evaluateConditionals(content, ctx, 'html');
+    const agent = evaluateConditionals(content, ctx, 'agent');
+    for (const w of html.warnings) diagnostics.warnings.push({ file: pagePath, line: w.line, message: w.message });
+    content = html.content;
+    if (agent.content !== html.content) agentContent = agent.content;
+  }
+
   return {
     content,
+    ...(agentContent !== undefined ? { agentContent } : {}),
     passBlocks,
     dependencies: [...dependencies],
     diagnostics,

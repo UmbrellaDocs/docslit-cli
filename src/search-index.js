@@ -9,6 +9,7 @@ export function stripForSearch(text) {
   let s = String(text);
   s = s.replace(/```[\s\S]*?```/g, ' ');
   s = s.replace(/`[^`]+`/g, ' ');
+  s = s.replace(/<span class="katex-mathml">[\s\S]*?<\/span>/g, ' ');
   s = s.replace(/<[^>]+>/g, ' ');
   s = s.replace(/!\[[^\]]*\]\([^)]+\)/g, ' ');
   s = s.replace(/\[[^\]]*\]\([^)]+\)/g, '$1');

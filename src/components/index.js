@@ -6,6 +6,8 @@ import media from './media.js';
 import data from './data.js';
 import content from './content.js';
 import utility from './utility.js';
+import shared from './shared.js';
+import rich from './rich.js';
 
 export function buildComponents() {
   return `import { LitElement, html, css, nothing } from 'lit';
@@ -22,6 +24,8 @@ function _inlineMd(text) {
     .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 
+${shared}
+
 ${callouts}
 
 ${layout}
@@ -37,6 +41,8 @@ ${data}
 ${content}
 
 ${utility}
+
+${rich}
 
 console.log('✅ DocsLit: registered all built-in web components.');
 `;

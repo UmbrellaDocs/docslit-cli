@@ -47,14 +47,19 @@ export async function initHighlighter() {
 export async function ensureLangs(src) {
   if (!highlighter) return;
   const needed = new Set();
-  const re = /^`{3,}(\S+)/gm;
+  const want = (raw) => {
+    // "js{1,3}" (no space before the line spec) -> "js"
+    const lang = String(raw || '').replace(/\{.*$/, '').toLowerCase();
+    if (lang && !highlighter.getLoadedLanguages().includes(lang) && lang in bundledLanguages) needed.add(lang);
+  };
   let m;
-  while ((m = re.exec(src)) !== null) {
-    const lang = m[1].toLowerCase();
-    if (lang && !highlighter.getLoadedLanguages().includes(lang) && lang in bundledLanguages) {
-      needed.add(lang);
-    }
-  }
+  const re = /^[ \t]*(?:`{3,}|~{3,})([^\s`]+)/gm;
+  while ((m = re.exec(src)) !== null) want(m[1]);
+  // hand-written <wc-code-block language="x"> / <wc-code-tab language="x">
+  const attrRe = /<wc-code-(?:block|tab)\b[^>]*?\blanguage\s*=\s*["']([^"']+)["']/g;
+  while ((m = attrRe.exec(src)) !== null) want(m[1]);
+  // markdown / unlabelled fences that show wc-* markup are highlighted as mdx
+  if (/<wc-/.test(src) && /^[ \t]*(?:`{3,}|~{3,})(?:markdown|md)?[ \t]*$/m.test(src)) want('mdx');
   if (needed.size) {
     await Promise.all([...needed].map(l => highlighter.loadLanguage(l)));
   }
@@ -81,4 +86,17 @@ export function highlight(code, lang) {
     highlightCache.set(key, null);
     return null;
   }
+}
+
+/**
+ * Highlight `code` and return one HTML string per line (each `<span class="line">...</span>`),
+ * or null when the language is unknown / not loaded. The strings contain no newline characters.
+ */
+export function highlightLines(code, lang) {
+  const html = highlight(code, lang);
+  if (html == null) return null;
+  const lines = html.split('\n');
+  const expected = String(code).split('\n').length;
+  if (lines.length !== expected || !lines.every((l) => l.startsWith('<span class="line">'))) return null;
+  return lines;
 }
