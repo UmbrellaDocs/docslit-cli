@@ -41,6 +41,7 @@ export async function parseDoc(rawContent, opts = {}) {
   const renderMeta = {
     ...meta,
     ...(opts.pagePath ? { pagePath: opts.pagePath } : {}),
+    ...(typeof opts.onWarning === 'function' ? { __onWarning: opts.onWarning } : {}),
     ...(versionSlug ? { versionSlug } : {}),
     ...(versionSlug && opts.basePath ? { basePath: opts.basePath } : {}),
   };

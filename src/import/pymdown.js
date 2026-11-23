@@ -14,6 +14,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { visit } from 'unist-util-visit';
 import { resolveIcon } from '../icons.js';
+import { findAnnotationMarker } from '../code-meta.js';
 
 // ─── small helpers ────────────────────────────────────────────────────────────
 const indentWidth = (s) => { let w = 0; for (const c of s) { if (c === ' ') w++; else if (c === '\t') w += 4 - (w % 4); else break; } return w; };
@@ -73,12 +74,12 @@ const KEY_NAMES = {
 // ─── entry ────────────────────────────────────────────────────────────────────
 /**
  * Convert one MkDocs page body.
- * opts: { file, lineOffset, report(sev, code, msg, extra), count(from, to), exts:Set, tabsSync:bool,
+ * opts: { file, lineOffset, report(sev, code, msg, extra), count(from, to), exts:Set, tabsSync:bool, codeAnnotate:bool,
  *         readSnippet(spec) -> {text}|{codeFile, lines}|{error}, macros:{enabled, vars:Map}, onIconMiss(name) }
  * Returns { body, notes } where notes collects per-page stats for the report.
  */
 export function convertPymdown(src, opts) {
-  const o = { exts: new Set(), tabsSync: false, report: () => {}, count: () => {}, lineOffset: 0, ...opts };
+  const o = { exts: new Set(), tabsSync: false, codeAnnotate: false, report: () => {}, count: () => {}, lineOffset: 0, ...opts };
   const st = { o, tabGroups: 0, codeImports: new Set(), notes: { mkdocstrings: [], macros: [], critic: 0, iconMiss: new Set(), annotations: 0, attrDropped: 0, gridCards: 0, mathRound: false } };
   let lines = src.replace(/\r\n?/g, '\n').split('\n');
   lines = expandSnippets(lines, st, 0);
@@ -250,7 +251,13 @@ function blocks(lines, st, firstLine) {
         continue;
       }
       fence = { close };
-      out.push(`${fm[1]}${fm[2]}${conv.info}`);
+      let info = conv.info;
+      // theme feature content.code.annotate: every fence is annotatable; flag the ones that actually have markers
+      if (o.codeAnnotate && !/(^|\s)annotate(\s|$)/.test(info) && fenceHasMarker(lines, i + 1, close)) {
+        info = info.trim() ? `${info} annotate` : 'text annotate';
+        o.count('code annotations (content.code.annotate)', '`annotate` code block flag');
+      }
+      out.push(`${fm[1]}${fm[2]}${info}`);
       continue;
     }
 
@@ -381,10 +388,15 @@ function convertFenceInfo(info, st, line) {
     if (n > 1) meta.push(`startLine=${n}`);
   }
   if (classes.includes('no-copy') || attrs.nocopy) meta.push('nocopy');
-  if (classes.includes('annotate')) { st.notes.annotations++; st.o.count('code annotations (.annotate)', 'kept as comments + list'); }
+  if (classes.includes('annotate') || attrs.annotate === true || attrs.annotate === 'true') { meta.push('annotate'); st.o.count('code annotations (.annotate)', '`annotate` code block flag'); }
   if (attrs.title || attrs.hl_lines || attrs.linenums) st.o.count('code block title / hl_lines / linenums', 'code block meta');
   void line;
   return { info: [lang, ...meta].filter(Boolean).join(' ') };
+}
+
+function fenceHasMarker(lines, from, close) {
+  for (let k = from; k < lines.length && !close.test(lines[k]); k++) if (findAnnotationMarker(lines[k])) return true;
+  return false;
 }
 
 function tokenize(s) {

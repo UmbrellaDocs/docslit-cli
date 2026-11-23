@@ -60,7 +60,7 @@ function getProcessor(meta = {}) {
     .use(rehypeDocslitAsciidocTable)
     .use(rehypeDocslitWcContent)
     .use(rehypeDocslitIcons)
-    .use(rehypeDocslitCode)
+    .use(rehypeDocslitCode, { onWarning: meta.__onWarning, pagePath: meta.pagePath })
     .use(rehypeDocslitVars)
     .use(rehypeDocslitImages, imageOpts)
     .use(rehypeDocslitLinkFix, meta)
