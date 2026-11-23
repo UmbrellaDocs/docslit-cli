@@ -253,7 +253,7 @@ function blocks(lines, st, firstLine) {
       fence = { close };
       let info = conv.info;
       // theme feature content.code.annotate: every fence is annotatable; flag the ones that actually have markers
-      if (o.codeAnnotate && !/(^|\s)annotate(\s|$)/.test(info) && fenceHasMarker(lines, i + 1, close)) {
+      if (o.codeAnnotate && !/^(markdown|md|mdx)(\s|$)/i.test(info.trim()) && !/(^|\s)annotate(\s|$)/.test(info) && fenceHasMarker(lines, i + 1, close)) {
         info = info.trim() ? `${info} annotate` : 'text annotate';
         o.count('code annotations (content.code.annotate)', '`annotate` code block flag');
       }

@@ -307,6 +307,8 @@ describe('pymdown: code annotations', () => {
     expect(out).toContain('```yaml annotate\na: 1');
     expect(out).toContain('```yaml\nb: 2');
     expect(conv('```yaml\na: 1  # (1)\n```\n')).toContain('```yaml\na: 1');
+    // markdown fences only show example source: never flagged by the global feature
+    expect(conv('````markdown\n# (1)\n````\n', [], { codeAnnotate: true })).toContain('````markdown\n');
   });
   it('a standalone { .annotate } line after a list does not break fence/list adjacency', () => {
     const out = conv('```yaml annotate\na: 1  # (1)\n```\n\n1. n\n{ .annotate }\n');
