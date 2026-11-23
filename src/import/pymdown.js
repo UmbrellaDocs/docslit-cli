@@ -14,6 +14,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { visit } from 'unist-util-visit';
 import { resolveIcon } from '../icons.js';
+import { mapShortcodeIcon } from './icon-map.js';
 
 // ─── small helpers ────────────────────────────────────────────────────────────
 const indentWidth = (s) => { let w = 0; for (const c of s) { if (c === ' ') w++; else if (c === '\t') w += 4 - (w % 4); else break; } return w; };
@@ -42,26 +43,6 @@ const ADMONITION = {
 };
 const BLOCK_ADMONITIONS = new Set([...Object.keys(ADMONITION)]);
 
-// Material icon names with a different Lucide / Font Awesome name.
-const ICON_ALIASES = {
-  information: 'info', 'information-outline': 'info', 'alert': 'triangle-alert', 'alert-outline': 'triangle-alert', 'alert-circle': 'circle-alert',
-  'check-bold': 'check', 'check-circle': 'circle-check', 'close': 'x', 'close-circle': 'circle-x', 'cancel': 'ban', 'console': 'terminal',
-  'console-line': 'terminal', 'language-python': 'python', 'language-javascript': 'js', 'language-typescript': 'code', 'language-rust': 'rust',
-  'language-go': 'golang', 'language-java': 'java', 'language-markdown': 'markdown', 'language-html5': 'html5', 'language-css3': 'css3',
-  'pencil': 'pencil', 'lead-pencil': 'pencil', 'file-document': 'file-text', 'file-document-outline': 'file-text', 'book-open-page-variant': 'book-open',
-  'book-open-variant': 'book-open', 'cog': 'settings', 'cogs': 'settings', 'tools': 'wrench', 'lightning-bolt': 'zap', 'flash': 'zap', 'rocket-launch': 'rocket',
-  'scale-balance': 'scale', 'clock-fast': 'clock', 'clock-outline': 'clock', 'magnify': 'search', 'heart': 'heart', 'emoticon-happy': 'smile',
-  'account': 'user', 'account-group': 'users', 'home': 'house', 'web': 'globe', 'earth': 'globe', 'email': 'mail', 'link-variant': 'link',
-  'arrow-right-box': 'square-arrow-right', 'arrow-right-circle': 'circle-arrow-right', 'download': 'download', 'tag': 'tag', 'tag-outline': 'tag',
-  'github': 'github', 'gitlab': 'gitlab', 'docker': 'docker', 'puzzle': 'puzzle', 'shield-check': 'shield-check', 'lock': 'lock', 'api': 'webhook',
-  'format-list-bulleted': 'list', 'view-dashboard': 'layout-dashboard', 'database': 'database', 'test-tube': 'test-tube', 'chart-line': 'chart-line',
-  'robot': 'bot', 'brain': 'brain', 'school': 'graduation-cap', 'lightbulb': 'lightbulb', 'lightbulb-on': 'lightbulb', 'message': 'message-square',
-  'forum': 'messages-square', 'bug': 'bug', 'calendar': 'calendar', 'star': 'star', 'eye': 'eye', 'folder': 'folder', 'folder-open': 'folder-open',
-  'content-copy': 'copy', 'plus': 'plus', 'minus': 'minus', 'help-circle': 'circle-help', 'play': 'play', 'pause': 'pause', 'refresh': 'refresh-cw',
-  'sync': 'refresh-cw', 'server': 'server', 'cloud': 'cloud', 'package-variant': 'package', 'package-variant-closed': 'package', 'key': 'key',
-  'translate': 'languages', 'palette': 'palette', 'brush': 'brush', 'code-tags': 'code', 'code-braces': 'braces', 'xml': 'code', 'graph': 'network',
-  'sitemap': 'network', 'map-marker': 'map-pin', 'newspaper': 'newspaper', 'rss': 'rss', 'twitter': 'x-twitter', 'linkedin': 'linkedin', 'discord': 'discord',
-};
 const KEY_NAMES = {
   ctrl: 'Ctrl', control: 'Ctrl', alt: 'Alt', option: 'Option', opt: 'Option', shift: 'Shift', cmd: 'Cmd', command: 'Cmd', meta: 'Meta', win: 'Win',
   windows: 'Win', super: 'Super', fn: 'Fn', enter: 'Enter', return: 'Return', esc: 'Esc', escape: 'Esc', tab: 'Tab', space: 'Space', backspace: 'Backspace',
@@ -767,25 +748,12 @@ function splitOutsideTags(s, fn) {
   return s.split(/(<[^>]+>|\]\([^)]*\))/g).map((p, i) => (i % 2 ? p : fn(p))).join('');
 }
 
-function iconTag(set, name, st, raw) {
+export function iconTag(set, name, st, raw) {
   const { o } = st;
-  let candidates = [];
-  let iconType = null;
-  if (set === 'fontawesome') {
-    const m = /^(solid|regular|brands)-(.+)$/.exec(name);
-    if (m) { iconType = m[1]; candidates = [m[2]]; } else candidates = [name];
-  } else if (set === 'octicons') candidates = [name.replace(/-(12|16|24|48)$/, '')];
-  else if (set === 'simple') { iconType = 'brands'; candidates = [name, name.replace(/dotjs$|js$/, '')]; }
-  else {
-    const base = name.replace(/-(outline|box|circle-outline|variant)$/, '');
-    candidates = [ICON_ALIASES[name], ICON_ALIASES[base], name, base].filter(Boolean);
-  }
-  for (const c of candidates) {
-    const r = resolveIcon(iconType && iconType !== 'solid' ? `fa-${iconType} fa-${c}` : c);
-    if (r.kind === 'svg') {
-      o.count(`:${set}-…: icon`, 'wc-icon');
-      return `<wc-icon name="${c}"${iconType && iconType !== 'solid' ? ` icon-type="${iconType}"` : ''}></wc-icon>`;
-    }
+  const r = mapShortcodeIcon(set, name);
+  if (r && resolveIcon(r.type ? `fa-${r.type} fa-${r.name}` : r.name).kind === 'svg') {
+    o.count(`:${set}-…: icon`, 'wc-icon');
+    return `<wc-icon name="${r.name}"${r.type ? ` icon-type="${r.type}"` : ''}></wc-icon>`;
   }
   st.notes.iconMiss.add(`${set}-${name}`);
   void raw;

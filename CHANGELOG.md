@@ -15,6 +15,7 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 - **Faster, leaner builds.** `--incremental` (or `"build": { "cache": true }`) reuses unchanged pages and assets; `--no-search-index`, `--no-llms-txt`, `--no-mcp` and `--no-sitemap` skip individual generators; `--profile` prints per-phase timings and `docslit cache clean` clears the build cache. OG images render in a worker pool, are cached, and are written as lossless RGB PNGs about 5x smaller than before. Pages are parsed with bounded concurrency, so very large sites (750+ pages with big changelogs) no longer run out of memory, and sidebar group `root` pages are always built.
 - **Faster `docslit validate`.** Each page is parsed once and shared across checks, and very large pages are parsed per heading section: about 4x faster on large sites with identical results.
+- **Better icon conversion in the MkDocs importer.** Material Design Icons, Octicons and Simple Icons shortcodes (and front matter `icon:`) are mapped to the closest bundled Lucide or Font Awesome icon (explicit table plus suffix, size and brand-prefix rules; for example `material-information-outline` becomes `info`, `octicons-mark-github` becomes `github`, `simple-stackoverflow` becomes the Font Awesome brand). Icons with no faithful match are still removed and listed in `MIGRATION.md`.
 
 ## 0.2.0
 
