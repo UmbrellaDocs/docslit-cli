@@ -35,6 +35,16 @@ function dedent(l, n) {
   return (w > n ? ' '.repeat(w - n) : '') + l.slice(k);
 }
 const FENCE_OPEN = /^([ \t]*)(`{3,}|~{3,})(.*)$/;
+/** A fence opened by a FENCE_OPEN match: its character, length and indent. */
+const openFence = (m) => ({ ch: m[2][0], len: m[2].length, ind: indentWidth(m[1]) });
+/**
+ * CommonMark closing fence: same character, at least as long, nothing after it, and indented at most 3 columns
+ * more than the opener — so an indented inner ``` (e.g. inside a tab, shown in a code example) never closes it.
+ */
+function closesFence(line, f) {
+  const m = /^([ \t]*)(`{3,}|~{3,})[ \t]*$/.exec(line || '');
+  return !!m && m[2][0] === f.ch && m[2].length >= f.len && indentWidth(m[1]) <= f.ind + 3;
+}
 
 // Material admonition types -> wc-callout types (title keeps the Material label when they differ).
 const ADMONITION = {
@@ -79,7 +89,7 @@ export function convertPymdown(src, opts) {
 // ─── Jinja block includes (mkdocs-macros `{% include %}`, include-markdown `{% include-markdown %}`) ──
 const INCLUDE_OPEN = /^([ \t]*)\{%[-+]?\s*(include-markdown|include)\b(.*)$/;
 const INCLUDE_MAX_DEPTH = 5;
-const fenceCloser = (fence) => new RegExp(`^[ \\t]*${fence[0] === '`' ? '`' : '~'}{${fence.length},}[ \\t]*$`);
+const fenceCloser = (fence) => ({ test: (l) => closesFence(l, fence) });
 const unq = (v) => v.replace(/\\(["'\\])/g, '$1');
 
 function parseIncludeTag(tagBody) {
@@ -125,7 +135,7 @@ function applyIncludeOptions(text, opts, fromAbs, includerAbs) {
     };
     ls = ls.map((l) => {
       const fm = FENCE_OPEN.exec(l);
-      if (fm && !fence) { fence = fm[2]; return l; }
+      if (fm && !fence) { fence = openFence(fm); return l; }
       if (fence) { if (fenceCloser(fence).test(l)) fence = null; return l; }
       let x = l;
       if (off) x = x.replace(/^([ \t]*)(#{1,6})(?=\s)/, (m, ind, h) => ind + '#'.repeat(Math.max(1, Math.min(6, h.length + off))));
@@ -148,7 +158,7 @@ function expandIncludes(lines, st, depth, stack, topLine = null) {
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
     const fm = FENCE_OPEN.exec(l);
-    if (fm && !fence) { fence = fm[2]; out.push(l); continue; }
+    if (fm && !fence) { fence = openFence(fm); out.push(l); continue; }
     if (fence) { if (fenceCloser(fence).test(l)) fence = null; out.push(l); continue; }
     const m = INCLUDE_OPEN.exec(l);
     if (!m) { out.push(l); continue; }
@@ -199,7 +209,7 @@ function expandSnippets(lines, st, depth) {
     if (fm && !fence) {
       // fence holding exactly one snippet line -> code import (file=), keeps a single source
       const one = SNIP_LINE.exec(lines[i + 1] || '');
-      const close = lines[i + 2] && new RegExp(`^[ \\t]*${fm[2][0] === '`' ? '`' : '~'}{${fm[2].length},}[ \\t]*$`).test(lines[i + 2]);
+      const close = lines[i + 2] && closesFence(lines[i + 2], openFence(fm));
       if (one && !one[2] && close && depth === 0) {
         const r = o.readSnippet(one[4], { line: i + 1 + o.lineOffset, code: true });
         if (r && r.codeFile) {
@@ -211,11 +221,11 @@ function expandSnippets(lines, st, depth) {
           continue;
         }
       }
-      fence = fm[2];
+      fence = openFence(fm);
       out.push(l);
       continue;
     }
-    if (fence && new RegExp(`^[ \\t]*${fence[0] === '`' ? '`' : '~'}{${fence.length},}[ \\t]*$`).test(l)) { fence = null; out.push(l); continue; }
+    if (fence && closesFence(l, fence)) { fence = null; out.push(l); continue; }
     if (SNIP_SECTION.test(l)) continue; // section markers never render
     let m = SNIP_LINE.exec(l);
     if (m) {
@@ -283,7 +293,7 @@ function collectAbbreviations(lines, st) {
   let fence = null;
   for (const l of lines) {
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence[0].repeat(fence.length)) && !l.trim().slice(fence.length).trim()) fence = null; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
     const m = !fence && /^\*\[([^\]]+)\]:\s*(.*)$/.exec(l);
     if (m) { map.set(m[1], m[2].trim()); continue; }
     out.push(l);
@@ -334,7 +344,8 @@ function blocks(lines, st, firstLine) {
     }
     const fm = FENCE_OPEN.exec(l);
     if (fm && !/`/.test(fm[3]) || (fm && fm[2][0] === '~')) {
-      const close = new RegExp(`^[ \\t]*${fm[2][0] === '`' ? '`' : '~'}{${fm[2].length},}[ \\t]*$`);
+      const opened = openFence(fm);
+      const close = { test: (x) => closesFence(x, opened) };
       const conv = convertFenceInfo(fm[3], st, lineNo);
       if (conv.mermaid) {
         fence = { close, mermaid: true, indent: fm[1] };
@@ -475,7 +486,7 @@ function gridListItems(inner) {
   for (const l0 of ls) {
     const l = isBlank(l0) ? '' : dedent(l0, base);
     const f = FENCE_OPEN.exec(l);
-    if (f && /^\s/.test(l)) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence)) fence = null; }
+    if (f && /^\s/.test(l)) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
     const im = !fence && GRID_ITEM.exec(l);
     if (im) raw.push({ first: im[3], col: im[1].length + im[2].length, rest: [] });
     else if (!raw.length || (!isBlank(l) && !/^\s/.test(l))) return null;
@@ -503,7 +514,7 @@ function gridCardBlocks(inner) {
   };
   for (const l of inner) {
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence)) fence = null; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
     if (!fence && isBlank(l)) { if (!flush()) return null; continue; }
     cur.push(l);
   }
@@ -695,7 +706,7 @@ function takeBlock(lines, start) {
   for (; i < lines.length; i++) {
     const l = lines[i];
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim() === fence[0].repeat(l.trim().length) && l.trim().length >= fence.length) fence = null; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
     if (!fence && !f) {
       const o = BLOCK_OPEN.exec(l);
       if (o && o[2].length === slashes) depth++;
@@ -812,7 +823,7 @@ function findClosingTag(lines, start, tag) {
   for (let i = start; i < lines.length; i++) {
     const l = lines[i];
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence)) fence = null; continue; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; continue; }
     if (fence) continue;
     depth += (l.match(open) || []).filter((x) => !x.endsWith('/>')).length;
     depth -= (l.match(close) || []).length;
@@ -834,7 +845,7 @@ function inlinePass(body, st, abbr) {
     if (/^\s*<wc-mermaid>/.test(l)) { inMermaid = true; continue; }
     if (inMermaid) { if (/^\s*<\/wc-mermaid>/.test(l)) inMermaid = false; continue; }
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence[0].repeat(fence.length)) && !l.trim().replace(/[`~]/g, '')) fence = null; continue; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; continue; }
     if (fence) continue;
     if (/^\s*\$\$/.test(l)) { if (!/^\s*\$\$.*\$\$\s*$/.test(l.trim().length > 2 ? l : '')) inMath = !inMath; continue; }
     if (inMath) { if (/^\s*\\\]\s*$/.test(l)) { lines[n] = l.replace('\\]', '$$$$'); inMath = false; } continue; }
@@ -993,7 +1004,7 @@ function tidyBlank(text) {
   let blank = 0;
   for (const l of text.split('\n')) {
     const f = FENCE_OPEN.exec(l);
-    if (f) { if (!fence) fence = f[2]; else if (l.trim().startsWith(fence[0].repeat(fence.length)) && !l.trim().replace(/[`~]/g, '')) fence = null; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; }
     if (!fence && !f && !l.trim()) { if (++blank > 1) continue; } else blank = 0;
     out.push(l);
   }
@@ -1034,7 +1045,7 @@ export function rewriteLinks(body, opts) {
   let fence = null;
   for (let i = 0; i < lines.length; i++) {
     const f = FENCE_OPEN.exec(lines[i]);
-    if (f) { if (!fence) fence = f[2]; else if (lines[i].trim().startsWith(fence[0].repeat(fence.length)) && !lines[i].trim().replace(/[`~]/g, '')) fence = null; continue; }
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(lines[i], fence)) fence = null; continue; }
     if (!fence && i - start >= 150 && /^#{1,6}\s/.test(lines[i])) { chunks.push([start, i]); start = i; }
   }
   chunks.push([start, lines.length]);

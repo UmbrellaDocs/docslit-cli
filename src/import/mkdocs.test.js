@@ -627,3 +627,12 @@ describe('announcementFromTemplate', () => {
     expect(announcementFromTemplate('{% block announce %}\n<div>{% include "p.html" %}</div>\n{% endblock %}')).toBeNull();
   });
 });
+
+describe('pymdown: fences follow CommonMark closing rules', () => {
+  it('an indented inner ``` inside a code example does not close the outer fence', () => {
+    const src = '``` title="Tabs"\n=== "C"\n\n    ``` c\n    int x;\n    ```\n\n=== "D"\n\n    text\n```\n\nAfter.\n';
+    const out = conv(src, ['pymdownx.tabbed']);
+    expect(out).toContain('```title="Tabs"\n=== "C"\n\n    ``` c\n    int x;\n    ```\n\n=== "D"\n\n    text\n```');
+    expect(out).not.toContain('<wc-tab');
+  });
+});
