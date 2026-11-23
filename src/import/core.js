@@ -11,7 +11,7 @@ import { Reporter } from './report.js';
 import { gitbookPreprocess } from './gitbook.js';
 import { attrString, isExpr, isJsx } from './jsx.js';
 import { convertPymdown, rewriteLinks, MATERIAL_COMPAT_CSS } from './pymdown.js';
-import { mkdocsFrontmatter, readMkdocsSnippet } from './mkdocs.js';
+import { mkdocsFrontmatter, readMkdocsSnippet, readMkdocsInclude } from './mkdocs.js';
 
 const posix = (p) => p.split(path.sep).join('/');
 const stripExt = (p) => p.replace(/\.(mdx?|markdown)$/i, '');
@@ -130,6 +130,7 @@ export class Importer {
     const r = convertPymdown(body, {
       file: srcRel, lineOffset, exts: mk.exts, tabsSync: mk.tabsSync, codeAnnotate: mk.codeAnnotate, macros: mk.macros,
       report: rep, count: (a, b) => this.reporter.count(a, b),
+      readInclude: (spec, o) => (this.lenient ? { skip: true } : readMkdocsInclude(this, spec, o.stack.length ? o.stack[o.stack.length - 1] : path.join(mk.docsDir, srcRel), path.join(mk.docsDir, srcRel), o)),
       readSnippet: (spec, o) => (this.lenient ? { error: 'snippets are not followed when converting a single page' } : readMkdocsSnippet(this, spec, srcRel, o)),
     });
     const n = r.notes;

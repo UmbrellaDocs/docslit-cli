@@ -1,1 +1,8 @@
 {% extends "base.html" %}
+
+{% block announce %}
+<div class="announce-wrapper">
+  <a href="https://acme.example.com/launch"><span class="twemoji">{% include ".icons/material/rocket.svg" %}</span> Acme <strong>2.0</strong> is out</a>
+  {% include "partials/banner.html" %}
+</div>
+{% endblock %}

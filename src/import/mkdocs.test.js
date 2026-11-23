@@ -9,7 +9,7 @@ import { parseToml } from './toml.js';
 import { plainExcerpt } from './mkdocs-blog.js';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
-import { sanitizeMkdocsYaml, loadMkdocsConfig, namedEntries, compileGitignore, mkdocsSlug, mkdocsFrontmatter } from './mkdocs.js';
+import { announcementFromTemplate, sanitizeMkdocsYaml, loadMkdocsConfig, namedEntries, compileGitignore, mkdocsSlug, mkdocsFrontmatter } from './mkdocs.js';
 import { load as yamlLoad } from 'js-yaml';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'test-fixtures', 'import', 'mkdocs');
@@ -185,6 +185,26 @@ describe('end-to-end: MkDocs / Material project', () => {
     expect(r.validation.issues).toEqual([]);
     expect(r.markup.errors).toBe(0);
   });
+
+  it('carries the announcement block over, inlines a Jinja include and keeps footnotes through the build', async () => {
+    expect(cfg.announcement).toEqual({ message: '[Acme **2.0** is out](https://acme.example.com/launch)' });
+    expect(r.items.find((i) => i.code === 'mkdocs-theme-overrides').message).toMatch(/announcement banner .* was carried over/);
+    const setup = await fs.readFile(path.join(out, 'docs', 'guide', 'setup.md'), 'utf8');
+    expect(setup).toContain('Included from a Jinja tag.');
+    expect(setup).not.toMatch(/\{% include/);
+    expect(setup).toContain('footnote.[^1]');
+    expect(setup).toContain('[^1]: A footnote.');
+    const { build } = await import('../build.js');
+    const cwd = process.cwd();
+    const log = console.log;
+    process.chdir(out);
+    console.log = () => {};
+    try { await build({ out: 'dist' }); } finally { console.log = log; process.chdir(cwd); }
+    const html = await fs.readFile(path.join(out, 'dist', 'guide', 'setup.html'), 'utf8');
+    expect(html).toMatch(/footnote/i);
+    expect(html).toContain('A footnote.');
+    expect(html).toMatch(/<section[^>]*data-footnotes|class="footnotes"/);
+  }, 120000);
 
   it('maps mkdocs.yml: identity, theme, nav, redirects, analytics, footer', () => {
     expect(cfg).toMatchObject({ name: 'Acme Docs', description: 'Docs for the Acme toolkit.', url: 'https://acme.example.com', basePath: '/docs', logo: 'img/logo.svg' });
@@ -522,5 +542,88 @@ describe('blog excerpts are plain prose', () => {
     const ex = plainExcerpt('word '.repeat(200));
     expect(ex.length).toBeLessThanOrEqual(301);
     expect(ex.endsWith('…')).toBe(true);
+  });
+});
+
+describe('Jinja block includes', () => {
+  const mkProject = async (files, cfg = 'site_name: T\nplugins:\n  - macros\n  - include-markdown\n') => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mk-inc-'));
+    await fs.outputFile(path.join(dir, 'mkdocs.yml'), cfg);
+    for (const [f, c] of Object.entries(files)) await fs.outputFile(path.join(dir, f), c);
+    const out = dir + '-out';
+    const r = await runImport({ sourceDir: dir, outDir: out, fetchText: null, validateOutput: false });
+    const read = (f) => fs.readFile(path.join(out, 'docs', f), 'utf8');
+    return { dir, out, r, read, done: () => fs.remove(dir).then(() => fs.remove(out)) };
+  };
+  const counts = (r) => Object.fromEntries((r.markup?.components || r.components || []).map((c) => [c.from, c.count]));
+
+  it('inlines Markdown includes: macros (docs_dir / include_dir), include-markdown (relative), both quote styles, recursion', async () => {
+    const p = await mkProject({
+      'docs/index.md': '# Home\n\n{% include "frag.md" %}\n\n{% include \'frag.md\' %}\n\n{% include-markdown "../shared/note.md" %}\n\n{% include "inner.md" %}\n',
+      'docs/frag.md': 'Fragment text.\n',
+      'docs/inner.md': 'Before.\n\n{% include "frag.md" %}\n',
+      'shared/note.md': 'Shared note.\n',
+    }, 'site_name: T\nplugins:\n  - macros:\n      include_dir: inc\n  - include-markdown\n');
+    try {
+      const t = await p.read('index.md');
+      expect(t.match(/Fragment text\./g)).toHaveLength(3);
+      expect(t).toContain('Shared note.');
+      expect(t).not.toContain('{%');
+      expect(counts(p.r)['{% include %}']).toBeGreaterThanOrEqual(3);
+    } finally { await p.done(); }
+  });
+
+  it('include-markdown honours start/end, heading-offset, dedent and rewrites relative links', async () => {
+    const p = await mkProject({
+      'docs/index.md': '# Home\n\n{% include-markdown "sub/part.md" start="<!--s-->" end="<!--e-->" heading-offset=1 %}\n\n- item\n\n    {% include-markdown "sub/part.md" start="<!--s-->" end="<!--e-->" %}\n',
+      'docs/sub/part.md': 'ignored\n<!--s-->\n# Title\n\nSee [other](other.md) and ![i](img/a.png).\n\n```md\n# not a heading\n```\n<!--e-->\nignored too\n',
+    });
+    try {
+      const t = await p.read('index.md');
+      expect(t).toContain('## Title');
+      expect(t).toContain('# Title');
+      expect(t).toContain('(sub/other.md)');
+      expect(t).toContain('sub/img/a.png');
+      expect(t).toContain('# not a heading');
+      expect(t).not.toContain('ignored');
+      expect(t).toContain('    # Title');
+    } finally { await p.done(); }
+  });
+
+  it('leaves non-Markdown, unresolvable, circular and inline includes as written, with a file:line warning', async () => {
+    const p = await mkProject({
+      'docs/index.md': '# Home\n\n{% include "partial.html" %}\n\n{% include "missing.md" %}\n\nInline {% include "a.md" %} stays.\n\n{% include "loop.md" %}\n\n{% include path_var %}\n\n```\n{% include "a.md" %}\n```\n',
+      'docs/partial.html': '<b>x</b>',
+      'docs/a.md': 'A\n',
+      'docs/loop.md': 'Loop\n\n{% include "loop.md" %}\n',
+    });
+    try {
+      const t = await p.read('index.md');
+      expect(t).toContain('{% include "partial.html" %}');
+      expect(t).toContain('{% include "missing.md" %}');
+      expect(t).toContain('Inline {% include "a.md" %} stays.');
+      expect(t).toContain('```\n{% include "a.md" %}\n```');
+      const w = p.r.items.filter((i) => i.code === 'mkdocs-include-unresolved');
+      expect(w.length).toBe(5); // index.md: html, missing, circular, dynamic; loop.md (itself a page): circular
+      expect(w.find((i) => /circular/.test(i.message) && i.file === 'index.md')).toMatchObject({ line: 9 });
+      expect(w.find((i) => /partial\.html/.test(i.message))).toMatchObject({ severity: 'warning', file: 'index.md', line: 3 });
+      expect(w.map((i) => i.message).join('\n')).toMatch(/not Markdown[\s\S]*file not found|file not found[\s\S]*not Markdown/);
+    } finally { await p.done(); }
+  });
+
+  it('does nothing without the macros / include-markdown plugins', async () => {
+    const p = await mkProject({ 'docs/index.md': '# Home\n\n{% include "a.md" %}\n', 'docs/a.md': 'A\n' }, 'site_name: T\n');
+    try { expect(await p.read('index.md')).toContain('{% include "a.md" %}'); } finally { await p.done(); }
+  });
+});
+
+describe('announcementFromTemplate', () => {
+  it('keeps text, links and emphasis; drops Jinja, icons and scripts; items are joined', () => {
+    const html = '{% extends "base.html" %}\n{% block announce %}\n<div><a class="x" href="/a">\n<span>{% include "i.svg" %}<svg><path/></svg></span> Go <b>now</b></a></div>\n<div>Second &amp; last</div>{{ foo }}\n{% endblock %}';
+    expect(announcementFromTemplate(html)).toEqual({ message: '[Go **now**](/a) · Second & last', dropped: 0 });
+  });
+  it('returns null without an announce block or with an empty one', () => {
+    expect(announcementFromTemplate('{% block content %}x{% endblock %}')).toBeNull();
+    expect(announcementFromTemplate('{% block announce %}\n<div>{% include "p.html" %}</div>\n{% endblock %}')).toBeNull();
   });
 });

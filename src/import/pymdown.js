@@ -9,6 +9,7 @@
 //   2. link pass: the result is parsed with remark (no MDX) and every link / image / raw HTML
 //      src|href is rewritten in place (see rewriteLinks).
 import { unified } from 'unified';
+import path from 'path';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -64,6 +65,7 @@ export function convertPymdown(src, opts) {
   const o = { exts: new Set(), tabsSync: false, codeAnnotate: false, report: () => {}, count: () => {}, lineOffset: 0, ...opts };
   const st = { o, tabGroups: 0, codeImports: new Set(), notes: { mkdocstrings: [], macros: [], critic: 0, iconMiss: new Set(), annotations: 0, attrDropped: 0, gridCards: 0, mathRound: false } };
   let lines = src.replace(/\r\n?/g, '\n').split('\n');
+  lines = expandIncludes(lines, st, 0, []);
   lines = expandSnippets(lines, st, 0);
   lines = fastapiIncludes(lines, st);
   const abbr = collectAbbreviations(lines, st);
@@ -72,6 +74,114 @@ export function convertPymdown(src, opts) {
   let body = out.join('\n');
   body = tidyBlank(inlinePass(body, st, abbr.map));
   return { body, notes: st.notes };
+}
+
+// ─── Jinja block includes (mkdocs-macros `{% include %}`, include-markdown `{% include-markdown %}`) ──
+const INCLUDE_OPEN = /^([ \t]*)\{%[-+]?\s*(include-markdown|include)\b(.*)$/;
+const INCLUDE_MAX_DEPTH = 5;
+const fenceCloser = (fence) => new RegExp(`^[ \\t]*${fence[0] === '`' ? '`' : '~'}{${fence.length},}[ \\t]*$`);
+const unq = (v) => v.replace(/\\(["'\\])/g, '$1');
+
+function parseIncludeTag(tagBody) {
+  // tagBody: everything after the tag name, up to and including the closing %}
+  const m = /^([\s\S]*?)[-+]?%\}\s*$/.exec(tagBody);
+  if (!m) return null;
+  const f = /^\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')([\s\S]*)$/.exec(m[1]);
+  if (!f) return null; // dynamic expression (a variable, ...)
+  const opts = {};
+  const re = /([\w-]+)\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|(\S+))/g;
+  let om;
+  while ((om = re.exec(f[3]))) opts[om[1]] = unq(om[2] ?? om[3] ?? om[4]);
+  return { spec: unq(f[1] ?? f[2]), opts };
+}
+
+function applyIncludeOptions(text, opts, fromAbs, includerAbs) {
+  let t = text.replace(/\r\n?/g, '\n');
+  if (opts.start !== undefined || opts.end !== undefined) {
+    let a = 0;
+    if (opts.start !== undefined) { const i = t.indexOf(opts.start); if (i === -1) return { error: `start marker "${opts.start}" not found` }; a = i + opts.start.length; }
+    let b = t.length;
+    if (opts.end !== undefined) { const j = t.indexOf(opts.end, a); if (j === -1) return { error: `end marker "${opts.end}" not found` }; b = j; }
+    t = t.slice(a, b);
+  }
+  let ls = t.split('\n');
+  while (ls.length && !ls[0].trim()) ls.shift();
+  while (ls.length && !ls[ls.length - 1].trim()) ls.pop();
+  if (/^(true|yes|1)$/i.test(String(opts.dedent))) {
+    const ind = Math.min(Infinity, ...ls.filter((l) => l.trim()).map((l) => /^[ \t]*/.exec(l)[0].length));
+    if (ind > 0 && ind !== Infinity) ls = ls.map((l) => l.slice(Math.min(ind, /^[ \t]*/.exec(l)[0].length)));
+  }
+  const off = Number(opts['heading-offset'] ?? 0) || 0;
+  const rewrite = !/^(false|no|0)$/i.test(String(opts['rewrite-relative-urls'] ?? 'true')) && path.dirname(fromAbs) !== path.dirname(includerAbs);
+  if (off || rewrite) {
+    let fence = null;
+    const fix = (u) => {
+      if (!u || /^([a-z][a-z0-9+.-]*:|#|\/|\{\{|\{%|<)/i.test(u)) return u;
+      const m2 = /^([^?#]*)([?#].*)?$/.exec(u);
+      let dec = m2[1];
+      try { dec = decodeURI(m2[1]); } catch { /* keep */ }
+      const rel = path.relative(path.dirname(includerAbs), path.resolve(path.dirname(fromAbs), dec)).split(path.sep).join('/');
+      return encodeURI(rel) + (m2[2] || '');
+    };
+    ls = ls.map((l) => {
+      const fm = FENCE_OPEN.exec(l);
+      if (fm && !fence) { fence = fm[2]; return l; }
+      if (fence) { if (fenceCloser(fence).test(l)) fence = null; return l; }
+      let x = l;
+      if (off) x = x.replace(/^([ \t]*)(#{1,6})(?=\s)/, (m, ind, h) => ind + '#'.repeat(Math.max(1, Math.min(6, h.length + off))));
+      if (rewrite) {
+        x = x.replace(/(\]\()([^)\s]+)((?:\s+"[^"]*")?\))/g, (m, a, u, c) => a + fix(u) + c)
+          .replace(/^(\s*\[[^\]]+\]:\s*)(\S+)/, (m, a, u) => a + fix(u))
+          .replace(/(\b(?:src|href)=")([^"]+)(")/g, (m, a, u, c) => a + fix(u) + c);
+      }
+      return x;
+    });
+  }
+  return { lines: ls };
+}
+
+function expandIncludes(lines, st, depth, stack, topLine = null) {
+  const { o } = st;
+  if (!o.readInclude) return lines;
+  const out = [];
+  let fence = null;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const fm = FENCE_OPEN.exec(l);
+    if (fm && !fence) { fence = fm[2]; out.push(l); continue; }
+    if (fence) { if (fenceCloser(fence).test(l)) fence = null; out.push(l); continue; }
+    const m = INCLUDE_OPEN.exec(l);
+    if (!m) { out.push(l); continue; }
+    // gather the whole tag (it may span lines); only a tag alone on its line(s) is a block include
+    let j = i;
+    let tag = l.slice(m[1].length);
+    while (!/%\}/.test(lines[j]) && j + 1 < lines.length && j - i < 12) { j++; tag += '\n' + lines[j]; }
+    const body = tag.replace(/^\{%[-+]?\s*(include-markdown|include)\b/, '');
+    const end = body.indexOf('%}');
+    if (end === -1 || body.slice(end + 2).trim()) { out.push(l); continue; } // inline Jinja: leave alone
+    const parsed = parseIncludeTag(body.slice(0, end + 2));
+    const kind = m[2];
+    const lineNo = topLine ?? (i + 1 + o.lineOffset);
+    const keep = (why) => {
+      o.report('warning', 'mkdocs-include-unresolved', `{% ${kind} "${parsed ? parsed.spec : '…'}" %} was left as written: ${why}.`, { line: lineNo, action: 'Left the tag in the page.', fix: 'Paste the content into the page, or put reusable text under docs/_reusables and use <wc-include>.' });
+      o.count(`{% ${kind} %} (left as written)`, 'unchanged');
+      out.push(...lines.slice(i, j + 1));
+      i = j;
+    };
+    const r = depth < INCLUDE_MAX_DEPTH ? o.readInclude(parsed ? parsed.spec : '', { kind, line: lineNo, stack }) : null;
+    if (r && r.skip) { out.push(...lines.slice(i, j + 1)); i = j; continue; }
+    if (!parsed) { keep('the path is not a plain string'); continue; }
+    if (depth >= INCLUDE_MAX_DEPTH) { keep('includes are nested too deeply'); continue; }
+    if (!r || r.error) { keep(r?.error || 'file not found'); continue; }
+    if (stack.includes(r.abs)) { keep('the include is circular'); continue; }
+    const a = applyIncludeOptions(r.text, parsed.opts, r.abs, r.includerAbs);
+    if (a.error) { keep(a.error); continue; }
+    const inner = expandIncludes(a.lines, st, depth + 1, [...stack, r.abs], lineNo);
+    o.count(`{% ${kind} %}`, 'inlined');
+    out.push(...inner.map((x) => (x ? m[1] + x : x)));
+    i = j;
+  }
+  return out;
 }
 
 // ─── pymdownx.snippets ────────────────────────────────────────────────────────

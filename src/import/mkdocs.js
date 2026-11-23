@@ -247,6 +247,10 @@ export async function convertMkdocs(imp, loaded, opts = {}) {
     codeAnnotate: features.has('content.code.annotate'),
     snippetBases,
     snippetSources: new Set(),
+    includes: {
+      kinds: new Set([...(macrosOn ? ['include'] : []), ...(plugins.has('include-markdown') ? ['include-markdown'] : [])]),
+      macrosDir: plugins.get('macros')?.include_dir ? path.resolve(loaded.dir, String(plugins.get('macros').include_dir)) : null,
+    },
     macros: {
       enabled: macrosOn,
       resolve(name) {
@@ -334,8 +338,18 @@ export async function convertMkdocs(imp, loaded, opts = {}) {
   if (theme.custom_dir) {
     const overridesAbs = path.resolve(loaded.dir, String(theme.custom_dir));
     const files = (await fs.pathExists(overridesAbs)) ? (await walkFiles(overridesAbs)).filter((f) => /\.html$/.test(f)) : [];
-    rep('warning', 'mkdocs-theme-overrides', `Theme overrides in ${theme.custom_dir}/ (${files.length} Jinja template${files.length === 1 ? '' : 's'}${files.length ? ': ' + files.slice(0, 5).join(', ') + (files.length > 5 ? ', …' : '') : ''}) cannot run in DocsLit.`, {
-      action: 'Not copied.', fix: 'Use docslit.json instead: "announcement" for the banner, "head" for extra tags, "footer" for footer links, "css" for styles, or a custom component for anything richer.' });
+    // Material's announcement bar lives in `{% block announce %}` of main.html: carry its text over
+    let banner = null;
+    for (const f of [...files].sort((a, b) => Number(/(^|\/)main\.html$/.test(b)) - Number(/(^|\/)main\.html$/.test(a)))) {
+      banner = announcementFromTemplate(await fs.readFile(path.join(overridesAbs, f), 'utf8'));
+      if (banner) { banner.file = f; break; }
+    }
+    if (banner && !out.announcement) {
+      out.announcement = { message: banner.message };
+      mapped(`theme.custom_dir/${banner.file} (block announce)`, 'announcement');
+    }
+    rep('warning', 'mkdocs-theme-overrides', `Theme overrides in ${theme.custom_dir}/ (${files.length} Jinja template${files.length === 1 ? '' : 's'}${files.length ? ': ' + files.slice(0, 5).join(', ') + (files.length > 5 ? ', …' : '') : ''}) cannot run in DocsLit.${banner ? ` The announcement banner (block announce in ${banner.file}) was carried over to "announcement" as text and links${banner.dropped ? `; ${banner.dropped} further item(s) were left out to keep it short` : ''}: check it.` : ''}`, {
+      action: banner ? 'Not copied (the announcement banner was converted).' : 'Not copied.', fix: 'Use docslit.json instead: "announcement" for the banner, "head" for extra tags, "footer" for footer links, "css" for styles, or a custom component for anything richer.' });
     unmapped('theme.custom_dir', 'Jinja template overrides are not supported');
   }
 
@@ -629,7 +643,7 @@ function buildTabs(items, siteName) {
 /** Page-conversion settings when no mkdocs.yml is available (single-page MCP conversion): common extensions on. */
 export function mkdocsPageDefaults() {
   return {
-    configDir: process.cwd(), docsDir: process.cwd(), useDirUrls: true, snippetBases: [], snippetSources: new Set(), tabsSync: false, codeAnnotate: false,
+    configDir: process.cwd(), docsDir: process.cwd(), useDirUrls: true, snippetBases: [], snippetSources: new Set(), includes: { kinds: new Set() }, tabsSync: false, codeAnnotate: false,
     exts: new Set(['admonition', 'attr_list', 'def_list', 'md_in_html', 'footnotes', 'abbr', 'pymdownx.details', 'pymdownx.tabbed', 'pymdownx.superfences', 'pymdownx.keys', 'pymdownx.mark', 'pymdownx.caret', 'pymdownx.tilde', 'pymdownx.arithmatex', 'pymdownx.emoji']),
     macros: { enabled: false, resolve: () => null },
   };
@@ -670,6 +684,62 @@ export function mkdocsFrontmatter(fm, report = () => {}) {
   if (d.draft !== undefined) { out.draft = d.draft; delete d.draft; }
   void report;
   return { ...out, ...d };
+}
+
+/**
+ * Convert the inner HTML of a Material `{% block announce %}…{% endblock %}` into one short Markdown line.
+ * Tags are stripped except links (href kept) and bold/italic; Jinja, icons (svg) and scripts are dropped; block
+ * elements become " · " separated items (stopping before ~300 visible characters). Returns {message, dropped} or null.
+ */
+export function announcementFromTemplate(html) {
+  const m = /\{%-?\s*block\s+announce\s*-?%\}([\s\S]*?)\{%-?\s*endblock(?:\s+announce)?\s*-?%\}/.exec(String(html));
+  if (!m) return null;
+  let t = m[1]
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/\{#[\s\S]*?#\}/g, ' ')
+    .replace(/\{%[\s\S]*?%\}/g, ' ')
+    .replace(/\{\{[\s\S]*?\}\}/g, ' ')
+    .replace(/<(svg|script|style)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi, (_, a, b, inner) => `\u0001${(a ?? b).trim()}\u0002${inner.replace(/\s+/g, ' ')}\u0003`)
+    .replace(/<(strong|b)\b[^>]*>/gi, '**').replace(/<\/(strong|b)>/gi, '**')
+    .replace(/<(em|i)\b[^>]*>/gi, '*').replace(/<\/(em|i)>/gi, '*')
+    .replace(/<\/?(div|p|li|ul|ol|br|section|header|aside|h[1-6])\b[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  const items = [];
+  for (const line of t.split('\n')) {
+    let x = line.replace(/\s+/g, ' ').trim();
+    // links: \u0001href\u0002text\u0003 -> [text](href); a link with no text is dropped
+    x = x.replace(/\u0001([^\u0002]*)\u0002([^\u0003]*)\u0003/g, (_, href, text) => { const tx = text.replace(/\s+/g, ' ').trim(); return tx ? `[${tx}](${href})` : ''; }).replace(/\s+/g, ' ').trim();
+    x = x.replace(/\*\*\s*\*\*/g, '').trim();
+    if (/[\p{L}\p{N}]/u.test(x)) items.push(x);
+  }
+  if (!items.length) return null;
+  const kept = [];
+  let len = 0;
+  for (const it of items) { const vis = it.replace(/\]\([^)]*\)/g, ']').length; if (kept.length && len + vis > 300) break; kept.push(it); len += vis + 3; }
+  return { message: kept.join(' · '), dropped: items.length - kept.length };
+}
+
+/**
+ * Resolve a Jinja block include. `include-markdown` resolves relative to the including file, then docs_dir; macros'
+ * `include` relative to the plugin's include_dir (if set), then docs_dir and the project root. Only Markdown is inlined.
+ * Returns {text, abs, includerAbs} | {error} | {skip}. `fromAbs` is the file holding the tag, `pageAbs` the page being converted.
+ */
+export function readMkdocsInclude(imp, spec, fromAbs, pageAbs, { kind = 'include' } = {}) {
+  const mk = imp.mkdocs;
+  if (!mk.includes?.kinds.has(kind)) return { skip: true };
+  const file = String(spec).trim();
+  if (/^https?:\/\//.test(file)) return { error: 'remote includes are not downloaded' };
+  if (/[*?[]/.test(file)) return { error: 'glob includes are not supported' };
+  const bases = kind === 'include-markdown'
+    ? [path.dirname(fromAbs), mk.docsDir, mk.configDir]
+    : [...(mk.includes.macrosDir ? [mk.includes.macrosDir] : []), mk.docsDir, mk.configDir];
+  let abs = null;
+  for (const b of bases) { const c = path.resolve(b, file); try { if (fs.statSync(c).isFile()) { abs = c; break; } } catch { /* next */ } }
+  if (!abs) return { error: 'file not found' };
+  if (!/\.(md|markdown|mdx)$/i.test(abs)) return { error: `${path.extname(abs) || 'this file'} is not Markdown (Jinja partials cannot run in DocsLit)` };
+  return { text: fs.readFileSync(abs, 'utf8'), abs, includerAbs: pageAbs };
 }
 
 /**
