@@ -324,6 +324,24 @@ const TAB_RE = /^([ \t]*)===([!+]{0,2})[ \t]+(?:"(.*)"|'(.*)')[ \t]*$/;
 const BLOCK_OPEN = /^([ \t]*)(\/{3,})[ \t]*([\w-]+)[ \t]*(?:\|[ \t]*(.*?))?[ \t]*$/;
 const BLOCK_CLOSE = /^([ \t]*)(\/{3,})[ \t]*$/;
 const MKDOCSTRINGS = /^([ \t]*):::[ \t]+([\w.:-]+)[ \t]*$/;
+// Docusaurus-style admonitions (`:::note Title` … `:::`), used by sites that also publish with Docusaurus
+const COLON_TYPES = 'note|tip|info|warning|caution|danger|important|success|secondary';
+const COLON_OPEN = new RegExp(`^([ \\t]*)(:{3,})(?:[ \\t]*)(${COLON_TYPES})(?:\\[([^\\]]*)\\])?(?:[ \\t]+(.*?))?[ \\t]*$`, 'i');
+function findColonClose(lines, start, n) {
+  let depth = 0;
+  let fence = null;
+  for (let j = start + 1; j < lines.length; j++) {
+    const l = lines[j];
+    const f = FENCE_OPEN.exec(l);
+    if (f) { if (!fence) fence = openFence(f); else if (closesFence(l, fence)) fence = null; continue; }
+    if (fence) continue;
+    const o = COLON_OPEN.exec(l);
+    if (o && o[2].length === n) { depth++; continue; }
+    const c = /^[ \t]*(:{3,})[ \t]*$/.exec(l);
+    if (c && c[1].length === n) { if (depth === 0) return j; depth--; }
+  }
+  return -1;
+}
 const MD_HTML_OPEN = /^([ \t]*)<([a-zA-Z][\w-]*)\b([^>]*?)\s+markdown(?:=(?:"[^"]*"|'[^']*'|\w+))?([^>]*)>[ \t]*$/;
 
 function blocks(lines, st, firstLine) {
@@ -398,6 +416,20 @@ function blocks(lines, st, firstLine) {
       if (blk) {
         out.push(...renderBlock(m, blk, st, firstLine, lineNo));
         i = blk.next - 1;
+        continue;
+      }
+    }
+
+    // ── Docusaurus-style admonitions (:::note Title … :::), reusing the callout conversion ──
+    if ((m = COLON_OPEN.exec(l))) {
+      const end = findColonClose(lines, i, m[2].length);
+      if (end !== -1) {
+        const ind = indentWidth(m[1]);
+        const body = lines.slice(i + 1, end).map((x) => (isBlank(x) ? '' : dedent(x, ind)));
+        const title = m[4] ?? (m[5] || undefined);
+        out.push(...wrap(m[1], calloutOpen(m[3].toLowerCase(), title, st, lineNo), blocks(body, st, firstLine + i + 1), '</wc-callout>'));
+        o.count(':::type admonition (Docusaurus style)', 'wc-callout');
+        i = end;
         continue;
       }
     }

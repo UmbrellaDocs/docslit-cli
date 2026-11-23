@@ -636,3 +636,16 @@ describe('pymdown: fences follow CommonMark closing rules', () => {
     expect(out).not.toContain('<wc-tab');
   });
 });
+
+describe('pymdown: Docusaurus-style ::: admonitions', () => {
+  it('converts :::type blocks (title, [Title], nesting) and leaves mkdocstrings and fences alone', () => {
+    expect(conv(':::note\nBody\n:::\n')).toBe('<wc-callout type="note">\n\nBody\n\n</wc-callout>\n');
+    expect(conv(':::caution[Heads up]\ny\n:::\n')).toContain('<wc-callout type="warning" title="Heads up">');
+    const nested = conv('::::info Outer\na\n\n:::danger Inner\nb\n:::\n\nc\n::::\n');
+    expect(nested).toContain('<wc-callout type="info" title="Outer">');
+    expect(nested).toContain('<wc-callout type="danger" title="Inner">');
+    expect(conv('::: pkg.mod.Client\n')).toContain('API reference: pkg.mod.Client');
+    expect(conv('```\n:::note\n```\n')).toBe('```\n:::note\n```\n');
+    expect(conv(':::\n')).toBe(':::\n');
+  });
+});
