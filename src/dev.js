@@ -17,7 +17,6 @@ import { katexDistDir } from './math.js';
 import { parseFrontmatter } from './frontmatter.js';
 import { renderShell } from './template.js';
 import { resolveSiteTheme, parseThemeConfig } from './themes.js';
-import { loadSpec, getEndpoints, getApiMeta, resolveSpecRefs, buildApiPageMarkdown } from './openapi.js';
 import { initHighlighter } from './highlighter.js';
 import { normalizeBasePath, logoFiles } from './site-config.js';
 

@@ -1,7 +1,6 @@
 // Shared navigation helpers (page lookup, sidebar item building, OpenAPI expansion).
 import fs from 'fs-extra';
 import path from 'path';
-import { loadSpec, getEndpoints } from '../openapi.js';
 
 export const OP_RE = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|WEBHOOK|TRACE)\s+(\S.*)$/i;
 
@@ -38,6 +37,7 @@ export class OpenApiPages {
     let entry = null;
     try {
       const abs = path.join(this.imp.sourceDir, specRel);
+      const { loadSpec, getEndpoints } = await import('../openapi.js'); // heavy (redocly): only when a spec is imported
       const spec = await loadSpec(abs);
       entry = { spec, endpoints: getEndpoints(spec) };
     } catch (e) {
