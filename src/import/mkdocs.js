@@ -8,8 +8,8 @@ import path from 'path';
 import { load as yamlLoad } from 'js-yaml';
 import { parseToml } from './toml.js';
 import { buildThemeConfig } from './theme.js';
-import { resolveIcon } from '../icons.js';
 import { readBlog, postOverride, listingPages, renderPostList } from './mkdocs-blog.js';
+import { mapFrontmatterIcon } from './icon-map.js';
 
 const posix = (p) => p.split(path.sep).join('/');
 const isMd = (f) => /\.(md|markdown)$/i.test(f);
@@ -652,8 +652,8 @@ export function mkdocsFrontmatter(fm, report = () => {}) {
   if (d.status !== undefined) { const s = STATUS[String(d.status)]; if (s) out.availability = s; delete d.status; }
   if (d.search && typeof d.search === 'object') { if (d.search.exclude === true) out.searchable = false; delete d.search; }
   if (typeof d.icon === 'string') {
-    const name = d.icon.replace(/^(material|fontawesome\/\w+|octicons|simple)\//, '').replace(/-(16|24)$/, '');
-    if (resolveIcon(name).kind === 'svg') out.icon = name;
+    const name = mapFrontmatterIcon(d.icon);
+    if (name) out.icon = name;
     delete d.icon;
   }
   if (d.date !== undefined) {
