@@ -20,6 +20,7 @@ import { expandAllSidebars } from './auto-sidebar.js';
 import { expandCodeImports, CODE_IMPORT_FIXES } from './code-import.js';
 import { parseThemeConfig, loadThemeFile, resolveSiteTheme, diagnoseTheme, contrastIssues, looksLikeThemeFile } from './themes.js';
 import { checkNavigation, checkPageNavigation } from './nav-validate.js';
+import { initPythonApi, hasPythonApi, expandPythonApi } from './api-python/site.js';
 import { isNavFrontmatterKey, isLinkItem, collectIds } from './navigation.js';
 
 // ─── Built-in component registry ──────────────────────────────────────────────
@@ -98,6 +99,10 @@ const ISSUE_RULES = [
   [/^Tab ".*": autogenerate found no pages/, 'tab-autogenerate-empty', () => 'Add pages under the tab\'s "path" or list them in its "sidebar"'],
   [/^Tab ".*": invalid path/, 'tab-invalid-path', () => 'Use a docs-relative folder such as "reference"'],
   [/^Orphaned page/, 'orphan-page', (m, msg) => { const s = /slug: "(.+?)"/.exec(msg); return s ? `Add "${s[1]}" to a sidebar group in docslit.json` : undefined; }],
+  [/^No API data for "(.+?)"/, 'api-data-missing', (m) => `Run \`docslit api python ${m[1]}\`, commit api/python/${m[1]}.json and list "${m[1]}" in python.packages`],
+  [/^".+" was not found in the Python API data/, 'api-object-missing', () => 'Fix the object path in the ::: directive or regenerate the data with `docslit api python <package>`'],
+  [/^Reference \[.+\] does not match any rendered Python object/, 'api-ref-unresolved', () => 'Add a `::: path` directive that renders the object, or fix the reference path'],
+  // api-render has no message pattern of its own ("<id>: <warning>"); checkPythonApi passes the code and PYTHON_API_FIXES supplies the fix
   [/^External link returned/, 'external-link-status', () => 'Update or remove the dead link'],
   [/^External link failed/, 'external-link-failed', () => 'Check the URL or your network connection'],
 ];
@@ -920,6 +925,26 @@ async function checkMath(cache, files, dir, config, issues) {
   }
 }
 
+// ─── 7d. Python API reference check ───────────────────────────────────────────
+// The build reports these through parseDoc's onWarning; validate runs the same expansion.
+const PYTHON_API_LEVELS = { 'api-data-missing': 'warning', 'api-object-missing': 'error', 'api-ref-unresolved': 'warning', 'api-render': 'warning' };
+const PYTHON_API_FIXES = { 'api-render': 'Check the directive options and the docstring named in the message, or regenerate the data with `docslit api python <package>`' };
+
+async function checkPythonApi(cache, files, dir, issues) {
+  if (!hasPythonApi()) return;
+  for (const file of files) {
+    const rec = await getFile(cache, file);
+    if (!rec.raw.includes(':::') && !rec.raw.includes('][')) continue;
+    let body;
+    try { body = rec.body(); } catch { continue; } // reported by the frontmatter check
+    const off = rec.off();
+    const rel = path.relative(dir, file);
+    expandPythonApi(body, {
+      warn: (w) => issues.push(issue(PYTHON_API_LEVELS[w.code] || 'warning', rel, w.line + off, w.message, { code: w.code, fix: PYTHON_API_FIXES[w.code] })),
+    });
+  }
+}
+
 // ─── 8. OpenAPI ref check ─────────────────────────────────────────────────────
 async function checkOpenAPIRefs(cache, files, dir, config, issues) {
   const openapiField = config?.openapi;
@@ -1147,12 +1172,14 @@ async function runValidationInner(cache, dir, { strict = false, external = false
 
   // 4–7. Per-file checks. They are synchronous CPU work apart from file reads (served from the
   // per-run file cache), so they run one after another and share parsed trees.
-  const fmIssues = [], linkIssues = [], assetIssues = [], compIssues = [], markupIssues = [], mathIssues = [];
+  const fmIssues = [], linkIssues = [], assetIssues = [], compIssues = [], markupIssues = [], mathIssues = [], pythonIssues = [];
   await checkFrontmatter(cache, files, dir, fmIssues, loadedConfig);
   // Links, assets and components share each file's parse trees; run them file by file and drop
   // the trees right after so only one page's trees are live at a time (keeps GC pressure low).
   // Each check still appends to its own list in file order, so output order is unchanged.
   const customComponents = await listCustomComponentTags(dir);
+  // Python API reference state (per process): set up from this project's config, cleared when absent
+  await initPythonApi(loadedConfig, dir);
   for (const file of files) {
     await checkLinks(cache, [file], slugs, dir, linkIssues);
     await checkAssets(cache, [file], dir, assetIssues);
@@ -1165,7 +1192,8 @@ async function runValidationInner(cache, dir, { strict = false, external = false
   }
   await checkComponentMarkup(cache, files, dir, markupIssues);
   await checkMath(cache, files, dir, loadedConfig, mathIssues);
-  allIssues.push(...fmIssues, ...linkIssues, ...assetIssues, ...compIssues, ...markupIssues, ...mathIssues);
+  await checkPythonApi(cache, files, dir, pythonIssues);
+  allIssues.push(...fmIssues, ...linkIssues, ...assetIssues, ...compIssues, ...markupIssues, ...mathIssues, ...pythonIssues);
 
   // 8. OpenAPI refs
   await checkOpenAPIRefs(cache, files, dir, loadedConfig, allIssues);

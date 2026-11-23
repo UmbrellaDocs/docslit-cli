@@ -333,3 +333,44 @@ describe('runValidation: folder index pages', () => {
     } finally { await fs.remove(dir); }
   });
 });
+
+describe('runValidation: Python API reference', () => {
+  let dir;
+  const FIXTURE = path.join(__dirname, 'test-fixtures', 'api-python', 'shapes.json');
+  beforeAll(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'docslit-validate-py-'));
+    await fs.ensureDir(path.join(dir, 'docs'));
+    await fs.ensureDir(path.join(dir, 'api', 'python'));
+    await fs.copy(FIXTURE, path.join(dir, 'api', 'python', 'shapes.json'));
+    await fs.writeJson(path.join(dir, 'docslit.json'), {
+      name: 'Py', python: { packages: ['shapes', 'nodata'] },
+      sidebar: [{ group: 'API', pages: ['index', 'ok', 'unknown', 'ref', 'nodata'] }],
+    });
+    const fm = '---\ntitle: T\n---\n\n';
+    await fs.writeFile(path.join(dir, 'docs', 'index.md'), `${fm}# Home\n\n[Circle][shapes.Circle]\n`);
+    await fs.writeFile(path.join(dir, 'docs', 'ok.md'), `${fm}# OK\n\n::: shapes.Circle\n`);
+    await fs.writeFile(path.join(dir, 'docs', 'unknown.md'), `${fm}# Unknown\n\n::: shapes.NoSuchThing\n`);
+    await fs.writeFile(path.join(dir, 'docs', 'ref.md'), `${fm}# Ref\n\nSee [x][shapes.Missing].\n`);
+    await fs.writeFile(path.join(dir, 'docs', 'nodata.md'), `${fm}# No data\n\nText.\n\n::: nodata.Thing\n`);
+  });
+  afterAll(async () => { await fs.remove(dir); });
+
+  it('reports api-* issues with levels and file-relative lines', async () => {
+    const r = await runValidation(dir);
+    const api = r.issues.filter((i) => i.code.startsWith('api-'));
+    const pick = (code) => api.filter((i) => i.code === code).map((i) => [i.level, i.file, i.line]);
+    expect(pick('api-object-missing')).toEqual([['error', path.join('docs', 'unknown.md'), 7]]);
+    expect(pick('api-ref-unresolved')).toEqual([['warning', path.join('docs', 'ref.md'), 7]]);
+    expect(pick('api-data-missing')).toEqual([['warning', path.join('docs', 'nodata.md'), 9]]);
+    expect(api.every((i) => i.file !== path.join('docs', 'ok.md') && i.file !== path.join('docs', 'index.md'))).toBe(true);
+    expect(api.find((i) => i.code === 'api-object-missing').fix).toBeTruthy();
+    // directive lines are not flagged by other validators
+    expect(r.issues.filter((i) => !i.code.startsWith('api-') && /:::/.test(i.message))).toEqual([]);
+  });
+
+  it('api-render warnings are reported as warnings', async () => {
+    await fs.writeFile(path.join(dir, 'docs', 'ok.md'), '---\ntitle: T\n---\n\n::: shapes.Circle\n    options:\n      docstring_style: nope\n');
+    const r = await runValidation(dir);
+    for (const i of r.issues.filter((x) => x.code === 'api-render')) expect(i.level).toBe('warning');
+  });
+});
