@@ -6,6 +6,9 @@ import { fileURLToPath } from 'url';
 import { runImport, detectFormat } from '../import.js';
 import { convertPymdown, rewriteLinks } from './pymdown.js';
 import { parseToml } from './toml.js';
+import { plainExcerpt } from './mkdocs-blog.js';
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
 import { sanitizeMkdocsYaml, loadMkdocsConfig, namedEntries, compileGitignore, mkdocsSlug, mkdocsFrontmatter } from './mkdocs.js';
 import { load as yamlLoad } from 'js-yaml';
 
@@ -458,5 +461,66 @@ describe('pymdown: code annotations', () => {
   it('a standalone { .annotate } line after a list does not break fence/list adjacency', () => {
     const out = conv('```yaml annotate\na: 1  # (1)\n```\n\n1. n\n{ .annotate }\n');
     expect(out).toMatch(/```\n\n1\. n\n/);
+  });
+});
+
+const mdast = (src) => unified().use(remarkParse).parse(src);
+
+describe('pymdown: emoji shortcodes', () => {
+  const emoji = (s) => conv(s, ['pymdownx.emoji']);
+  it('converts :name: shortcodes to Unicode only with pymdownx.emoji', () => {
+    expect(emoji('Hi :smile: and :+1: and :man_raising_hand:!\n')).toBe('Hi 😄 and 👍 and 🙋‍♂️!\n');
+    expect(conv('Hi :smile:\n')).toBe('Hi :smile:\n');
+  });
+  it('leaves unknown names, times, URLs, icons and inline code alone', () => {
+    expect(emoji(':not_an_emoji: at 12:30:45 see http://x.io/:smile: and `:smile:`\n')).toBe(':not_an_emoji: at 12:30:45 see http://x.io/:smile: and `:smile:`\n');
+    expect(emoji(':material-air: :smile:\n')).toContain('😄');
+  });
+  it('does not touch fenced code', () => {
+    expect(emoji('```\n:smile:\n```\n')).toContain(':smile:');
+  });
+});
+
+describe('pymdown: blocks nested in lists and definition lists', () => {
+  const kinds = (src) => {
+    const list = mdast(src).children.find((n) => n.type === 'list');
+    return list.children[0].children.map((n) => n.type);
+  };
+  it('tabs with a fenced code block inside an ordered list item are html + code, not indented code', () => {
+    const out = conv('1. Step:\n\n    === "A"\n\n        ```js\n        x()\n        ```\n\n    === "B"\n\n        text\n\n2. Next\n');
+    const k = kinds(out);
+    expect(k).toContain('html');
+    expect(k).toContain('code');
+    const item = mdast(out).children[0].children[0];
+    expect(item.children.find((n) => n.type === 'code').lang).toBe('js');
+  });
+  it('an admonition inside a bullet list item is html + paragraph/code', () => {
+    const k = kinds(conv('- item\n\n    !!! note "T"\n\n        body\n\n        ```js\n        y()\n        ```\n'));
+    expect(k).toEqual(['paragraph', 'html', 'paragraph', 'code', 'html']);
+  });
+  it('definition lists whose term is an HTML comment (Material option docs) convert, so tabs in them are not indented code', () => {
+    const out = conv('<!-- md:option a.b -->\n\n:   Text:\n\n    === "A"\n\n        ```yaml\n        k: v\n        ```\n\n    End.\n', ['def_list']);
+    expect(out).toContain('<dl>');
+    expect(out).not.toMatch(/^:\s/m);
+    const dd = mdast(out.split('<dd>')[1]);
+    expect(dd.children.some((n) => n.type === 'code' && n.lang === 'yaml')).toBe(true);
+  });
+});
+
+describe('blog excerpts are plain prose', () => {
+  it('drops snippets, admonitions, images, headings, attribute lists and icon shortcodes', () => {
+    const md = '# Title\n\n--8<-- "docs/blog/images/textual-demo.svg"\n\n![img](a.png)\n\n!!! note\n    Hidden admonition body\n\n<div markdown>\nhtml text\n</div>\n\n{ .annotate }\n\n:material-star: Release **notes** for [Textual](x.md){ .md-button } with :smile: shortcodes. Second sentence here. Third sentence.\n';
+    const ex = plainExcerpt(md);
+    expect(ex).toBe('Release **notes** for Textual with shortcodes. Second sentence here.');
+    expect(ex).not.toMatch(/8<|!\[|!!!|\{|:material|html text|Hidden/);
+  });
+  it('handles a leading snippet in the same paragraph and the block form', () => {
+    expect(plainExcerpt('--8<-- "a.svg"\nReal text follows.\n')).toBe('Real text follows.');
+    expect(plainExcerpt('--8<--\na.svg\n--8<--\n\nProse.\n')).toBe('Prose.');
+  });
+  it('caps long excerpts at about 300 characters', () => {
+    const ex = plainExcerpt('word '.repeat(200));
+    expect(ex.length).toBeLessThanOrEqual(301);
+    expect(ex.endsWith('…')).toBe(true);
   });
 });

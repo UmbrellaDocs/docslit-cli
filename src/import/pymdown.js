@@ -16,6 +16,7 @@ import { visit } from 'unist-util-visit';
 import { resolveIcon } from '../icons.js';
 import { mapShortcodeIcon } from './icon-map.js';
 import { findAnnotationMarker } from '../code-meta.js';
+import { EMOJI } from './emoji-shortcodes.js';
 
 // ─── small helpers ────────────────────────────────────────────────────────────
 const indentWidth = (s) => { let w = 0; for (const c of s) { if (c === ' ') w++; else if (c === '\t') w += 4 - (w % 4); else break; } return w; };
@@ -640,7 +641,7 @@ function renderBlock(m, blk, st, firstLine, lineNo) {
 
 // ─── definition lists ─────────────────────────────────────────────────────────
 const DEF_RE = /^:[ \t]{1,3}(\S.*)$/;
-function isTermLine(l) { return /^\S/.test(l) && !/^(#{1,6}\s|[-*+]\s|\d+[.)]\s|>|<|\||```|~~~|!!!|\?\?\?|===|\/\/\/|:)/.test(l); }
+function isTermLine(l) { return /^\S/.test(l) && !/^(#{1,6}\s|[-*+]\s|\d+[.)]\s|>|<(?!!--)|\||```|~~~|!!!|\?\?\?|===|\/\/\/|:)/.test(l); }
 function takeDefList(lines, start, st, firstLine, fromBlock = false) {
   if (fromBlock) {
     // /// define: plain lines are terms, "- " items are definitions
@@ -832,6 +833,18 @@ function inlineSegment(seg, st, abbr, line) {
 
   // icons and emoji shortcodes: :material-x: :fontawesome-brands-github: :octicons-x-16: :simple-x:
   s = s.replace(/:(material|fontawesome|octicons|simple)-([\w-]+?):(?:\{[^}]*\})?/g, (m, set, name) => iconTag(set, name, st, m));
+
+  // GitHub-style emoji shortcodes (pymdownx.emoji twemoji index): :smile: -> 😄. Unknown names, times (12:30:45), URLs
+  // and icon shortcodes stay as written.
+  if (o.exts.has('pymdownx.emoji') && s.includes(':')) {
+    s = s.replace(/(?<![\w:/.#&=-]):([a-z0-9_+-]+):(?![\w:])/gi, (m, name) => {
+      if (/^(material|fontawesome|octicons|simple)-/.test(name)) return m;
+      const ch = EMOJI.get(name.toLowerCase());
+      if (!ch) return m;
+      o.count(':emoji: shortcode', 'Unicode emoji');
+      return ch;
+    });
+  }
 
   // keys: ++ctrl+alt+del++
   if (o.exts.has('pymdownx.keys')) {
