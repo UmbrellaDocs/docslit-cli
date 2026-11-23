@@ -1072,6 +1072,22 @@ function _setActiveToc(id) {
   });
 }
 
+/** Scroll to the element named by location.hash (ids may contain dots, e.g. Python API anchors), below the sticky header. */
+function _scrollToHash() {
+  var h = location.hash ? location.hash.slice(1) : '';
+  if (!h) return;
+  try { h = decodeURIComponent(h); } catch (e) { /* keep */ }
+  var el = document.getElementById(h);
+  if (!el) return;
+  requestAnimationFrame(function() {
+    var crumb = document.querySelector('.docs-nav-top');
+    var top = el.getBoundingClientRect().top + window.scrollY - _chromeH() - (crumb ? crumb.offsetHeight : 0) - 16;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+    if (typeof _setActiveToc === 'function' && el.id) { try { _setActiveToc(el.id); } catch (e) { /* not a TOC heading */ } }
+  });
+}
+if (location.protocol !== 'file:') window.addEventListener('hashchange', _scrollToHash);
+
 function _tocScroll(id) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -1953,6 +1969,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
 window.addEventListener('popstate', () => {
   const id = _pageFromUrl() || document.querySelector('.sidebar-item')?.dataset.page || 'introduction';
+  // same page, only the #fragment changed: scroll to it instead of reloading the page
+  if (id === window.__DOCSLIT_CURRENT_PAGE__ && location.hash) { _scrollToHash(); return; }
   loadPage(id, document.querySelector(\`.sidebar-item[data-page="\${id}"]\`));
 });`;
 }
@@ -2027,7 +2045,9 @@ window.addEventListener('DOMContentLoaded', () => {
     content.insertAdjacentHTML('beforeend', _buildPrevNext(preRenderedId));
     var isApi = preRenderedId.startsWith('api/') || document.body.classList.contains('api-layout');
     _placeApiExamples(content, isApi);
-    history.replaceState({page: preRenderedId}, '', location.pathname);
+    // keep the #fragment (dropping it cancelled the browser's jump to the anchor) and scroll once decorated
+    history.replaceState({page: preRenderedId}, '', location.pathname + location.hash);
+    _scrollToHash();
   } else {
     const fromPath = _pageFromUrl();
     const fromHash = location.hash.slice(1);
@@ -2040,6 +2060,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
 window.addEventListener('popstate', () => {
   const id = _pageFromUrl() || document.querySelector('.sidebar-item')?.dataset.page || 'introduction';
+  // same page, only the #fragment changed: scroll to it instead of reloading the page
+  if (id === window.__DOCSLIT_CURRENT_PAGE__ && location.hash) { _scrollToHash(); return; }
   loadPage(id, document.querySelector(\`.sidebar-item[data-page="\${id}"]\`));
 });`;
 }
