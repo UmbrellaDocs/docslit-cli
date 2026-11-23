@@ -63,6 +63,8 @@ describe('pymdown: block syntax', () => {
   it('code fence options map to DocsLit meta', () => {
     expect(conv('``` python title="a.py" hl_lines="1 3-4" linenums="5"\nx\n```\n')).toContain('```python title="a.py" {1,3-4} lines startLine=5');
     expect(conv('``` { .yaml .no-copy title="c.yml" }\nk: v\n```\n')).toContain('```yaml title="c.yml" nocopy');
+    expect(conv('```ts file="src/a.ts"\nx\n```\n')).toContain('```ts title="src/a.ts"\n');
+    expect(conv('## Notes ## {: #release-v1.2.0 }\n')).toBe('## Notes <a id="release-v1.2.0"></a>\n');
   });
 
   it('mkdocstrings directives become placeholders and are reported', () => {

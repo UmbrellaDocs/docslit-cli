@@ -79,7 +79,7 @@ const KEY_NAMES = {
  */
 export function convertPymdown(src, opts) {
   const o = { exts: new Set(), tabsSync: false, report: () => {}, count: () => {}, lineOffset: 0, ...opts };
-  const st = { o, tabGroups: 0, notes: { mkdocstrings: [], macros: [], critic: 0, iconMiss: new Set(), annotations: 0, attrDropped: 0, gridCards: 0, mathRound: false } };
+  const st = { o, tabGroups: 0, codeImports: new Set(), notes: { mkdocstrings: [], macros: [], critic: 0, iconMiss: new Set(), annotations: 0, attrDropped: 0, gridCards: 0, mathRound: false } };
   let lines = src.replace(/\r\n?/g, '\n').split('\n');
   lines = expandSnippets(lines, st, 0);
   lines = fastapiIncludes(lines, st);
@@ -110,6 +110,7 @@ function expandSnippets(lines, st, depth) {
       if (one && !one[2] && close && depth === 0) {
         const r = o.readSnippet(one[4], { line: i + 1 + o.lineOffset, code: true });
         if (r && r.codeFile) {
+          st.codeImports.add(r.codeFile);
           const meta = fm[3].trim();
           out.push(`${fm[1]}${fm[2]}${meta}${meta ? ' ' : ''}file="${r.codeFile}"${r.lines ? ` lines="${r.lines}"` : ''}`, lines[i + 2]);
           o.count('--8<-- snippet in a code block', 'file= code import');
@@ -169,6 +170,7 @@ function fastapiIncludes(lines, st) {
       st.o.report('warning', 'mkdocs-code-include-missing', `Code include {* ${m[2]} *} could not be resolved.`, { line: i + 1 + st.o.lineOffset, action: 'Left the line as written.', fix: 'Copy the code into a fenced block.' });
       return l;
     }
+    st.codeImports.add(r.codeFile);
     const meta = [`file="${r.codeFile}"`];
     const hl = /\bhl\[([^\]]*)\]/.exec(m[3]);
     const ln = /\bln\[([^\]]*)\]/.exec(m[3]);
@@ -367,7 +369,8 @@ function convertFenceInfo(info, st, line) {
   }
   if (lang.toLowerCase() === 'mermaid') return { mermaid: true };
   const meta = [];
-  if (attrs.file) meta.push(`file="${attrs.file}"`); // set by snippet / {* *} code imports
+  if (attrs.file && st.codeImports.has(attrs.file)) meta.push(`file="${attrs.file}"`); // set by snippet / {* *} code imports
+  else if (attrs.file && !attrs.title) attrs.title = attrs.file; // a source file= is just a filename label
   if (attrs.file && attrs.lines) meta.push(`lines="${attrs.lines}"`);
   if (attrs.__hl) meta.push(`{${attrs.__hl}}`);
   if (attrs.title) meta.push(`title="${String(attrs.title).replace(/"/g, '&quot;')}"`);
@@ -653,7 +656,7 @@ function protectCodeSpans(line, fn) {
   return parts.join('');
 }
 
-const ATTR_BODY = String.raw`(?:[.#][\w:-]+|[\w:-]+(?:=(?:"[^"]*"|'[^']*'|[^\s}"']+))?)`;
+const ATTR_BODY = String.raw`(?:#[\w.:-]+|\.[\w:-]+|[\w:-]+(?:=(?:"[^"]*"|'[^']*'|[^\s}"']+))?)`;
 const ATTR_LIST = new RegExp(String.raw`\{:?[ \t]*(${ATTR_BODY}(?:[ \t]+${ATTR_BODY})*)[ \t]*\}`);
 
 function parseAttrList(s) {
@@ -687,7 +690,7 @@ function inlineSegment(seg, st, abbr, line) {
   const h = /^(\s*#{1,6}\s+.*?)\s*\{:?\s*([^}]*)\}\s*$/.exec(s);
   if (h && ATTR_LIST.test(`{${h[2]}}`)) {
     const a = parseAttrList(h[2]);
-    s = h[1] + (a.id ? ` <a id="${escAttr(a.id)}"></a>` : '');
+    s = h[1].replace(/\s+#+$/, '') + (a.id ? ` <a id="${escAttr(a.id)}"></a>` : '');
     o.count('heading { #id }', a.id ? 'anchor' : 'dropped');
   }
 
