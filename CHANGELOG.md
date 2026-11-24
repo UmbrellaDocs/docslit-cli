@@ -4,7 +4,7 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
-## 0.2.2
+## 0.2.2 (unreleased)
 
 ### Security
 
@@ -14,7 +14,7 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 - **Lit ships with your site.** Published (non-offline) sites no longer load Lit from `esm.sh`: `docslit build` copies the bundled Lit into `docslit-vendor/` next to `docslit.js` and the import map points there, so sites run the exact Lit version DocsLit was tested with and render components without a third-party CDN. The vendored bundles also share one copy of Lit core (the `unsafeHTML` bundle used to embed its own lit-html), and the lazily loaded Mermaid is pinned to 10.9.8 instead of the floating `mermaid@10`.
 
-## 0.2.1
+## 0.2.1 (2026-11-24)
 
 ### Breaking / behaviour changes
 
