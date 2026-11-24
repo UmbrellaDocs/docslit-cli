@@ -12,6 +12,7 @@ import { gitbookPreprocess } from './gitbook.js';
 import { attrString, isExpr, isJsx } from './jsx.js';
 import { convertPymdown, rewriteLinks, MATERIAL_COMPAT_CSS } from './pymdown.js';
 import { mkdocsFrontmatter, readMkdocsSnippet } from './mkdocs.js';
+import { convertSsgSyntax } from './ssg.js';
 
 const posix = (p) => p.split(path.sep).join('/');
 const stripExt = (p) => p.replace(/\.(mdx?|markdown)$/i, '');
@@ -74,6 +75,9 @@ export class Importer {
     const urlRel = this.vendor === 'mkdocs' && !p.startsWith('/') && !/\.(md|markdown)$/i.test(p) ? this.mkdocsUrlBase(fromRel) : null;
     if (slug == null && urlRel) slug = this.resolveSlug(p, urlRel);
     if (slug == null) slug = this.resolveSlug(p, fromRel);
+    // VitePress / Docusaurus clean-URL forms: /guide/intro.html, /blog/2024/01/31/post
+    if (slug == null && /\.html$/i.test(p)) slug = this.resolveSlug(p.replace(/\.html$/i, ''), fromRel);
+    if (slug == null && this.slugAliases) slug = this.slugAliases.get(p.replace(/^\/+|\/+$/g, '')) ?? null;
     if (slug != null) return (slug === '' ? '/index' : '/' + slug) + rest;
     // maybe a file (asset)
     const asset = this.tryAsset(p, fromRel) || (urlRel ? this.tryAsset(p, urlRel) : null);
@@ -362,6 +366,8 @@ export class Importer {
     ctx.codeFromSource = (srcAttr, o) => this.codeFromSourceSync(srcAttr, srcRel, o);
 
     if (this.vendor === 'gitbook') body = gitbookPreprocess(body, rep);
+    // Docusaurus / VitePress / Starlight / plain folders: ::: containers, Vue-only blocks
+    if (this.vendor === 'generic') body = convertSsgSyntax(body, { format: this.format, report: rep, count: (a, b) => this.reporter.count(a, b) });
     let converted;
     if (this.vendor === 'mkdocs') {
       // MkDocs pages are plain Markdown, never MDX: dedicated converter, no remark-mdx parse.

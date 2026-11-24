@@ -3,6 +3,7 @@
 //
 //   Engine:   src/import/mdx.js (remark-mdx AST + source splicing), src/import/components.js
 //   Config:   src/import/{mintlify,fern,gitbook,mkdocs}.js (MkDocs bodies: src/import/pymdown.js)
+//   Docusaurus / VitePress / Starlight: src/import/ssg.js (content roots, ::: containers)
 //   Report:   src/import/report.js (MIGRATION.md / --json)
 import fs from 'fs-extra';
 import path from 'path';
@@ -17,12 +18,14 @@ import { loadMkdocsConfig, convertMkdocs, mkdocsPageDefaults } from './import/mk
 import { renderMigrationMd } from './import/report.js';
 import { buildThemeConfig, describeTheme } from './import/theme.js';
 import { OpenApiPages } from './import/nav.js';
+import { detectSsg, commonRoot } from './import/ssg.js';
 import { stringifyFrontmatter } from './frontmatter.js';
 
 const posix = (p) => p.split(path.sep).join('/');
 const FORMAT_LABEL = { mintlify: 'Mintlify', fern: 'Fern', gitbook: 'GitBook', docusaurus: 'Docusaurus', mkdocs: 'MkDocs', sphinx: 'Sphinx', readme: 'ReadMe', vuepress: 'VuePress', vitepress: 'VitePress', starlight: 'Starlight (Astro)', nextra: 'Nextra (Next.js)', generic: 'Markdown folder' };
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.next', '__pycache__', '.docslit']);
 const VENDORS = ['mintlify', 'fern', 'gitbook', 'mkdocs'];
+const SSG_FORMATS = ['docusaurus', 'vitepress', 'starlight'];
 const KEY_ORDER = ['$schema', 'name', 'description', 'url', 'basePath', 'logo', 'favicon', 'theme', 'layout', 'navbar', 'tabs', 'sidebar', 'anchors', 'footer', 'announcement', 'contextual', 'analytics', 'feedback', 'redirects', 'head', 'css', 'openapi', 'icons', 'attributes'];
 
 // ─── detection ────────────────────────────────────────────────────────────────
@@ -96,8 +99,16 @@ export async function runImport(options) {
 
   const from = configOpt ? 'mkdocs' : fromOpt;
   if (configOpt && fromOpt && fromOpt !== 'mkdocs') throw new ImportError('--config is only valid for MkDocs (--from mkdocs).');
-  const detected = configOpt ? { format: 'mkdocs', why: `--config ${configOpt}`, config: configOpt }
+  let detected = configOpt ? { format: 'mkdocs', why: `--config ${configOpt}`, config: configOpt }
     : from ? { format: from, why: `--from ${from}` } : await detectFormat(sourceDir);
+  // Docusaurus / VitePress / Starlight: read the content folders from the tool's config
+  let ssg = null;
+  if (!configOpt && (SSG_FORMATS.includes(detected.format) || detected.format === 'generic')) {
+    ssg = await detectSsg(sourceDir);
+    if (ssg && from && from !== ssg.format) ssg = null;
+    if (ssg && !ssg.contentDirs.length) throw new ImportError(`No content folder found for ${FORMAT_LABEL[ssg.format]} (${ssg.why}).`);
+    if (ssg) detected = { format: ssg.format, why: ssg.why };
+  }
   const vendor = VENDORS.includes(detected.format) ? detected.format : 'generic';
   log(`Detected: ${FORMAT_LABEL[detected.format] || detected.format} (${detected.why})`);
 
@@ -107,6 +118,7 @@ export async function runImport(options) {
   let gitbook = null;
   if (vendor === 'fern') { fernDir = await findFernDir(sourceDir); if (!fernDir) throw new ImportError('No fern/docs.yml found in the source directory.'); root = fernDir; }
   if (vendor === 'gitbook') { gitbook = await findGitbookRoot(sourceDir); root = gitbook.root; }
+  if (ssg) root = commonRoot(ssg.contentDirs.map((d) => d.dir));
   let mk = null;
   if (vendor === 'mkdocs') {
     mk = await loadMkdocsConfig(sourceDir, detected.config ? { file: detected.config } : {});
@@ -114,7 +126,12 @@ export async function runImport(options) {
     root = path.resolve(mk.dir, String(mk.cfg.docs_dir || 'docs'));
     if (!(await fs.pathExists(root))) throw new ImportError(`docs_dir "${mk.cfg.docs_dir || 'docs'}" from ${mk.file} was not found.`);
   }
-  const imp = new Importer({ sourceDir: root, outDir, vendor, opts: { versions }, fetchText });
+  const publicDir = ssg && await fs.pathExists(ssg.publicDir) ? ssg.publicDir : null;
+  const imp = new Importer({ sourceDir: root, outDir, vendor, assetRoot: publicDir, opts: { versions }, fetchText });
+  imp.format = detected.format;
+  if (ssg) {
+    for (const s of ssg.skipped) imp.report('info', 'ssg-skipped', `${s} was not imported (only the current version and the default language are).`, { fix: 'Import other versions or languages separately if you need them.' });
+  }
   { const rel = posix(path.relative(process.cwd(), sourceDir)); imp.displaySource = rel && !rel.startsWith('..') ? rel : posix(sourceDir); }
   const themeVal = options.noTheme ? false : (themeOpt || null);
   const popts = { themeOpt: themeVal, versions };
@@ -126,7 +143,7 @@ export async function runImport(options) {
     if (loaded && loaded.cfg) { const r = await convertMintlify(imp, loaded, popts); config = r.config; navInfo = r.nav; }
     else {
       if (loaded?.error) imp.report('error', 'config-invalid-json', `${loaded.file} is not valid JSON: ${loaded.error}`, { file: loaded.file, action: 'Fell back to an auto-generated sidebar.', fix: 'Fix the JSON syntax and re-run.' });
-      config = { name: path.basename(sourceDir), sidebar: 'auto' };
+      config = { name: path.basename(ssg ? ssg.base : sourceDir), sidebar: 'auto' };
     }
   } else if (vendor === 'fern') {
     config = (await convertFern(imp, fernDir, popts)).config;
@@ -141,7 +158,18 @@ export async function runImport(options) {
   }
 
   // ── register every remaining markdown file as an unlisted page / reusable ──
-  const all = await walk(root);
+  let all;
+  if (ssg) {
+    all = [];
+    for (const d of ssg.contentDirs) {
+      const skipDirs = new Set((d.exclude || []).map((x) => path.join(d.dir, x)));
+      for (const rel of await walk(d.dir)) {
+        const abs = path.join(d.dir, rel);
+        if ([...skipDirs].some((x) => abs.startsWith(x + path.sep))) continue;
+        all.push(posix(path.relative(root, abs)));
+      }
+    }
+  } else all = await walk(root);
   const snippetFiles = [];
   for (const f of all) {
     if (!isMd(f)) continue;
@@ -152,6 +180,22 @@ export async function runImport(options) {
     if ([...(imp.consumedDirs || [])].some((d) => f.startsWith(d + '/'))) continue;
     const stem = f.replace(/\.(mdx?|md)$/i, '');
     if (imp.pages.has(f)) continue;
+    if (ssg) {
+      const abs = path.join(root, f);
+      const cd = ssg.contentDirs.find((d) => abs.startsWith(d.dir + path.sep));
+      if (!cd) continue;
+      const inner = posix(path.relative(cd.dir, abs));
+      if ((cd.exclude || []).some((x) => inner === x || inner.startsWith(x + '/'))) continue;
+      // _partial.md files are included by other pages, not pages themselves
+      if (/(^|\/)_[^/]*$/.test(inner)) { imp.report('info', 'ssg-partial-skipped', `${f} is a partial (name starts with _); it was not imported as a page.`, { file: f, fix: 'Turn it into a reusable (docs/_reusables/) and include it with <wc-include> where it was imported.' }); continue; }
+      const s = [cd.prefix, inner.replace(/\.(mdx?|md)$/i, '')].filter(Boolean).join('/');
+      if (imp.slugs.has(s)) continue;
+      imp.registerPage(f, s, {});
+      // Docusaurus blog posts are served at /blog/YYYY/MM/DD/name
+      const dated = ssg.format === 'docusaurus' && cd.prefix === 'blog' && /^(\d{4})-(\d{2})-(\d{2})-(.+?)(\/index)?$/.exec(inner.replace(/\.(mdx?|md)$/i, ''));
+      if (dated) (imp.slugAliases ??= new Map()).set(`blog/${dated[1]}/${dated[2]}/${dated[3]}/${dated[4]}`, s);
+      continue;
+    }
     let slug = vendor === 'fern' ? `_unlisted/${stem.replace(/^(docs\/)?pages\//, '')}` : stem;
     if (vendor === 'gitbook' && /(^|\/)README$/i.test(stem)) slug = stem.replace(/README$/i, 'index').replace(/^\/?index$/, 'index');
     if (imp.slugs.has(slug)) continue;
