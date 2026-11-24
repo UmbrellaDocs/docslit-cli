@@ -4,7 +4,7 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
-## 0.2.1 (unreleased)
+## 0.2.1 (2026-11-24)
 
 ### Breaking / behaviour changes
 

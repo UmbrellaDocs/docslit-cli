@@ -47,7 +47,7 @@ cd my-docs
 docslit dev
 ```
 
-Or run it without installing: `npx docslit init my-docs`. Requires Node.js 20.19 or later.
+Or run it without installing: `npx docslit init my-docs`.
 
 ## Commands
 
@@ -59,7 +59,7 @@ Or run it without installing: `npx docslit init my-docs`. Requires Node.js 20.19
 | `docslit build` | Build a static site to `./dist` (`--out`, `--offline`, `--no-minify`, `--incremental`, `--profile`, `--pdf`, `--no-pdf`, `--pdf-dir`) |
 | `docslit cache clean` | Remove the current project's build cache |
 | `docslit deploy` | Write hosting recipes: `--github-pages`, `--netlify`, `--cloudflare`, `--out <dir>` |
-| `docslit import <dir>` | Migrate a Mintlify, Fern or GitBook project (`--out`, `--from`, `--dry-run`, `--theme`, `--no-theme`, `--versions`, `--force`, `--json`) |
+| `docslit import <dir>` | Migrate a Mintlify, Fern, GitBook, MkDocs, Material for MkDocs or Zensical project (`--out`, `--from`, `--dry-run`, `--theme`, `--no-theme`, `--versions`, `--force`, `--json`) |
 | `docslit validate [dir]` | Check for broken links, missing assets, frontmatter errors, unknown components. `--strict`, `--external`, `--format pretty\|github\|json` |
 | `docslit lint [dir]` | Check docs quality: descriptions, headings, code languages, alt text, link text, page length. `--strict`, `--format pretty\|github\|json` |
 | `docslit components [tag]` | List the built-in `wc-*` components, or show one's attributes and example (`--json`) |
@@ -82,6 +82,13 @@ Run `docslit --help` for every option, or `docslit <command> --help` for one com
 ## What a build gives agents
 
 `docslit build` writes `llms.txt`, `llms-full.txt`, a `.md` file for every page, `.well-known/agent.json`, `search-index.json` and a standalone `mcp-server.js` (version-aware on versioned sites). Sites on DocsLit Cloud also get a hosted MCP endpoint at `/mcp` and `Accept: text/markdown` negotiation.
+
+## What's new in 0.2.1
+
+- Import MkDocs, Material for MkDocs and Zensical projects, including configuration, navigation, components, code annotations, icons, blog pages, Jinja includes and migration notes.
+- Generate Python API reference pages from Griffe data without running Python during builds.
+- Build and validate large documentation sites faster with incremental caching, bounded parsing and chunked validation.
+- Generate smaller Open Graph images in a worker pool, with OG images now opt-in.
 
 ## Themes
 
@@ -288,3 +295,11 @@ Run `docslit components` for the full list.
 ## License
 
 Apache-2.0. DocsLit Cloud remains a separate proprietary product.
+
+## Thanks to Lit
+
+DocsLit uses [Lit](https://lit.dev/) (part of the OpenJS Foundation) for its web components and is grateful to the Lit maintainers and contributors for their open-source work.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, test, and pull request guidance.
