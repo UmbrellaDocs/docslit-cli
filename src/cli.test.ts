@@ -1443,7 +1443,8 @@ describe('renderPage — per-route HTML', () => {
   it('includes import map', async () => {
     const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('importmap');
-    expect(html).toContain('esm.sh/lit@3');
+    expect(html).toContain('"lit":"./docslit-vendor/lit.js"');
+    expect(html).not.toContain('esm.sh');
   });
 
   it('computes asset prefix for nested page IDs', async () => {
@@ -1451,6 +1452,7 @@ describe('renderPage — per-route HTML', () => {
     expect(html).toContain('href="../docslit.css"');
     expect(html).toContain('src="../docslit.js"');
     expect(html).toContain('src="../docslit-app.js"');
+    expect(html).toContain('"lit":"../docslit-vendor/lit.js"');
   });
 
   it('includes canonical URL when config.url is set', async () => {

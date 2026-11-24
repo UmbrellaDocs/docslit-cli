@@ -451,6 +451,13 @@ function aside(el, ctx, name) {
   return { tag: 'wc-aside', attrs: { sticky: true }, block: true, warnings: w };
 }
 
+const TYPED_CALLOUT = { note: 'note', info: 'info', tip: 'tip', important: 'info', success: 'success', warning: 'warning', caution: 'warning', danger: 'danger', error: 'error' };
+function typedCallout(el, ctx) {
+  const m = mapProps(el, ctx, { type: { to: 'type', map: TYPED_CALLOUT }, title: 'title', icon: null });
+  const attrs = { type: 'note', ...m.attrs };
+  return { tag: 'wc-callout', attrs: { type: attrs.type, ...(attrs.title ? { title: attrs.title } : {}) }, block: true, warnings: m.warnings };
+}
+
 function columns(el, ctx) {
   const m = mapProps(el, ctx, { cols: { to: 'cols', fn: String } });
   return { tag: 'wc-columns', attrs: m.attrs, block: true, warnings: m.warnings };
@@ -514,7 +521,34 @@ Object.assign(SPECS, {
   Icon: iconEl,
   Mermaid: mermaidEl,
   Panel: (el, ctx) => aside(el, ctx, 'Panel'),
-  Aside: (el, ctx) => aside(el, ctx, 'Aside'),
+  // Starlight <Aside type="tip" title="…"> is a callout; Mintlify-style <Aside> is right-rail content
+  Aside: (el, ctx) => (el.str('type') || el.str('title') ? typedCallout(el, ctx) : aside(el, ctx, 'Aside')),
+  // Docusaurus <Admonition type="tip" title="…">
+  Admonition: typedCallout,
+  // Docusaurus / Starlight tabs: <TabItem value="npm" label="npm"> (Starlight: label, icon)
+  TabItem: (el, ctx) => {
+    const m = mapProps(el, ctx, { label: 'label', value: null, default: null, attributes: null, icon: null });
+    const attrs = { ...m.attrs, ...iconAttrs(el, m.warnings) };
+    if (!attrs.label) attrs.label = el.str('value') || 'Tab';
+    return { tag: 'wc-tab', attrs, block: true, warnings: m.warnings };
+  },
+  // Starlight cards
+  LinkCard: (el, ctx) => {
+    const m = mapProps(el, ctx, { title: 'title', href: { to: 'href', link: true }, description: null });
+    const res = { tag: 'wc-card', attrs: m.attrs, block: true, warnings: m.warnings };
+    if (el.str('description') && !el.children.length) res.body = el.str('description');
+    return res;
+  },
+  CardGrid: (el, ctx) => { const m = mapProps(el, ctx, { stagger: null }); return { tag: 'wc-columns', attrs: { cols: '2' }, block: true, warnings: m.warnings }; },
+  LinkButton: (el, ctx) => {
+    const w = [];
+    const m = mapProps(el, ctx, { href: { to: 'href', link: true }, variant: { to: 'variant', map: { primary: 'primary', secondary: 'none', minimal: 'none' } }, icon: null, iconPlacement: null });
+    w.push(...m.warnings);
+    return { tag: 'wc-button', attrs: { variant: 'primary', ...m.attrs, ...iconAttrs(el, w) }, inline: true, block: false, warnings: w };
+  },
+  Fragment: () => ({ unwrap: true }),
+  ClientOnly: () => ({ unwrap: true }), // VitePress / Docusaurus: DocsLit pages render everything statically
+  BrowserOnly: () => ({ unwrap: true }),
   Prompt: prompt,
   Steps: steps,
   Step: (el, ctx) => (el.parentName === 'ScrollWalkthrough' ? walkStep('wc-walkthrough-step')(el, ctx) : el.parentName === 'Step' && el.ancestors.includes('ScrollWalkthrough') ? walkStep('wc-walkthrough-substep')(el, ctx) : step(el, ctx)),

@@ -4,10 +4,11 @@
 import path from 'path';
 import fs from 'node:fs/promises';
 import { serialize } from 'node:v8';
-import { ensureDir, writeFileIfChanged } from './fs-helpers.js';
+import { fileURLToPath } from 'url';
+import { ensureDir, writeFileIfChanged, copyFileIfChanged, pathExists } from './fs-helpers.js';
 import { getOpenAPIConfig } from './config.js';
 import { parseDoc } from './markdown.js';
-import { buildStylesFile, buildComponentsFile, buildAppFile } from './template.js';
+import { buildStylesFile, buildComponentsFile, buildAppFile, LIT_VENDOR_FILES, LIT_VENDOR_DIR } from './template.js';
 import { generateOgImages, ogColorsFromTheme } from './og-image.js';
 import { isOgImageEnabled } from './build-options.js';
 import { pythonApiFingerprint } from './api-python/site.js';
@@ -75,7 +76,23 @@ export async function writeSharedAssets(outDir, options) {
     writeFileIfChanged(path.join(outDir, 'docslit.css'), css, options.incremental),
     writeFileIfChanged(path.join(outDir, 'docslit.js'), js, options.incremental),
     writeFileIfChanged(path.join(outDir, 'docslit-app.js'), app, options.incremental),
+    writeLitVendor(outDir, options.incremental),
   ]);
+}
+
+const VENDOR_SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), 'vendor');
+
+/** Copy the Lit bundles the page import map points at into <outDir>/docslit-vendor/. */
+export async function writeLitVendor(outDir, incremental = false) {
+  const dest = path.join(outDir, LIT_VENDOR_DIR);
+  await ensureDir(dest);
+  await Promise.all(Object.values(LIT_VENDOR_FILES).map(async (file) => {
+    const src = path.join(VENDOR_SRC, file);
+    if (!await pathExists(src)) {
+      throw new Error(`Missing ${path.relative(process.cwd(), src)}: run \`npm run vendor\` to bundle Lit before building.`);
+    }
+    await copyFileIfChanged(src, path.join(dest, file), incremental);
+  }));
 }
 
 export function collectOgJobs(pagesData, { buildOptions, siteName, ogColors, outDir, toLabel }) {
