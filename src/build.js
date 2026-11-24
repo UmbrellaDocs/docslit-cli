@@ -103,6 +103,9 @@ function firstVisibleId(config, pagesData) {
  * folder, so they 404 from the root. `urlPrefix` is basePath + locale + version.
  */
 async function writeRootIndexStub({ dir, firstId, urlPrefix = '', config, outputTracker = null }) {
+  // The first page is "index": its own page already is index.html. A stub would overwrite
+  // the home page with a redirect to itself.
+  if (firstId === 'index') return;
   const to = `${urlPrefix}/${firstId}`;
   const baseUrl = (config.url || '').replace(/\/$/, '');
   const dest = path.join(dir, 'index.html');
