@@ -325,7 +325,7 @@ class WcMermaid extends LitElement {
       // Mermaid is large (and ESM-only), so it is loaded lazily from a CDN the first time a diagram appears.
       // Offline or blocked networks fall back to showing the diagram source (see render()).
       if(!window.__mermaid__){
-        window.__mermaid__=(await import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs')).default;
+        window.__mermaid__=(await import('https://cdn.jsdelivr.net/npm/mermaid@10.9.8/dist/mermaid.esm.min.mjs')).default;
       }
       const light=this._isLight();
       window.__mermaid__.initialize(light

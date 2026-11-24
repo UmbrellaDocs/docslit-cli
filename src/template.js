@@ -263,7 +263,6 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
   const siteTitle = config.name || 'DocsLit';
   const logo = resolveLogo(config, { basePath });
   const versionSelectorHtml = versionConfig ? buildVersionSelector(versionConfig, currentVersion) : '';
-  const importMap = buildImportMap('static');
   const versionScript = versionConfig
     ? `<script>window.__DOCSLIT_VERSIONS__ = ${JSON.stringify({ current: currentVersion, default: versionConfig.default, list: versionConfig.list })};</script>`
     : '';
@@ -292,6 +291,7 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
 
   const depth = id.split('/').length - 1;
   const assetPrefix = '../'.repeat(depth);
+  const importMap = buildImportMap('static', null, assetPrefix);
   const chrome = buildSiteChrome(config, { basePath, locale: currentLocale, pageId: id, assetPrefix });
 
   let seoTags = '';
@@ -436,16 +436,32 @@ export async function buildOfflineAppFile({ minify = false } = {}) {
   return minify ? _minifyJS(raw) : raw;
 }
 
-export function buildImportMap(mode, vendorData = null) {
-  if (mode === 'dev') return `{"imports":{"lit":"/vendor/lit.js","lit/decorators.js":"/vendor/lit-decorators.js","lit/directives/unsafe-html.js":"/vendor/lit-unsafe-html.js","@lit/reactive-element":"/vendor/reactive-element.js","lit-html":"/vendor/lit-html.js","lit-element/lit-element.js":"/vendor/lit-element.js"}}`;
-  if (vendorData) {
-    const imports = {};
-    for (const [key, content] of Object.entries(vendorData)) {
-      imports[key] = 'data:text/javascript;base64,' + Buffer.from(content).toString('base64');
-    }
-    return JSON.stringify({ imports });
+// Lit bundles from src/vendor/ (see scripts/download-vendor.js), keyed by import
+// specifier. Static builds copy them into <site>/docslit-vendor/ so published sites
+// run the exact Lit version DocsLit was tested with and load nothing from a CDN.
+export const LIT_VENDOR_FILES = {
+  'lit': 'lit.js',
+  'lit/decorators.js': 'lit-decorators.js',
+  'lit/directives/unsafe-html.js': 'lit-unsafe-html.js',
+  '@lit/reactive-element': 'reactive-element.js',
+  'lit-html': 'lit-html.js',
+  'lit-element/lit-element.js': 'lit-element.js',
+};
+export const LIT_VENDOR_DIR = 'docslit-vendor';
+
+/**
+ * @param {'dev'|'static'} mode
+ * @param {object|null} vendorData offline builds: specifier -> bundle source, inlined as data: URLs
+ * @param {string} assetPrefix static builds: relative path from the page to the folder holding docslit.js
+ */
+export function buildImportMap(mode, vendorData = null, assetPrefix = '') {
+  const imports = {};
+  for (const [key, file] of Object.entries(LIT_VENDOR_FILES)) {
+    if (mode === 'dev') imports[key] = `/vendor/${file}`;
+    else if (vendorData) imports[key] = 'data:text/javascript;base64,' + Buffer.from(vendorData[key]).toString('base64');
+    else imports[key] = `${assetPrefix || './'}${LIT_VENDOR_DIR}/${file}`;
   }
-  return `{"imports":{"lit":"https://esm.sh/lit@3","lit/decorators.js":"https://esm.sh/lit@3/decorators","lit/directives/unsafe-html.js":"https://esm.sh/lit@3/directives/unsafe-html.js","@lit/reactive-element":"https://esm.sh/@lit/reactive-element@2","lit-html":"https://esm.sh/lit-html@3","lit-element/lit-element.js":"https://esm.sh/lit-element@4/lit-element.js"}}`;
+  return JSON.stringify({ imports });
 }
 
 function buildThemeInitCode(resolved = null) {

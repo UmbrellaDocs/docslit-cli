@@ -10,7 +10,7 @@ import { parseDoc } from './markdown.js';
 import { sidebarLabel } from './sidebar.js';
 import { hasTabs, tabIdForPage, tabLandingId, walkPages, pageNavMeta, isNoindexMeta, isSearchableMeta, collectHiddenIds } from './navigation.js';
 import { pageClientInfo, withApiTab } from './nav-chrome.js';
-import { renderShell, renderPage, buildOfflineThemeInitFile, buildOfflineAppFile, isEsbuildAvailable } from './template.js';
+import { renderShell, renderPage, buildOfflineThemeInitFile, buildOfflineAppFile, isEsbuildAvailable, LIT_VENDOR_FILES } from './template.js';
 import { resolveSiteTheme } from './themes.js';
 import { resolvePdfOptions, buildPdfManifest, getChapterManifest, generatePdfs } from './pdf.js';
 import {
@@ -39,6 +39,7 @@ import {
   loadOpenApiIfNeeded,
   buildSharedAssets,
   writeSharedAssets,
+  writeLitVendor,
   collectOgJobs,
   generateOgImagesForPages,
   writePageHtmlBatch,
@@ -165,19 +166,11 @@ function _writeSearchIndexJs(outDir, searchIndex) {
   ]);
 }
 
-const VENDOR_FILES = {
-  'lit': 'lit.js',
-  'lit/decorators.js': 'lit-decorators.js',
-  'lit/directives/unsafe-html.js': 'lit-unsafe-html.js',
-  '@lit/reactive-element': 'reactive-element.js',
-  'lit-html': 'lit-html.js',
-  'lit-element/lit-element.js': 'lit-element.js',
-};
 
 async function _loadVendorData() {
   const vendorDir = path.join(__dirname, 'vendor');
   const data = {};
-  await Promise.all(Object.entries(VENDOR_FILES).map(async ([key, file]) => {
+  await Promise.all(Object.entries(LIT_VENDOR_FILES).map(async ([key, file]) => {
     data[key] = await fs.readFile(path.join(vendorDir, file), 'utf8');
   }));
   return data;
@@ -675,6 +668,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     await writeFileIfChanged(path.join(defaultDir, 'docslit.css'), sharedCss, incremental);
     await writeFileIfChanged(path.join(defaultDir, 'docslit.js'), sharedJs, incremental);
     await writeFileIfChanged(path.join(defaultDir, 'docslit-app.js'), sharedApp, incremental);
+    await writeLitVendor(defaultDir, incremental);
     // Copy FlexSearch into version dir
     const flexSrc = path.join(__dirname, 'vendor', 'flexsearch.js');
     if (buildOptions.searchIndex && await pathExists(flexSrc)) {
@@ -829,6 +823,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       await writeFileIfChanged(path.join(versionDir, 'docslit.css'), sharedCss, incremental);
       await writeFileIfChanged(path.join(versionDir, 'docslit.js'), sharedJs, incremental);
       await writeFileIfChanged(path.join(versionDir, 'docslit-app.js'), sharedApp, incremental);
+      await writeLitVendor(versionDir, incremental);
       const flexSrcV = path.join(__dirname, 'vendor', 'flexsearch.js');
       if (buildOptions.searchIndex && await pathExists(flexSrcV)) {
         await copyFileIfChanged(flexSrcV, path.join(versionDir, 'flexsearch.js'), incremental);

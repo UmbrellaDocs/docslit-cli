@@ -171,6 +171,15 @@ describe('unversioned build: sidebar_title, math warning, offline assets, mcp-se
     expect(await fs.pathExists(path.join(out, 'flexsearch.js'))).toBe(true);
   }, 60000);
 
+  it('ships the vendored Lit bundles instead of loading Lit from a CDN', async () => {
+    for (const f of ['lit.js', 'lit-unsafe-html.js', 'lit-decorators.js', 'reactive-element.js', 'lit-html.js', 'lit-element.js']) {
+      expect(await fs.pathExists(path.join(out, 'docslit-vendor', f)), f).toBe(true);
+    }
+    const html = await fs.readFile(path.join(out, 'auto', 'a.html'), 'utf8');
+    expect(html).toContain('"lit":"../docslit-vendor/lit.js"');
+    expect(html).not.toContain('esm.sh');
+  }, 60000);
+
   it('unversioned mcp-server.js still works and accepts the newest protocol version', async () => {
     const res = await driveStdio(path.join(out, 'mcp-server.js'), [
       { id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } },

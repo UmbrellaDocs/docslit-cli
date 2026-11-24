@@ -17,13 +17,34 @@ const ROOT = path.resolve(__dirname, '..');
 
 await ensureDir(VENDOR_DIR);
 
+// lit.js is the only bundle that contains Lit's core (lit-html, ReactiveElement,
+// LitElement). Every other Lit bundle imports the bare specifier 'lit' for those
+// modules, which the page's import map points at lit.js, so a page loads exactly
+// one copy of Lit. Bundling each entry on its own would inline a second lit-html
+// into lit-unsafe-html.js (and so on), doubling bytes and splitting Lit's state.
+const LIT_CORE_RE = /[\\/]node_modules[\\/](?:lit-html[\\/](?:development[\\/])?lit-html\.js|lit-element[\\/](?:development[\\/])?lit-element\.js|@lit[\\/]reactive-element[\\/](?:development[\\/])?(?:reactive-element|css-tag)\.js)$/;
+const shareLitCore = {
+  name: 'share-lit-core',
+  setup(build) {
+    build.onResolve({ filter: /.*/ }, async (args) => {
+      if (args.pluginData?.skip || args.kind === 'entry-point') return;
+      const res = await build.resolve(args.path, { kind: args.kind, resolveDir: args.resolveDir, importer: args.importer, pluginData: { skip: true } });
+      if (res.errors.length) return;
+      return LIT_CORE_RE.test(res.path) ? { path: 'lit', external: true } : undefined;
+    });
+  },
+};
+const LIT_SHARED = { plugins: [shareLitCore] };
+
 const ENTRIES = [
   { entry: 'lit',                          out: 'lit.js' },
-  { entry: 'lit/decorators.js',            out: 'lit-decorators.js' },
-  { entry: 'lit/directives/unsafe-html.js', out: 'lit-unsafe-html.js' },
-  { entry: '@lit/reactive-element',        out: 'reactive-element.js' },
-  { entry: 'lit-html',                     out: 'lit-html.js' },
-  { entry: 'lit-element/lit-element.js',   out: 'lit-element.js' },
+  { entry: 'lit/decorators.js',            out: 'lit-decorators.js', ...LIT_SHARED },
+  { entry: 'lit/directives/unsafe-html.js', out: 'lit-unsafe-html.js', ...LIT_SHARED },
+  // These three are subsets of what 'lit' exports; re-export from it rather than
+  // bundling separate copies (they stay in the import map for custom components).
+  { entry: '@lit/reactive-element',        out: 'reactive-element.js', stdin: `export * from '@lit/reactive-element';`, ...LIT_SHARED },
+  { entry: 'lit-html',                     out: 'lit-html.js', stdin: `export * from 'lit-html';`, ...LIT_SHARED },
+  { entry: 'lit-element/lit-element.js',   out: 'lit-element.js', stdin: `export * from 'lit-element/lit-element.js';`, ...LIT_SHARED },
   // FlexSearch's ESM build has BOTH a default export ({ Document, Index, ... })
   // and the same names as named exports. `export *` alone drops the default,
   // which the search runtime (template.js) relies on, so re-export both.
@@ -59,6 +80,7 @@ for (const item of ENTRIES) {
       write: false,
       minify: true,
       legalComments: 'none',
+      plugins: item.plugins || [],
     });
     const text = result.outputFiles[0].text;
     await fs.writeFile(destPath, text, 'utf8');

@@ -19,6 +19,11 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 - **Faster `docslit validate`.** Each page is parsed once and shared across checks, and very large pages are parsed per heading section: about 4x faster on large sites with identical results.
 - **MkDocs importer: Jinja includes, announcement banner, footnotes.** Block `{% include "x.md" %}` (mkdocs-macros, honouring `include_dir`) and `{% include-markdown "x.md" start=… end=… heading-offset=… dedent=… rewrite-relative-urls=… %}` lines are inlined recursively (depth 5) when the file is Markdown and found; non-Markdown partials, missing files, cycles and inline Jinja stay as written and are reported with file:line. The `{% block announce %}` of a Material `custom_dir/main.html` becomes the `announcement` setting (text and links kept). Footnotes are covered by an end-to-end build test.
 - **Better icon conversion in the MkDocs importer.** Material Design Icons, Octicons and Simple Icons shortcodes (and front matter `icon:`) are mapped to the closest bundled Lucide or Font Awesome icon (explicit table plus suffix, size and brand-prefix rules; for example `material-information-outline` becomes `info`, `octicons-mark-github` becomes `github`, `simple-stackoverflow` becomes the Font Awesome brand). Icons with no faithful match are still removed and listed in `MIGRATION.md`.
+- **Lit ships with your site.** Published (non-offline) sites no longer load Lit from `esm.sh`: `docslit build` copies the bundled Lit into `docslit-vendor/` next to `docslit.js` and the import map points there, so sites run the exact Lit version DocsLit was tested with and render components without a third-party CDN. The vendored bundles also share one copy of Lit core (the `unsafeHTML` bundle used to embed its own lit-html), and the lazily loaded Mermaid is pinned to 10.9.8 instead of the floating `mermaid@10`.
+
+### Security
+
+- Inline Markdown in component attributes (`wc-endpoint` and `wc-field` descriptions, `wc-frame` hints) no longer allows script links or attribute injection: link targets other than relative URLs, `#fragments`, `http(s):` and `mailto:` (for example `javascript:`) are rendered as plain text, and quotes are escaped. Descriptions taken from third-party OpenAPI specs could previously run script on the docs site.
 
 ### Bug fixes
 
