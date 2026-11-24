@@ -8,7 +8,12 @@ let initPromise = null;
 let beforeExitRegistered = false;
 const highlightCache = new Map();
 let cacheDirty = 0;
-const FLUSH_THRESHOLD = 20;
+// The disk cache is rewritten whole, so it is flushed once highlighting goes
+// quiet (and on exit), never every N entries: that made a build with ~1,000
+// code blocks spend more time serialising JSON than highlighting.
+const FLUSH_DELAY_MS = 2000;
+let flushTimer = null;
+let flushing = null;
 
 const STARTUP_LANGS = ['javascript', 'typescript', 'bash', 'json', 'html', 'css', 'yaml'];
 const CODE_BLOCK_RE = /^`{3,}(\S+)/gm;
@@ -28,16 +33,34 @@ async function loadDiskCache() {
 }
 
 async function saveDiskCache() {
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  if (flushing) await flushing;
   if (!cacheDirty) return;
-  const obj = {};
-  for (const [k, v] of highlightCache) {
-    obj[k] = v;
-  }
-  const p = getCachePath();
-  await ensureDir(path.dirname(p));
-  await fs.writeFile(p, JSON.stringify(obj));
   cacheDirty = 0;
+  const json = JSON.stringify(Object.fromEntries(highlightCache));
+  flushing = (async () => {
+    const p = getCachePath();
+    await ensureDir(path.dirname(p));
+    await fs.writeFile(p, json);
+    diskCacheWrites++;
+  })();
+  try { await flushing; } finally { flushing = null; }
 }
+
+/** Save FLUSH_DELAY_MS after the last new entry (keeps the dev server's cache fresh). Unref'd: never delays exit. */
+function scheduleFlush() {
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = setTimeout(() => { flushTimer = null; saveDiskCache().catch(() => {}); }, FLUSH_DELAY_MS);
+  flushTimer.unref?.();
+}
+
+/** Persist new highlight results now. */
+export function flushHighlightCache() {
+  return saveDiskCache();
+}
+
+/** Number of disk-cache writes since start (for tests). */
+export let diskCacheWrites = 0;
 
 async function ensureHighlighter() {
   if (highlighter) return;
@@ -101,7 +124,7 @@ export function highlight(code, lang) {
     const result = match ? match[1] : null;
     highlightCache.set(key, result);
     cacheDirty++;
-    if (cacheDirty >= FLUSH_THRESHOLD) saveDiskCache().catch(() => {});
+    scheduleFlush();
     return result;
   } catch {
     highlightCache.set(key, null);

@@ -13,6 +13,8 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 ### What's new
 
 - **Lit ships with your site.** Published (non-offline) sites no longer load Lit from `esm.sh`: `docslit build` copies the bundled Lit into `docslit-vendor/` next to `docslit.js` and the import map points there, so sites run the exact Lit version DocsLit was tested with and render components without a third-party CDN. The vendored bundles also share one copy of Lit core (the `unsafeHTML` bundle used to embed its own lit-html), and the lazily loaded Mermaid is pinned to 10.9.8 instead of the floating `mermaid@10`.
+- **Import Docusaurus, VitePress and Starlight content.** `docslit import` (or `--from docusaurus|vitepress|starlight`) reads the content folders from `docusaurus.config` (docs and blog paths, also under `website/`), VitePress `srcDir` and Starlight `src/content/docs`, skipping versioned copies, translations and `_partials`. `:::type[Title]` / `::: type Title` containers, `::: details` and VitePress `::: code-group` become DocsLit components; `TabItem`, `Admonition`, typed `Aside`, `LinkCard`, `CardGrid`, `LinkButton`, `Fragment` and `ClientOnly` / `BrowserOnly` are mapped; Vue-only syntax (`<script setup>`, `<style>`, `[[toc]]`, `{{ }}`, `:prop` / `@event` / `v-*` attributes) is removed or escaped so pages parse; `.html` links and Docusaurus `/blog/YYYY/MM/DD/name` URLs resolve to the imported pages.
+- **Faster builds with many code blocks.** The Shiki highlight cache is written once when the build goes idle instead of every 20 new entries, which rewrote the whole file each time. A clean build of the Vue.js docs (about 1,000 code blocks) went from 12.3 s to 6.9 s.
 
 ## 0.2.1 (2026-11-24)
 

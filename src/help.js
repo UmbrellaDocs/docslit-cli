@@ -48,10 +48,10 @@ export const COMMANDS = [
   {
     name: 'import', group: 'Create and write',
     usage: ['docslit import <source-dir> [options]'],
-    summary: 'Migrate a Mintlify (docs.json or mint.json), Fern, GitBook or MkDocs (Material for MkDocs, Zensical) project: converts components and Markdown extensions, code blocks, links, assets and config (navigation, branding, redirects, analytics), validates the result and writes MIGRATION.md listing everything that needs a human.',
+    summary: 'Migrate a Mintlify (docs.json or mint.json), Fern, GitBook or MkDocs (Material for MkDocs, Zensical) project, or the Markdown of a Docusaurus, VitePress or Starlight site: converts components and Markdown extensions, code blocks, links, assets and config (navigation, branding, redirects, analytics), validates the result and writes MIGRATION.md listing everything that needs a human.',
     options: [
       ['--out <dir>', 'Output directory (default: <source-dir>-docslit). Never the source dir; refused when not empty unless --force'],
-      ['--from <mintlify|fern|gitbook|mkdocs>', 'Skip auto-detection and treat the source as this format'],
+      ['--from <mintlify|fern|gitbook|mkdocs|docusaurus|vitepress|starlight>', 'Skip auto-detection and treat the source as this format. Docusaurus, VitePress and Starlight content folders are read from their config (versioned copies and translations are skipped) and get an automatic sidebar'],
       ['--config <file>', 'MkDocs config to use (relative to the current directory or absolute, e.g. docs/mkdocs.yml or mkdocs-online.yml); implies --from mkdocs. Without it, mkdocs-*.yml and docs/mkdocs.yml are detected'],
       ['--dry-run', 'Convert and report everything without writing files'],
       ['--theme <name>', 'Built-in theme to apply (default: peppermint for Mintlify, frond for Fern), plus the source brand colours'],
