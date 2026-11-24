@@ -2,6 +2,7 @@ import { createHighlighter, bundledLanguages } from 'shiki';
 import path from 'path';
 import fs from 'node:fs/promises';
 import { ensureDir } from './fs-helpers.js';
+import { THEMES, STARTUP_LANGS, highlightKey, pageGrammars, renderHighlight } from './highlight-core.js';
 
 let highlighter = null;
 let initPromise = null;
@@ -15,14 +16,18 @@ const FLUSH_DELAY_MS = 2000;
 let flushTimer = null;
 let flushing = null;
 
-const STARTUP_LANGS = ['javascript', 'typescript', 'bash', 'json', 'html', 'css', 'yaml'];
-const CODE_BLOCK_RE = /^`{3,}(\S+)/gm;
 
 function getCachePath() {
   return path.join(process.cwd(), 'node_modules', '.cache', 'docslit', 'shiki.json');
 }
 
-async function loadDiskCache() {
+let diskCacheLoaded = null;
+function loadDiskCache() {
+  if (!diskCacheLoaded) diskCacheLoaded = readDiskCache();
+  return diskCacheLoaded;
+}
+
+async function readDiskCache() {
   try {
     const raw = await fs.readFile(getCachePath(), 'utf8');
     const obj = JSON.parse(raw);
@@ -59,6 +64,28 @@ export function flushHighlightCache() {
   return saveDiskCache();
 }
 
+/** Load the on-disk cache (once) so callers can skip blocks highlighted by an earlier build. */
+export async function loadHighlightCache() {
+  await loadDiskCache();
+}
+
+/** True if (code, lang) is already highlighted in this process or the disk cache. */
+export function isHighlightCached(code, lang) {
+  return highlightCache.has(highlightKey(code, lang));
+}
+
+/** Add results computed elsewhere (highlight workers); they are persisted like any other entry. */
+export function primeHighlightCache(entries) {
+  let added = 0;
+  for (const [key, value] of entries) {
+    if (highlightCache.has(key)) continue;
+    highlightCache.set(key, value);
+    added++;
+  }
+  if (added) { cacheDirty += added; scheduleFlush(); }
+  return added;
+}
+
 /** Number of disk-cache writes since start (for tests). */
 export let diskCacheWrites = 0;
 
@@ -68,7 +95,7 @@ async function ensureHighlighter() {
     initPromise = (async () => {
       await loadDiskCache();
       highlighter = await createHighlighter({
-        themes: ['github-dark', 'github-light'],
+        themes: THEMES,
         langs: STARTUP_LANGS,
       });
       if (!beforeExitRegistered) {
@@ -86,42 +113,23 @@ export async function initHighlighter() {
 }
 
 export async function ensureLangs(src) {
-  CODE_BLOCK_RE.lastIndex = 0;
-  if (!CODE_BLOCK_RE.test(src)) return;
-
+  const langs = pageGrammars(src);
+  if (!langs) return;
   await ensureHighlighter();
-  const needed = new Set();
-  const want = (raw) => {
-    // "js{1,3}" (no space before the line spec) -> "js"
-    const lang = String(raw || '').replace(/\{.*$/, '').toLowerCase();
-    if (lang && !highlighter.getLoadedLanguages().includes(lang) && lang in bundledLanguages) needed.add(lang);
-  };
-  let m;
-  const re = /^[ \t]*(?:`{3,}|~{3,})([^\s`]+)/gm;
-  while ((m = re.exec(src)) !== null) want(m[1]);
-  // hand-written <wc-code-block language="x"> / <wc-code-tab language="x">
-  const attrRe = /<wc-code-(?:block|tab)\b[^>]*?\blanguage\s*=\s*["']([^"']+)["']/g;
-  while ((m = attrRe.exec(src)) !== null) want(m[1]);
-  // markdown / unlabelled fences that show wc-* markup are highlighted as mdx
-  if (/<wc-/.test(src) && /^[ \t]*(?:`{3,}|~{3,})(?:markdown|md)?[ \t]*$/m.test(src)) want('mdx');
-  if (needed.size) {
-    await Promise.all([...needed].map(l => highlighter.loadLanguage(l)));
+  const loaded = highlighter.getLoadedLanguages();
+  const needed = langs.filter((l) => !loaded.includes(l) && l in bundledLanguages);
+  if (needed.length) {
+    await Promise.all(needed.map(l => highlighter.loadLanguage(l)));
   }
 }
 
 export function highlight(code, lang) {
   if (!highlighter || !lang) return null;
-  const key = lang + '\0' + code;
+  const key = highlightKey(code, lang);
   const cached = highlightCache.get(key);
   if (cached !== undefined) return cached;
   try {
-    const html = highlighter.codeToHtml(code, {
-      lang,
-      themes: { dark: 'github-dark', light: 'github-light' },
-      defaultColor: 'dark',
-    });
-    const match = html.match(/<code>([\s\S]*)<\/code>/);
-    const result = match ? match[1] : null;
+    const result = renderHighlight(highlighter, code, lang);
     highlightCache.set(key, result);
     cacheDirty++;
     scheduleFlush();

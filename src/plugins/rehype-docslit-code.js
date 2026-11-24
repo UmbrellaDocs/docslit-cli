@@ -105,6 +105,42 @@ const KIND_CLASS = { hl: 'hl', focus: 'focus', add: 'add', remove: 'remove', hun
  * fallback lines are all baked in at build time, so the page reads correctly before any JS runs.
  * Returns the element HTML.
  */
+function varTokens(text) {
+  const varNames = [];
+  const withTokens = text.replace(VAR_RE, (_, name) => {
+    let idx = varNames.indexOf(name);
+    if (idx === -1) { varNames.push(name); idx = varNames.length - 1; }
+    return `DLVAR${idx}ZZ`;
+  });
+  return { withTokens, varNames };
+}
+
+function effectiveLangFor(lang, text) {
+  return (lang === 'markdown' || lang === 'md' || !lang) && /<wc-/.test(text) ? 'mdx' : lang;
+}
+
+function isHighlightable(lang) {
+  return Boolean(lang) && !/^(text|txt|plain|plaintext|output)$/i.test(lang);
+}
+
+/** "js{1,3}" written with no space before the line spec: split it into language and meta. */
+export function splitGluedLang(lang, meta = '') {
+  const glued = String(lang || '').match(/^([^{]+)(\{.*)$/);
+  return glued ? { lang: glued[1], meta: `${glued[2]} ${meta}` } : { lang: String(lang || ''), meta };
+}
+
+/**
+ * The exact (code, lang) a fenced block is passed to the highlighter with, or null when it is
+ * not highlighted. Used by renderCodeBlockParts and by the parallel pre-highlighting pass, so
+ * both agree on the cache key.
+ */
+export function highlightRequest(code, lang = '') {
+  const text = applyNotation(String(code), lang).code;
+  const effectiveLang = effectiveLangFor(lang, text);
+  if (!isHighlightable(effectiveLang)) return null;
+  return { code: varTokens(text).withTokens, lang: effectiveLang };
+}
+
 export function renderCodeBlockParts({ code, lang = '', meta = '', opts, passthrough = '', annotate = false }) {
   const o = opts || parseCodeMeta(meta);
   const note = applyNotation(String(code), lang);
@@ -124,22 +160,16 @@ export function renderCodeBlockParts({ code, lang = '', meta = '', opts, passthr
   if (/^(diff|patch)$/i.test(lang)) for (const [line, kinds] of diffLineMarks(text)) for (const k of kinds) addMark(line, k);
 
   // {{VAR}} placeholders: swapped for an identifier-safe token while Shiki runs, then restored as spans
-  const varNames = [];
-  const withTokens = text.replace(VAR_RE, (_, name) => {
-    let idx = varNames.indexOf(name);
-    if (idx === -1) { varNames.push(name); idx = varNames.length - 1; }
-    return `DLVAR${idx}ZZ`;
-  });
+  const { withTokens, varNames } = varTokens(text);
   const occurrences = (withTokens.match(/DLVAR\d+ZZ/g) || []).length;
   const restoreVars = (html) => html.replace(/DLVAR(\d+)ZZ/g, (_, i) => {
     const name = varNames[Number(i)];
     return `<span class="dl-var" data-var="${name}">{{${name}}}</span>`;
   });
 
-  const effectiveLang =
-    (lang === 'markdown' || lang === 'md' || !lang) && /<wc-/.test(text) ? 'mdx' : lang;
+  const effectiveLang = effectiveLangFor(lang, text);
   let lines = null;
-  if (effectiveLang && !/^(text|txt|plain|plaintext|output)$/i.test(effectiveLang)) {
+  if (isHighlightable(effectiveLang)) {
     lines = highlightLines(withTokens, effectiveLang);
     if (lines && occurrences && lines.join('').match(/DLVAR\d+ZZ/g)?.length !== occurrences) lines = null; // a token was split: fall back to plain
   }
@@ -296,11 +326,8 @@ export default function rehypeDocslitCode(options = {}) {
       const className = classList(codeEl).find(
         (c) => typeof c === 'string' && c.startsWith('language-'),
       );
-      let lang = className ? className.slice('language-'.length) : '';
-      let meta = codeEl.properties?.dataMeta || codeEl.data?.meta || '';
       // "js{1,3}" with no space before the line spec
-      const glued = lang.match(/^([^{]+)(\{.*)$/);
-      if (glued) { lang = glued[1]; meta = `${glued[2]} ${meta}`; }
+      const { lang, meta } = splitGluedLang(className ? className.slice('language-'.length) : '', codeEl.properties?.dataMeta || codeEl.data?.meta || '');
 
       const wantsAnnotations = parseCodeMeta(meta).annotate;
       const listAt = wantsAnnotations ? followingListIndex(parent, index) : -1;

@@ -1,5 +1,6 @@
 import path from 'path';
 import { mapLimit, DEFAULT_LIMIT } from './concurrency.js';
+import { prefillHighlights } from './highlight-prefill.js';
 import { writeObjectsInv } from './api-python/site.js';
 import fs from 'node:fs/promises';
 import { pathExists, ensureDir, emptyDir, writeFileIfChanged, copyFileIfChanged } from './fs-helpers.js';
@@ -329,6 +330,18 @@ export async function build({
   }
 }
 
+/** Highlight the pages' code blocks in worker threads before the (single-threaded) parse. */
+async function prefillPageHighlights(cwd, ids, profiler) {
+  profiler.start('highlight');
+  try {
+    const sources = await mapLimit(ids, DEFAULT_LIMIT, async (id) => {
+      try { return await fs.readFile(path.join(cwd, 'docs', `${id}.md`), 'utf8'); } catch { return ''; }
+    });
+    await prefillHighlights(sources);
+  } catch { /* best effort: the parse highlights anything missing */ }
+  profiler.end('highlight');
+}
+
 async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions, siteTheme, hooks, basePath, profiler, outputTracker }) {
   const { offline, minify, incremental } = buildOptions;
   const pageIds = getAllPageIds(config);
@@ -354,6 +367,7 @@ async function buildSingle({ config, cwd, outDir, out, buildOptions, pdfOptions,
     }
   }
 
+  await prefillPageHighlights(cwd, pageIds, profiler);
   profiler.start('parse');
   const parseResults = await mapLimit(pageIds, DEFAULT_LIMIT, async (id) => {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
@@ -591,6 +605,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
   const draftPageIds = [];
   let built = 0;
 
+  await prefillPageHighlights(cwd, defaultPageIds, profiler);
   profiler.start('parse');
   const defaultParseResults = await mapLimit(defaultPageIds, DEFAULT_LIMIT, async (id) => {
     const mdPath = path.join(cwd, 'docs', `${id}.md`);
