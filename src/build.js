@@ -41,6 +41,7 @@ import {
   buildSharedAssets,
   writeSharedAssets,
   writeLitVendor,
+  writeComponentFiles,
   collectOgJobs,
   generateOgImagesForPages,
   writePageHtmlBatch,
@@ -649,7 +650,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
   }
 
   profiler.start('minify');
-  const [sharedCss, sharedJs, sharedApp] = offline
+  const [sharedCss, sharedComponents, sharedApp] = offline
     ? [null, null, null]
     : await buildSharedAssets({ minify, siteTheme, incremental });
   profiler.end('minify');
@@ -681,7 +682,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
     for (const id of Object.keys(defaultPagesData)) outputTracker.add(path.join(defaultDir, 'pages', _pageFileName(id)));
   } else {
     await writeFileIfChanged(path.join(defaultDir, 'docslit.css'), sharedCss, incremental);
-    await writeFileIfChanged(path.join(defaultDir, 'docslit.js'), sharedJs, incremental);
+    await writeComponentFiles(defaultDir, sharedComponents, incremental);
     await writeFileIfChanged(path.join(defaultDir, 'docslit-app.js'), sharedApp, incremental);
     await writeLitVendor(defaultDir, incremental);
     // Copy FlexSearch into version dir
@@ -836,7 +837,7 @@ async function buildVersioned({ config, versionConfig, cwd, outDir, out, buildOp
       for (const id of Object.keys(versionPagesData)) outputTracker.add(path.join(versionDir, 'pages', _pageFileName(id)));
     } else {
       await writeFileIfChanged(path.join(versionDir, 'docslit.css'), sharedCss, incremental);
-      await writeFileIfChanged(path.join(versionDir, 'docslit.js'), sharedJs, incremental);
+      await writeComponentFiles(versionDir, sharedComponents, incremental);
       await writeFileIfChanged(path.join(versionDir, 'docslit-app.js'), sharedApp, incremental);
       await writeLitVendor(versionDir, incremental);
       const flexSrcV = path.join(__dirname, 'vendor', 'flexsearch.js');

@@ -1,6 +1,8 @@
 // Media & Files components: wc-icon, wc-file, wc-dir, wc-files, wc-tree-item, wc-tree, wc-download, wc-copy
 
-export default `
+// wc-icon is exported on its own: it is used by the page chrome and inside other
+// components' shadow DOM, so the split build puts it in the core module.
+export const icon = `
 // ── WC-ICON ────────────────────────────────────────────────────────────────
 (function(){
   const _ICONS = {
@@ -97,6 +99,9 @@ export default `
   }
   customElements.define('wc-icon',WcIcon);
 })();
+`;
+
+export default `
 
 // ── WC-FILE / WC-DIR / WC-FILES ────────────────────────────────────────────
 class WcFile extends LitElement {

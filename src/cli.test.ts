@@ -1412,7 +1412,7 @@ describe('renderPage — per-route HTML', () => {
 
   it('references external JS files', async () => {
     const html = await renderPage({ config, id: 'intro', meta, html: pageHtml, draftPageIds: [] });
-    expect(html).toContain('src="docslit.js"');
+    expect(html).toContain('src="docslit-core.js"');
     expect(html).toContain('src="docslit-app.js"');
   });
 
@@ -1450,7 +1450,7 @@ describe('renderPage — per-route HTML', () => {
   it('computes asset prefix for nested page IDs', async () => {
     const html = await renderPage({ config, id: 'commands/check', meta, html: pageHtml, draftPageIds: [] });
     expect(html).toContain('href="../docslit.css"');
-    expect(html).toContain('src="../docslit.js"');
+    expect(html).toContain('src="../docslit-core.js"');
     expect(html).toContain('src="../docslit-app.js"');
     expect(html).toContain('"lit":"../docslit-vendor/lit.js"');
   });

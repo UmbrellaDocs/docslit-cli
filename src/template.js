@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { buildComponents } from './components/index.js';
+import { buildComponents, buildComponentChunks, chunksForHtml } from './components/index.js';
 import { codePreUpgradeCss } from './components/code.js';
 import { componentPageCss } from './components/page-css.js';
 import { findGroupForPage, toLabel } from './sidebar.js';
@@ -360,7 +360,7 @@ export async function renderPage({ config: baseConfig, siteTheme = null, id, met
   const documentTitle = pageOptions.headline || `${pageTitle} — ${siteTitle}`;
   const bodyClasses = [apiClass.trim(), ...bodyClassesFor(nav)].filter(Boolean).join(' ');
 
-  return `<!DOCTYPE html>
+  const page = `<!DOCTYPE html>
 ${htmlTag}
 <head>
   <meta charset="UTF-8" />
@@ -401,10 +401,21 @@ ${announcementChrome.hashScript}
 ${pdfManifest ? `<script>window.__DOCSLIT_PDF__ = ${JSON.stringify(pdfManifest)};</script>\n` : ''}
 <script>window.__DOCSLIT_PAGE_ID__ = ${JSON.stringify(id)};</script>
 <script type="importmap">${importMap}</script>
-<script type="module" src="${assetPrefix}docslit.js"></script>
+<!--docslit-preload-->
+<script type="module" src="${assetPrefix}docslit-core.js"></script>
 <script defer src="${assetPrefix}docslit-app.js"></script>
 </body>
 </html>`;
+  // Static pages load the small core module, which imports each component family on demand.
+  // Preload the families this page uses so they download in parallel with the core.
+  const preloads = chunksForHtml(page, _componentTagChunks())
+    .map((c) => `<link rel="modulepreload" href="${assetPrefix}docslit-c-${c}.js">`).join('\n');
+  return page.replace('<!--docslit-preload-->', preloads);
+}
+
+let _tagChunksCache = null;
+function _componentTagChunks() {
+  return (_tagChunksCache ??= buildComponentChunks().tagChunks);
 }
 
 export async function buildStylesFile({ minify = false, siteTheme = null, incremental = false } = {}) {
@@ -416,6 +427,18 @@ export async function buildStylesFile({ minify = false, siteTheme = null, increm
 export async function buildComponentsFile(mode = 'static', { minify = false, incremental = false } = {}) {
   const raw = buildComponents();
   return minify ? _minifyJS(raw, incremental) : raw;
+}
+
+/**
+ * Component modules of a static build, keyed by file name: the full bundle (docslit.js, kept for
+ * anything that loads it directly), the core module pages load (docslit-core.js) and one module
+ * per component family (docslit-c-<family>.js). All are written next to each other.
+ */
+export async function buildComponentFiles({ minify = false, incremental = false } = {}) {
+  const { core, chunks } = buildComponentChunks();
+  const entries = [['docslit.js', buildComponents()], ['docslit-core.js', core], ...Object.entries(chunks).map(([name, src]) => [`docslit-c-${name}.js`, src])];
+  const out = await Promise.all(entries.map(async ([file, src]) => [file, minify ? await _minifyJS(src, incremental) : src]));
+  return Object.fromEntries(out);
 }
 
 export async function buildAppFile(mode = 'static', { minify = false, incremental = false } = {}) {
