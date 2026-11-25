@@ -12,7 +12,7 @@ class WcColumns extends LitElement {
   \`;
   render(){const c=this.cols||2;const g=this.gap||'20px';return html\`<div class="grid" style="grid-template-columns:repeat(\${c},1fr);gap:\${g}"><slot></slot></div>\`;}
 }
-customElements.define('wc-columns',WcColumns);
+customElements.define('wc-columns',_lazy(WcColumns));
 
 // ── WC-FRAME ───────────────────────────────────────────────────────────────
 class WcFrame extends LitElement {
@@ -33,7 +33,7 @@ class WcFrame extends LitElement {
   \`;
   render(){return html\`\${this.hint?html\`<div class="hint">\${unsafeHTML(_inlineMd(this.hint))}</div>\`:nothing}<figure class="frame \${this.border?'bordered':''} \${this.background==='subtle'?'subtle':''}"><div class="inner"><slot></slot></div>\${this.caption?html\`<figcaption>\${unsafeHTML(_inlineMd(this.caption))}</figcaption>\`:nothing}</figure>\`;}
 }
-customElements.define('wc-frame',WcFrame);
+customElements.define('wc-frame',_lazy(WcFrame));
 
 // ── WC-PANEL ───────────────────────────────────────────────────────────────
 class WcPanel extends LitElement {
@@ -53,7 +53,7 @@ class WcPanel extends LitElement {
   \`;
   render(){return html\`<div class="wrap">\${(this.title||this.icon)?html\`<div class="header">\${this.icon?html\`<span class="icon" aria-hidden="true"><slot name="icon">\${_emojiOnly(this.icon)}</slot></span>\`:nothing}\${this.title?html\`<span class="title">\${this.title}</span>\`:nothing}</div>\`:nothing}<div class="body"><slot></slot></div></div>\`;}
 }
-customElements.define('wc-panel',WcPanel);
+customElements.define('wc-panel',_lazy(WcPanel));
 
 // ── WC-ACCORDION / WC-EXPANDABLE ───────────────────────────────────────────
 let _discSeq=0;
@@ -92,8 +92,8 @@ class WcAccordion extends LitElement {
   }
   updated(){const b=this.renderRoot.querySelector('.body');if(b){if(this.open)b.removeAttribute('hidden');else b.setAttribute('hidden','until-found');}}
 }
-customElements.define('wc-accordion',WcAccordion);
-customElements.define('wc-expandable',class extends WcAccordion{});
+customElements.define('wc-accordion',_lazy(WcAccordion));
+customElements.define('wc-expandable',_lazy(class extends WcAccordion{}));
 
 // ── WC-ACCORDION-GROUP ────────────────────────────────────────────────
 class WcAccordionGroup extends LitElement {
@@ -107,7 +107,7 @@ class WcAccordionGroup extends LitElement {
   \`;
   render(){return html\`<slot></slot>\`;}
 }
-customElements.define('wc-accordion-group',WcAccordionGroup);
+customElements.define('wc-accordion-group',_lazy(WcAccordionGroup));
 
 // ── WC-ASIDE ───────────────────────────────────────────────────────────────
 class WcAside extends LitElement {

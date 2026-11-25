@@ -54,7 +54,7 @@ class WcEmbed extends LitElement {
     return html\`<div class="box \${fixed?'fixed':''}" style=\${boxStyle}><iframe src=\${this._srcFor(info)} title=\${title} loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow=\${this.allow||'accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture'}></iframe></div>\`;
   }
 }
-customElements.define('wc-embed',WcEmbed);
+customElements.define('wc-embed',_lazy(WcEmbed));
 
 // ── WC-GITHUB-REPO ─────────────────────────────────────────────────────────
 class WcGithubRepo extends LitElement {
@@ -106,7 +106,7 @@ class WcGithubRepo extends LitElement {
     return html\`<a href=\${'https://github.com/'+p.owner+'/'+p.name} target="_blank" rel="noopener noreferrer"><span class="mark" aria-hidden="true"><slot name="icon"></slot></span><span class="main"><span class="name">\${p.owner} / <b>\${p.name}</b></span><span class="desc">\${desc||nothing}</span><span class="meta">\${lang?html\`<span><i class="dot"></i>\${lang}</span>\`:nothing}\${(stars!==undefined&&stars!=='')?html\`<span aria-label=\${stars+' stars'}>★ \${this._n(stars)}</span>\`:(live?html\`<span class="ph" aria-hidden="true">★ …</span>\`:nothing)}\${(forks!==undefined&&forks!=='')?html\`<span aria-label=\${forks+' forks'}>⑂ \${this._n(forks)}</span>\`:nothing}</span></span></a>\`;
   }
 }
-customElements.define('wc-github-repo',WcGithubRepo);
+customElements.define('wc-github-repo',_lazy(WcGithubRepo));
 
 // ── WC-WALKTHROUGH ─────────────────────────────────────────────────────────
 // Prose steps on the left, a sticky code panel on the right that follows the reader's scroll.

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import { ensureDir, writeFileIfChanged, copyFileIfChanged, pathExists } from './fs-helpers.js';
 import { getOpenAPIConfig } from './config.js';
 import { parseDoc } from './markdown.js';
-import { buildStylesFile, buildComponentsFile, buildAppFile, LIT_VENDOR_FILES, LIT_VENDOR_DIR } from './template.js';
+import { buildStylesFile, buildComponentFiles, buildAppFile, LIT_VENDOR_FILES, LIT_VENDOR_DIR } from './template.js';
 import { generateOgImages, ogColorsFromTheme } from './og-image.js';
 import { isOgImageEnabled } from './build-options.js';
 import { pythonApiFingerprint } from './api-python/site.js';
@@ -65,19 +65,24 @@ export async function loadOpenApiIfNeeded(config, cwd) {
 export async function buildSharedAssets({ minify, siteTheme, incremental }) {
   return Promise.all([
     buildStylesFile({ minify, siteTheme, incremental }),
-    buildComponentsFile('static', { minify, incremental }),
+    buildComponentFiles({ minify, incremental }),
     buildAppFile('static', { minify, incremental }),
   ]);
 }
 
 export async function writeSharedAssets(outDir, options) {
-  const [css, js, app] = await buildSharedAssets(options);
+  const [css, componentFiles, app] = await buildSharedAssets(options);
   await Promise.all([
     writeFileIfChanged(path.join(outDir, 'docslit.css'), css, options.incremental),
-    writeFileIfChanged(path.join(outDir, 'docslit.js'), js, options.incremental),
+    writeComponentFiles(outDir, componentFiles, options.incremental),
     writeFileIfChanged(path.join(outDir, 'docslit-app.js'), app, options.incremental),
     writeLitVendor(outDir, options.incremental),
   ]);
+}
+
+/** Write the component modules from buildComponentFiles() into a site (or version) folder. */
+export async function writeComponentFiles(outDir, files, incremental = false) {
+  await Promise.all(Object.entries(files).map(([file, src]) => writeFileIfChanged(path.join(outDir, file), src, incremental)));
 }
 
 const VENDOR_SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), 'vendor');

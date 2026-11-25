@@ -7,7 +7,7 @@ class WcSteps extends LitElement {
   static styles=css\`:host{display:block;margin:0 0 16px;counter-reset:wc-step}\`;
   render(){return html\`<slot></slot>\`;}
 }
-customElements.define('wc-steps',WcSteps);
+customElements.define('wc-steps',_lazy(WcSteps));
 
 class WcStep extends LitElement {
   static properties={title:{type:String},n:{type:Number},icon:{type:String},titleSize:{type:String,attribute:'title-size'},noAnchor:{type:Boolean,attribute:'no-anchor'}};
@@ -41,7 +41,7 @@ class WcStep extends LitElement {
     return html\`<div class="row"><div class="rail"><div class="num" aria-hidden="true">\${this.icon?html\`<slot name="icon">\${num||''}</slot>\`:(num||'')}</div><div class="line" aria-hidden="true"></div></div><div class="content">\${(this.title||hasTitleSlot)?html\`<div class="titlebar">\${hasTitleSlot?html\`<slot name="title"></slot>\`:html\`<span class="title">\${unsafeHTML(_titleMd(this.title))}</span>\`}\${(anchor&&!this.noAnchor&&!lvl)?html\`<a class="anchor" href="#\${anchor}" aria-label="Link to this step">#</a>\`:nothing}</div>\`:nothing}<div class="body"><slot></slot></div></div></div>\`;
   }
 }
-customElements.define('wc-step',WcStep);
+customElements.define('wc-step',_lazy(WcStep));
 
 // ── Synced tabs (sync="key" on wc-tabs / wc-code-group) ───────────────────
 const _TAB_SYNC_STORE='docslit-tab-sync';
@@ -122,7 +122,7 @@ class WcTabs extends LitElement {
     return html\`<div class="tabbar" role="tablist">\${tabs.map((t,i)=>{const label=t.getAttribute('label')||'Tab '+(i+1);const active=i===this._active;const ico=_iconMarkup(t);return html\`<button role="tab" id="\${this._uid}-t\${i}" aria-controls="\${this._uid}-p" aria-selected=\${active} tabindex=\${active?0:-1} class="\${active?'active':''}" @click=\${()=>_tabSelect(this,i,()=>this._labels())} @keydown=\${(e)=>this._onKey(e,i,tabs.length)}>\${ico?html\`<span class="ico" aria-hidden="true">\${unsafeHTML(ico)}</span>\`:nothing}<span>\${unsafeHTML(_titleMd(label))}</span></button>\`;})}</div><div class="panel" role="tabpanel" id="\${this._uid}-p" aria-labelledby="\${this._uid}-t\${this._active}"><slot></slot></div>\`;
   }
 }
-customElements.define('wc-tabs',WcTabs);
+customElements.define('wc-tabs',_lazy(WcTabs));
 
 class WcTab extends LitElement {
   static properties={label:{type:String},icon:{type:String}};

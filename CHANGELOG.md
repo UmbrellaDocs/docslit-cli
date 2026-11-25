@@ -4,7 +4,17 @@ All notable changes to docslit are listed here. Newest versions are at the top.
 
 ---
 
-## 0.2.2 (unreleased)
+## 0.2.3 (unreleased)
+
+### What's new
+
+- **Faster pages for visitors.** Lighthouse performance on imported sites is now 95–100, with total blocking time (the metric that held scores down) at 0–40 ms instead of about 500 ms on Material for MkDocs pages:
+  - Pages load a small core module (`docslit-core.js`, about 5 KB gzipped). It imports only the component families the page uses (`docslit-c-<family>.js`, preloaded with `<link rel="modulepreload">`), including for content added by client-side navigation. Per-page component JavaScript drops from 43 KB to about 5–25 KB gzipped. `docslit.js` is still written with every component, for anything that loads it directly.
+  - Block components (code blocks, callouts, tabs, accordions, steps, cards, fields and more) render when they come within one screen of the viewport. Until then they show their pre-upgrade layout, which now applies while they wait as well. Deep links, table-of-contents jumps and printing render what they need first.
+  - The search index is built when a reader heads for search (hover, focus or tap on the search box, or the shortcut), in slices that yield to the page, instead of on every page load.
+  - Fewer layout shifts: the announcement bar is measured before the first paint, tables are wrapped in their scroll container at build time (bare tables widened pages on phones), tiles reserve their height before they render, and the Google Fonts stylesheet no longer blocks rendering.
+
+## 0.2.2 (2026-11-24)
 
 ### Security
 

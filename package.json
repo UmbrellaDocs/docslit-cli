@@ -1,6 +1,6 @@
 {
   "name": "docslit",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "The best open-source docs platform, built for AI agents. Markdown + Lit web components",
   "homepage": "https://docslit.com",
   "repository": {

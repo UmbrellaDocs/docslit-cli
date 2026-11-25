@@ -299,9 +299,13 @@ describe('build filesystem behavior', () => {
     const css = await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8');
     const js = await readFile(path.join(dir, 'dist', 'docslit.js'), 'utf8');
     const app = await readFile(path.join(dir, 'dist', 'docslit-app.js'), 'utf8');
-    expect((await transforms()).sort()).toEqual(['css', 'js', 'js']);
+    // One minify per asset: the stylesheet plus every docslit*.js module (app, full bundle, core, families).
+    const jsCount = (await readdir(path.join(dir, 'dist'))).filter((f) => /^docslit.*\.js$/.test(f)).length;
+    expect(jsCount).toBeGreaterThan(3);
+    const assets = 1 + jsCount;
+    expect((await transforms()).sort()).toEqual(['css', ...Array(jsCount).fill('js')]);
     await runBuild();
-    expect((await transforms()).length).toBe(3);
+    expect((await transforms()).length).toBe(assets);
     expect(await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8')).toBe(css);
     expect(await readFile(path.join(dir, 'dist', 'docslit.js'), 'utf8')).toBe(js);
     expect(await readFile(path.join(dir, 'dist', 'docslit-app.js'), 'utf8')).toBe(app);
@@ -309,12 +313,12 @@ describe('build filesystem behavior', () => {
     config.theme = { colors: { accent: '#aabbcc' } };
     await writeFile(configFile, JSON.stringify(config));
     await runBuild();
-    expect(await transforms()).toHaveLength(4);
-    expect((await transforms())[3]).toBe('css');
+    expect(await transforms()).toHaveLength(assets + 1);
+    expect((await transforms())[assets]).toBe('css');
     expect(await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8')).not.toBe(css);
 
     await runBuild('different-esbuild-version');
-    expect(await transforms()).toHaveLength(7);
+    expect(await transforms()).toHaveLength(2 * assets + 1);
     const assetsDir = path.join(dir, 'node_modules', '.cache', 'docslit', 'build', 'assets');
     const currentCss = await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8');
     const files = await readdir(assetsDir);
@@ -326,11 +330,11 @@ describe('build filesystem behavior', () => {
     for (const { file } of cssFiles) await writeFile(path.join(assetsDir, file), '{');
     const { stderr } = await runBuild('different-esbuild-version');
     expect(stderr).toContain('invalid minified asset cache');
-    expect(await transforms()).toHaveLength(8);
-    expect((await transforms())[7]).toBe('css');
+    expect(await transforms()).toHaveLength(2 * assets + 2);
+    expect((await transforms())[2 * assets + 1]).toBe('css');
     expect(await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8')).toBe(currentCss);
     await runBuild('different-esbuild-version', '--no-minify');
-    expect(await transforms()).toHaveLength(8);
+    expect(await transforms()).toHaveLength(2 * assets + 2);
     expect(await readFile(path.join(dir, 'dist', 'docslit.css'), 'utf8')).not.toBe(currentCss);
   }, 120000);
 
