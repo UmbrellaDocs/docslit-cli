@@ -10,44 +10,44 @@
  * height, padding, font and line-height; collapsed blocks reserve their clipped height.
  */
 export const codePreUpgradeCss = `/* CODE (pre-upgrade geometry; keep in sync with components/code.js) */
-wc-code-block:not(:defined) {
+wc-code-block:is(:not(:defined),[data-dl-defer]) {
   display: block; position: relative; box-sizing: border-box; width: 100%; margin: 0 0 20px; padding: 16px 20px; overflow-x: auto;
   background: var(--code-bg, #161616); color: var(--code-text, #e2e8f0); border: 1px solid var(--border, #2a2a2a); border-radius: var(--radius-lg, 12px);
   font: 13px/1.7 var(--font-mono, monospace); white-space: pre; tab-size: 2; font-variant-ligatures: none;
 }
-wc-code-block:not(:defined)[language], wc-code-block:not(:defined)[filename], wc-code-block:not(:defined)[icon] { padding-top: 56px; }
-wc-code-block:not(:defined)[language]::before, wc-code-block:not(:defined)[filename]::before, wc-code-block:not(:defined)[icon]::before {
+wc-code-block:is(:not(:defined),[data-dl-defer])[language], wc-code-block:is(:not(:defined),[data-dl-defer])[filename], wc-code-block:is(:not(:defined),[data-dl-defer])[icon] { padding-top: 56px; }
+wc-code-block:is(:not(:defined),[data-dl-defer])[language]::before, wc-code-block:is(:not(:defined),[data-dl-defer])[filename]::before, wc-code-block:is(:not(:defined),[data-dl-defer])[icon]::before {
   content: attr(language); position: absolute; left: 0; right: 0; top: 0; height: 40px; box-sizing: border-box; padding: 0 14px; display: flex; align-items: center;
   background: var(--surface, #111); border-bottom: 1px solid var(--border, #2a2a2a); color: var(--text2, #a0a0a0); font: 500 12px/1 var(--font-mono, monospace); white-space: nowrap;
 }
-wc-code-block:not(:defined)[filename]::before { content: attr(filename); }
-wc-code-block:not(:defined)[style*="--cb-ml"] { overflow-y: hidden; padding-bottom: 49px; max-height: calc(var(--cb-ml) * 22.1px + 32px + 33px + 2px); }
-wc-code-block:not(:defined)[style*="--cb-ml"][language], wc-code-block:not(:defined)[style*="--cb-ml"][filename] { max-height: calc(var(--cb-ml) * 22.1px + 32px + 33px + 2px + 40px); }
-wc-code-block:not(:defined)[wrap] { white-space: pre-wrap; overflow-wrap: anywhere; }
-wc-code-block:not(:defined)[linenumbers] { padding-left: calc(20px + 3.5ch); }
+wc-code-block:is(:not(:defined),[data-dl-defer])[filename]::before { content: attr(filename); }
+wc-code-block:is(:not(:defined),[data-dl-defer])[style*="--cb-ml"] { overflow-y: hidden; padding-bottom: 49px; max-height: calc(var(--cb-ml) * 22.1px + 32px + 33px + 2px); }
+wc-code-block:is(:not(:defined),[data-dl-defer])[style*="--cb-ml"][language], wc-code-block:is(:not(:defined),[data-dl-defer])[style*="--cb-ml"][filename] { max-height: calc(var(--cb-ml) * 22.1px + 32px + 33px + 2px + 40px); }
+wc-code-block:is(:not(:defined),[data-dl-defer])[wrap] { white-space: pre-wrap; overflow-wrap: anywhere; }
+wc-code-block:is(:not(:defined),[data-dl-defer])[linenumbers] { padding-left: calc(20px + 3.5ch); }
 /* code annotations: before the upgrade (or without JS) the badge is static and the list stays visible under the code */
-wc-code-block:not(:defined) .code-annotation {
+wc-code-block:is(:not(:defined),[data-dl-defer]) .code-annotation {
   display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 1.7em; height: 1.7em; margin: 0 0 0 .4em; padding: 0 .35em;
   border: 1px solid var(--accent-light, #4f98a3); border-radius: 999px; background: transparent; color: inherit; font: 600 .72em/1 var(--font-sans, system-ui, sans-serif); vertical-align: .12em;
 }
-wc-code-block:not(:defined) > ol[slot="annotations"] {
+wc-code-block:is(:not(:defined),[data-dl-defer]) > ol[slot="annotations"] {
   display: block; margin: 16px -20px -16px; padding: 12px 20px 12px 42px; border-top: 1px solid var(--border, #2a2a2a); white-space: normal; font: 13px/1.55 var(--font-sans, system-ui, sans-serif); color: var(--text2, #a0a0a0);
 }
-wc-code-group:not(:defined) {
+wc-code-group:is(:not(:defined),[data-dl-defer]) {
   display: block; box-sizing: border-box; margin: 0 0 20px; overflow: hidden; background: var(--code-bg, #161616); border: 1px solid var(--border, #2a2a2a); border-radius: var(--radius-lg, 12px);
   min-height: calc(var(--cb-gn, 3) * 22.1px + 32px + 40px + 2px);
 }
-wc-code-group:not(:defined) > * { display: none; }
+wc-code-group:is(:not(:defined),[data-dl-defer]) > * { display: none; }
 @media (max-width: 640px) {
-  wc-code-block:not(:defined), wc-code-group:not(:defined) { font-size: 12px; line-height: 1.65; }
-  wc-code-block:not(:defined) { padding-left: 14px; padding-right: 14px; }
-  wc-code-block:not(:defined)[style*="--cb-ml"] { max-height: calc(var(--cb-ml) * 19.8px + 32px + 33px + 2px); }
-  wc-code-block:not(:defined)[style*="--cb-ml"][language], wc-code-block:not(:defined)[style*="--cb-ml"][filename] { max-height: calc(var(--cb-ml) * 19.8px + 32px + 33px + 2px + 40px); }
-  wc-code-group:not(:defined) { min-height: calc(var(--cb-gn, 3) * 19.8px + 32px + 40px + 2px); }
+  wc-code-block:is(:not(:defined),[data-dl-defer]), wc-code-group:is(:not(:defined),[data-dl-defer]) { font-size: 12px; line-height: 1.65; }
+  wc-code-block:is(:not(:defined),[data-dl-defer]) { padding-left: 14px; padding-right: 14px; }
+  wc-code-block:is(:not(:defined),[data-dl-defer])[style*="--cb-ml"] { max-height: calc(var(--cb-ml) * 19.8px + 32px + 33px + 2px); }
+  wc-code-block:is(:not(:defined),[data-dl-defer])[style*="--cb-ml"][language], wc-code-block:is(:not(:defined),[data-dl-defer])[style*="--cb-ml"][filename] { max-height: calc(var(--cb-ml) * 19.8px + 32px + 33px + 2px + 40px); }
+  wc-code-group:is(:not(:defined),[data-dl-defer]) { min-height: calc(var(--cb-gn, 3) * 19.8px + 32px + 40px + 2px); }
 }
 @media (pointer: coarse) {
-  wc-code-block:not(:defined)[language], wc-code-block:not(:defined)[filename], wc-code-block:not(:defined)[icon] { padding-top: 62px; }
-  wc-code-block:not(:defined)[language]::before, wc-code-block:not(:defined)[filename]::before, wc-code-block:not(:defined)[icon]::before { height: 46px; }
+  wc-code-block:is(:not(:defined),[data-dl-defer])[language], wc-code-block:is(:not(:defined),[data-dl-defer])[filename], wc-code-block:is(:not(:defined),[data-dl-defer])[icon] { padding-top: 62px; }
+  wc-code-block:is(:not(:defined),[data-dl-defer])[language]::before, wc-code-block:is(:not(:defined),[data-dl-defer])[filename]::before, wc-code-block:is(:not(:defined),[data-dl-defer])[icon]::before { height: 46px; }
 }
 `;
 
@@ -526,7 +526,7 @@ class WcCodeBlock extends _CbBase {
     </div>\`;
   }
 }
-customElements.define('wc-code-block',WcCodeBlock);
+customElements.define('wc-code-block',_lazy(WcCodeBlock));
 
 // ── WC-CODE-GROUP / WC-CODE-TAB ────────────────────────────────────────────
 const _CB_SYNC_STORE='docslit-tab-sync';
@@ -643,7 +643,7 @@ class WcCodeGroup extends _CbBase {
     </div>\`;
   }
 }
-customElements.define('wc-code-group',WcCodeGroup);
+customElements.define('wc-code-group',_lazy(WcCodeGroup));
 
 class WcCodeTab extends LitElement {
   static properties={label:{type:String},language:{type:String},icon:{type:String}};

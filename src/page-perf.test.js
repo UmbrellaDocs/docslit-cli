@@ -59,3 +59,31 @@ describe('tables are wrapped at build time', () => {
     expect(adoc).not.toContain('class="table-wrap"');
   });
 });
+
+describe('deferred rendering of block components', () => {
+  it('wraps block components in _lazy and leaves inline ones alone', async () => {
+    const js = await buildComponentsFile('static');
+    for (const tag of ['wc-code-block', 'wc-callout', 'wc-tabs', 'wc-accordion', 'wc-steps', 'wc-card']) {
+      expect(js).toMatch(new RegExp(`customElements\\.define\\('${tag}',_lazy\\(`));
+    }
+    for (const tag of ['wc-icon', 'wc-badge', 'wc-var', 'wc-tooltip']) {
+      expect(js).not.toMatch(new RegExp(`customElements\\.define\\('${tag}',_lazy\\(`));
+    }
+    expect(js).toContain('function _lazy(Base)');
+    expect(js).toContain("window.addEventListener('beforeprint',_dlWakeAll)");
+  });
+
+  it('keeps pre-upgrade styling while a component is deferred', async () => {
+    const { buildStylesFile } = await import('./template.js');
+    const css = await buildStylesFile();
+    expect(css).not.toMatch(/wc-[a-z-]+:not\(:defined\)(?!,\[data-dl-defer\])/);
+    expect(css).toContain('wc-code-block:is(:not(:defined),[data-dl-defer])');
+    expect(css).toContain('wc-callout:is(:not(:defined),[data-dl-defer])');
+  });
+
+  it('renders components above a scroll target before measuring it', async () => {
+    const app = await buildAppFile('static');
+    expect(app).toMatch(/function _tocScroll[\s\S]*?_renderBefore\(el\)\.then\(/);
+    expect(app).toMatch(/function _scrollToHash[\s\S]*?_renderBefore\(el\)\.then\(/);
+  });
+});

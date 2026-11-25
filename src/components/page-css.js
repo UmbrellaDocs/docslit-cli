@@ -9,15 +9,15 @@ export const componentPageCss = `
 /* ── content components: icons, headings, scroll margins ── */
 .dl-icon svg { width: 1em; height: 1em; }
 .dl-icon img { width: 100%; height: 100%; min-width: 1em; min-height: 1em; object-fit: contain; display: block; border-radius: 0; margin: 0; }
-:not(:defined) > [slot="icon"], :not(:defined) > [slot="icon-right"], :not(:defined) > [slot="icon-open"] { display: none; }
+:is(:not(:defined),[data-dl-defer]) > [slot="icon"], :is(:not(:defined),[data-dl-defer]) > [slot="icon-right"], :is(:not(:defined),[data-dl-defer]) > [slot="icon-open"] { display: none; }
 wc-step, wc-update, wc-accordion, wc-expandable, wc-tab, wc-walkthrough-step { scroll-margin-top: calc(var(--chrome-h, 60px) + 16px); }
 wc-embed, wc-github-repo, wc-walkthrough, wc-colors { display: block; margin-bottom: 20px; }
 .docs-content wc-step > .dl-step-title { margin: 0; padding: 0; border: 0; font-size: 1rem; font-weight: 700; line-height: 1.4; color: var(--text); }
 .docs-content wc-step > h2.dl-step-title { font-size: 1.4rem; }
 .docs-content wc-step > h3.dl-step-title { font-size: 1.2rem; }
 .docs-content wc-step > h4.dl-step-title { font-size: 1.05rem; }
-wc-step:not(:defined) { display: block; position: relative; min-height: 32px; padding: 0 0 28px 48px; }
-wc-step:not(:defined)::before { content: ''; position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--accent); background: var(--accent-dim); }
+wc-step:is(:not(:defined),[data-dl-defer]) { display: block; position: relative; min-height: 32px; padding: 0 0 28px 48px; }
+wc-step:is(:not(:defined),[data-dl-defer])::before { content: ''; position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--accent); background: var(--accent-dim); }
 
 /* host spacing: the global reset (margin/padding 0) beats :host rules, so spacing lives here */
 wc-tiles, wc-accordion-group, wc-update { margin-bottom: 20px; }
@@ -30,21 +30,21 @@ wc-aside { margin: 0 0 20px 28px; }
 @media (max-width: 900px) { wc-aside { margin: 16px 0; } }
 
 /* ── pre-upgrade boxes ── */
-wc-callout:not(:defined), wc-alert:not(:defined) { padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--r-lg,10px); min-height: 58px; box-sizing: border-box; }
-wc-card:not(:defined) { padding: 22px; border: 1px solid var(--border); border-radius: var(--r-xl,12px); background: var(--surface); min-height: 96px; box-sizing: border-box; }
-wc-accordion:not(:defined), wc-expandable:not(:defined) { border: 1px solid var(--border); border-radius: var(--r-lg,10px); box-sizing: border-box; }
-wc-accordion:not(:defined):not([open]) > *, wc-expandable:not(:defined):not([open]) > * { display: none; }
-wc-github-repo:not(:defined) { min-height: 112px; max-width: 520px; }
+wc-callout:is(:not(:defined),[data-dl-defer]), wc-alert:is(:not(:defined),[data-dl-defer]) { padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--r-lg,10px); min-height: 58px; box-sizing: border-box; }
+wc-card:is(:not(:defined),[data-dl-defer]) { padding: 22px; border: 1px solid var(--border); border-radius: var(--r-xl,12px); background: var(--surface); min-height: 96px; box-sizing: border-box; }
+wc-accordion:is(:not(:defined),[data-dl-defer]), wc-expandable:is(:not(:defined),[data-dl-defer]) { border: 1px solid var(--border); border-radius: var(--r-lg,10px); box-sizing: border-box; }
+wc-accordion:is(:not(:defined),[data-dl-defer]):not([open]) > *, wc-expandable:is(:not(:defined),[data-dl-defer]):not([open]) > * { display: none; }
+wc-github-repo:is(:not(:defined),[data-dl-defer]) { min-height: 112px; max-width: 520px; }
 wc-embed { aspect-ratio: 16 / 9; width: 100%; }
 wc-embed[ratio="4/3"], wc-embed[ratio="4:3"] { aspect-ratio: 4 / 3; }
 wc-embed[ratio="1/1"], wc-embed[ratio="1:1"] { aspect-ratio: 1 / 1; }
 wc-embed[ratio="21/9"], wc-embed[ratio="21:9"] { aspect-ratio: 21 / 9; }
 wc-embed[ratio="9/16"], wc-embed[ratio="9:16"] { aspect-ratio: 9 / 16; max-width: 360px; }
 wc-embed[height] { aspect-ratio: auto; }
-wc-embed:not(:defined) { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-lg,10px); box-sizing: border-box; overflow: hidden; }
-wc-embed:not(:defined) > a { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--accent-light); }
-wc-update:not(:defined) { min-height: 64px; }
-wc-colors:not(:defined) { min-height: 80px; }
+wc-embed:is(:not(:defined),[data-dl-defer]) { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-lg,10px); box-sizing: border-box; overflow: hidden; }
+wc-embed:is(:not(:defined),[data-dl-defer]) > a { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--accent-light); }
+wc-update:is(:not(:defined),[data-dl-defer]) { min-height: 64px; }
+wc-colors:is(:not(:defined),[data-dl-defer]) { min-height: 80px; }
 
 /* ── tables: sticky header + search ── */
 wc-table[sticky] th { position: sticky; top: 0; z-index: 2; background: var(--surface2); }
@@ -63,13 +63,13 @@ html.light .wt-file .line span, html.light .wt-inline .line span { color: var(--
 .wt-inline-name { padding: 6px 12px; font: 500 12px var(--font-mono, monospace); color: var(--text3); border-bottom: 1px solid var(--border); background: var(--surface2); }
 .wt-inline pre { margin: 0; padding: 10px 0; overflow-x: auto; font: 13px/1.65 var(--font-mono, monospace); color: var(--code-text, #e2e8f0); background: none; border: 0; }
 .wt-inline .wl { display: block; }
-wc-walkthrough:not(:defined) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
-wc-walkthrough:not(:defined) > wc-walkthrough-step { grid-column: 1; }
-wc-walkthrough:not(:defined) > .wt-file { grid-column: 2; grid-row: 1 / span 40; border: 1px solid var(--border); border-radius: var(--r-lg,10px); overflow: auto; max-height: min(70vh, 34rem); }
-wc-walkthrough:not(:defined) > .wt-file ~ .wt-file { display: none; }
+wc-walkthrough:is(:not(:defined),[data-dl-defer]) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+wc-walkthrough:is(:not(:defined),[data-dl-defer]) > wc-walkthrough-step { grid-column: 1; }
+wc-walkthrough:is(:not(:defined),[data-dl-defer]) > .wt-file { grid-column: 2; grid-row: 1 / span 40; border: 1px solid var(--border); border-radius: var(--r-lg,10px); overflow: auto; max-height: min(70vh, 34rem); }
+wc-walkthrough:is(:not(:defined),[data-dl-defer]) > .wt-file ~ .wt-file { display: none; }
 @media (max-width: 900px) {
   wc-walkthrough .wt-inline { display: block; }
-  wc-walkthrough:not(:defined) { display: block; }
+  wc-walkthrough:is(:not(:defined),[data-dl-defer]) { display: block; }
   wc-walkthrough > .wt-file { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) { .wt-file .wl { transition: none; } }

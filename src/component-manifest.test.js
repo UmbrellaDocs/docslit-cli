@@ -30,7 +30,7 @@ function definedTags() {
 function litAttributesByTag() {
   const out = new Map();
   for (const { src } of readComponentSources()) {
-    for (const def of src.matchAll(/customElements\.define\(\s*['"](wc-[a-z0-9-]+)['"]\s*,\s*([A-Za-z0-9_]+)\s*\)/g)) {
+    for (const def of src.matchAll(/customElements\.define\(\s*['"](wc-[a-z0-9-]+)['"]\s*,\s*(?:_lazy\(\s*)?([A-Za-z0-9_]+)\s*\)?\s*\)/g)) {
       const [, tag, cls] = def;
       const classStart = src.indexOf(`class ${cls} `);
       if (classStart === -1) continue;
@@ -151,7 +151,7 @@ describe('component manifest', () => {
           // Find the enclosing custom element class and make sure it lists the attribute.
           const before = src.slice(0, m.index);
           const cls = [...before.matchAll(/\nclass\s+([A-Za-z0-9_]+)\s+extends/g)].pop()?.[1];
-          const tag = cls && [...src.matchAll(new RegExp(`customElements\\.define\\(\\s*['"](wc-[a-z0-9-]+)['"]\\s*,\\s*${cls}\\s*\\)`, 'g'))][0]?.[1];
+          const tag = cls && [...src.matchAll(new RegExp(`customElements\\.define\\(\\s*['"](wc-[a-z0-9-]+)['"]\\s*,\\s*(?:_lazy\\(\\s*)?${cls}\\s*\\)?\\s*\\)`, 'g'))][0]?.[1];
           const entry = tag && manifest.find((c) => c.tag === tag);
           if (entry && !entry.attributes.some((a) => a.name === name)) problems.push(`${file}: ${tag} reads this.getAttribute("${name}") but does not document it`);
         }

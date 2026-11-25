@@ -59,7 +59,7 @@ class WcCard extends LitElement {
     return this.href?html\`<a class="\${cls}" href="\${this.href}" target=\${ext?'_blank':nothing} rel=\${ext?'noopener':nothing}>\${pic}\${inner}\${arrow}</a>\`:html\`<div class="\${cls}">\${pic}\${inner}</div>\`;
   }
 }
-customElements.define('wc-card',WcCard);
+customElements.define('wc-card',_lazy(WcCard));
 
 // ── WC-TILE / WC-TILES ────────────────────────────────────────────────────
 class WcTile extends LitElement {
@@ -90,7 +90,7 @@ class WcTile extends LitElement {
     return this.href?html\`<a class="\${preview?'pv':''}" href="\${this.href}">\${body}</a>\`:html\`<div class="tile \${preview?'pv':''}">\${body}</div>\`;
   }
 }
-customElements.define('wc-tile',WcTile);
+customElements.define('wc-tile',_lazy(WcTile));
 
 class WcTiles extends HTMLElement {
   static get observedAttributes(){return ['cols'];}
@@ -199,5 +199,5 @@ class WcPrompt extends LitElement {
     return html\`<div class="wrap \${showBody?'':'nobody'}"><div class="header"><span class="label"><span class="ico" aria-hidden="true">\${this.icon?html\`<slot name="icon"></slot>\`:'✦'}</span>\${this.title||'AI Prompt'}</span><span class="acts">\${this._acts().map(a=>html\`<a class="btn" href=\${a.url} target="_blank" rel="noopener noreferrer">\${a.label}</a>\`)}<button type="button" class="btn \${this._copied?'copied':''}" @click=\${this._copy.bind(this)} aria-label="Copy prompt to clipboard">\${this._copied?'✓ Copied':'Copy'}</button></span></div>\${showBody?html\`<div class="body \${this.singleLine?'single':''}">\${hasDesc?unsafeHTML(_inlineMd(this.description)):html\`<slot></slot>\`}</div>\`:nothing}\${(hasDesc||!showBody)?html\`<div class="src"><slot></slot></div>\`:nothing}</div><span aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">\${this._copied?'Copied to clipboard':''}</span>\`;
   }
 }
-customElements.define('wc-prompt',WcPrompt);
+customElements.define('wc-prompt',_lazy(WcPrompt));
 `;

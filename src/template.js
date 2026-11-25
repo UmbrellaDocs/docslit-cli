@@ -1103,24 +1103,32 @@ function _scrollToHash() {
   try { h = decodeURIComponent(h); } catch (e) { /* keep */ }
   var el = document.getElementById(h);
   if (!el) return;
-  requestAnimationFrame(function() {
+  _renderBefore(el).then(function() { requestAnimationFrame(function() {
     var crumb = document.querySelector('.docs-nav-top');
     var top = el.getBoundingClientRect().top + window.scrollY - _chromeH() - (crumb ? crumb.offsetHeight : 0) - 16;
     window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
     if (typeof _setActiveToc === 'function' && el.id) { try { _setActiveToc(el.id); } catch (e) { /* not a TOC heading */ } }
-  });
+  }); });
 }
 if (location.protocol !== 'file:') window.addEventListener('hashchange', _scrollToHash);
 
 function _tocScroll(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  const crumb = document.querySelector('.docs-nav-top');
-  const top = el.getBoundingClientRect().top + window.scrollY - _chromeH() - (crumb ? crumb.offsetHeight : 0) - 16;
   try { history.pushState(null, '', location.pathname + '#' + id); } catch(e) {}
   _setActiveToc(id);
   _tocClickGuardUntil = Date.now() + 700;
-  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  // Components above the heading may not have rendered yet (deferred rendering):
+  // render them first so the measured position is final.
+  _renderBefore(el).then(function() {
+    const crumb = document.querySelector('.docs-nav-top');
+    const top = el.getBoundingClientRect().top + window.scrollY - _chromeH() - (crumb ? crumb.offsetHeight : 0) - 16;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  });
+}
+
+function _renderBefore(el) {
+  return window.__docslitRenderBefore ? window.__docslitRenderBefore(el) : Promise.resolve();
 }
 
 function buildToc(container) {
@@ -3206,27 +3214,27 @@ wc-anchor, wc-indent, wc-visibility, wc-versions, wc-page-meta {
   display: block;
   margin-bottom: 20px;
 }
-wc-columns:not(:defined) { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
-wc-columns:not(:defined)[cols="3"] { grid-template-columns: repeat(3, 1fr); }
-wc-columns:not(:defined)[cols="4"] { grid-template-columns: repeat(4, 1fr); }
-@media(max-width:768px) { wc-columns:not(:defined) { grid-template-columns: 1fr !important; } }
+wc-columns:is(:not(:defined),[data-dl-defer]) { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+wc-columns:is(:not(:defined),[data-dl-defer])[cols="3"] { grid-template-columns: repeat(3, 1fr); }
+wc-columns:is(:not(:defined),[data-dl-defer])[cols="4"] { grid-template-columns: repeat(4, 1fr); }
+@media(max-width:768px) { wc-columns:is(:not(:defined),[data-dl-defer]) { grid-template-columns: 1fr !important; } }
 /* Pre-upgrade tiles mirror wc-tiles' grid and reserve each tile's height, so the
    content below does not jump when the components render. */
-wc-tiles:not(:defined) { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px; }
-wc-tiles:not(:defined)[cols="2"] { grid-template-columns: repeat(2, 1fr); }
-wc-tiles:not(:defined)[cols="3"] { grid-template-columns: repeat(3, 1fr); }
-wc-tiles:not(:defined)[cols="4"] { grid-template-columns: repeat(4, 1fr); }
-wc-tile:not(:defined) { display: block; min-width: 0; min-height: 74px; }
-wc-tile:not(:defined)[description] { min-height: 98px; }
+wc-tiles:is(:not(:defined),[data-dl-defer]) { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px; }
+wc-tiles:is(:not(:defined),[data-dl-defer])[cols="2"] { grid-template-columns: repeat(2, 1fr); }
+wc-tiles:is(:not(:defined),[data-dl-defer])[cols="3"] { grid-template-columns: repeat(3, 1fr); }
+wc-tiles:is(:not(:defined),[data-dl-defer])[cols="4"] { grid-template-columns: repeat(4, 1fr); }
+wc-tile:is(:not(:defined),[data-dl-defer]) { display: block; min-width: 0; min-height: 74px; }
+wc-tile:is(:not(:defined),[data-dl-defer])[description] { min-height: 98px; }
 @media(max-width:640px) {
-  wc-tiles:not(:defined) { grid-template-columns: 1fr !important; }
-  wc-tile:not(:defined) { min-height: 58px; }
-  wc-tile:not(:defined)[description] { min-height: 86px; }
+  wc-tiles:is(:not(:defined),[data-dl-defer]) { grid-template-columns: 1fr !important; }
+  wc-tile:is(:not(:defined),[data-dl-defer]) { min-height: 58px; }
+  wc-tile:is(:not(:defined),[data-dl-defer])[description] { min-height: 86px; }
 }
-wc-tabs:not(:defined) { min-height: 120px; }
+wc-tabs:is(:not(:defined),[data-dl-defer]) { min-height: 120px; }
 ${codePreUpgradeCss}
 ${componentPageCss}
-wc-accordion:not(:defined), wc-expandable:not(:defined) { min-height: 52px; }
+wc-accordion:is(:not(:defined),[data-dl-defer]), wc-expandable:is(:not(:defined),[data-dl-defer]) { min-height: 52px; }
 
 /* PAGE META */
 .page-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 0 0 24px; font-size: 13px; color: var(--text3); border-bottom: 1px solid var(--border); margin-bottom: 28px; }

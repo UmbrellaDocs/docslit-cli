@@ -164,7 +164,7 @@ class WcFiles extends LitElement {
   \`;
   render(){return html\`<div class="wrap"><slot></slot></div>\`;}
 }
-customElements.define('wc-files',WcFiles);
+customElements.define('wc-files',_lazy(WcFiles));
 
 // ── WC-TREE-ITEM / WC-TREE ─────────────────────────────────────────────────
 class WcTreeItem extends LitElement {
@@ -203,7 +203,7 @@ class WcTree extends LitElement {
   \`;
   render(){return html\`<div class="wrap"><slot></slot></div>\`;}
 }
-customElements.define('wc-tree',WcTree);
+customElements.define('wc-tree',_lazy(WcTree));
 
 // ── WC-DOWNLOAD ────────────────────────────────────────────────────────────
 // Store-only ZIP writer (no compression, no dependency) for multi-file downloads.

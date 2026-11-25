@@ -29,8 +29,8 @@ class WcCallout extends LitElement {
     return html\`<div class="wrap" role="note" aria-label=\${label||nothing}>\${/^(none|false|off)$/i.test(this.icon||'')?nothing:html\`<span class="ico" aria-hidden="true"><slot name="icon"></slot></span>\`}<div class="body">\${this.title?html\`<div class="title">\${unsafeHTML(_titleMd(this.title))}</div>\`:nothing}<slot></slot></div></div>\`;
   }
 }
-customElements.define('wc-callout',WcCallout);
-customElements.define('wc-alert',class extends WcCallout{});
+customElements.define('wc-callout',_lazy(WcCallout));
+customElements.define('wc-alert',_lazy(class extends WcCallout{}));
 
 // ── WC-BANNER ──────────────────────────────────────────────────────────────
 class WcBanner extends LitElement {
@@ -68,7 +68,7 @@ class WcBanner extends LitElement {
     return html\`<div class="wrap \${solid?'solid':''}" role="region" aria-label="Announcement">\${this.icon?html\`<span class="ico" aria-hidden="true"><slot name="icon"></slot></span>\`:nothing}<div class="msg"><slot></slot></div>\${this.dismissible?html\`<button class="close" @click=\${()=>this._dismiss()} aria-label="Dismiss announcement">✕</button>\`:nothing}</div>\`;
   }
 }
-customElements.define('wc-banner',WcBanner);
+customElements.define('wc-banner',_lazy(WcBanner));
 
 // ── WC-BADGE ───────────────────────────────────────────────────────────────
 class WcBadge extends LitElement {
@@ -180,5 +180,5 @@ class WcUpdate extends LitElement {
     return html\`<div class="wrap"><span class="badge \${t}">\${t}</span><div class="body"><div class="meta">\${this.version?html\`<span class="version">v\${this.version}</span>\`:nothing}\${this.date?html\`<span class="date">\${this.date}</span>\`:nothing}</div><slot></slot></div></div>\`;
   }
 }
-customElements.define('wc-update',WcUpdate);
+customElements.define('wc-update',_lazy(WcUpdate));
 `;

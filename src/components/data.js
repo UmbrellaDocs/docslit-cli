@@ -76,7 +76,7 @@ class WcField extends LitElement {
       \`:html\`<slot></slot>\`}
     </div>\`;}
 }
-customElements.define('wc-field',WcField);
+customElements.define('wc-field',_lazy(WcField));
 
 class WcFields extends LitElement {
   static properties={title:{type:String},header:{type:String}};
@@ -90,7 +90,7 @@ class WcFields extends LitElement {
   \`;
   render(){return html\`<div class="wrap"><div class="header">\${this.title||this.header||'Parameters'}</div><div class="body"><slot></slot></div></div>\`;}
 }
-customElements.define('wc-fields',WcFields);
+customElements.define('wc-fields',_lazy(WcFields));
 
 // ── WC-RESPONSE-FIELDS ─────────────────────────────────────────────────────
 class WcResponseFields extends LitElement {
@@ -105,7 +105,7 @@ class WcResponseFields extends LitElement {
   \`;
   render(){return html\`<div class="wrap"><div class="header">\${this.title||this.header||'Response'}</div><div class="body"><slot></slot></div></div>\`;}
 }
-customElements.define('wc-response-fields',WcResponseFields);
+customElements.define('wc-response-fields',_lazy(WcResponseFields));
 
 // ── WC-RESPONSE / WC-RESPONSES ────────────────────────────────────────────
 class WcResponse extends LitElement {
@@ -130,7 +130,7 @@ class WcResponse extends LitElement {
     return html\`<div class="row"><span class="code \${cls}">\${c}</span><span class="desc">\${this.description||''}</span>\${this['content-type']?html\`<span class="ct">\${this['content-type']}</span>\`:nothing}</div>\`;
   }
 }
-customElements.define('wc-response',WcResponse);
+customElements.define('wc-response',_lazy(WcResponse));
 
 class WcResponses extends LitElement {
   static styles=css\`
@@ -143,7 +143,7 @@ class WcResponses extends LitElement {
   \`;
   render(){return html\`<div class="wrap"><div class="header">Status codes</div><div class="body"><slot></slot></div></div>\`;}
 }
-customElements.define('wc-responses',WcResponses);
+customElements.define('wc-responses',_lazy(WcResponses));
 
 // ── WC-COLOR ───────────────────────────────────────────────────────────────
 class WcColor extends LitElement {
@@ -289,7 +289,7 @@ class WcSchema extends LitElement {
   \`;
   render(){return html\`<div class="wrap"><div class="header"><span class="type-name">\${this.type||'Type'}</span>\${this.extends?html\`<span class="extends">extends \${this.extends}</span>\`:nothing}</div>\${this.description?html\`<div class="desc">\${this.description}</div>\`:nothing}<div class="body"><slot></slot></div></div>\`;}
 }
-customElements.define('wc-schema',WcSchema);
+customElements.define('wc-schema',_lazy(WcSchema));
 
 // ── WC-MERMAID ─────────────────────────────────────────────────────────────
 class WcMermaid extends LitElement {
@@ -350,7 +350,7 @@ class WcMermaid extends LitElement {
     return html\`<div class="wrap"><button class="expand-btn" @click=\${this._open} title="Expand diagram">\u{2922} Expand</button><div class="diagram" .innerHTML=\${this._svg}></div></div>\${this._expanded?html\`<div class="overlay" @click=\${this._close}><div class="modal"><button class="close-btn" @click=\${this._close}>✕ Close</button><div class="modal-diagram" .innerHTML=\${this._svg}></div></div></div>\`:nothing}\`;
   }
 }
-customElements.define('wc-mermaid',WcMermaid);
+customElements.define('wc-mermaid',_lazy(WcMermaid));
 
 // ── WC-ENDPOINT ────────────────────────────────────────────────────────────
 class WcEndpoint extends LitElement {
@@ -431,7 +431,7 @@ class WcEndpoint extends LitElement {
     </div>\`;
   }
 }
-customElements.define('wc-endpoint',WcEndpoint);
+customElements.define('wc-endpoint',_lazy(WcEndpoint));
 
 // ── WC-API-EXAMPLES ───────────────────────────────────────────────────────
 class WcApiExamples extends LitElement {
@@ -497,7 +497,7 @@ class WcApiExamples extends LitElement {
     </div>\`;
   }
 }
-customElements.define('wc-api-examples',WcApiExamples);
+customElements.define('wc-api-examples',_lazy(WcApiExamples));
 
 // ── WC-RUNNABLE-ENDPOINT ───────────────────────────────────────────────────
 class WcRunnableEndpoint extends LitElement {
