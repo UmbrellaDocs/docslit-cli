@@ -513,9 +513,12 @@ function buildThemeInit(resolved = null) {
 function buildFontLinks(resolved = null, offline = false) {
   if (offline) return '';
   const href = themeGoogleFontsHref(resolved) || 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap';
+  // Load the web-font stylesheet without blocking first paint: every theme ships
+  // metric-matched fallback faces, so text renders at once and swaps in place.
   return `<link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="${href}" rel="stylesheet">`;
+  <link href="${href}" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="${href}" rel="stylesheet"></noscript>`;
 }
 
 async function buildAnnouncementChrome({ config, versionConfig, currentVersion, offline = false }) {
@@ -537,7 +540,12 @@ async function buildAnnouncementChrome({ config, versionConfig, currentVersion, 
     : '';
 
   const head = `<script>(function(){try{if(localStorage.getItem('docslit-announcement')===${JSON.stringify(hash)})document.documentElement.classList.add('announcement-dismissed');}catch(e){}})();</script>`;
-  const html = `<div class="announcement-banner announcement-${type}" id="announcement-banner" role="region" aria-label="Announcement"><div class="announcement-inner">${messageHtml}</div>${dismissBtn}</div>`;
+  // The banner is position: fixed, so the page is offset by --announcement-h.
+  // Measure it as soon as it is parsed (stylesheets have loaded by then), so the
+  // first paint already has the right offset instead of the deferred runtime
+  // pushing the whole page down later (a large layout shift).
+  const measure = `<script>(function(){var d=document.documentElement,e=document.getElementById('announcement-banner');if(e&&!d.classList.contains('announcement-dismissed'))d.style.setProperty('--announcement-h',e.offsetHeight+'px');})();</script>`;
+  const html = `<div class="announcement-banner announcement-${type}" id="announcement-banner" role="region" aria-label="Announcement"><div class="announcement-inner">${messageHtml}</div>${dismissBtn}</div>${measure}`;
   const hashScript = `<script>window.__DOCSLIT_ANNOUNCEMENT_HASH__=${JSON.stringify(hash)};</script>`;
 
   return { head, html, hashScript };
@@ -2258,7 +2266,16 @@ function buildSearchScript(mode, offline = false) {
       tokenize: 'forward',
       resolution: 9,
     });
-    for (var doc of _searchIndex) _searchFlex.add(doc);`;
+    // Index in slices that yield to the main thread, so building the index
+    // never shows up as one long task (it can take hundreds of ms on big sites).
+    var _yield = (typeof scheduler !== 'undefined' && scheduler.yield)
+      ? function() { return scheduler.yield(); }
+      : function() { return new Promise(function(r) { setTimeout(r, 0); }); };
+    var _sliceStart = performance.now();
+    for (var _i = 0; _i < _searchIndex.length; _i++) {
+      _searchFlex.add(_searchIndex[_i]);
+      if (performance.now() - _sliceStart > 8) { await _yield(); _sliceStart = performance.now(); }
+    }`;
 
   return `
 var _searchIndex = null;
@@ -2556,11 +2573,15 @@ document.addEventListener('keydown', function(e) {
     document.querySelectorAll('.search-trigger-kbd kbd:first-child').forEach(function(k) { k.textContent = 'Ctrl'; });
   }
   var trigger = document.getElementById('search-trigger');
+  // Load and index search only when a visitor heads for it (hover, focus or
+  // touch on the trigger; the keyboard shortcut opens it directly). Building
+  // the index on every page load blocked the main thread for no benefit to
+  // visitors who never search.
   if (trigger) {
     trigger.addEventListener('pointerenter', _prefetchSearch, { once: true });
     trigger.addEventListener('focus', _prefetchSearch, { once: true });
+    trigger.addEventListener('touchstart', _prefetchSearch, { once: true, passive: true });
   }
-  if (trigger) _prefetchSearch();
 })();
 
 window.openSearch = openSearch;
@@ -3189,8 +3210,19 @@ wc-columns:not(:defined) { display: grid; grid-template-columns: repeat(2, 1fr);
 wc-columns:not(:defined)[cols="3"] { grid-template-columns: repeat(3, 1fr); }
 wc-columns:not(:defined)[cols="4"] { grid-template-columns: repeat(4, 1fr); }
 @media(max-width:768px) { wc-columns:not(:defined) { grid-template-columns: 1fr !important; } }
-wc-tiles:not(:defined) { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; min-height: 120px; }
-@media(max-width:768px) { wc-tiles:not(:defined) { grid-template-columns: 1fr; } }
+/* Pre-upgrade tiles mirror wc-tiles' grid and reserve each tile's height, so the
+   content below does not jump when the components render. */
+wc-tiles:not(:defined) { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px; }
+wc-tiles:not(:defined)[cols="2"] { grid-template-columns: repeat(2, 1fr); }
+wc-tiles:not(:defined)[cols="3"] { grid-template-columns: repeat(3, 1fr); }
+wc-tiles:not(:defined)[cols="4"] { grid-template-columns: repeat(4, 1fr); }
+wc-tile:not(:defined) { display: block; min-width: 0; min-height: 74px; }
+wc-tile:not(:defined)[description] { min-height: 98px; }
+@media(max-width:640px) {
+  wc-tiles:not(:defined) { grid-template-columns: 1fr !important; }
+  wc-tile:not(:defined) { min-height: 58px; }
+  wc-tile:not(:defined)[description] { min-height: 86px; }
+}
 wc-tabs:not(:defined) { min-height: 120px; }
 ${codePreUpgradeCss}
 ${componentPageCss}

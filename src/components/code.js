@@ -239,11 +239,28 @@ function _cbSyncVars(host){
   });
 }
 // Scrollable code areas get a tab stop only when they actually overflow.
+// Checks are queued and run once per frame for every pending block: all
+// measurements first, then all attribute writes, so a page with many code
+// blocks pays for one layout instead of a forced layout per block.
+const _cbScrollQueue=new Set();
+let _cbScrollRaf=0;
 function _cbScrollables(host){
-  host.renderRoot.querySelectorAll('.scroll').forEach(function(s){
-    if(s.scrollWidth>s.clientWidth+1){s.setAttribute('tabindex','0');s.setAttribute('role','group');s.setAttribute('aria-label','Scrollable code');}
+  _cbScrollQueue.add(host);
+  if(!_cbScrollRaf)_cbScrollRaf=requestAnimationFrame(_cbFlushScrollables);
+}
+function _cbFlushScrollables(){
+  _cbScrollRaf=0;
+  const hosts=[..._cbScrollQueue];
+  _cbScrollQueue.clear();
+  const checks=[];
+  for(const host of hosts){
+    if(!host.isConnected||!host.renderRoot)continue;
+    host.renderRoot.querySelectorAll('.scroll').forEach(function(s){checks.push([s,s.scrollWidth>s.clientWidth+1]);});
+  }
+  for(const [s,over] of checks){
+    if(over){s.setAttribute('tabindex','0');s.setAttribute('role','group');s.setAttribute('aria-label','Scrollable code');}
     else{s.removeAttribute('tabindex');s.removeAttribute('role');s.removeAttribute('aria-label');}
-  });
+  }
 }
 
 const _cbSharedStyles=css\`
@@ -361,7 +378,7 @@ class _CbBase extends LitElement {
     this._outsideClick=(e)=>{if(this._menuOpen&&!e.composedPath().includes(this))this._menuOpen=false;};
     document.addEventListener('click',this._outsideClick);
     if(typeof ResizeObserver!=='undefined'){
-      this._ro=new ResizeObserver(()=>{if(this._roRaf)return;this._roRaf=requestAnimationFrame(()=>{this._roRaf=0;_cbScrollables(this);});});
+      this._ro=new ResizeObserver(()=>_cbScrollables(this));
       this._ro.observe(this);
     }
   }

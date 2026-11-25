@@ -14,6 +14,7 @@ import rehypeDocslitVars from './plugins/rehype-docslit-vars.js';
 import rehypeDocslitLinkFix from './plugins/rehype-docslit-link-fix.js';
 import rehypeDocslitImages from './plugins/rehype-docslit-images.js';
 import rehypeDocslitIcons from './plugins/rehype-docslit-icons.js';
+import rehypeDocslitTableWrap from './plugins/rehype-docslit-table-wrap.js';
 
 import rehypeDocslitMath, { getMathConfig, remarkMathPlugin, remarkDocslitMathDisplay } from './math.js';
 import { rewriteMdxTags } from './mdx-bridge.js';
@@ -63,6 +64,7 @@ function getProcessor(meta = {}) {
     .use(rehypeDocslitCode, { onWarning: meta.__onWarning, pagePath: meta.pagePath })
     .use(rehypeDocslitVars)
     .use(rehypeDocslitImages, imageOpts)
+    .use(rehypeDocslitTableWrap)
     .use(rehypeDocslitLinkFix, meta)
     .use(rehypeStringify, { allowDangerousHtml: true });
 }

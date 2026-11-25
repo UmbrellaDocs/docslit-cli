@@ -1,0 +1,61 @@
+// Regressions for visitor-facing page performance (Lighthouse TBT and CLS).
+import { describe, it, expect } from 'vitest';
+import { renderShell, buildAppFile, buildComponentsFile } from './template.js';
+import { renderMarkdown } from './unified.js';
+
+describe('search index is not built on page load', () => {
+  it('only prefetches search on intent, never unconditionally', async () => {
+    const app = await buildAppFile('static');
+    expect(app).toContain("trigger.addEventListener('pointerenter', _prefetchSearch");
+    expect(app).not.toMatch(/if \(trigger\) _prefetchSearch\(\);/);
+  });
+
+  it('indexes documents in slices that yield to the main thread', async () => {
+    const app = await buildAppFile('static');
+    expect(app).not.toContain('for (var doc of _searchIndex) _searchFlex.add(doc);');
+    expect(app).toMatch(/_searchFlex\.add\(_searchIndex\[_i\]\);\s*if \(performance\.now\(\) - _sliceStart > 8\) \{ await _yield\(\);/);
+  });
+});
+
+describe('code blocks do not force a layout per block', () => {
+  it('batches overflow checks into one animation frame', async () => {
+    const js = await buildComponentsFile('static');
+    expect(js).toContain('requestAnimationFrame(_cbFlushScrollables)');
+  });
+});
+
+describe('announcement banner', () => {
+  it('sets --announcement-h right after the banner is parsed', async () => {
+    const config = { name: 'T', sidebar: [{ group: 'G', pages: ['intro'] }], announcement: { message: 'Hello', type: 'info' } };
+    const html = await renderShell({ config, mode: 'dev', port: 3000 });
+    const banner = html.indexOf('id="announcement-banner"');
+    const measure = html.indexOf("setProperty('--announcement-h'", banner);
+    const nav = html.indexOf('<nav class="nav">');
+    expect(banner).toBeGreaterThan(-1);
+    expect(measure).toBeGreaterThan(banner);
+    expect(measure).toBeLessThan(nav);
+  });
+});
+
+describe('web fonts', () => {
+  it('loads the Google Fonts stylesheet without blocking render', async () => {
+    const html = await renderShell({ config: { name: 'T', sidebar: [] }, mode: 'dev', port: 3000 });
+    expect(html).toMatch(/<link href="https:\/\/fonts\.googleapis\.com\/css2\?[^"]*" rel="stylesheet" media="print" onload="this\.media='all'">/);
+    expect(html).toMatch(/<noscript><link href="https:\/\/fonts\.googleapis\.com\/css2\?[^"]*" rel="stylesheet"><\/noscript>/);
+  });
+
+});
+
+describe('tables are wrapped at build time', () => {
+  it('wraps Markdown tables in .table-wrap', async () => {
+    const html = await renderMarkdown('| a | b |\n|---|---|\n| 1 | 2 |\n');
+    expect(html).toMatch(/^<div class="table-wrap"><table>/);
+  });
+
+  it('does not double-wrap or touch AsciiDoc tables', async () => {
+    const pre = await renderMarkdown('<div class="table-wrap"><table><tr><td>x</td></tr></table></div>\n');
+    expect(pre.match(/table-wrap/g)).toHaveLength(1);
+    const adoc = await renderMarkdown('<wc-asciidoc-table>\n|===\n| a | b\n| 1 | 2\n|===\n</wc-asciidoc-table>\n');
+    expect(adoc).not.toContain('class="table-wrap"');
+  });
+});
