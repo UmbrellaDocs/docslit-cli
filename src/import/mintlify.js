@@ -73,7 +73,7 @@ export async function convertMintlify(imp, { file, cfg, legacy }, opts = {}) {
     if (f.source) fontCss.push(`@font-face{font-family:"${f.family}";src:url("${f.source}")${f.format ? ` format("${f.format}")` : ''};font-weight:${f.weight || 400};font-display:swap}`);
     else googleFamilies.push(`${f.family.replace(/ /g, '+')}:wght@${f.weight || 400};600;700`);
   }
-  if (googleFamilies.length) head.push(`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=${googleFamilies.join('&family=')}&display=swap" rel="stylesheet">`);
+  if (googleFamilies.length) head.push(`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=${googleFamilies.join('&family=')}&display=swap" rel="stylesheet" media="print" onload="this.media='all'">`);
   if (cfg.fonts) mapped('fonts', 'theme.fonts');
   if (cfg.theme) unmapped('theme', `Mintlify theme "${cfg.theme}" is replaced by the DocsLit "${opts.themeOpt || 'peppermint'}" theme`);
   // appearance: "system" | "light" | "dark" or { default, strict }
